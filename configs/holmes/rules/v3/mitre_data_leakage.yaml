@@ -1,0 +1,230 @@
+##attck_rule_type=Exfiltration
+# - key: Interpreted procs inbound network activity
+#   hid: exf_01
+#   condition: >
+#     (inbound and consider_interpreted_inbound
+#      and interpreted_procs)
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,connection=%fd.name,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+#   info:
+#     name:
+#       en: "Interpreted procs inbound network activity"
+#       zh: "入站流量中包含解释型二进制"
+#     desc:
+#       en: "any network activity performed by interpreted binaries that are not expected to send or receive any network traffic"
+#       zh: "入站流量中包含解释型二进制，可能从外部下载/上传应用"
+#     suggestion:
+#       en: "Please judge whether the command belongs to the normal behavior of known processes through the process tree, judge whether the server IP address is as expected, confirm whether the traffic is abnormal, and can use micro-isolation to block the traffic."
+#       zh: "请通过进程树判断该命令是否属于已知进程的正常行为，判断服务端ip地址是否符合预期，确认该流量是否异常，可使用微隔离阻拦流量。"
+#     rule_type: Exfiltration
+#     priority: NOTICE
+#     urgency: false
+#     tags: [ATT&CK, network, mitre_exfiltration]
+
+# - key: Interpreted procs outbound network activity
+#   hid: exf_02
+#   condition: >
+#     (outbound and consider_interpreted_outbound
+#      and interpreted_procs)
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,connection=%fd.name,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+#   info:
+#     name:
+#       en: "Interpreted procs outbound network activity"
+#       zh: "出站流量中包含解释型二进制"
+#     desc:
+#       en: "any network activity performed by interpreted binaries that are not expected to send or receive any network traffic"
+#       zh: "出站流量中包含解释型二进制，可能从外部下载/上传应用"
+#     suggestion:
+#       en: "Please judge whether the command belongs to the normal behavior of known processes through the process tree, judge whether the server IP address is as expected, confirm whether the traffic is abnormal, and can use micro-isolation to block the traffic."
+#       zh: "请通过进程树判断该命令是否属于已知进程的正常行为，判断服务端ip地址是否符合预期，确认该流量是否异常，可使用微隔离阻拦流量。"
+#     rule_type: Exfiltration
+#     priority: NOTICE
+#     urgency: false
+#     tags: [ATT&CK, network, mitre_exfiltration]
+
+# - key: Unexpected outbound connection destination
+#   hid: exf_03
+#   condition: >
+#     consider_all_outbound_conns and outbound and not
+#     ((fd.sip in (allowed_outbound_destination_ipaddrs)) or
+#      (fd.snet in (allowed_outbound_destination_networks)) or
+#      (fd.sip.name in (allowed_outbound_destination_domains)))
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,user=%user.name,user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+#   info:
+#     name:
+#       en: "Unexpected outbound connection destination"
+#       zh: "出站流量中包含未知目的地址"
+#     desc:
+#       en: "Detect any outbound connection to a destination outside of an allowed set of ips, networks, or domain names"
+#       zh: "检测到出站流量中包含未知目的地址"
+#     suggestion:
+#       en: "Please judge whether the command belongs to the normal behavior of known processes through the process tree, judge whether the server IP address is as expected, confirm whether the traffic is abnormal, and can use micro-isolation to block the traffic."
+#       zh: "请通过进程树判断该命令是否属于已知进程的正常行为，判断服务端ip地址是否符合预期，确认该流量是否异常，可使用微隔离阻拦流量。"
+#     rule_type: Exfiltration
+#     priority: INFO
+#     urgency: false
+#     tags: [ATT&CK, network]
+
+# On EC2 instances, 169.254.169.254 is a special IP used to fetch
+# metadata about the instance. It may be desirable to prevent access
+# to this IP from containers.
+- key: Contact EC2 Instance Metadata Service From Container
+  hid: exf_04
+  condition: >
+    outbound and fd.sip="169.254.169.254" and container and not ec2_metadata_containers
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,container.info=%container.info,image=%container.image.repository,image_tag=%container.image.tag,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Contact EC2 Instance Metadata Service From Container"
+      zh: "从容器获取EC2实例元数据"
+    desc:
+      en: "EC2 instance metadata is a metadata service about sensitive information and configuration of cloud service instances, which can be accessed through HTTP requests. Generally, we believe that normal users in the container will not perform this behavior. There is a high probability that the attacker can obtain sensitive information including instance ID, IAM role credentials, security group configuration and other sensitive information by initiating HTTP requests in the container after carrying out the attack."
+      zh: "EC2实例元数据是关于云服务实例的敏感信息和配置的元数据服务，可以通过HTTP请求访问。通常我们认为在容器内正常用户不会进行此行为，大概率是攻击者在进行攻击后，通过在容器内发起HTTP请求，可以获取到包括实例ID、IAM角色凭证、安全组配置等敏感信息。"
+    suggestion:
+      en: "Please confirm if the behavior is normal for the process, train the application using immune defense, block traffic using micro-isolation, and restrict user permissions for sensitive files and commands."
+      zh: "请确认该行为是否属于进程的正常行为，使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+    rule_type: Exfiltration
+    priority: NOTICE
+    urgency: false
+    tags: [ATT&CK, network, cloud_service, container, mitre_data_leakage, L2]
+
+# On GCP, AWS and Azure, 169.254.169.254 is a special IP used to fetch
+# metadata about the instance. The metadata could be used to get credentials by attackers.
+- key: Contact cloud metadata service from container
+  hid: exf_05
+  condition: >
+    outbound and fd.sip="169.254.169.254" and container and consider_metadata_access and not user_known_metadata_access
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,container.info=%container.info,image=%container.image.repository,image_tag=%container.image.tag,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Contact cloud metadata service from container"
+      zh: "容器内与云元数据服务通信"
+    desc:
+      en: "Generally, we believe that normal users in the container will not perform this behavior. The high probability is that after the attack, the attacker communicates with the cloud metadata service in the container to obtain sensitive credentials, detect cloud environment configuration, lateral movement and side channel attacks. Steal sensitive information and abuse cloud resources."
+      zh: "通常我们认为在容器内正常用户不会进行此行为，大概率是攻击者在进行攻击后，在容器内与云元数据服务通信，获取敏感凭证，探测云环境配置，横向移动和侧信道攻击，窃取敏感信息，滥用云资源。"
+    suggestion:
+      en: "Please confirm if the behavior is normal for the process, train the application using immune defense, block traffic using micro-isolation, and restrict user permissions for sensitive files and commands."
+      zh: "请确认该行为是否属于进程的正常行为，使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+    rule_type: Exfiltration
+    priority: NOTICE
+    urgency: false
+    tags: [ATT&CK, network, cloud_service, container, mitre_data_leakage, L2]
+
+# - key: Unexpected K8s NodePort Connection
+#   hid: exf_06
+#   condition: >
+#     (inbound_outbound) and fd.sport >= 30000 and fd.sport <= 32767 and container and not nodeport_containers
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,container.info=%container.info,image=%container.image.repository,image_tag=%container.image.tag,container_id=%container.id,container_name=%container.name
+#   info:
+#     name:
+#       en: "Unexpected K8s NodePort Connection"
+#       zh: "未知的K8s-NodePort连接"
+#     desc:
+#       en: "Detect attempts to use K8s NodePorts from a container"
+#       zh: "检测到从容器中连接K8s NodePort"
+#     suggestion:
+#       en: "Please use the process tree to determine whether the command is a normal behavior of a known process, whether it is executed by malware, use immune defense to train the application, use micro-isolation to block traffic, and restrict user permissions for sensitive files and commands."
+#       zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+#     rule_type: Exfiltration
+#     priority: NOTICE
+#     urgency: false
+#     tags: [ATT&CK, network, k8s, container, mitre_port_knocking]
+
+# - key: Unexpected UDP Traffic
+#   hid: exf_07
+#   condition: >
+#     (inbound_outbound) and do_unexpected_udp_check and fd.l4proto=udp and not expected_udp_traffic
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,connection=%fd.name,proto=%fd.l4proto,evt=%evt.type,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+#   info:
+#     name:
+#       en: "Unexpected UDP Traffic"
+#       zh: "未知的UDP流量"
+#     desc:
+#       en: "Detect unexpected UDP traffic"
+#       zh: "检测到未知的UDP流量"
+#     suggestion:
+#       en: "Please use the process tree to determine whether the command is a normal behavior of a known process, whether it is executed by malware, use immune defense to train the application, use micro-isolation to block traffic, and restrict user permissions for sensitive files and commands."
+#       zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+#     rule_type: Exfiltration
+#     priority: NOTICE
+#     urgency: false
+#     tags: [ATT&CK, network, mitre_exfiltration]
+
+- key: Read sensitive file untrusted
+  hid: exf_08
+  condition: >
+    (sensitive_files or proc.cmdline contains "/etc/passwd") and open_read and container
+    and proc_name_exists
+    and shell_parent_procs
+    and not proc.name in (user_mgmt_binaries, userexec_binaries, package_mgmt_binaries,
+     cron_binaries, read_sensitive_file_binaries, shell_binaries, hids_binaries,
+     vpn_binaries, mail_config_binaries, nomachine_binaries, sshkit_script_binaries,
+     in.proftpd, mandb, salt-minion, postgres_mgmt_binaries,
+     google_oslogin_
+     )
+    and not cmp_cp_by_passwd
+    and not ansible_running_python
+    and not proc.cmdline contains /usr/bin/mandb
+    and not run_by_qualys
+    and not run_by_chef
+    and not run_by_google_accounts_daemon
+    and not user_read_sensitive_file_conditions
+    and not perl_running_plesk
+    and not perl_running_updmap
+    and not veritas_driver_script
+    and not perl_running_centrifydc
+    and not runuser_reading_pam
+    and not linux_bench_reading_etc_shadow
+    and not user_known_read_sensitive_files_activities
+    and not user_read_sensitive_file_containers
+    and not runc_writing_passwd
+    and not tensorsec_namespace
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,program=%proc.name,file=%fd.name,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4],container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "Read sensitive file untrusted"
+      zh: "未受信任的程序试图读取敏感文件"
+    desc:
+      en: "Generally, we believe that normal users will not use untrusted programs to perform this type of behavior (such as reading /etc/passwd). There is a high probability that the attacker will use untrusted programs to try to read files containing user, Files of sensitive data such as passwords, authentication information, etc. This situation can lead to information leakage, identity theft, and other malicious behavior. Exceptions are made for known trusted programs."
+      zh: "通常我们认为正常用户不会使用未受信任的程序进行该类行为(如：读取/etc/passwd)，大概率是攻击者在进行攻击后，使用未受信任的程序试图读取包含用户、密码、身份验证信息等敏感数据的文件。这种情况可能会导致信息泄露、身份盗窃和其他恶意行为。对于已知的受信任程序除外。"
+    suggestion:
+      en: "Please use the process tree to determine whether the command is a normal behavior of a known process and whether it is executed by malware. You can use the immune defense training application to restrict the user rights of sensitive files and commands and prohibit the mounting of sensitive directories and files."
+      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+    rule_type: Exfiltration
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, filesystem, mitre_data_leakage, L1]
+
+- key: Read Shell Configuration File
+  hid: exf_05
+  condition: >
+    open_read and
+    shell_parent_procs and
+    (fd.filename in (shell_config_filenames) or
+    fd.name in (shell_config_files) or
+    fd.directory in (shell_config_directories)) and
+    not proc.name in (shell_binaries) and
+    not fd.name contains "history"
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,file=%fd.name,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "Read Shell Configuration File"
+      zh: "非shell程序读取shell配置文件"
+    desc:
+      en: "Non-shell programs usually refer to applications that are not command line shells, such as web applications, code libraries or modules, databases, etc. Reading the user's shell configuration file in a non-shell program may be an attacker reading the shell configuration file through a command execution vulnerability to obtain some sensitive information, such as environment variables, credentials, keys, etc. This may lead to further attacks or abuse."
+      zh: "非shell程序通常指的是不是命令行 Shell 的应用程序如：Web 应用程序、代码库或模块、数据库等。在非shell程序中读取用户的shell配置文件，可能是攻击者通过如命令执行漏洞读取shell配置文件获取一些敏感信息，例如环境变量、凭证、密钥等。这可能导致进一步的攻击或滥用。"
+    suggestion:
+      en: "Please use the process tree to determine whether the command is a normal behavior of known processes and whether it is executed by malware, otherwise you can use offset defense to restrict its execution."
+      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，否则可使用偏移防御限制其执行。"
+    rule_type: Exfiltration
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, file, shell, mitre_data_leakage, L1]

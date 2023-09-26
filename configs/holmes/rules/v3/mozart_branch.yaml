@@ -61,6 +61,8 @@
       params: { reverse_tool: lua, reverse_tool_zh: lua }
   - steps:
     - name: checkRegexMatch
+      params: [ '^(?:(?!->127\.0\.0\.1:).)*$' , trigger.payload.output_map.fd_name ]
+    - name: checkRegexMatch
       params: [ 'socat\s+TCP:(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3}):\d+\s+EXEC:[^\s]+sh', trigger.payload.output_map.proc_cmdline ]
     - name: defineValue
       params: { reverse_tool: socat, reverse_tool_zh: socat }

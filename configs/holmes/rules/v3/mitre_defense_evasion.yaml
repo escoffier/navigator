@@ -1,0 +1,74 @@
+##attck_rule_type=Defense_Evasion
+- key: Modify log activities
+  hid: def_01
+  condition: >
+    open_write and
+    access_log_files and
+    evt.arg.flags contains "O_TRUNC" and
+    shell_parent_procs and
+    not trusted_logging_images and
+    not allowed_clear_log_files and 
+    not tensorsec_namespace
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,file=%fd.name,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "Modify log activities"
+      zh: "日志文件被篡改"
+    desc:
+      en: "Tampering with log files is usually flagged as an attack because logs play a vital role in computer security and monitoring. Normally administrators do not manipulate log files. Attackers attempt to modify or tamper with log files within a system, application, or container to erase or modify records related to their activities, allowing the attacker to continue their malicious activities; tampering with log files may result in security incidents not being detected in a timely manner and In response, loss of traceability of system activity may hinder the analysis and investigation of security incidents."
+      zh: "日志文件被篡改通常被标记为攻击，因为日志在计算机安全和监控中起着至关重要的作用通常情况下管理员不会对日志文件进行操作。攻击者试图修改或篡改系统、应用程序或容器内的日志文件，以擦除或修改与其活动相关的记录，从而让攻击者继续其恶意活动；日志文件的篡改可能导致安全事件未被及时检测和响应，丧失对系统活动的可追溯性可能会妨碍对安全事件的分析和调查。"
+    suggestion:
+      en: "Please go through the process tree to determine whether the command is a normal behavior of a known process and executed by malware, otherwise it may be a hacker removing traces of the attack."
+      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，否则可能是黑客清除攻击痕迹。"
+    rule_type: Defense_Evasion
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, file, mitre_defense_evasion, L1]
+
+- key: Delete bash history
+  hid: def_02
+  condition: >
+    ((spawned_process and proc.name in (shred, rm, mv) and proc.args contains "bash_history") or
+     (open_write and fd.name contains "bash_history" and evt.arg.flags contains "O_TRUNC")) and shell_parent_procs
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,type=%evt.type,fd_name=%fd.name,name=%evt.arg.name,path=%evt.arg.path,oldpath=%evt.arg.oldpath,container.info=%container.info,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Delete bash history"
+      zh: "bash历史文件被删除"
+    desc:
+      en: "Deleting or clearing bash history files is usually considered a potential attack because administrators usually do not delete or clear bash history files. By deleting bash history files, hackers can eliminate records of commands executed on the system, making it difficult to track their activities as there is no direct evidence to reveal their actions. In addition, deleting history files can prevent system administrators or security teams from discovering the commands and techniques used by hackers, making their activities more difficult to detect."
+      zh: "删除或清除bash历史文件通常被视为潜在的攻击行为因为通常情况下管理员不会对bash历史文件进行删除或清除。通过删除bash历史文件，黑客可以消除在系统中执行的命令记录，使得追踪他们的活动变得困难，因为没有直接的证据可以揭示他们的行为。此外，删除历史文件还可以防止系统管理员或安全团队发现黑客所使用的命令和技术，使他们的活动更加难以侦测。"
+    suggestion:
+      en: "This behavior may occur when the hacker cleans up the attack trace. Please confirm whether the execution object of this behavior meets the expectation."
+      zh: "通常该行为发生于黑客清除攻击痕迹，请确认是否遭到入侵。"
+    rule_type: Defense_Evasion
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, file, mitre_defense_evasion, L3]
+
+- key: Delete or rename shell history
+  hid: def_03
+  condition: >
+    (modify_shell_history or truncate_shell_history) and
+    not var_lib_docker_filepath and
+    not proc.name in (docker_binaries) and
+    shell_parent_procs and
+    container
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,fd=%evt.arg.fd,filename=%evt.arg.filename,mode=%evt.arg.mode,user=%user.name,user_loginuid=%user.loginuid,process=%proc.name,container_id=%container.id,container_name=%container.name,image=%container.image.repository,image_tag=%container.image.tag
+  info:
+    name:
+      en: "Delete or rename shell history"
+      zh: "删除或重命名shell历史记录"
+    desc:
+      en: "The reason why deleting or renaming shell history is often judged as an attack is that this behavior may be used to mask or obfuscate malicious activities, and usually administrators will not operate on shell history. Attackers often delete or rename shell history to hide their activities on a system to avoid detection or tracking. This behavior prevents security teams or system administrators from viewing previously executed commands and discovering clues to potentially malicious activity."
+      zh: "删除或重命名shell历史记录通常被判断为攻击的原因是，这种行为可能用于掩盖或混淆恶意活动，通常情况下管理员不会对shell历史记录操作。攻击者删除或重命名shell历史记录通常是为了隐藏其在系统上的活动，以避免被检测或追踪。这种行为可以防止安全团队或系统管理员查看他们之前执行的命令，以及发现潜在的恶意活动线索。"
+    suggestion:
+      en: "Usually, this behavior occurs when the hacker clears the attack trace. Please confirm whether it is invaded."
+      zh: "通常该行为发生于黑客清除攻击痕迹，请确认是否遭到入侵。"
+    rule_type: Defense_Evasion
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, file, mitre_defense_evasion, L3]

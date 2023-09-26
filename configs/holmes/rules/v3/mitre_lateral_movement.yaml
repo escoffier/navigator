@@ -1,0 +1,293 @@
+##attck_rule_type=Lateral_Movement
+# - key: Launch Sensitive Mount Container
+#   disable: true
+#   hid: move_01
+#   condition: >
+#     container_started and container
+#     and sensitive_mount
+#     and not falco_sensitive_mount_containers
+#     and not user_sensitive_mount_containers
+#     and not tensorsec_namespace
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container.info=%container.info,image=%container.image.repository,image_tag=%container.image.tag,mounts=%container.mounts,container_id=%container.id,container_name=%container.name
+#   info:
+#     name:
+#       en: "Launch Sensitive Mount Container"
+#       zh: "启动挂载敏感路径容器"
+#     desc:
+#       en: "Detect the initial process started by a container that has a mount from a sensitive host directory (i.e. /proc). Exceptions are made for known trusted images."
+#       zh: "检测到容器启动时挂载了敏感主机目录（如/proc）的进程，已知信任镜像除外。"
+#     suggestion:
+#       en: "Unsafe mount startup is vulnerable to hackers' attacks. Please confirm whether the mount is necessary, and if not, please change the mount path."
+#       zh: "不安全挂载启动，容易遭受黑客提权攻击，请确认挂载是否为必须，非必要请更换挂载路径。"
+#     rule_type: Lateral_Movement
+#     priority: INFO
+#     urgency: false
+#     tags: [ATT&CK, container, cis, mitre_lateral_movement]
+
+- key: Change thread namespace
+  disable: true
+  hid: move_02
+  condition: >
+    evt.type=setns and evt.dir=<
+    and proc_name_exists
+    and shell_parent_procs
+    and not (container.id=host and proc.name in (docker_binaries, k8s_binaries, lxd_binaries, nsenter))
+    and not proc.name in (sysdigcloud_binaries, sysdig, calico, oci-umount, cilium-cni, network_plugin_binaries)
+    and not proc.name in (user_known_change_thread_namespace_binaries)
+    and not proc.name startswith "runc"
+    and not proc.cmdline startswith "containerd"
+    and not proc.pname in (sysdigcloud_binaries, hyperkube, kubelet, protokube, dockerd, tini, aws)
+    and not python_running_sdchecks
+    and not java_running_sdjagent
+    and not kubelet_running_loopback
+    and not rancher_agent
+    and not rancher_network_manager
+    and not calico_node
+    and not weaveworks_scope
+    and not user_known_change_thread_namespace_activities
+    and not ignore_proc_args
+    and not (tensorsec_namespace and k8s.pod.name contains "holmes")
+    and not proc.cmdline contains 'ns-mnt'
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container.info=%container.info,parent=%proc.pname,image=%container.image.repository,image_tag=%container.image.tag,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Change thread namespace"
+      zh: "更改线程命名空间"
+    desc:
+      en: "In a multi-user or multi-tenant environment, changing namespaces may require appropriate permissions and authorization. If a user or program attempts to change the namespace without authorization, there is a high probability that the attacker will call the setns function to change the namespace of the program or thread after the attack, mainly to evade detection and isolation by removing the process or thread. Move to a different namespace to bypass detection, perform malicious activities in an isolated environment, move laterally to other namespaces, invade different resources and systems, escalate privileges and conceal their activities."
+      zh: "在多用户或多租户环境中，更改命名空间可能需要适当的权限和授权。如果某个用户或程序未经授权地尝试更改命名空间，大概率是攻击者在进行攻击后，为了调用setns函数更改程序或线程的命名空间后，主要是逃避检测和隔离，通过将进程或线程移动到不同的命名空间绕过检测，在隔离的环境中执行恶意活动，横向移动到其他命名空间，侵入不同资源和系统，提升权限并隐蔽其活动。"
+    suggestion:
+      en: "Immune defense is used to prevent sensitive directories and files from being mounted, prevent sensitive containers from being started, and update the software version in the containers."
+      zh: "采用免疫防御禁止挂载敏感目录和文件，禁止敏感容器启动，更新容器内软件版本。"
+    rule_type: Lateral_Movement
+    priority: NOTICE
+    urgency: false
+    tags: [ATT&CK, mitre_lateral_movement, mitre_privilege_escalation, L1]
+
+- key: The k8s client is executed in a container
+  disable: true
+  hid: move_03
+  condition: >
+    spawned_process and container and not user_known_k8s_client_container_parens and proc.name in (k8s_client_binaries) and not tensorsec_namespace and shell_parent_procs
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container.info=%container.info,parent=%proc.pname,image=%container.image.repository,image_tag=%container.image.tag,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "The k8s client is executed in a container"
+      zh: "容器中使用k8s相关二进制程序"
+    desc:
+      en: "Under normal circumstances, we believe that normal users in the container will not manage the k8s cluster in the container (but on the node). This behavior may occur because the attacker is able to execute the Kubernetes (K8s) client tool in the container after carrying out the attack. , they may exploit this opportunity to conduct attacks or activities to gain unauthorized access, steal sensitive information, compromise containers or clusters, and conduct lateral movement and sideways penetration."
+      zh: "通常情况下我们认为在容器内正常用户不会在容器中（而是在节点）管理k8s集群，出现该行为可能是攻击者在进行攻击后，为了能够在容器中执行Kubernetes（K8s）客户端工具，他们可能会利用此机会实施未经授权的访问、窃取敏感信息、破坏容器或集群，以及横向移动和侧向渗透的攻击或活动。"
+    suggestion:
+      en: "Please confirm whether the program is introduced as expected, or use offset defense to limit the program's operation, and check whether the container is invaded by hackers."
+      zh: "请确认该程序引入是否符合预期，否则则采用偏移防御限制该程序运行，并排查容器是否遭到黑客入侵。"
+    rule_type: Lateral_Movement
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, k8s, container, mitre_lateral_movement, L2]
+
+# - key: Launch Disallowed Container
+#   hid: move_04
+#   condition: >
+#     container_started and container and not allowed_containers
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container.info=%container.info,image=%container.image.repository,image_tag=%container.image.tag
+#   info:
+#     name:
+#       en: "Launch Disallowed Container"
+#       zh: "启动黑名单中的容器"
+#     desc:
+#       en: "Detect the initial process started by a container that is not in a list of allowed containers."
+#       zh: "检测到在黑名单列表中的容器启动"
+#     suggestion:
+#       en: "Confirm whether the startup of the container is as expected, and check the reason for startup."
+#       zh: "确认该容器启动是否符合预期，排查启动原因。"
+#     rule_type: Lateral_Movement
+#     priority: WARNING
+#     urgency: true
+#     tags: [ATT&CK, container, mitre_lateral_movement]
+- key: Contact K8S API Server From Container
+  hid: move_05
+  condition: >
+    evt.type=connect and evt.dir=< and
+    (fd.typechar=4 or fd.typechar=6) and
+    container and
+    not k8s_containers and
+    k8s_api_server and
+    not ignore_proc_args and
+    not user_known_contact_k8s_api_server_activities and 
+    shell_parent_procs
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_info=%container.info,image=%container.image.repository,image_tag=%container.image.tag,connection=%fd.name,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Contact K8S API Server From Container"
+      zh: "容器内访问K8S-API-Server"
+    desc:
+      en: "Generally, we believe that normal users will not directly manage k8s clusters in containers. There is a high probability that attackers will gain unauthorized access to the entire cluster by accessing the Kubernetes API Server after conducting an attack. This could allow them to perform malicious actions such as creating, modifying, or deleting Pods, services, configurations, and other resources taking control of the entire cluster."
+      zh: "通常我们认为正常用户不会在容器中直接管理k8s集群，大概率是攻击者在进行攻击后，通过访问Kubernetes API Server获取对整个集群的未经授权访问权限。这可能允许他们执行恶意操作，如创建、修改或删除Pod、服务、配置和其他资源控制整个集群。"
+    suggestion:
+      en: "Please confirm whether this behavior is generated by the trusted application in the container. You can use the white list to let go of the connection request initiated by the trusted program, or you can use micro isolation to restrict the container."
+      zh: "请确认该行为是否由容器内可信应用产生，可使用白名单放过可信程序发起的连接请求，否则可采用微隔离对该容器进行限制。"
+    rule_type: Lateral_Movement
+    priority: NOTICE
+    urgency: true
+    tags: [ATT&CK, k8s, network, container, mitre_lateral_movement, L4]
+
+- key: Program run with disallowed http proxy env
+  hid: move_06
+  condition: >
+    spawned_process and
+    http_proxy_procs and
+    not allowed_ssh_proxy_env and
+    proc.env icontains HTTP_PROXY
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,container.info=%container.info,image=%container.image.repository,image_tag=%container.image.tag,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Program run with disallowed http proxy env"
+      zh: "尝试运行含有代理的程序"
+    desc:
+      en: "We know that the image is usually packaged and deployed online to become a container. The environment has satisfied the normal operation of the business and will not suddenly change the business in the container. The high probability is that after the attack, the attacker uses a proxy to: Network Stealth and bypassing network restrictions. Through proxies, attackers can hide their true online identity and location, making tracking and detection more difficult. At the same time, they can bypass network firewalls or filtering rules through proxy servers, access blocked or restricted resources, and even attack external targets."
+      zh: "我们知道，镜像通常在被打包好后部署上线成为容器，其环境已经满足业务正常运行，不会突然对容器内业务进行更改等操作，大概率是攻击者在进行攻击后，使用代理为了：网络隐匿性和绕过网络限制。通过代理，攻击者可以隐藏其真实的网络身份和位置，使追踪和检测变得更加困难。同时，他们可以通过代理服务器绕过网络防火墙或过滤规则，访问被封锁或限制的资源，甚至对外部目标进行攻击。"
+    suggestion:
+      en: "Please use the process tree to determine whether the command is a normal behavior of a known process, whether it is executed by malware, use immune defense to train the application, use micro-isolation to block traffic, and restrict user permissions for sensitive files and commands."
+      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，使用免疫防御训练应用，使用微隔离阻拦流量，限制敏感文件和命令的用户权限。"
+    rule_type: Lateral_Movement
+    priority: INFO
+    urgency: false
+    tags: [ATT&CK, network, mitre_lateral_movement, L3]
+
+- key: Try ssh connection in container
+  hid: move_07
+  condition: >
+    (inbound_outbound) and allowed_ssh_hosts and container and shell_parent_procs
+  output: >
+    connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name
+  steps:
+    - name: checkRegexMatch
+      params: [ '^(?:(?!->127\.0\.0\.1:).)*$' , trigger.payload.output_map.fd_name ]
+    - name: checkRegexMatch
+      params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.proc_cmdline ]
+  info:
+    name:
+      en: "Try ssh connection in container"
+      zh: "检测到在容器内尝试ssh连接"
+    desc:
+      en: "SSH connections are generally a legitimate operation performed by system administrators or authorized users. SSH connections within a container may be considered unusual behavior, as containers are typically used to host services rather than provide SSH access, and access to a container is usually not via SSH. There is a high probability that the attacker attempts an SSH connection within the container after carrying out the attack to gain unauthorized access. It can use password guessing and brute force cracking, establish SSH tunnels and proxies, conduct system detection and vulnerability exploitation, and steal and tamper with sensitive data, as well as move laterally and penetrate laterally in the network."
+      zh: "SSH连接通常是由系统管理员或经授权的用户执行的合法操作。在容器内进行SSH连接可能被视为不寻常的行为，因为容器通常用于承载业务，而不是提供SSH访问，进入容器通常也不通过SSH的方式。大概率是攻击者在进行攻击后在容器内尝试SSH连接是为了获取未经授权的访问权限。可以通过密码猜测和暴力破解、建立SSH隧道和代理、进行系统探测和漏洞利用，以及窃取和篡改敏感数据，以及在网络中横向移动和侧向渗透。"
+    suggestion:
+      en: "SSH burst may occur. It is recommended to confirm whether there is a weak password in the container and limit the number of incorrect login attempts by modifying/etc/pam.d/sshd."
+      zh: "可能存在ssh爆破行为，建议确认主机和容器是否存在弱口令，并通过修改/etc/pam.d/sshd限制错误登录尝试次数。"
+    rule_type: Lateral_Movement
+    priority: WARNING
+    urgency: false
+    tags: [ATT&CK, network, exec, container, mitre_lateral_movement, L2]
+
+- key: Try ssh connection in host
+  hid: move_08
+  condition: >
+    (inbound_outbound) and allowed_ssh_hosts and not container and not proc.cmdline = "sshd -D" and shell_parent_procs
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,user=%user.name,user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  steps:
+    - name: checkRegexMatch
+      params: [ '^(?:(?!->127\.0\.0\.1:).)*$' , trigger.payload.output_map.fd_name ]
+    - name: checkRegexMatch
+      params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.proc_cmdline ]
+  info:
+    name:
+      en: "Try ssh connection in host"
+      zh: "检测到在主机上尝试ssh连接"
+    desc:
+      en: "Normally in a cluster, normal users will not SSH to a host and then SSH to other hosts on that host. It may be that an attacker, after obtaining certain permissions, uses the current host as a springboard and attempts an SSH connection to gain unauthorized access. . It can use password guessing and brute force cracking, establish SSH tunnels and proxies, conduct system detection and vulnerability exploitation, and steal and tamper with sensitive data, as well as move laterally and penetrate laterally in the network."
+      zh: "通常集群情况下正常用户不会ssh连接到主机后再在该主机上ssh连接其他主机，可能是攻击者在获取一定权限后，将当前主机作为跳板并尝试SSH连接以获取未经授权的访问权限。可以通过密码猜测和暴力破解、建立SSH隧道和代理、进行系统探测和漏洞利用，以及窃取和篡改敏感数据，以及在网络中横向移动和侧向渗透。"
+    suggestion:
+      en: "SSH burst may occur. It is recommended to confirm whether there is a weak password in the container and limit the number of incorrect login attempts by modifying/etc/pam.d/sshd."
+      zh: "可能存在ssh爆破行为，建议确认主机和容器是否存在弱口令，并通过修改/etc/pam.d/sshd限制错误登录尝试次数。"
+    rule_type: Lateral_Movement
+    priority: WARNING
+    urgency: false
+    tags: [ATT&CK, network, exec, mitre_lateral_movement, L2]
+
+#find /var -name docker.sock
+- key: Find the docker.sock file
+  disable: true
+  hid: move_09
+  condition: >
+    spawned_process 
+    and not container
+    and shell_parent_procs
+    and (proc.name = "find" and evt.arg.args contains "docker.sock")
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent=%proc.pname,file=%fd.name,program=%proc.name,gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4],container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "Find the docker.sock file"
+      zh: "查找docker.sock文件"
+    desc:
+      en: "The docker.sock file is a Unix Domain Socket for the Docker daemon, which allows local processes to communicate with the Docker daemon to perform container operations such as creating, running, stopping, and deleting containers. The high probability is that the attacker is looking for the docker.sock file on the Kubernetes (K8s) node. In order to carry out a container escape (Container Escape) attack, by gaining access to the file, they can perform dangerous operations inside the container, including starting a privileged container, Attempts to container escape, modify, or destroy other containers."
+      zh: "docker.sock 文件是 Docker 守护程序的 Unix 域套接字（Unix Domain Socket），它允许本地进程与 Docker 守护程序进行通信，以执行容器操作，例如创建、运行、停止和删除容器。大概率是攻击者在 Kubernetes (K8s) 节点上查找 docker.sock 文件为了实施容器逃逸（Container Escape）攻击，通过获取对该文件的访问权限，他们可以在容器内部执行危险操作，包括启动特权容器、尝试容器逃逸、修改或破坏其他容器。"
+    suggestion:
+      en: "Please use the process tree to determine whether the command is a normal behavior of a known process, whether it is executed by malware, and confirm whether the modification is performed by operation and maintenance personnel. Otherwise, there may be a risk of intrusion. It is recommended to investigate."
+      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，确认该修改是否为运维人员操作，否则可能会有入侵风险，建议排查。"
+    rule_type: Lateral_Movement
+    priority: INFO
+    urgency: true
+    tags: [ATT&CK, file, exec, mitre_lateral_movement, L1]
+
+#docker build .
+- key: The host builds a container image
+  hid: move_10
+  condition: >
+    (evt.type = execve or evt.type = clone)
+    and shell_parent_procs
+    and not container
+    and (evt.dir = < or evt.dir = >>)
+    and proc.name = "docker" 
+    and proc.cmdline contains "build" 
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent=%proc.pname,file=%fd.name,program=%proc.name,gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4],container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "The host builds a container image"
+      zh: "宿主机构造容器镜像"
+    desc:
+      en: "Constructing container images on the host is generally not a normal practice because it introduces potential security risks. Under normal circumstances, container images are usually created in a developer's development environment or a dedicated build server, and then the image is pushed to the container registry, and finally deployed on the node by a container orchestration system (such as Kubernetes). There is a high probability that the attacker constructs a malicious container image on the node after conducting the attack to implement container escape attacks, gain control of the host, create privileged containers to abuse host resources, perform malicious operations, inject malicious code or backdoors, and steal Sensitive information, misuse of container resources to interfere with other containers or applications, or even serve as a starting point for launching network attacks."
+      zh: "宿主机上构造容器镜像通常不是正常的做法，因为这会引入潜在的安全风险。正常情况下，容器镜像的创建通常在开发者的开发环境或专门的构建服务器上进行，然后将镜像推送到容器注册表中，最后由容器编排系统（如Kubernetes）在节点上进行部署。大概率是攻击者在进行攻击后在节点上构造恶意容器镜像，以实施容器逃逸攻击、获取对宿主主机的控制权、创建特权容器以滥用主机资源、执行恶意操作、注入恶意代码或后门、窃取敏感信息、滥用容器资源干扰其他容器或应用程序，甚至作为发起网络攻击的起点。"
+    suggestion:
+      en: "Please use the process tree to determine whether the command is a normal behavior of a known process, whether it is executed by malware, and confirm whether the modification is performed by operation and maintenance personnel. Otherwise, there may be a risk of intrusion. It is recommended to investigate."
+      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，确认该修改是否为运维人员操作，否则可能会有入侵风险，建议排查。"
+    rule_type: Lateral_Movement
+    priority: INFO
+    urgency: true
+    tags: [ATT&CK, exec, docker, mitre_lateral_movement, L1]
+
+#docker inspect ca59be69b71e
+- key: View container details
+  disable: true
+  hid: move_11
+  condition: >
+    (evt.type = execve or evt.type = clone)
+    and shell_parent_procs
+    and not container
+    and proc.name = "docker"
+    and proc.cmdline contains "inspect"
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent=%proc.pname,file=%fd.name,program=%proc.name,gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4],container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "View container details (such as: the absolute path of the container on the host, etc.)"
+      zh: "查看容器详细信息(如：容器在宿主机绝对路径等)"
+    desc:
+      en: "Generally, we believe that normal users within the container will not perform this behavior. The high probability is that the attacker views the container details on the node after conducting the attack to obtain sensitive information about the container, including configuration, vulnerabilities, network settings, and mounted volumes. etc. for subsequent attacks or penetration testing. This may include information gathering, vulnerability detection, subsequent attack preparation, reconnaissance and intelligence gathering, misuse of configuration information and network reconnaissance."
+      zh: "通常我们认为在容器内正常用户不会进行此行为，大概率是攻击者在进行攻击后在节点上查看容器详细信息是为了获取关于容器的敏感信息，包括配置、漏洞、网络设置和挂载卷等，以便进行后续的攻击或渗透测试。这可能包括信息搜集、漏洞探测、后续攻击准备、侦察和情报收集、滥用配置信息和网络侦察。"
+    suggestion:
+      en: "If a node is compromised, you need to isolate the container, obtain the attacker's remote IP address, and investigate other attacks to confirm cluster security."
+      zh: "确认该修改是否为运维人员操作，否则可能会有入侵风险，需隔离节点，获取攻击者远程ip地址，同时排查其他攻击行为，确认集群安全。"
+    rule_type: Lateral_Movement
+    priority: INFO
+    urgency: false
+    tags: [ATT&CK, exec, docker, mitre_lateral_movement, L1]
