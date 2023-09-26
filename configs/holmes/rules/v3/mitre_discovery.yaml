@@ -1,0 +1,335 @@
+##attck_rule_type=Discovery
+- key: View network information in the container
+  hid: disc_01
+  condition: >
+    spawned_process and container and proc.name in (namespace_bypass_cmds) and shell_parent_procs
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "View network information in the container"
+      zh: "容器内查看网络信息"
+    desc:
+      en: "Generally, we believe that normal users in the container will not perform this behavior. There is a high probability that the attacker will view network information in the container after carrying out the attack and it will be judged as an attack behavior. This behavior may imply some potential malicious activities or risks, especially without explicit authorization. An attacker may obtain the network configuration and connection information inside the container, use this information to determine the network location and scope of the container, and Detect network topology and possible attack paths. Gain deeper access to launch further attacks."
+      zh: "通常我们认为在容器内正常用户不会进行此行为，大概率是攻击者在进行攻击后，为了在容器内查看网络信息被判断为攻击行为。这种行为可能暗示着一些潜在的恶意活动或风险，尤其是在没有明确授权的情况下攻击者可能通过获取容器内部的网络配置和连接信息，利用这些信息来确定容器的网络位置和范围，并探测网络拓扑和可能的攻击路径。获得更深入的访问权限发起进一步的攻击。"
+    suggestion:
+      en: "Please use the process tree to determine whether the behavior is executed by the operation and maintenance personnel or initiated by a trusted probe type program, if not, please correlate other attacks to confirm whether the container has been compromised."
+      zh: "请通过进程树判断该行为是否为运维人员执行或可信探针类程序发起，如果不是请关联其他攻击行为，确认容器是否遭到入侵。"
+    rule_type: Discovery
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, network, container, mitre_discovery, L3]
+
+# - key: Read ssh information
+#   hid: disc_02
+#   condition: >
+#     ((open_read or open_directory) and
+#      consider_ssh_reads and
+#      (user_ssh_directory or fd.name startswith /root/.ssh) and
+#      not user_known_read_ssh_information_activities and
+#      not proc.name in (ssh_binaries)) and
+#      shell_parent_procs
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,file=%fd.name,parent=%proc.pname,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+#   info:
+#     name:
+#       en: "Read ssh information"
+#       zh: "非ssh用户查看ssh信息"
+#     desc:
+#       en: "Any attempt to read files below ssh directories by non-ssh programs"
+#       zh: "任何非ssh程序试图读取ssh目录下的文件"
+#     suggestion:
+#       en: "This behavior may be that hackers collect information, can use immune defense training applications, restrict user permissions of sensitive files and commands, and prohibit mounting sensitive directories and files."
+#       zh: "该行为可能是黑客进行信息收集，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+#     rule_type: Discovery
+#     priority: ERROR
+#     urgency: true
+#     tags: [ATT&CK, filesystem, mitre_discovery, L1]
+
+- key: Launch Suspicious Network Tool on Host
+  hid: disc_03
+  condition: >
+    spawned_process and
+    not container and
+    consider_network_tools_on_host and
+    network_tool_procs and
+    not user_known_network_tool_activities and
+    shell_parent_procs
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent_process=%proc.pname,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Launch Suspicious Network Tool on Host"
+      zh: "在主机中启动可疑的网络工具"
+    desc:
+      en: "When the system detects unusual, suspicious network activity or tools (such as nmap) on a host, it may flag it as a sign of a potential attack. These tools may be used to perform malicious activities such as scanning, reconnaissance, vulnerability exploitation, or denial of service attacks that may result in system security risks."
+      zh: "当系统检测到主机上出现了不寻常的、可疑的网络活动或工具时(比如nmap)，可能会将其标记为潜在的攻击迹象。这些工具可能用于执行恶意活动，如扫描、侦察、漏洞利用或拒绝服务攻击，可能导致系统安全风险。"
+    suggestion:
+      en: "Please confirm whether the hacker uses tools to collect information, or the operation and maintenance personnel can use offset defense to limit the execution of suspicious processes."
+      zh: "请确认是否为黑客使用工具进行信息收集，或运维人员自身操作，可使用偏移防御限制可疑进程执行。"
+    rule_type: Discovery
+    priority: ERROR
+    urgency: true
+    tags: [ATT&CK, network, mitre_discovery, L4]
+
+- key: View process information in the container
+  disable: true
+  hid: disc_04
+  condition: >
+    open_read and container and
+    fd.name startswith "/proc/" and fd.name contains "pid_max" and evt.arg.flags = O_RDONLY and
+    shell_parent_procs and
+    not (k8s.pod.name contains "holmes" or k8s.pod.name contains "calico" or k8s.pod.name contains "node-exporter" or k8s.pod.name contains "console" or k8s.pod.name contains "51c1c6" or k8s.pod.name contains "prometheus")
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container.info=%container.info,shell=%proc.name,parent=%proc.pname,terminal=%proc.tty,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "View process information in the container"
+      zh: "容器内查看进程信息"
+    desc:
+      en: "Generally, we believe that normal users in the container will not perform this behavior. The high probability is that the attacker will conduct reconnaissance and information collection to view process information in the container after the attack, and use this information to understand the target system, discover weaknesses, and perform further attacks. and control container."
+      zh: "通常我们认为在容器内正常用户不会进行此行为，大概率是攻击者在进行攻击后，为了在容器内查看进程信息侦察和信息收集、利用这些信息来了解目标系统、发现弱点、执行进一步攻击和控制容器。"
+    suggestion:
+      en: "Please confirm whether information collection is carried out for hackers, or operation and maintenance personnel can use immune defense training applications to block new or modified executable files, and restrict users and recipients of commands."
+      zh: "请确认是否为黑客进行信息收集，或运维人员自身操作，可使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+    rule_type: Discovery
+    priority: INFO
+    urgency: true
+    tags: [ATT&CK, container, exec, mitre_discovery, mitre_execution, L3]
+
+- key: View disk information in the container
+  hid: disc_05
+  condition: >
+    open_read and container and
+    (proc.cmdline contains "fdisk -l" or (fd.name startswith "/sys/dev/block/" and evt.arg.flags contains O_RDONLY)) and
+    not tensorsec_namespace and shell_parent_procs
+  output: >
+    fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "View disk information in the container"
+      zh: "容器内查看磁盘信息"
+    desc:
+      en: "Generally, we believe that normal users in the container will not perform this behavior. There is a high probability that the attacker will steal sensitive data, exploit vulnerabilities, implant malicious files, and tamper with the file system in order to view the disk in the container after the attack."
+      zh: "通常我们认为在容器内正常用户不会进行此行为，大概率是攻击者在进行攻击后，为了在容器内查看磁盘进行敏感数据窃取、利用漏洞、恶意文件植入和篡改文件系统等。"
+    suggestion:
+      en: "Please confirm whether information collection is carried out for hackers, or operation and maintenance personnel can use immune defense training applications to block new or modified executable files, and restrict users and recipients of commands."
+      zh: "请确认是否为黑客进行信息收集，或运维人员自身操作，可使用免疫防御训练应用，阻拦新的或被修改的可执行文件，限制执行命令的用户和接收对象。"
+    rule_type: Discovery
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, container, exec, mitre_discovery, mitre_execution, L4]
+
+- key: Scanning web directories in the container
+  hid: disc_06
+  condition: >
+    open_read and container
+    and (fd.directory contains "www" or fd.directory contains "apache" or fd.directory contains "tomcat" or fd.directory contains "web" or fd.directory contains "http")
+    and (fd.name contains ".jsp" or fd.name contains ".php" or fd.name contains ".config" or fd.name contains ".bak" or fd.name contains ".old" or fd.name contains ".log")
+    and not tensorsec_namespace
+    and shell_parent_procs
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Scanning web directories in the container"
+      zh: "容器内扫描web目录"
+    desc:
+      en: "Usually we believe that normal users in the container will not perform this behavior. The high probability is that the attacker scans the Web directory in the container to find sensitive files (such as database configuration files, cloud service AK\\SK, etc.) after obtaining certain permissions. , expose vulnerabilities and plan attack paths."
+      zh: "通常我们认为在容器内正常用户不会进行此行为，大概率是攻击者在获取一定权限后，为了在容器内扫描Web目录发现敏感文件(如：数据库配置文件、云服务AK\\SK等)、暴露漏洞和规划攻击路径。"
+    suggestion:
+      en: "Please confirm whether this behavior is a third-party trusted application scanning. If not, it may be a hacker tool behavior. You can use the immune defense training application to limit the user permissions of sensitive files and commands, and prohibit the mounting of sensitive directories and files."
+      zh: "请确认该行为是否为第三方可信应用扫描，如果不是则可能为黑客工具行为，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+    rule_type: Discovery
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, container, mitre_discovery, L4]
+
+- key: Find files with suid privilege by non-root users
+  hid: disc_07
+  condition: >
+    spawned_process and 
+    user.uid != 0 and proc.name = find and (
+    (proc.cmdline contains "-perm" and (proc.cmdline contains "4000" or proc.cmdline contains "-u+s")) and
+    (proc.cmdline contains "-print" or proc.cmdline contains "-exec" or proc.cmdline contains "-ls" or proc.cmdline contains "-fls" or proc.cmdline contains "-xargs")
+    )
+    and shell_family_procs
+  output: >
+    fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Find files with suid privilege by non-root users"
+      zh: "非root用户查找具有suid权限的文件"
+    desc:
+      en: "SUID is a permission bit that allows a user to run with the permissions of the file owner (usually root) when executing an executable file with SUID permissions. Usually we think that normal non-root users will not search for files with suid permissions. There is a high probability that they are attackers trying to find files with SUID permissions to gain the opportunity to execute commands with root permissions, thereby elevating their own permissions."
+      zh: "SUID是一种权限位，允许用户在执行具有SUID权限的可执行文件时，以文件所有者（通常是root）的权限运行。通常我们认为正常非root用户不会进行查找具有suid权限的文件，大概率是攻击者，试图查找具有SUID权限的文件，以获取以root权限执行命令的机会，从而提升自己的权限。"
+    suggestion:
+      en: "This behavior probably refers to the information collection operation before the hacker attempts to raise authority. The container may be invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands, and prohibit the mounting of sensitive directories and files."
+      zh: "该行为大概率为黑客尝试提权前的信息收集操作，容器可能遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+    rule_type: Discovery
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, mitre_discovery, L4]
+
+- key: View login information in the container
+  hid: disc_08
+  condition: >
+    open_read and container and
+    (fd.name="/var/log/lastlog" or fd.name="/var/log/wtmp") and
+    not shell_procs and
+    not tensorsec_namespace and not k8s.pod.name contains "calico" and
+    shell_parent_procs
+  output: >
+    fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "View login information in the container"
+      zh: "容器内查看登录信息"
+    desc:
+      en: "The purpose of attackers viewing login log information in the container includes detecting traces of attacks, hiding identities (forging common users), detecting weaknesses, obtaining login IP addresses, evading security audits, and planning attack paths."
+      zh: "攻击者在容器内查看登录日志信息的目的包括探测攻击痕迹、隐藏身份(伪造常用用户)、探测弱点、获取登录ip地址、规避安全审计和规划攻击路径。"
+    suggestion:
+      en: "It may be an act of hacker information collection. Please confirm the execution object. You can use the immune defense training application to limit the user permissions of sensitive files and commands, and prohibit mounting sensitive directories and files."
+      zh: "可能为黑客信息收集行为，请确认执行对象，可使用免疫防御训练应用，限制敏感文件和命令的用户权限，禁止挂载敏感目录和文件。"
+    rule_type: Discovery
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, container, file, mitre_discovery, L1]
+
+- key: View history command file in container
+  hid: disc_09
+  condition: >
+    open_read and (fd.name contains ".bash_history" or fd.name contains ".zsh_history") and
+    container and
+    shell_parent_procs and not shell_procs
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "View history command file in container"
+      zh: "容器内查看历史命令文件"
+    desc:
+      en: "Usually we think that normal users in the container will not perform this behavior. It may be that after the attack, the attacker wants to view historical commands in the container to detect traces of attacks, hide identities (tamper with logs), detect weaknesses, understand operating habits, and obtain sensitive information. information, circumvent security audits, and plan attack paths."
+      zh: "通常我们认为在容器内正常用户不会进行此行为，可能是攻击者在进行攻击后，为了在容器内查看历史命令探测攻击痕迹、隐藏身份(篡改日志)、探测弱点、了解操作习惯、获取敏感信息、规避安全审计和规划攻击路径。"
+    suggestion:
+      en: "Please confirm the reason for viewing the history file and make sure it is not a malicious activity, otherwise it may be a hacker information gathering behavior, please confirm the execution object."
+      zh: "请确认查看历史文件的原因，确保其不是恶意活动，否则可能为黑客信息收集行为，请确认执行对象。"
+    rule_type: Discovery
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, container, exec, file, mitre_discovery, L1]
+
+- key: Get ApiServer_token through kubectl
+  disable: true
+  hid: disc_10
+  condition: >
+    evt.type = execve and
+    (proc.cmdline contains "kubectl config view" or proc.cmdline contains "kubectl describe secrets") and
+    shell_parent_procs
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Get ApiServer_token through kubectl"
+      zh: "通过kubectl获取ApiServer_token"
+    desc:
+      en: "Usually we think that administrators will not execute k8s related commands in the container. The high probability is that the attacker will achieve unauthorized access, lateral movement, steal sensitive information and bypass security measures in order to obtain the ApiServer_token after the attack."
+      zh: "通常我们认为管理员不会在容器中执行k8s相关命令，大概率是攻击者在进行攻击后，为了获取ApiServer_token实现未授权访问、横向移动、窃取敏感信息和绕过安全措施。"
+    suggestion:
+      en: "Please confirm whether this behavior is initiated by a trusted person or program, or the container may be invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
+      zh: "请确认该行为发起对象是否为可信人员或程序，否则容器可能遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+    rule_type: Discovery
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, container, k8s, mitre_discovery, L1]
+
+- key: Run the tool for scanning ports
+  hid: disc_11
+  condition: >
+    spawned_process and proc.name in (scan_ports_tool_binaries)
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  steps:
+    - name: checkRegexMatch
+      params: [ '^(?:(?!->127\.0\.0\.1:).)*$' , trigger.payload.output_map.fd_name ]
+    - name: checkRegexMatch
+      params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.proc_cmdline ]
+  info:
+    name:
+      en: "Run the tool for scanning ports"
+      zh: "运行端口扫描工具"
+    desc:
+      en: "Usually we believe that normal users will not directly perform port scanning in the container. The high probability is that after the attack, the attacker uses a port scanning tool (such as nmap) to detect the open ports, services and network topology of the target system. for subsequent attacks or penetration testing."
+      zh: "通常我们认为正常用户不会直接在容器内进行端口扫描，大概率是攻击者在进行攻击后，为了探测目标系统的开放端口、服务和网络拓扑，使用端口扫描工具(如：nmap)进行扫描探测以便进行后续攻击或渗透测试。"
+    suggestion:
+      en: "There may be port scanning behavior, it is recommended to confirm whether there is a vulnerability in the service where the port is located."
+      zh: "可能存在敏感端口扫描行为，建议确认端口所在服务是否存在漏洞。"
+    rule_type: Discovery
+    priority: ALERT
+    urgency: true
+    tags: [ATT&CK, network, mitre_discovery, L2]
+
+- key: Launch Suspicious Network Tool in Container
+  hid: disc_12
+  condition: >
+    spawned_process and container and network_tool_procs and shell_parent_procs and not ignore_proc_args and not user_known_network_tool_activities and not proc.cmdline contains "-w 2 localhost 2181" and not tensorsec_namespace
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent_process=%proc.pname,container_id=%container.id,container_name=%container.name,image=%container.image.repository,image_tag=%container.image.tag
+  steps:
+    - name: checkRegexMatch
+      params: [ '^(?:(?!->127\.0\.0\.1:).)*$' , trigger.payload.output_map.fd_name ]
+    - name: checkRegexMatch
+      params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.proc_cmdline ]
+  info:
+    name:
+      en: "Launch Suspicious Network Tool in Container"
+      zh: "容器内运行可疑网络工具"
+    desc:
+      en: "Usually we think that normal users in the container will not perform this behavior. The high probability is that after the attack, the attacker uses a port scanning tool (such as: nmap) to conduct reconnaissance and scan the target network, trying to find vulnerabilities and exposed services in the network. or weaknesses in order to prepare for subsequent attacks."
+      zh: "通常我们认为在容器内正常用户不会进行此行为，大概率是攻击者在进行攻击后，使用端口扫描工具(如：nmap)进行侦察和扫描目标网络，尝试发现网络中的漏洞、暴露的服务或弱点，以便为后续攻击做准备。"
+    suggestion:
+      en: "Please confirm the specific behavior of the tool. Hackers may scan the intranet. It is recommended to use offset defense to limit the execution of the tool, and check whether the container has been invaded."
+      zh: "请确认该工具具体行为，可能存在黑客扫描内网情况，推荐使用偏移防御限制该工具执行，并排查容器是否遭到入侵。"
+    rule_type: Discovery
+    priority: ALERT
+    urgency: false
+    tags: [ATT&CK, network, mitre_discovery, L4]
+
+- key: Scanning k8s sensitive ports
+  hid: disc_13
+  condition: >
+    evt.type in (connect,sendto,sendmsg)
+    and fd.name contains "->"
+    and not fd.sport in ("", 53)
+    and fd.name != "" and fd.name exists and fd.type in ("ipv4", "ipv6")
+    and shell_family_procs
+    and not proc.name in (known_system_procs_network_activity_binaries)
+    and not proc.pname in (known_system_procs_network_activity_binaries)
+    and not (package_mgmt_procs or package_mgmt_ancestor_procs)
+    and not login_doing_dns_lookup
+    and not user_expected_system_procs_network_activity_conditions and container
+    and not tensorsec_namespace
+    and not proc.cmdline contains "redis-cli -h"
+  output: >
+    pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_name=%proc.name,parent=%proc.pname,proc.aname[0]=%proc.aname[0],proc.aname[1]=%proc.aname[1],gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4]
+  steps:
+    - name: checkRegexMatch
+      params: [ '^(?:(?!->127\.0\.0\.1:).)*$' , trigger.payload.output_map.fd_name ]
+    - name: checkRegexMatch
+      params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.proc_cmdline ]
+    - name: checkRuleRecentCount
+      params: [ 'Scanning ports detected', 10s, 5, '["fd_sip", "fd_cip"]', '["fd_sport"]', 1m ]
+  info:
+    name:
+      en: "Scanning k8s sensitive ports"
+      zh: "扫描k8s敏感端口"
+    desc:
+      en: "Generally, we believe that normal users will not scan Kubernetes (K8s) sensitive ports (such as kubernet ports). The high probability is that attackers are looking for potential loopholes or weaknesses in K8s after conducting attacks for subsequent attacks. This scanning behavior can be used to collect information about the target system, detect exploitable vulnerabilities, and identify weaknesses in the system."
+      zh: "通常我们认为正常用户不会扫描Kubernetes（K8s）敏感端口(如kubernet端口)，大概率是攻击者在进行攻击后，为了寻找K8s潜在的漏洞或弱点，以便进行后续的攻击。这种扫描行为可以用于收集目标系统的信息，探测可利用的漏洞，并确定系统中存在的弱点。"
+    suggestion:
+      en: "The K8S sensitive port access behavior is detected. Please confirm whether it is legal access in combination with specific commands. If not, it may be used by attackers. Please isolate the pod in time。"
+      zh: "检测到k8s敏感端口访问行为,请结合具体命令确认是否为合法访问，如果不是则可能遭到攻击者利用，请及时隔离该pod。"
+    rule_type: Discovery
+    priority: ALERT
+    urgency: true
+    tags: [ATT&CK, network, k8s, mitre_discovery, L2]
