@@ -647,7 +647,8 @@ func (npc *NetworkPolicyController) syncPolicy(key string) error {
 		}
 		logging.Get().Info().Msgf("generated policy: %v", internalPolicy)
 
-		rules, err := npc.caculatePolicyNodeRules(cnp)
+		// rules, err := npc.caculatePolicyNodeRules(cnp)
+		rules, err := npc.caculatePolicyRulesOnAllNodes(cnp)
 		if err != nil {
 			return err
 		}
@@ -811,10 +812,6 @@ func (npc *NetworkPolicyController) caculateRelatedPods(podLabels *v1.LabelSelec
 }
 
 func podReference(pod *corev1.Pod) *crdv1alpha1.EntityReference {
-	// str := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
-	// h := fnv.New64a()
-	// h.Write([]byte(str))
-	// return h.Sum64()
 	return &crdv1alpha1.EntityReference{Namespace: pod.Namespace, Name: pod.Name}
 }
 
@@ -1058,7 +1055,6 @@ func getServicePort(pod *corev1.Pod, svc *corev1.Service, policyPorts []crdv1alp
 			}
 			// if policy port unset, match all ports.
 			if (isPortIn(targetPort, &pp)) && svcProtocol == protocol {
-				// if (pp.Port == nil || svcPort.TargetPort == *pp.Port) && svcProtocol == protocol {
 				port := intstr.FromInt(int(svcPort.Port))
 				ports = append(ports, crdv1alpha1.NetworkPolicyPort{
 					Protocol: &protocol,
@@ -1092,12 +1088,6 @@ func (npc *NetworkPolicyController) getRelatedServiceAddr(podLabels *v1.LabelSel
 				continue
 			}
 			logging.Get().Info().Msgf("matching service:1 %s/%s", service.Namespace, service.Name)
-			// key, _ := KeyFunc(service)
-			// if _, exist := svcMap[key]; exist {
-			// 	continue
-			// } else {
-			// 	svcMap[key] = struct{}{}
-			// }
 
 			l, err := labels.ValidatedSelectorFromSet(service.Spec.Selector)
 			if err != nil {
@@ -1127,9 +1117,6 @@ func (npc *NetworkPolicyController) getRelatedServiceAddr(podLabels *v1.LabelSel
 					})
 				}
 			}
-			// if labels.ValidatedSetSelector(service.Spec.Selector).Matches(labels.Set(pod.Labels)) {
-			// 	set.Insert(key)
-			// }
 		}
 	}
 	data, _ := json.Marshal(set)
@@ -1260,6 +1247,273 @@ func (npc *NetworkPolicyController) caculatePolicyNodeRules(cnp *crdv1alpha1.Mic
 					})
 				}
 			}
+		}
+	}
+	return rules, nil
+}
+
+func generateCRDPolicyRule(cnp *crdv1alpha1.MicrosegClusterNetworkPolicy, rule *crdv1alpha1.Rule, addressMap map[string][]crdv1alpha1.Address,
+	addresses []crdv1alpha1.Address, ipBlock *crdv1alpha1.IPBlock, direction string) map[string]*crdv1alpha1.NetworkPolicyRuleGroup {
+	rules := map[string]*crdv1alpha1.NetworkPolicyRuleGroup{}
+	for node, ads := range addressMap {
+		if _, ok := rules[node]; !ok {
+			ownerRef := v1.NewControllerRef(cnp, schema.GroupVersionKind{Group: "microsegmentation.security.io", Version: "v1alpha1", Kind: "MicrosegClusterNetworkPolicy"})
+			rules[node] = &crdv1alpha1.NetworkPolicyRuleGroup{
+				ObjectMeta: v1.ObjectMeta{
+					Name: fmt.Sprintf("%s-%s", cnp.Name, node),
+					Labels: map[string]string{
+						"kubernetes.io/networkpolicy-name": cnp.Name,
+						"kubernetes.io/node-name":          node,
+					},
+					OwnerReferences: []v1.OwnerReference{*ownerRef},
+				},
+				Spec: crdv1alpha1.NetworkPolicyRuleGroupSpec{
+					Policy:   cnp.Name,
+					NodeName: node,
+				},
+			}
+		}
+		switch direction {
+		case "ingress":
+			rules[node].Spec.Rules = append(rules[node].Spec.Rules, crdv1alpha1.NodeRule{
+				Direction:   "ingress",
+				Priority:    cnp.Spec.Priority,
+				Protocol:    rule.Protocol,
+				Action:      string(*rule.Action),
+				Ports:       rule.Ports,
+				ToAddresses: ads,
+				FromAddress: addresses,
+				FromIPBlock: ipBlock,
+			})
+		case "egress":
+			rules[node].Spec.Rules = append(rules[node].Spec.Rules, crdv1alpha1.NodeRule{
+				Direction:   "egress",
+				Priority:    cnp.Spec.Priority,
+				Protocol:    rule.Protocol,
+				Action:      string(*rule.Action),
+				Ports:       rule.Ports,
+				ToAddresses: addresses,
+				FromAddress: ads,
+				ToIPBlock:   ipBlock,
+			})
+		default:
+			logging.Get().Error().Msgf("invalid rule direction %s ", direction)
+		}
+	}
+	return rules
+}
+
+func (npc *NetworkPolicyController) caculatePolicyRulesOnAllNodes(cnp *crdv1alpha1.MicrosegClusterNetworkPolicy) (map[string]*crdv1alpha1.NetworkPolicyRuleGroup, error) {
+	ruleGroup := map[string]*crdv1alpha1.NetworkPolicyRuleGroup{}
+	addressesMap, err := npc.caculateAddressMap(cnp.Spec.PodSelector, cnp.Spec.NamespaceSelector, cnp.Spec.Group)
+	if err != nil {
+		return nil, err
+	}
+	if len(addressesMap) == 0 {
+		logging.Get().Warn().Msg("empty node-address map!")
+		return ruleGroup, nil
+	}
+	r1, err := npc.caculateIngressRules(cnp, addressesMap)
+	if err != nil {
+		return nil, err
+	}
+	appendToMap(ruleGroup, r1)
+
+	r2, err := npc.caculateEgressRules(cnp, addressesMap)
+	if err != nil {
+		return nil, err
+	}
+	appendToMap(ruleGroup, r2)
+	return ruleGroup, nil
+}
+
+func (npc *NetworkPolicyController) caculateIngressRemoteSideRules(cnp *crdv1alpha1.MicrosegClusterNetworkPolicy, r crdv1alpha1.Rule, peer crdv1alpha1.NetworkPolicyPeer, addresses []crdv1alpha1.Address) (map[string]*crdv1alpha1.NetworkPolicyRuleGroup, error) {
+	ruleGroup := map[string]*crdv1alpha1.NetworkPolicyRuleGroup{}
+	addresMap, err := npc.caculateAddressMap(peer.PodSelector, peer.NamespaceSelector, peer.Group)
+	if err != nil {
+		return nil, err
+	}
+	for node, ads := range addresMap {
+		if _, ok := ruleGroup[node]; !ok {
+			ownerRef := v1.NewControllerRef(cnp, schema.GroupVersionKind{Group: "microsegmentation.security.io", Version: "v1alpha1", Kind: "MicrosegClusterNetworkPolicy"})
+			ruleGroup[node] = &crdv1alpha1.NetworkPolicyRuleGroup{
+				ObjectMeta: v1.ObjectMeta{
+					Name: fmt.Sprintf("%s-%s", cnp.Name, node),
+					Labels: map[string]string{
+						"kubernetes.io/networkpolicy-name": cnp.Name,
+						"kubernetes.io/node-name":          node,
+					},
+					OwnerReferences: []v1.OwnerReference{*ownerRef},
+				},
+				Spec: crdv1alpha1.NetworkPolicyRuleGroupSpec{
+					Policy:   cnp.Name,
+					NodeName: node,
+				},
+			}
+		}
+		ruleGroup[node].Spec.Rules = append(ruleGroup[node].Spec.Rules, crdv1alpha1.NodeRule{
+			Direction:   "egress",
+			Priority:    cnp.Spec.Priority,
+			Protocol:    r.Protocol,
+			Action:      string(*r.Action),
+			Ports:       r.Ports,
+			ToAddresses: addresses,
+			FromAddress: ads,
+		})
+	}
+	return ruleGroup, nil
+}
+
+func (npc *NetworkPolicyController) caculateEgressRemoteSideRules(cnp *crdv1alpha1.MicrosegClusterNetworkPolicy, r crdv1alpha1.Rule, peer crdv1alpha1.NetworkPolicyPeer, addresses []crdv1alpha1.Address) (map[string]*crdv1alpha1.NetworkPolicyRuleGroup, error) {
+	ruleGroup := map[string]*crdv1alpha1.NetworkPolicyRuleGroup{}
+	addresMap, err := npc.caculateAddressMap(peer.PodSelector, peer.NamespaceSelector, peer.Group)
+	if err != nil {
+		return nil, err
+	}
+	for node, ads := range addresMap {
+		if _, ok := ruleGroup[node]; !ok {
+			ownerRef := v1.NewControllerRef(cnp, schema.GroupVersionKind{Group: "microsegmentation.security.io", Version: "v1alpha1", Kind: "MicrosegClusterNetworkPolicy"})
+			ruleGroup[node] = &crdv1alpha1.NetworkPolicyRuleGroup{
+				ObjectMeta: v1.ObjectMeta{
+					Name: fmt.Sprintf("%s-%s", cnp.Name, node),
+					Labels: map[string]string{
+						"kubernetes.io/networkpolicy-name": cnp.Name,
+						"kubernetes.io/node-name":          node,
+					},
+					OwnerReferences: []v1.OwnerReference{*ownerRef},
+				},
+				Spec: crdv1alpha1.NetworkPolicyRuleGroupSpec{
+					Policy:   cnp.Name,
+					NodeName: node,
+				},
+			}
+		}
+		ruleGroup[node].Spec.Rules = append(ruleGroup[node].Spec.Rules, crdv1alpha1.NodeRule{
+			Direction:   "ingress",
+			Priority:    cnp.Spec.Priority,
+			Protocol:    r.Protocol,
+			Action:      string(*r.Action),
+			Ports:       r.Ports,
+			ToAddresses: addresses,
+			FromAddress: ads,
+		})
+	}
+	return ruleGroup, nil
+}
+
+func appendToMap(m1 map[string]*crdv1alpha1.NetworkPolicyRuleGroup, m2 map[string]*crdv1alpha1.NetworkPolicyRuleGroup) {
+	for k := range m2 {
+		if _, ok := m1[k]; ok {
+			m1[k].Spec.Rules = append(m1[k].Spec.Rules, m2[k].Spec.Rules...)
+		} else {
+			m1[k] = m2[k]
+		}
+	}
+}
+
+func (npc *NetworkPolicyController) caculateIngressRules(cnp *crdv1alpha1.MicrosegClusterNetworkPolicy, addressesMap map[string][]crdv1alpha1.Address) (map[string]*crdv1alpha1.NetworkPolicyRuleGroup, error) {
+	rules := map[string]*crdv1alpha1.NetworkPolicyRuleGroup{}
+	var err error
+	var subjectAddress []crdv1alpha1.Address
+	for _, v := range addressesMap {
+		subjectAddress = append(subjectAddress, v...)
+	}
+
+	for _, r := range cnp.Spec.Ingress {
+		if len(r.From) == 0 {
+			ruleMap := generateCRDPolicyRule(cnp, &r, addressesMap, []crdv1alpha1.Address{{IP: "0.0.0.0"}}, nil, "ingress")
+			appendToMap(rules, ruleMap)
+			continue
+		}
+		for _, peer := range r.From {
+			var adddress []crdv1alpha1.Address
+			if peer.PodSelector == nil && peer.NamespaceSelector == nil && peer.Group == "" && peer.IPBlock == nil {
+				adddress = append(adddress, crdv1alpha1.Address{IP: "0.0.0.0"})
+			} else {
+				adddress, err = npc.caculateAddress(peer.PodSelector, peer.NamespaceSelector, peer.Group)
+				if err != nil {
+					return nil, err
+				}
+			}
+			if len(adddress) == 0 && peer.IPBlock == nil {
+				logging.Get().Info().Msg("empty address inside egress rules")
+				continue
+			}
+			// generate ingress rules for subject pods
+			//  from ------> subject
+			rule1 := generateCRDPolicyRule(cnp, &r, addressesMap, adddress, peer.IPBlock, "ingress")
+			appendToMap(rules, rule1)
+
+			// generate egress rules for from-side pods
+			rule2, err := npc.caculateIngressRemoteSideRules(cnp, r, peer, subjectAddress)
+			if err != nil {
+				return nil, err
+			}
+			appendToMap(rules, rule2)
+		}
+	}
+	return rules, nil
+}
+
+func (npc *NetworkPolicyController) caculateEgressRules(cnp *crdv1alpha1.MicrosegClusterNetworkPolicy, addressesMap map[string][]crdv1alpha1.Address) (map[string]*crdv1alpha1.NetworkPolicyRuleGroup, error) {
+	var err error
+	rules := map[string]*crdv1alpha1.NetworkPolicyRuleGroup{}
+	var subjectAddress []crdv1alpha1.Address
+	for _, v := range addressesMap {
+		subjectAddress = append(subjectAddress, v...)
+	}
+
+	for _, r := range cnp.Spec.Egress {
+		if len(r.To) == 0 {
+			ruleMap := generateCRDPolicyRule(cnp, &r, addressesMap, []crdv1alpha1.Address{{IP: "0.0.0.0"}}, nil, "egress")
+			appendToMap(rules, ruleMap)
+			continue
+		}
+		for _, peer := range r.To {
+			var toAddresses []crdv1alpha1.Address
+			var endpoints []endPoint
+			if peer.PodSelector == nil && peer.NamespaceSelector == nil && peer.Group == "" && peer.IPBlock == nil {
+				toAddresses = []crdv1alpha1.Address{{IP: "0.0.0.0"}}
+			} else {
+				endpoints, err = npc.getRelatedServiceAddr(peer.PodSelector, peer.NamespaceSelector, peer.Group, r.Ports)
+				if err != nil {
+					return nil, err
+				}
+
+				toAddresses, err = npc.caculateAddress(peer.PodSelector, peer.NamespaceSelector, peer.Group)
+				if err != nil {
+					return nil, err
+				}
+			}
+
+			if len(toAddresses) == 0 && peer.IPBlock == nil && len(endpoints) == 0 {
+				logging.Get().Info().Msg("empty address in egress rules")
+				continue
+			}
+
+			// generate egress rule for subject pods
+			rule1 := generateCRDPolicyRule(cnp, &r, addressesMap, toAddresses, peer.IPBlock, "egress")
+			for node, ads := range addressesMap {
+				for _, ep := range endpoints {
+					rules[node].Spec.Rules = append(rules[node].Spec.Rules, crdv1alpha1.NodeRule{
+						Direction:   "egress",
+						Priority:    cnp.Spec.Priority,
+						Protocol:    r.Protocol,
+						Action:      string(*r.Action),
+						Ports:       ep.Ports,
+						ToAddresses: []crdv1alpha1.Address{{IP: ep.Address}},
+						FromAddress: ads,
+					})
+				}
+			}
+			appendToMap(rules, rule1)
+
+			// generate ingress rules for to-side pods
+			rule2, err := npc.caculateEgressRemoteSideRules(cnp, r, peer, subjectAddress)
+			if err != nil {
+				return nil, err
+			}
+			appendToMap(rules, rule2)
 		}
 	}
 	return rules, nil

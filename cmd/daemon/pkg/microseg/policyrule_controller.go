@@ -111,6 +111,10 @@ func addressFromRule(a *crdv1alpha1.Address) Address {
 	return addr
 }
 
+func isDenyAllPolicy(ruleGroup *crdv1alpha1.NetworkPolicyRuleGroup) bool {
+	return strings.Contains(ruleGroup.Name, "-deny-all-")
+}
+
 func buildPolicyRuleMessage(msgType int, ruleGroup *crdv1alpha1.NetworkPolicyRuleGroup) *PolicyRule {
 	message := &PolicyRule{
 		MessageType: msgType,
