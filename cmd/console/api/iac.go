@@ -1776,10 +1776,6 @@ func (api *api) DockerfileRecords() http.HandlerFunc {
 			return
 		}
 
-		for i := range records {
-			records[i].TemplateName = api.translation.One(translate.DomainIacDockerfile, translate.KeyTemplateName, records[i].TemplateName, string(lang.Language(r.Context())))
-		}
-
 		response.Ok(w, response.WithItems(records), response.WithTotalItems(count))
 	}
 }
@@ -1915,7 +1911,7 @@ func (api *api) DockerfileResultsDetail() http.HandlerFunc {
 			HitWhitelist:         results[0].HitWhitelist,
 			Status:               results[0].Status,
 			TemplateSnapshotID:   records[0].TemplateID,
-			TemplateSnapshotName: api.translation.One(translate.DomainIacDockerfile, translate.KeyTemplateName, records[0].TemplateName, string(lang.Language(r.Context()))),
+			TemplateSnapshotName: records[0].TemplateName,
 			CreatedAt:            results[0].CreatedAt.UnixMilli(),
 			Dockerfile:           results[0].Dockerfile,
 			Result:               respResult,
@@ -1962,7 +1958,6 @@ func (api *api) DockerfileTemplates() http.HandlerFunc {
 			if templates[i].Name == iac.DefaultTemplateName {
 				defaultTemplateIndex = i
 			}
-			templates[i].Name = api.translation.One(translate.DomainIacDockerfile, translate.KeyTemplateName, templates[i].Name, string(lang.Language(r.Context())))
 		}
 		nt := make([]iacModel.DockerfileTemplate, 0)
 		if defaultTemplateIndex != -1 {
@@ -2258,10 +2253,6 @@ func (api *api) DockerfileTemplatesDetail() http.HandlerFunc {
 
 		resp := Response{}
 		resp.DockerfileTemplate = templates[0]
-		if resp.DockerfileTemplate.Builtin {
-			resp.DockerfileTemplate.Name = api.translation.One(translate.DomainIacDockerfile, translate.KeyTemplateName, resp.DockerfileTemplate.Name, string(lang.Language(r.Context())))
-			resp.DockerfileTemplate.Description = api.translation.One(translate.DomainIacDockerfile, translate.KeyTemplateDescription, resp.DockerfileTemplate.Description, string(lang.Language(r.Context())))
-		}
 		for i := range rules {
 			resp.Rules = append(resp.Rules, ResponseRule{
 				ID:          rules[i].ID,
@@ -2319,8 +2310,6 @@ func (api *api) DockerfileTemplateSnapshotsDetail() http.HandlerFunc {
 
 		resp := Response{}
 		resp.DockerfileTemplateSnapshot = snapshots[0]
-		resp.DockerfileTemplateSnapshot.Name = api.translation.One(translate.DomainIacDockerfile, translate.KeyTemplateName, resp.DockerfileTemplateSnapshot.Name, string(lang.Language(r.Context())))
-		resp.DockerfileTemplateSnapshot.Description = api.translation.One(translate.DomainIacDockerfile, translate.KeyTemplateDescription, resp.DockerfileTemplateSnapshot.Description, string(lang.Language(r.Context())))
 		for i := range rules {
 			resp.Rules = append(resp.Rules, ResponseRule{
 				ID:          rules[i].ID,
