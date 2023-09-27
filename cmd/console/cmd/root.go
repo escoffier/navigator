@@ -13,9 +13,10 @@ import (
 	"github.com/spf13/pflag"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service"
 	"gitlab.com/piccolo_su/vegeta/pkg/flag"
-	"gitlab.com/piccolo_su/vegeta/pkg/leaderelection"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/leaderelection"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm/logger"
 	"k8s.io/klog/v2"
@@ -111,7 +112,6 @@ var rootCmd = &cobra.Command{
 
 		run := func(ctx context.Context) {
 			console, err := service.NewConsole(httpOpts, rdbOpts, scannerOpts, exporterOpts, scapOpts, elasticOpts, rdbOptions)
-
 			if err != nil {
 				logging.Get().Err(err)
 				return
@@ -127,16 +127,19 @@ var rootCmd = &cobra.Command{
 			enableLeaderElection = true
 		}
 
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
 		if enableLeaderElection {
-			elector, err := leaderelection.New(run, electionOpts)
+			elector, err := leaderelection.New(run, cancel, electionOpts)
 			if err != nil {
 				return err
 			}
-			elector.Run(context.TODO())
+			elector.Run(ctx)
 			return fmt.Errorf("lost lease")
 		}
 
-		run(context.TODO())
+		run(ctx)
 		return nil
 	},
 }

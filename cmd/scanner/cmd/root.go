@@ -11,6 +11,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"gitlab.com/security-rd/go-pkg/leaderelection"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"k8s.io/klog/v2"
 
@@ -18,7 +19,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service"
 	flag3 "gitlab.com/piccolo_su/vegeta/pkg/flag"
-	"gitlab.com/piccolo_su/vegeta/pkg/leaderelection"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 )
@@ -49,32 +49,39 @@ var rootCmd = &cobra.Command{
 		}
 		logging.Get().SetLevel(logLevel)
 
-		scanner, err := service.NewScanner(ScannerRunOpts)
-		if err != nil {
-			return err
+		run := func() {
+			scanner, err := service.NewScanner(ScannerRunOpts)
+			if err != nil {
+				logging.Get().Err(err).Msg("create scanner err")
+				return
+			}
+			global.ScannerPodID = scanner.PodID
+			global.ScannerInstance = scanner.ScannerInstance
+			global.ClusterName = scanner.ClusterName
+			global.ClusterKey = scanner.ClusterKey
+			global.PVCPath = ScannerRunOpts.PvcPath
+			global.SubtaskParallel = ScannerRunOpts.ParallelSubTaskNum * ScannerRunOpts.ParallelTaskNum
+
+			vv := scannermodel.ScannerDBVersion{
+				VulnVersion: scannermodel.VulnDBVersion{
+					TrivyVersion:    scannermodel.DBMateData{Version: "123"},
+					CustomDBVersion: scannermodel.DBMateData{Version: "345"},
+				},
+			}
+
+			global.VulnDBVersion = &vv
+
+			logging.Get().Info().
+				Str("version", Version).
+				Str("ScannerInstance", global.ScannerInstance).
+				Interface("opts", ScannerRunOpts).
+				Interface("ScannerPodID", global.ScannerPodID).
+				Msg("starting scanner")
+
+			lifecycle.NewApplication(
+				scanner,
+			).Run()
 		}
-		global.ScannerPodID = scanner.PodID
-		global.ScannerInstance = scanner.ScannerInstance
-		global.ClusterName = scanner.ClusterName
-		global.ClusterKey = scanner.ClusterKey
-		global.PVCPath = ScannerRunOpts.PvcPath
-		global.SubtaskParallel = ScannerRunOpts.ParallelSubTaskNum * ScannerRunOpts.ParallelTaskNum
-
-		vv := scannermodel.ScannerDBVersion{
-			VulnVersion: scannermodel.VulnDBVersion{
-				TrivyVersion:    scannermodel.DBMateData{Version: "123"},
-				CustomDBVersion: scannermodel.DBMateData{Version: "345"},
-			},
-		}
-
-		global.VulnDBVersion = &vv
-
-		logging.Get().Info().
-			Str("version", Version).
-			Str("ScannerInstance", global.ScannerInstance).
-			Interface("opts", ScannerRunOpts).
-			Interface("ScannerPodID", global.ScannerPodID).
-			Msg("starting scanner")
 
 		electionOpts := flag3.GetElectionOpts(cmd)
 		logging.Get().Info().
@@ -82,28 +89,28 @@ var rootCmd = &cobra.Command{
 			Str("renewDeadline", electionOpts.RenewDeadline.String()).
 			Str("retryPeriod", electionOpts.RetryPeriod.String()).
 			Msg("Election options")
+
 		elect := os.Getenv("ENABLE_LEADER_ELECTION")
 		if elect == "true" {
 			flag2.EnableLeaderElection = true
 		}
+
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
 		if flag2.EnableLeaderElection {
 			elector, err := leaderelection.New(func(ctx context.Context) {
-				lifecycle.NewApplication(
-					scanner,
-				).Run()
-			}, electionOpts)
+				run()
+			}, cancel, electionOpts)
 			if err != nil {
 				logging.Get().Err(err).Msg("error occurred when server running")
 				return err
 			}
-			elector.Run(context.TODO())
+			elector.Run(ctx)
 			logging.Get().Info().Msg("lost lease")
 			return fmt.Errorf("lost lease")
 		}
-
-		lifecycle.NewApplication(
-			scanner,
-		).Run()
+		run()
 		return nil
 	},
 }

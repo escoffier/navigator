@@ -5,6 +5,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"gitlab.com/security-rd/go-pkg/leaderelection"
 )
 
 const (
@@ -14,22 +15,9 @@ const (
 	retryPeriod   = "leader-elect-retry-period"
 )
 
-// HTTPOpts the http options.
-type ElectionOpts struct {
-	LeaseDuration time.Duration
-	// RenewDeadline is the duration that the acting master will retry
-	// refreshing leadership before giving up.
-	//
-	RenewDeadline time.Duration
-	// RetryPeriod is the duration the LeaderElector clients should wait
-	// between tries of actions.
-	//
-	RetryPeriod time.Duration
-}
-
 // NewDefaultHTTPOpts returns a new default http options.
-func NewDefaultElectionOpts() *ElectionOpts {
-	return &ElectionOpts{
+func NewDefaultElectionOpts() *leaderelection.ElectionOpts {
+	return &leaderelection.ElectionOpts{
 		LeaseDuration: 15 * time.Second,
 		RenewDeadline: 12 * time.Second,
 		RetryPeriod:   2 * time.Second,
@@ -37,8 +25,8 @@ func NewDefaultElectionOpts() *ElectionOpts {
 }
 
 // GetHTTPOpts parses the cobra.Command and returns the HTTPOpts.
-func GetElectionOpts(cmd *cobra.Command) *ElectionOpts {
-	return &ElectionOpts{
+func GetElectionOpts(cmd *cobra.Command) *leaderelection.ElectionOpts {
+	return &leaderelection.ElectionOpts{
 		LeaseDuration: viper.GetDuration(leaseDuration),
 		RenewDeadline: viper.GetDuration(renewDeadline),
 		RetryPeriod:   viper.GetDuration(retryPeriod),
