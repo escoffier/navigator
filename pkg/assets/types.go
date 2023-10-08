@@ -55,7 +55,7 @@ const (
 	All
 )
 
-const (
+const ( // 服务名称
 	BusiSvcTomcat   = "Tomcat"
 	BusiSvcAppache  = "Appache"
 	BusiSvcNginx    = "Nginx"
@@ -72,7 +72,7 @@ const (
 	BusiSvcRsyslog    = "Rsyslog"
 )
 
-const (
+const ( // 编程语言
 	BusiFrameworkJava   = "Java"
 	BusiFrameworkPhp    = "Php"
 	BusiFrameworkPython = "Python"
@@ -81,21 +81,27 @@ const (
 	BusiFrameworkNodejs = "Node.js"
 )
 
+const ( // 服务类型
+	BusiSvcTypeWeb     = "Web服务"
+	BusiSvcTypeDb      = "数据库"
+	BusiSvcTypeMonitor = "监控服务"
+)
+
 var BusiSvcTypeMap = map[string]string{
-	BusiSvcTomcat:   "Web服务",
-	BusiSvcAppache:  "Web服务",
-	BusiSvcNginx:    "Web服务",
-	BusiSvcWeblogic: "Web服务",
-	BusiSvcWildfly:  "Web服务",
-	//BusiSvcJboss:      "Web服务",
-	BusiSvcWebSphere:  "Web服务",
-	BusiSvcOpenResty:  "Web服务",
-	BusiSvcGrafana:    "监控服务",
-	BusiSvcRedis:      "数据库",
-	BusiSvcMysql:      "数据库",
-	BusiSvcPostgreSQL: "数据库",
-	BusiSvcMogoDB:     "数据库",
-	BusiSvcRsyslog:    "数据库",
+	BusiSvcTomcat:   BusiSvcTypeWeb,
+	BusiSvcAppache:  BusiSvcTypeWeb,
+	BusiSvcNginx:    BusiSvcTypeWeb,
+	BusiSvcWeblogic: BusiSvcTypeWeb,
+	BusiSvcWildfly:  BusiSvcTypeWeb,
+	//BusiSvcJboss:      BusiSvcTypeWeb,
+	BusiSvcWebSphere:  BusiSvcTypeWeb,
+	BusiSvcOpenResty:  BusiSvcTypeWeb,
+	BusiSvcGrafana:    BusiSvcTypeMonitor,
+	BusiSvcRedis:      BusiSvcTypeDb,
+	BusiSvcMysql:      BusiSvcTypeDb,
+	BusiSvcPostgreSQL: BusiSvcTypeDb,
+	BusiSvcMogoDB:     BusiSvcTypeDb,
+	BusiSvcRsyslog:    BusiSvcTypeDb,
 }
 
 func GetRawContainerStatus(status int) string {
@@ -659,6 +665,8 @@ type ContainerFrameworkInfo struct {
 	LanguageVersion  string
 	FrameworkName    string
 	FrameworkVersion string
+	LanguageBinPath  string
+	FrameworkPath    string
 }
 
 type TensorSync struct {

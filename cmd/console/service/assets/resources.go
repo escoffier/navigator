@@ -925,17 +925,16 @@ func (rl *TensorResourcesService) CountImages(ctx context.Context, queryOptions 
 	return cnt, nil
 }
 
-func (rl *TensorResourcesService) GetImageInfos(ctx context.Context, queryOptions *dal.ResContainersQueryOption) ([]*ImageInfo, error) {
-	containers, err := dal.GetResourceContainersUnique(ctx, rl.rdb.GetReadDB(), queryOptions, -1, -1)
+func (rl *TensorResourcesService) GetImageInfosV2(ctx context.Context, queryOptions *dal.ResContainersQueryOption) ([]*ImageInfo, error) {
+	containers, err := dal.GetResourceContainersUniqueV2(ctx, rl.rdb.GetReadDB(), queryOptions, -1, -1)
 	if err != nil {
 		return nil, err
 	}
 	var images []*ImageInfo
 	for _, c := range containers {
-		id := util.ImageUUID(c.Image)
 		images = append(images, &ImageInfo{
-			Name: c.Image,
-			UUID: id,
+			Name: c.ImageName,
+			UUID: c.ImageUUID,
 		})
 	}
 	return images, nil
@@ -1112,6 +1111,25 @@ func (rl *TensorResourcesService) ListRawContainerWithFramework(ctx context.Cont
 	return containers, cnt, nil
 }
 
+func (rl *TensorResourcesService) GetRawContainerWithFramework(ctx context.Context, clusterKey string, rawContainerId string) (*dal.RawContainerWithFrameworkStr, error) {
+	query := dal.RawContainersWithFrameworkQuery()
+	if rawContainerId == "" {
+		return nil, errors.New("rawContainerId is empty.")
+	}
+	query.WithID(rawContainerId)
+	if clusterKey != "" {
+		query.WithCluster(clusterKey)
+	}
+	containers, err := dal.GetRawContainersWithFramework(ctx, rl.rdb.GetReadDB(), query, 0, 1)
+	if err != nil {
+		return nil, err
+	}
+	if len(containers) > 0 {
+		return containers[0], nil
+	}
+	return nil, nil
+}
+
 func (rl *TensorResourcesService) CountIngress(ctx context.Context, queryOptions *dal.IngressesQueryOption) (int64, error) {
 	return dal.CountIngress(ctx, rl.rdb.GetReadDB(), queryOptions)
 }
@@ -1286,11 +1304,19 @@ func (rl *TensorResourcesService) ListBusiSvc(ctx context.Context, queryOptions 
 	return svcs, cnt, nil
 }
 
+func (rl *TensorResourcesService) GetBusiStartUser(ctx context.Context, busiTyep string) ([]string, error) {
+	user, err := dal.GetBusiStartUser(ctx, rl.rdb.GetReadDB(), busiTyep)
+	if err != nil {
+		return nil, err
+	}
+	return user, nil
+}
+
 func (rl *TensorResourcesService) GetBusiSvcDetail(ctx context.Context, id int32) (*dal.PodBusiSvcBaseDetail, error) {
 	return dal.GetBusiSvcDetail(ctx, rl.rdb.GetReadDB(), id)
 }
 
-func (rl *TensorResourcesService) ListExposeHost(ctx context.Context, webDesc, protocol string, offset, limit int) ([]*dal.ExposeHostBase, int64, error) {
+func (rl *TensorResourcesService) ListExposeHost(ctx context.Context, webDesc, protocol string, offset, limit int) ([]*dal.ExposeHostItem, int64, error) {
 	cnt, err := dal.CountExposeHost(ctx, rl.rdb.GetReadDB(), webDesc, protocol)
 	if err != nil {
 		return nil, 0, err
