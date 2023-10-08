@@ -211,7 +211,7 @@ scarecrow:   ## Build scarecrow docker to test CVEs
 	@echo "+ $@"
 	@echo "scarecrow will use mirror"
 	docker build -t $(REPOPREFIX)/waston-redis:$(IMAGE_TAG) -f ./build/scarecrow/Dockerfile \
-		--build-arg REPO=$(REPOPREFIX) .
+		--build-arg REPO=$(REPOPREFIX) --build-arg TAG=$(BASE_IMAGE_TAG) .
 
 
 .PHONY: webhook
