@@ -679,6 +679,8 @@ type TensorRawContainerFramework struct {
 	RawContainerID   string `json:"rawContainerId" gorm:"column:raw_container_id"`
 	LanguageName     string `json:"languageName" gorm:"column:language_name"`
 	LanguageVersion  string `json:"languageVersion" gorm:"column:language_version"`
+	LanguageBinPath  string `json:"languageBinPath" gorm:"column:language_bin_path"`
+	FrameworkPath    string `json:"frameworkPath" gorm:"column:framework_path"`
 	FrameworkName    string `json:"frameworkName" gorm:"column:framework_name"`
 	FrameworkVersion string `json:"frameworkVersion" gorm:"column:framework_version"`
 }

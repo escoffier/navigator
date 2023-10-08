@@ -132,6 +132,8 @@ var (
 		"language_version",
 		"framework_name",
 		"framework_version",
+		"framework_path",
+		"language_bin_path",
 	}
 	OnDupUpdatedColsForRawCtnSvc = []string{
 		"updated_at",
@@ -404,6 +406,7 @@ func GetNamespaceWithOption(ctx context.Context, rdb *gorm.DB, queryOpt *Namespa
 type NamespaceLabelQueryOption struct {
 	WhereLikeCondition map[string]string
 	WhereEqCondition   map[string]interface{}
+	WhereInCondition   map[string]interface{}
 	TimeRange          TimeRange
 }
 
@@ -416,6 +419,7 @@ func NamespaceLabelQuery() *NamespaceLabelQueryOption {
 	return &NamespaceLabelQueryOption{
 		WhereEqCondition:   make(map[string]interface{}),
 		WhereLikeCondition: make(map[string]string),
+		WhereInCondition:   make(map[string]interface{}),
 	}
 }
 
@@ -2851,6 +2855,42 @@ func GetResourceContainersUnique(ctx context.Context, rdb *gorm.DB, query *ResCo
 	return containers, nil
 }
 
+func GetResourceContainersUniqueV2(ctx context.Context, rdb *gorm.DB, query *ResContainersQueryOption, offset, limit int) (containers []*model.TensorRawContainer, err error) {
+	pgCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
+	err = util.RetryWithBackoff(pgCtx, func() error {
+		oneCtx, cancel := context.WithTimeout(ctx, 800*time.Millisecond)
+		defer cancel()
+
+		db := rdb.WithContext(oneCtx).Model(&model.TensorRawContainer{}).Where("status = ?", 0)
+		if len(query.WhereEqCondition) > 0 {
+			db = db.Where(query.WhereEqCondition)
+		}
+		if len(query.whereInCondition) > 0 {
+			for column, val := range query.whereInCondition {
+				db = db.Where(fmt.Sprintf("%s in ?", column), val)
+			}
+		}
+		if len(query.whereNotNullCondition) > 0 {
+			for column := range query.whereNotNullCondition {
+				db = db.Where(fmt.Sprintf("%s IS NOT NULL", column))
+			}
+		}
+		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
+			db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), GetLikeExpr(query.columnQuery.query))
+		}
+		if limit > 0 && offset >= 0 {
+			db = db.Offset(offset).Limit(limit)
+		}
+		return db.Distinct("image_name", "image_uuid").Find(&containers).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return containers, nil
+}
+
 func GetContainerRelation(ctx context.Context, rdb *gorm.DB, query *ResContainersQueryOption, offsetID int64, offset int, limit int) (clusters []*model.TensorContainerRelation, err error) {
 	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
 	defer cancel()
@@ -3512,12 +3552,15 @@ func CountRawContainerWithFramework(ctx context.Context, rdb *gorm.DB, queryOpti
 
 type RawContainerWithFramework struct {
 	model.TensorRawContainer
+	LanguageName     string `json:"languageName" gorm:"column:language_name"`
+	FrameworkPath    string `json:"frameworkPath" gorm:"column:framework_path"`
 	FrameworkName    string `json:"frameworkName" gorm:"column:framework_name"`
 	FrameworkVersion string `json:"frameworkVersion" gorm:"column:framework_version"`
 }
 type RawContainerWithFrameworkStr struct {
 	*model.TensorRawContainer
-	FrameworkStr string // spring(1.23),xxx
+	FrameworkStr  string
+	FrameworkPath string
 }
 
 func GetRawContainersWithFrameworkWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, queryOptions *RawContainersWithFrameworkQueryOption, offset int, limit int) ([]*RawContainerWithFrameworkStr, error) {
@@ -3551,36 +3594,7 @@ func GetRawContainersWithFrameworkWithRedis(ctx context.Context, rdb *gorm.DB, r
 		return nil, nil
 	}
 
-	var containerWithF []*RawContainerWithFramework
-	db := rdb.WithContext(rCtx).Model(&model.TensorRawContainer{}).Select(" ivan_assets_raw_containers.* ,f.framework_name,f.framework_version")
-	db = db.Joins("left join ivan_assets_raw_containers_frameworks f on ivan_assets_raw_containers.id = f.raw_container_id ").
-		Where("ivan_assets_raw_containers.id in ?", containerIDs)
-
-	err = db.Order("ivan_assets_raw_containers.id  ASC").Find(&containerWithF).Error
-
-	if err == gorm.ErrRecordNotFound {
-		return nil, nil
-	}
-
-	if err != nil {
-		return nil, err
-	}
-	var containers []*RawContainerWithFrameworkStr
-	idMap := make(map[string]struct{})
-	for i, withFramework := range containerWithF {
-		_, isOk := idMap[withFramework.ContainerID]
-		if !isOk {
-			containers = append(containers, &RawContainerWithFrameworkStr{
-				TensorRawContainer: &(containerWithF[i].TensorRawContainer),
-				FrameworkStr:       fmt.Sprintf("%s(%s)", withFramework.FrameworkName, withFramework.FrameworkVersion),
-			})
-			idMap[withFramework.ContainerID] = struct{}{}
-			continue
-		}
-		containers[len(containers)-1].FrameworkStr += fmt.Sprintf(",%s(%s)", withFramework.FrameworkName, withFramework.FrameworkVersion)
-	}
-
-	return containers, err
+	return getRawContainerWithFrameworkByIds(ctx, rdb, containerIDs, limit == 1)
 }
 
 func GetRawContainersWithFramework(ctx context.Context, rdb *gorm.DB, queryOptions *RawContainersWithFrameworkQueryOption, offset int, limit int) ([]*RawContainerWithFrameworkStr, error) {
@@ -3650,12 +3664,19 @@ func GetRawContainersWithFramework(ctx context.Context, rdb *gorm.DB, queryOptio
 	if len(containerIds) == 0 {
 		return nil, nil
 	}
+	return getRawContainerWithFrameworkByIds(ctx, rdb, containerIds, limit == 1)
+}
+
+func getRawContainerWithFrameworkByIds(ctx context.Context, rdb *gorm.DB, containerIds []string, isDetail bool) ([]*RawContainerWithFrameworkStr, error) {
+	if len(containerIds) == 0 {
+		return nil, nil
+	}
 	var containerWithF []*RawContainerWithFramework
-	db = rdb.WithContext(rCtx).Model(&model.TensorRawContainer{}).Select(" ivan_assets_raw_containers.* ,f.framework_name,f.framework_version")
+	db := rdb.WithContext(ctx).Model(&model.TensorRawContainer{}).Select(" ivan_assets_raw_containers.* ,f.framework_name,f.framework_version,f.language_name,framework_path")
 	db = db.Joins("left join ivan_assets_raw_containers_frameworks f on ivan_assets_raw_containers.id = f.raw_container_id ").
 		Where("ivan_assets_raw_containers.id in ?", containerIds)
 
-	err = db.Order("ivan_assets_raw_containers.id  ASC").Scan(&containerWithF).Error
+	err := db.Order("ivan_assets_raw_containers.id  ASC").Scan(&containerWithF).Error
 
 	if err == gorm.ErrRecordNotFound {
 		return nil, nil
@@ -3666,17 +3687,44 @@ func GetRawContainersWithFramework(ctx context.Context, rdb *gorm.DB, queryOptio
 	}
 	var containers []*RawContainerWithFrameworkStr
 	idMap := make(map[string]struct{})
+
+	buildDesc := func(withFramework *RawContainerWithFramework) string {
+		if withFramework.FrameworkName == "" {
+			if isDetail {
+				return withFramework.LanguageName
+			} else {
+				return ""
+			}
+		}
+		if withFramework.FrameworkVersion != "" {
+			if isDetail {
+				return fmt.Sprintf("%s(%s)-%s", withFramework.FrameworkName, withFramework.FrameworkVersion, withFramework.LanguageName)
+			} else {
+				return fmt.Sprintf("%s(%s)", withFramework.FrameworkName, withFramework.FrameworkVersion)
+			}
+		} else {
+			if isDetail {
+				return fmt.Sprintf("%s-%s", withFramework.FrameworkName, withFramework.LanguageName)
+			} else {
+				return withFramework.FrameworkName
+			}
+		}
+	}
+
 	for i, withFramework := range containerWithF {
 		_, isOk := idMap[withFramework.ContainerID]
 		if !isOk {
-			containers = append(containers, &RawContainerWithFrameworkStr{
+			elems := &RawContainerWithFrameworkStr{
 				TensorRawContainer: &(containerWithF[i].TensorRawContainer),
-				FrameworkStr:       fmt.Sprintf("%s(%s)", withFramework.FrameworkName, withFramework.FrameworkVersion),
-			})
+			}
+			elems.FrameworkStr = buildDesc(withFramework)
+			elems.FrameworkPath = withFramework.FrameworkPath
+			containers = append(containers, elems)
 			idMap[withFramework.ContainerID] = struct{}{}
 			continue
 		}
-		containers[len(containers)-1].FrameworkStr += fmt.Sprintf(",%s(%s)", withFramework.FrameworkName, withFramework.FrameworkVersion)
+		containers[len(containers)-1].FrameworkStr += fmt.Sprintf(",%s", buildDesc(withFramework))
+		containers[len(containers)-1].FrameworkPath += fmt.Sprintf(",%s", withFramework.FrameworkPath)
 	}
 	return containers, nil
 }
@@ -3802,6 +3850,8 @@ func getModelFromRawContainer(container *assets.TensorRawContainer) ([]*model.Te
 			RawContainerID:   container.ContainerID,
 			LanguageName:     framework.LanguageName,
 			LanguageVersion:  framework.LanguageVersion,
+			LanguageBinPath:  framework.LanguageBinPath,
+			FrameworkPath:    framework.FrameworkPath,
 			FrameworkName:    framework.FrameworkName,
 			FrameworkVersion: framework.FrameworkVersion,
 		}
@@ -3837,6 +3887,9 @@ func CountIngress(ctx context.Context, rdb *gorm.DB, queryOptions *IngressesQuer
 		for k, v := range queryOptions.whereLikeCondition {
 			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
 		}
+		for k, v := range queryOptions.whereInCondition {
+			db = db.Where(fmt.Sprintf("%s IN ?", k), v)
+		}
 		if !queryOptions.timeRange.start.IsZero() {
 			db = db.Where("created_at > ?", queryOptions.timeRange.start)
 		}
@@ -3870,6 +3923,9 @@ func GetIngresses(ctx context.Context, rdb *gorm.DB, queryOptions *IngressesQuer
 		for k, v := range queryOptions.whereLikeCondition {
 			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
 		}
+		for k, v := range queryOptions.whereInCondition {
+			db = db.Where(fmt.Sprintf("%s IN ?", k), v)
+		}
 		db = db.Where("status=0")
 		if !queryOptions.timeRange.start.IsZero() {
 			db = db.Where("created_at > ?", queryOptions.timeRange.start)
@@ -3899,6 +3955,7 @@ func GetIngresses(ctx context.Context, rdb *gorm.DB, queryOptions *IngressesQuer
 
 type IngressesQueryOption struct {
 	whereEqCondition   map[string]interface{}
+	whereInCondition   map[string]interface{}
 	whereLikeCondition map[string]string
 	timeRange          TimeRange
 }
@@ -3907,11 +3964,16 @@ func IngressesQuery() *IngressesQueryOption {
 	return &IngressesQueryOption{
 		whereEqCondition:   make(map[string]interface{}),
 		whereLikeCondition: make(map[string]string),
+		whereInCondition:   make(map[string]interface{}),
 	}
 }
 
 func (q *IngressesQueryOption) WithCluster(clusterKey string) *IngressesQueryOption {
 	q.whereEqCondition["cluster_key"] = clusterKey
+	return q
+}
+func (q *IngressesQueryOption) WithClusterList(clusterKeyList []string) *IngressesQueryOption {
+	q.whereInCondition["cluster_key"] = clusterKeyList
 	return q
 }
 
@@ -4210,7 +4272,7 @@ func newModelFromIngress(ingress *netv1.Ingress, clusterKey string, updateTime t
 				}
 				tmp.BackendName = path.Backend.Resource.Name
 			}
-			tmp.WebDesc = fmt.Sprintf("%s:%s%s", strings.ToLower(tmp.Protocol), tmp.Host, tmp.Path)
+			tmp.WebDesc = fmt.Sprintf("%s%s", tmp.Host, tmp.Path)
 			detail.Rules = append(detail.Rules, tmp)
 		}
 	}
@@ -4263,6 +4325,10 @@ func ServicesQuery() *ServicesQueryOption {
 
 func (q *ServicesQueryOption) WithCluster(clusterKey string) *ServicesQueryOption {
 	q.whereEqCondition["cluster_key"] = clusterKey
+	return q
+}
+func (q *ServicesQueryOption) WithClusterList(clusterKeyList []string) *ServicesQueryOption {
+	q.whereInCondition["cluster_key"] = clusterKeyList
 	return q
 }
 
@@ -4479,6 +4545,7 @@ func CleanUpUnUpdatedServices(ctx context.Context, rdb *gorm.DB, t time.Time, cl
 
 type EndpointsQueryOption struct {
 	WhereEqCondition   map[string]interface{}
+	WhereInCondition   map[string]interface{}
 	WhereLikeCondition map[string]string
 	TimeRange          TimeRange
 }
@@ -4487,6 +4554,7 @@ func EndpointsQuery() *EndpointsQueryOption {
 	return &EndpointsQueryOption{
 		WhereEqCondition:   make(map[string]interface{}),
 		WhereLikeCondition: make(map[string]string),
+		WhereInCondition:   make(map[string]interface{}),
 	}
 }
 func (q *EndpointsQueryOption) WithTimeRange(start, end time.Time) *EndpointsQueryOption {
@@ -4512,6 +4580,9 @@ func CountEndpoints(ctx context.Context, rdb *gorm.DB, queryOptions *EndpointsQu
 		}
 		for k, v := range queryOptions.WhereLikeCondition {
 			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		for k, v := range queryOptions.WhereInCondition {
+			db = db.Where(fmt.Sprintf("%s IN ?", k), v)
 		}
 		if !queryOptions.TimeRange.start.IsZero() {
 			db = db.Where("created_at > ?", queryOptions.TimeRange.start)
@@ -4545,6 +4616,9 @@ func GetEndpoints(ctx context.Context, rdb *gorm.DB, queryOptions *EndpointsQuer
 		}
 		for k, v := range queryOptions.WhereLikeCondition {
 			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		for k, v := range queryOptions.WhereInCondition {
+			db = db.Where(fmt.Sprintf("%s IN ?", k), v)
 		}
 		db = db.Where("status=0")
 		if !queryOptions.TimeRange.start.IsZero() {
@@ -4747,7 +4821,7 @@ func newModeFromEndpoints(endpoints *assets.EndpointsTmp, clusterKey string, upd
 		TensorEndpoints: &model.TensorEndpoints{
 			TableBase: model.TableBase{
 				ID:        util.GenerateUUID(clusterKey, endpoints.Namespace, endpoints.Name),
-				CreatedAt: updateTime,
+				CreatedAt: endpoints.CreationTimestamp.Time,
 				UpdatedAt: updateTime,
 			},
 			Name:        endpoints.Name,
@@ -4837,6 +4911,7 @@ func CleanUpUnUpdatedEndpoints(ctx context.Context, rdb *gorm.DB, ts time.Time, 
 
 type SecretsQueryOption struct {
 	WhereEqCondition   map[string]interface{}
+	WhereInCondition   map[string]interface{}
 	WhereLikeCondition map[string]string
 	TimeRange          TimeRange
 }
@@ -4850,6 +4925,7 @@ func SecretsQuery() *SecretsQueryOption {
 	return &SecretsQueryOption{
 		WhereEqCondition:   make(map[string]interface{}),
 		WhereLikeCondition: make(map[string]string),
+		WhereInCondition:   make(map[string]interface{}),
 	}
 }
 
@@ -4870,6 +4946,9 @@ func CountSecrets(ctx context.Context, rdb *gorm.DB, queryOptions *SecretsQueryO
 		}
 		for k, v := range queryOptions.WhereLikeCondition {
 			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		for k, v := range queryOptions.WhereInCondition {
+			db = db.Where(fmt.Sprintf("%s IN ?", k), v)
 		}
 		if !queryOptions.TimeRange.start.IsZero() {
 			db = db.Where("created_at > ?", queryOptions.TimeRange.start)
@@ -4902,6 +4981,9 @@ func GetSecrets(ctx context.Context, rdb *gorm.DB, queryOptions *SecretsQueryOpt
 		}
 		for k, v := range queryOptions.WhereLikeCondition {
 			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		for k, v := range queryOptions.WhereInCondition {
+			db = db.Where(fmt.Sprintf("%s IN ?", k), v)
 		}
 		if !queryOptions.TimeRange.start.IsZero() {
 			db = db.Where("created_at > ?", queryOptions.TimeRange.start)
@@ -5362,6 +5444,9 @@ func CountNamespaceLabels(ctx context.Context, rdb *gorm.DB, queryOptions *Names
 		for k, v := range queryOptions.WhereLikeCondition {
 			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
 		}
+		for k, v := range queryOptions.WhereInCondition {
+			db = db.Where(fmt.Sprintf("%s IN ?", k), v)
+		}
 		if !queryOptions.TimeRange.start.IsZero() {
 			db = db.Where("created_at > ?", queryOptions.TimeRange.start)
 		}
@@ -5393,6 +5478,9 @@ func GetNamespaceLabels(ctx context.Context, rdb *gorm.DB, queryOptions *Namespa
 		}
 		for k, v := range queryOptions.WhereLikeCondition {
 			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		for k, v := range queryOptions.WhereInCondition {
+			db = db.Where(fmt.Sprintf("%s IN ?", k), v)
 		}
 		if !queryOptions.TimeRange.start.IsZero() {
 			db = db.Where("created_at > ?", queryOptions.TimeRange.start)
@@ -5434,7 +5522,9 @@ type PodBusiSvcBase struct {
 }
 
 type PodBusiSvcBaseDetail struct {
-	*model.TensorRawContainerSvc
+	model.TensorRawContainerSvc
+	ClusterKey    string             `json:"clusterKey"`
+	Namespace     string             `json:"namespace"`
 	ContainerId   string             `json:"containerId"`
 	ContainerName string             `json:"containerName"`
 	PodName       string             `json:"podName"`
@@ -5483,7 +5573,7 @@ func GetBusiSvcs(ctx context.Context, rdb *gorm.DB, queryOptions *BusiSvcQueryOp
 
 		var db *gorm.DB
 		db = rdb.WithContext(oneCtx).Model(&model.TensorRawContainerSvc{}).
-			Select("ivan_assets_raw_containers_svcs.*, raw.id as containerId ,raw.name as containerName")
+			Select("ivan_assets_raw_containers_svcs.*, raw.id as container_id ,raw.name as container_name")
 		if len(queryOptions.WhereEqCondition) > 0 {
 			db.Where(queryOptions.WhereEqCondition)
 		}
@@ -5499,7 +5589,7 @@ func GetBusiSvcs(ctx context.Context, rdb *gorm.DB, queryOptions *BusiSvcQueryOp
 		if offset >= 0 && limit >= 0 {
 			db.Offset(offset).Limit(limit)
 		}
-		err := db.Order("id ASC").Find(&svcs).Error
+		err := db.Order("id ASC").Scan(&svcs).Error
 		if err == gorm.ErrRecordNotFound {
 			notFound = true
 			return nil
@@ -5515,6 +5605,39 @@ func GetBusiSvcs(ctx context.Context, rdb *gorm.DB, queryOptions *BusiSvcQueryOp
 	return svcs, nil
 }
 
+func GetBusiStartUser(ctx context.Context, rdb *gorm.DB, busiType string) ([]string, error) {
+	rCtx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
+	defer cancel()
+
+	var users []string
+	notFound := false
+	err := util.RetryWithBackoff(rCtx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(rCtx, 2000*time.Millisecond)
+		defer oneCancel()
+
+		var db *gorm.DB
+		db = rdb.WithContext(oneCtx).Model(&model.TensorRawContainerSvc{}).
+			Distinct("user")
+
+		if busiType != "" {
+			db = db.Where("svc_type = ? and status=0", busiType)
+		}
+		err := db.Scan(&users).Error
+		if err == gorm.ErrRecordNotFound {
+			notFound = true
+			return nil
+		}
+		return err
+	})
+	if notFound {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return users, nil
+}
+
 func GetBusiSvcDetail(ctx context.Context, rdb *gorm.DB, id int32) (*PodBusiSvcBaseDetail, error) {
 	rCtx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
 	defer cancel()
@@ -5527,10 +5650,10 @@ func GetBusiSvcDetail(ctx context.Context, rdb *gorm.DB, id int32) (*PodBusiSvcB
 
 		var db *gorm.DB
 		db = rdb.WithContext(oneCtx).Model(&model.TensorRawContainerSvc{}).
-			Select("ivan_assets_raw_containers_svcs.*, raw.id as containerId , raw.pod_name as podName ,raw.name as containerName,raw.processes,raw.ports").
-			Where("id=?", id)
+			Select("ivan_assets_raw_containers_svcs.*,raw.cluster_key,raw.namespace, raw.id as container_id , raw.pod_name as pod_name ,raw.name as container_name,raw.processes,raw.ports").
+			Where("ivan_assets_raw_containers_svcs.id=?", id)
 		db = db.Joins("left join ivan_assets_raw_containers raw on  raw.id = ivan_assets_raw_containers_svcs.raw_container_id")
-		err := db.Find(detail).Error
+		err := db.Scan(detail).Error
 		if err == gorm.ErrRecordNotFound {
 			notFound = true
 			return nil
@@ -5546,10 +5669,17 @@ func GetBusiSvcDetail(ctx context.Context, rdb *gorm.DB, id int32) (*PodBusiSvcB
 	return detail, nil
 }
 
-type ExposeHostBase struct {
+type ExposeHostItem struct {
+	Host     string
+	Protocol string
+	PathList []*ExposeHostPathBase
+}
+
+type ExposeHostPathBase struct {
 	Id        uint32 `json:"id" gorm:"column:id;"`
 	IngressId uint32 `json:"ingressId" gorm:"column:ingressId;"`
-	WebDesc   string `json:"webDesc" gorm:"column:webDesc;"`
+	Host      string `json:"host" gorm:"column:host;"`
+	WebDesc   string `json:"WebDesc" gorm:"column:web_desc"`
 	//HostIp         string `json:"hostIp"`
 	Protocol       string `json:"protocol" gorm:"column:protocol;"`
 	HostPort       string `json:"hostPort" gorm:"column:hostPort;"`
@@ -5557,8 +5687,8 @@ type ExposeHostBase struct {
 	ContainerNames string `json:"containerNames" gorm:"column:containerNames;"`
 	BackendKind    string `json:"backendKind" gorm:"column:backendKind;"`
 	K8sSvcName     string `json:"k8sSvcName" gorm:"column:k8sSvcName;"`
-	SvcName        string `json:"svcName" gorm:"column:svcName;"`
-	RootDir        string `json:"rootDir" gorm:"column:rootDir;"`
+	SvcName        string `json:"svcName,omitempty" gorm:"column:svcName;"`
+	RootDir        string `json:"rootDir,omitempty" gorm:"column:rootDir;"`
 	ClusterKey     string `json:"clusterKey" gorm:"column:clusterKey;"`
 	Namespace      string `json:"namespace" gorm:"column:namespace;"`
 }
@@ -5575,39 +5705,48 @@ func CountExposeHost(ctx context.Context, rdb *gorm.DB, webDesc, protocol string
 		var db *gorm.DB
 		db = rdb.WithContext(oneCtx).Model(&model.TensorIngressRule{})
 		if len(webDesc) > 0 {
-			db = db.Where("web_desc like ?", GetLikeExpr(webDesc))
+			db = db.Where("host like ?", GetLikeExpr(webDesc))
 		}
 		if protocol != "" {
-			db = db.Where("protocol = ?", GetLikeExpr(protocol))
+			db = db.Where("protocol = ?", protocol)
 		}
-		db = db.Where("status =0 ")
+		db = db.Where("status =0 ").Distinct("host")
 		return db.Count(&cntNum).Error
 	})
 	return cntNum, err
 }
 
-func GetExposeHosts(ctx context.Context, rdb *gorm.DB, webDesc, protocol string, offset int, limit int) ([]*ExposeHostBase, error) {
+func GetExposeHosts(ctx context.Context, rdb *gorm.DB, webDesc, protocol string, offset int, limit int) ([]*ExposeHostItem, error) {
 	rCtx, cancel := context.WithTimeout(ctx, 10000*time.Millisecond)
 	defer cancel()
 
-	var baseList []*ExposeHostBase
 	var db *gorm.DB
-	db = rdb.WithContext(rCtx).Model(&model.TensorIngressRule{}).
-		Select("ivan_assets_ingress_rules.id ,ingress_id as ingressId,cluster_key as clusterKey ,namespace,web_desc as webDesc ," +
-			"protocol,service_port as hostPort,backend_kind as backendKind ,backend_name as k8sSvcName")
+	var hostList []string
+	db = rdb.WithContext(rCtx).Model(&model.TensorIngressRule{}).Distinct("host")
 	if len(webDesc) > 0 {
-		db = db.Where("web_desc like ?", GetLikeExpr(webDesc))
+		db = db.Where("host like ?", GetLikeExpr(webDesc))
 	}
 	if protocol != "" {
-		db = db.Where("protocol = ?", GetLikeExpr(protocol))
+		db = db.Where("protocol = ?", protocol)
 	}
-	db = db.Joins("join ivan_assets_ingresses  ingress on ingress.id= ivan_assets_ingress_rules.ingress_id")
-	db = db.Where("ivan_assets_ingress_rules.status =0 ")
-
 	if offset >= 0 && limit >= 0 {
 		db.Offset(offset).Limit(limit)
 	}
-	err := db.Order("ivan_assets_ingress_rules.id ASC").Scan(&baseList).Error
+	err := db.Order("host ASC").Scan(&hostList).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, nil
+	}
+	if len(hostList) == 0 {
+		return nil, err
+	}
+	var baseList []*ExposeHostPathBase
+	db = rdb.WithContext(rCtx).Model(&model.TensorIngressRule{}).
+		Select("ivan_assets_ingress_rules.id ,ingress_id as ingressId,cluster_key as clusterKey ,namespace,host,web_desc ," +
+			"protocol,service_port as hostPort,backend_kind as backendKind ,backend_name as k8sSvcName")
+	db = db.Joins("join ivan_assets_ingresses  ingress on ingress.id= ivan_assets_ingress_rules.ingress_id")
+	db = db.Where("host in ?", hostList)
+	db = db.Where("ingress.status =0 ")
+	err = db.Order("host , path").Scan(&baseList).Error
 	if err == gorm.ErrRecordNotFound {
 		return nil, nil
 	}
@@ -5677,30 +5816,27 @@ func GetExposeHosts(ctx context.Context, rdb *gorm.DB, webDesc, protocol string,
 			continue
 		}
 		base.ContainerNames = strings.Join(containerNames, ",")
-		//busiSvc
-		type busiTemp struct {
-			SvcName string `json:"svcName"`
-			RootDir string `json:"rootDir"`
-		}
-		var busiSvc busiTemp
-		err = rdb.WithContext(rCtx).Model(&model.TensorRawContainerSvc{}).Select("svc_name,root_dir").
-			Where("pod_name = ? and port =? ", podNames[0], base.ContainerPort).
-			Scan(&busiSvc).Error
-		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get busiSvc failed.")
-			if errors.Is(err, context.DeadlineExceeded) {
-				return nil, err
-			}
-			continue
-		}
-		base.SvcName = busiSvc.SvcName
-		base.RootDir = busiSvc.RootDir
 	}
-	return baseList, nil
+
+	var result []*ExposeHostItem
+	hostMap := make(map[string]struct{})
+	for _, base := range baseList {
+		if _, isOk := hostMap[base.Host]; isOk {
+			result[len(result)].PathList = append(result[len(result)].PathList, base)
+		} else {
+			result = append(result, &ExposeHostItem{
+				Host:     base.Host,
+				Protocol: base.Protocol,
+				PathList: []*ExposeHostPathBase{base},
+			})
+		}
+	}
+
+	return result, nil
 }
 
 type ExposeHostDetail struct {
-	*ExposeHostBase
+	*ExposeHostPathBase
 	User  string
 	Ports model.PortSlice `json:"ports"`
 }
@@ -5995,6 +6131,20 @@ func DeleteClusterAll(ctx context.Context, rdb *gorm.DB, clusterKey string) erro
 		}
 
 		err = tx.Where("cluster_key = ?", clusterKey).Delete(&model.TensorContainerRelation{}).Error
+		if err != nil {
+			return err
+		}
+
+		err = tx.Table(model.TensorRawContainerFramework{}.TableName()).
+			Joins("join ivan_assets_raw_containers on ivan_assets_raw_containers.id =  ivan_assets_raw_containers_frameworks.raw_container_id").
+			Where("ivan_assets_raw_containers.cluster_key = ?", clusterKey).Delete(&model.TensorRawContainerFramework{}).Error
+		if err != nil {
+			return err
+		}
+
+		err = tx.Table(model.TensorRawContainerSvc{}.TableName()).
+			Joins("join ivan_assets_raw_containers on ivan_assets_raw_containers.id =  ivan_assets_raw_containers_svcs.raw_container_id").
+			Where("ivan_assets_raw_containers.cluster_key = ?", clusterKey).Delete(&model.TensorRawContainerSvc{}).Error
 		if err != nil {
 			return err
 		}

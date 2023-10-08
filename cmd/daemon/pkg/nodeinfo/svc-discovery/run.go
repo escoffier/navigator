@@ -34,7 +34,7 @@ func NewDiscoveryHandler(hostPrefix string, remoteRunFunc func(ctx context.Conte
 	return &DiscoveryHandler{
 		svcHandler: []ISvcDiscovery{NewTomcatSvc(), NewApacheSvc(), NewNginxSvc(), NewWeblogicSvc(), NewWebSphereSvc(), NewWildflySvc(), NewOpenRestySvc(),
 			NewMysqlSvc(), NewPostgreSQLSvc(), NewMogoDbSvc(), NewRedisSvc(), NewGrafanaSvc(), NewRsyslogSvc()},
-		frameworkHandler: []IFrameworkDiscovery{NewJava(), NewPython(), NewPhp(), NewNet()},
+		frameworkHandler: []IFrameworkDiscovery{NewJava(), NewPython(), NewPhp(), NewNet(), NewRuby(), NewNodejs()},
 		pathPrefix:       hostPrefix,
 	}
 }

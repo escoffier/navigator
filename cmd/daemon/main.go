@@ -150,7 +150,7 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli m
 	k8sInfo.SetContainerManager(containerInfo)
 	containerInfo.AddEventHandler(nodeinfo.ContainerEventHandlerFuncs{
 		AddFunc: func(object interface{}) {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+			ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 			defer cancel()
 
 			container, ok := object.(*model.TensorRawContainer)

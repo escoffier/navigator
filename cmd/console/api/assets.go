@@ -47,7 +47,7 @@ func (api *api) assets() func(chi.Router) {
 		r.Get("/resources/fuzz", api.getResourcesFuzzy())
 		r.Post("/resource/userData", api.updateResourceUserData())
 		r.Get("/namespace/{namespace}/kind/{kind}/resource/{resource_name}/containers", api.getResourceContainers())
-		r.Get("/imageinfos", api.getImageInfos())
+		r.Get("/imageinfos", api.getImageInfosV2())
 		r.Get("/imageProblems", api.getImageProblems())
 		r.Get("/resources/byImage", api.getResourcesByImage())
 		r.Get("/resources/byImageVulns", api.getResourcesByImageVuln())
@@ -118,10 +118,14 @@ func (api *api) assets() func(chi.Router) {
 		r.Delete("/namespaceLabel/{label_id}", api.deleteNamespaceLabels())
 		//服务识别
 		r.Get("/busiServices", api.getBusiServices())
+		r.Get("/busiServicesType", api.getBusiServicesType()) //应用类别
+		r.Get("/busiServicesKind", api.getBusiServicesKind()) // 应用名称
 		r.Get("/busiServices/db", api.getDbBusiServices())
 		r.Get("/busiServices/web", api.getWebBusiServices())
+		r.Get("/busiServices/startUser", api.getBusiStartUser())
 		r.Get("/busiService/{id}", api.getBusiService())
-		r.Get("/busiServiceKind", api.getBusiServiceKind())
+		r.Get("/busiServiceWebKind", api.getBusiServiceWebKind())
+		r.Get("/busiServiceDbKind", api.getBusiServiceDbKind())
 		// 站点
 		r.Get("/exposeHosts", api.getExposeHosts())
 		r.Get("/exposeHost/{id}", api.getExposeHostDetail())
@@ -2048,7 +2052,8 @@ func (api *api) countImages() http.HandlerFunc {
 	}
 }
 
-func (api *api) getImageInfos() http.HandlerFunc {
+// 查询rawContainer
+func (api *api) getImageInfosV2() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
@@ -2086,7 +2091,7 @@ func (api *api) getImageInfos() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resource service failed")))
 			return
 		}
-		imageInfos, err := resSvc.GetImageInfos(ctx, queryOpt)
+		imageInfos, err := resSvc.GetImageInfosV2(ctx, queryOpt)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resource service failed")))
 			return
@@ -2540,47 +2545,28 @@ func (api *api) getRawContainer() http.HandlerFunc {
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
 			clusterKey = ""
+			//RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("param:cluster_key is empty")))
+			//return
 		}
-
 		containerID := chi.URLParam(r, "containerID")
-
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
 			logging.Get().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
-
-		query := dal.RawContainersQuery()
-		if clusterKey != "" {
-			query = query.WithCluster(clusterKey)
-		}
-		if containerID != "" {
-			contaierLen := len(containerID)
-			if contaierLen < 64 {
-				query = query.WithPrefixColumnQuery("id", containerID)
-			} else {
-				query = query.WithID(containerID)
-			}
-		}
-		query.WithInConditionCustom("status", assetsPkg.All)
-		containers, err := resSvc.GetRawContainer(ctx, query, 0, 1)
+		contain, err := resSvc.GetRawContainerWithFramework(ctx, clusterKey, containerID)
 		if err != nil {
-			logging.Get().Err(err).Msgf("get raw container error, got number %d", len(containers))
+			logging.Get().Err(err).Msgf("get raw container error.")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
-
-		var container *model.TensorRawContainer
-		if len(containers) > 0 {
-			container = containers[0]
-		}
 		// 不展示podName
-		if container.ResourceKind == "Pod" {
-			container.PodName = "-"
+		if contain != nil && contain.ResourceKind == "Pod" {
+			contain.PodName = "-"
 		}
 		response.Ok(w, func(ev *response.HTTPEnvelope) {
-			data, err := json.Marshal(container)
+			data, err := json.Marshal(contain)
 			if err != nil {
 				ev.EnvelopeError = fmt.Sprintf("Failed to marshal item to json: %v", err)
 			} else {
@@ -3146,7 +3132,8 @@ func (req *GetIngresses) Execute(ctx context.Context) ([]*model.TensorIngress, i
 		queryOpt.WithFuzzName(req.ingressName)
 	}
 	if req.clusterKey != "" {
-		queryOpt.WithCluster(req.clusterKey)
+		split := strings.Split(req.clusterKey, ",")
+		queryOpt.WithClusterList(split)
 	}
 	if req.namespace != "" {
 		queryOpt.WithFuzzNamespace(req.namespace)
@@ -3373,7 +3360,8 @@ func (req *GetServicesReq) Execute(ctx context.Context) ([]*model.TensorService,
 		queryOpt.WithFuzzName(req.name)
 	}
 	if req.clusterKey != "" {
-		queryOpt.WithCluster(req.clusterKey)
+		split := strings.Split(req.clusterKey, ",")
+		queryOpt.WithClusterList(split)
 	}
 	if req.namespace != "" {
 		queryOpt.WithFuzzNamespace(req.namespace)
@@ -3541,7 +3529,8 @@ func (req *GetEndpoints) Execute(ctx context.Context) ([]*model.TensorEndpoints,
 		queryOpt.WhereLikeCondition["service_name"] = req.serviceName
 	}
 	if req.clusterKey != "" {
-		queryOpt.WhereEqCondition["cluster_key"] = req.clusterKey
+		split := strings.Split(req.clusterKey, ",")
+		queryOpt.WhereInCondition["cluster_key"] = split
 	}
 	if req.namespace != "" {
 		queryOpt.WhereLikeCondition["namespace"] = req.namespace
@@ -3790,7 +3779,8 @@ func (api *api) getSecrets() http.HandlerFunc {
 			opt.WhereLikeCondition["namespace"] = req.namespace
 		}
 		if req.clusterKey != "" {
-			opt.WhereLikeCondition["cluster_key"] = req.clusterKey
+			split := strings.Split(req.clusterKey, ",")
+			opt.WhereInCondition["cluster_key"] = split
 		}
 		opt.WithTimeRange(req.start, req.end)
 
@@ -4082,7 +4072,8 @@ func (g *getNamespaceLabels) Execute(ctx context.Context) ([]*model.TensorNamesp
 		query.WhereLikeCondition["namespace"] = g.namespace
 	}
 	if g.clusterKey != "" {
-		query.WhereEqCondition["cluster_key"] = g.clusterKey
+		split := strings.Split(g.clusterKey, ",")
+		query.WhereInCondition["cluster_key"] = split
 	}
 	query.WithTimeRange(g.start, g.end)
 
@@ -4237,16 +4228,16 @@ func (g *BusiServiceReq) Execute(ctx context.Context) ([]*dal.PodBusiSvcBase, in
 		query.ContainerName = g.containerName
 	}
 	if g.svcVersion != "" {
-		query.WhereLikeCondition["svcVersion"] = g.svcVersion
+		query.WhereLikeCondition["svc_version"] = g.svcVersion
 	}
 	if g.svcName != "" {
-		query.WhereEqCondition["svcName"] = g.svcName
+		query.WhereEqCondition["svc_name"] = g.svcName
 	}
 	if g.svcType != "" {
-		query.WhereEqCondition["svcType"] = g.svcType
+		query.WhereEqCondition["svc_type"] = g.svcType
 	}
 	if g.user != "" {
-		query.WhereEqCondition["user"] = g.user
+		query.WhereEqCondition["ivan_assets_raw_containers_svcs.user"] = g.user
 	}
 
 	resSvc, ok := assets.GetResourcesService(ctx)
@@ -4298,6 +4289,27 @@ func (api *api) getWebBusiServices() http.HandlerFunc {
 	}
 }
 
+func (api *api) getBusiStartUser() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		buisi := getNormalizedQueryParam(r, "busiType")
+
+		resSvc, ok := assets.GetResourcesService(ctx)
+		if !ok {
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
+			return
+		}
+		users, err := resSvc.GetBusiStartUser(ctx, buisi)
+		if err != nil {
+			logging.Get().Err(err).Msg("getBusiStartUser failed.")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get user failed")))
+			return
+		}
+		response.Ok(w, response.WithItems(users))
+	}
+}
+
 func (api *api) getDbBusiServices() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -4305,7 +4317,7 @@ func (api *api) getDbBusiServices() http.HandlerFunc {
 
 		req := &BusiServiceReq{}
 		req.Render(r)
-		req.svcType = "数据库服务"
+		req.svcType = "数据库"
 		labels, total, err := req.Execute(ctx)
 		if err != nil {
 			logging.Get().Err(err).Msg("get Ingresses error")
@@ -4352,7 +4364,23 @@ func (api *api) getBusiService() http.HandlerFunc {
 	}
 }
 
-var webServiceKind = []string{
+var busiServiceKind = append(busiServiceWebKind, busiServiceDbKind...)
+
+func (api *api) getBusiServicesKind() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		response.Ok(w, response.WithItems(busiServiceKind))
+	}
+}
+
+var busiServiceType = []string{pkgAssets.BusiSvcTypeWeb, pkgAssets.BusiSvcTypeDb, pkgAssets.BusiSvcTypeMonitor}
+
+func (api *api) getBusiServicesType() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		response.Ok(w, response.WithItems(busiServiceType))
+	}
+}
+
+var busiServiceWebKind = []string{
 	pkgAssets.BusiSvcTomcat,
 	pkgAssets.BusiSvcAppache,
 	pkgAssets.BusiSvcTomcat,
@@ -4364,9 +4392,24 @@ var webServiceKind = []string{
 	pkgAssets.BusiSvcOpenResty,
 }
 
-func (api *api) getBusiServiceKind() http.HandlerFunc {
+func (api *api) getBusiServiceWebKind() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		response.Ok(w, response.WithItems(webServiceKind))
+		busiServiceKind = append(busiServiceKind)
+		response.Ok(w, response.WithItems(busiServiceWebKind))
+	}
+}
+
+var busiServiceDbKind = []string{
+	pkgAssets.BusiSvcRedis,
+	pkgAssets.BusiSvcMysql,
+	pkgAssets.BusiSvcPostgreSQL,
+	pkgAssets.BusiSvcMogoDB,
+	pkgAssets.BusiSvcRsyslog,
+}
+
+func (api *api) getBusiServiceDbKind() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		response.Ok(w, response.WithItems(busiServiceDbKind))
 	}
 }
 
@@ -4386,7 +4429,7 @@ func (e *ExposeHostReq) Render(r *http.Request) {
 	e.protocol = getNormalizedQueryParam(r, "protocol")
 }
 
-func (g *ExposeHostReq) Execute(ctx context.Context) ([]*dal.ExposeHostBase, int64, error) {
+func (g *ExposeHostReq) Execute(ctx context.Context) ([]*dal.ExposeHostItem, int64, error) {
 
 	resSvc, ok := assets.GetResourcesService(ctx)
 	if !ok {

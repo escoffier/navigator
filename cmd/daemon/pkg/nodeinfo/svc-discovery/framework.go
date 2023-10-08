@@ -73,6 +73,7 @@ func (j *JavaFramework) FrameworkDiscovery(containerId string, cmdList []*cmdIte
 			continue
 		}
 		framework.LanguageName = j.languageName
+		framework.LanguageBinPath = getBinaryPathByPid(cmd.pid)
 		// version try1: 父级目录
 		stringMatch, err := j.languageVersionRegex.FindStringMatch(binary)
 		if err != nil {
@@ -124,6 +125,7 @@ func (j *JavaFramework) FrameworkDiscovery(containerId string, cmdList []*cmdIte
 			if match != nil {
 				framework.FrameworkName = "Spring"
 				framework.FrameworkVersion = match.String()
+				framework.FrameworkPath = jarName
 			}
 		}
 		break
@@ -177,6 +179,7 @@ func (p *PythonFramework) FrameworkDiscovery(containerId string, cmdList []*cmdI
 			continue
 		}
 		framework.LanguageName = p.languageName
+		framework.LanguageBinPath = getBinaryPathByPid(cmd.pid)
 		// langurage version
 		/*
 			root@python-django-6d74f6d468-8n9jk:/# python --version
@@ -198,11 +201,19 @@ func (p *PythonFramework) FrameworkDiscovery(containerId string, cmdList []*cmdI
 			}
 		}
 		for _, a := range argu {
+			if strings.Contains(a, ".py") {
+				framework.FrameworkPath = a
+			}
 			if a == "runserver" {
 				framework.FrameworkName = "Django"
 				break
 			}
 		}
+		if framework.FrameworkName == "" {
+			framework.FrameworkPath = ""
+			break
+		}
+
 		if framework.FrameworkName == "Django" {
 			//	version
 			/*
@@ -271,6 +282,7 @@ func NewPhp() IFrameworkDiscovery {
 	return &php
 }
 
+// php /var/www/bin/console server:run 0.0.0.0:8080
 func (p *PhpFramework) FrameworkDiscovery(containerId string, cmdList []*cmdItem) *assets.ContainerFrameworkInfo {
 	var framework assets.ContainerFrameworkInfo
 	frameworkPath := ""
@@ -285,6 +297,7 @@ func (p *PhpFramework) FrameworkDiscovery(containerId string, cmdList []*cmdItem
 			continue
 		}
 		framework.LanguageName = p.languageName
+		framework.LanguageBinPath = getBinaryPathByPid(cmd.pid)
 		/*
 			root@php-symfony-85548865c7-kgwk4:/# php -v |grep '^PHP'
 			PHP 7.3.10 (cli) (built: Oct  4 2019 22:20:02) ( NTS )
@@ -307,27 +320,32 @@ func (p *PhpFramework) FrameworkDiscovery(containerId string, cmdList []*cmdItem
 			if err == nil && isMatch {
 				framework.FrameworkName = "Symfony "
 				frameworkPath = a
+				break
 			}
-			//version
-			/*
-				root@php-symfony-85548865c7-kgwk4:/# php /var/www/bin/console --version
-				Symfony 3.4.35 (kernel: app, env: dev, debug: true)
-			*/
-			ctx, cancelFunc = context.WithTimeout(context.Background(), 5*time.Second)
-			djangoVersionCmd := []string{"php", frameworkPath, "--version"}
-			output, err = runCmd(ctx, containerId, djangoVersionCmd)
-			cancelFunc()
-			if err != nil {
-				logging.Get().Err(err).Msgf("run cmd[%s] failed.", djangoVersionCmd)
-			} else {
-				//logging.Get().Info().Msgf("run cmd[%s] result:%s", djangoVersionCmd, output)
-				match, err := p.frameworkVersionRegex.FindStringMatch(output)
-				if err == nil && match != nil {
-					framework.FrameworkVersion = match.String()
-				}
-			}
+		}
+		if framework.FrameworkName == "" {
 			break
 		}
+		framework.FrameworkPath = argu[0]
+		//version
+		/*
+			root@php-symfony-85548865c7-kgwk4:/# php /var/www/bin/console --version
+			Symfony 3.4.35 (kernel: app, env: dev, debug: true)
+		*/
+		ctx, cancelFunc = context.WithTimeout(context.Background(), 5*time.Second)
+		djangoVersionCmd := []string{"php", frameworkPath, "--version"}
+		output, err = runCmd(ctx, containerId, djangoVersionCmd)
+		cancelFunc()
+		if err != nil {
+			logging.Get().Err(err).Msgf("run cmd[%s] failed.", djangoVersionCmd)
+		} else {
+			//logging.Get().Info().Msgf("run cmd[%s] result:%s", djangoVersionCmd, output)
+			match, err := p.frameworkVersionRegex.FindStringMatch(output)
+			if err == nil && match != nil {
+				framework.FrameworkVersion = match.String()
+			}
+		}
+
 		break
 	}
 	if framework.LanguageName == "" {
@@ -336,7 +354,7 @@ func (p *PhpFramework) FrameworkDiscovery(containerId string, cmdList []*cmdItem
 	return &framework
 }
 
-// .Net
+// .Net /usr/bin/mono /usr/lib/mono/4.5/fastcgi-mono-server4.exe /applications=/:/usr/aspnet/ /socket=tcp:127.0.0.1:9000
 var regexpLanguageNet = `^[^\s]*mono$`
 var regexpLanguageNetVersion = `(?<=version\s)\S+`
 var regexNetFramework = `aspnet`
@@ -383,6 +401,7 @@ func (p *NetFramework) FrameworkDiscovery(containerId string, cmdList []*cmdItem
 			continue
 		}
 		framework.LanguageName = p.languageName
+		framework.LanguageBinPath = getBinaryPathByPid(cmd.pid)
 		// version
 		/*
 			bash-4.1# mono -V | grep version
@@ -408,6 +427,9 @@ func (p *NetFramework) FrameworkDiscovery(containerId string, cmdList []*cmdItem
 				break
 			}
 		}
+		if framework.FrameworkName != "" {
+			framework.FrameworkPath = argu[0]
+		}
 		break
 	}
 	if framework.LanguageName == "" {
@@ -420,12 +442,15 @@ func (p *NetFramework) FrameworkDiscovery(containerId string, cmdList []*cmdItem
 // ruby    eg:ruby bin/rails server
 var regexpLanguageRuby = `^[^\s]*ruby`
 var regexpLanguageRubyVersion = `(?<=ruby\s)\S+`
-var MatchRubyFramework = `rails server` //Rails
+var regexpRubyFramework = `^[^\s]*rails` //Rails
+var regexpFrameworkRailsVersion = `(?<=Rails\s)\S+`
 
 type RubyFramework struct {
-	languageName         string
-	languageRegex        *regexp2.Regexp
-	languageVersionRegex *regexp2.Regexp
+	languageName          string
+	languageRegex         *regexp2.Regexp
+	languageVersionRegex  *regexp2.Regexp
+	frameworkRegex        *regexp2.Regexp
+	frameworkVersionRegex *regexp2.Regexp
 }
 
 func NewRuby() IFrameworkDiscovery {
@@ -442,13 +467,23 @@ func NewRuby() IFrameworkDiscovery {
 		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexpLanguageRubyVersion)
 		return nil
 	}
+	ruby.frameworkRegex, err = regexp2.Compile(regexpRubyFramework, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexpRubyFramework)
+		return nil
+	}
+	ruby.frameworkVersionRegex, err = regexp2.Compile(regexpFrameworkRailsVersion, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexpFrameworkRailsVersion)
+		return nil
+	}
 	return &ruby
 }
 
 func (p *RubyFramework) FrameworkDiscovery(containerId string, cmdList []*cmdItem) *assets.ContainerFrameworkInfo {
 	var framework assets.ContainerFrameworkInfo
 	for _, cmd := range cmdList {
-		binary, argus := parseCmdOnlyBinaryAndArgus(cmd.cmdStr)
+		binary, argus := parseCmdBySpace(cmd.cmdStr)
 		isMatch, err := p.languageRegex.MatchString(binary)
 		if err != nil {
 			logging.Get().Err(err).Msgf("match language failed. binary:%s", binary)
@@ -458,15 +493,16 @@ func (p *RubyFramework) FrameworkDiscovery(containerId string, cmdList []*cmdIte
 			continue
 		}
 		framework.LanguageName = p.languageName
+		framework.LanguageBinPath = getBinaryPathByPid(cmd.pid)
 		// version
 		/*
 			root@ruby-rails-c74474cb8-kst84:/src/app# ruby -v
 			ruby 2.3.3p222 (2016-11-21 revision 56859) [x86_64-linux]
 		*/
 		ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancelFunc()
-		monoVersionCmd := []string{binary + `-v`}
+		monoVersionCmd := []string{binary, `-v`}
 		output, err := runCmd(ctx, containerId, monoVersionCmd)
+		cancelFunc()
 		if err != nil {
 			logging.Get().Err(err).Msgf("run cmd[%s] failed.", monoVersionCmd)
 		} else {
@@ -476,14 +512,134 @@ func (p *RubyFramework) FrameworkDiscovery(containerId string, cmdList []*cmdIte
 			}
 		}
 		// framework
-		if strings.Contains(argus, MatchRubyFramework) {
-			framework.FrameworkName = "Rails"
+		var railsBinaryPath string
+		for i, argu := range argus {
+			if i == 0 {
+				framework.FrameworkPath = argu
+			}
+			match, err := p.frameworkRegex.MatchString(argu)
+			if err == nil && match {
+				framework.FrameworkName = "Rails"
+				railsBinaryPath = argu
+			}
 		}
+		if framework.FrameworkName == "" {
+			break
+		}
+		framework.FrameworkPath = argus[0]
+		/*
+			root@ruby-rails-c74474cb8-kst84:/src/app# bin/rails -v
+			Expected string default value for '--rc'; got false (boolean)
+			Rails 4.1.5
+		*/
+		ctx, cancelFunc = context.WithTimeout(context.Background(), 5*time.Second)
+		frameworkCmd := []string{railsBinaryPath, `-v`}
+		output, err = runCmd(ctx, containerId, frameworkCmd)
+		cancelFunc()
+		if err != nil {
+			logging.Get().Err(err).Msgf("run cmd[%s] failed.", monoVersionCmd)
+		} else {
+			match, err := p.frameworkVersionRegex.FindStringMatch(output)
+			if err == nil && match != nil {
+				framework.FrameworkVersion = match.String()
+			}
+		}
+		logging.Get().Info().Msgf("containerId:%s,framework:%v", containerId, framework)
 		break
 	}
 	if framework.LanguageName == "" {
 		return nil
 	}
+	return &framework
+}
 
+// node.js    eg:node /usr/local/bin/sails lift
+var regexpLanguageNodejs = `^[^\s]*node`
+var regexpNodejsFramework = `^[^\s]*sails` //Rails
+
+type NodejsFramework struct {
+	languageName   string
+	languageRegex  *regexp2.Regexp
+	frameworkRegex *regexp2.Regexp
+}
+
+func NewNodejs() IFrameworkDiscovery {
+	var nodejs NodejsFramework
+	nodejs.languageName = assets.BusiFrameworkNodejs
+	var err error
+	nodejs.languageRegex, err = regexp2.Compile(regexpLanguageNodejs, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexpLanguageNodejs)
+		return nil
+	}
+	nodejs.frameworkRegex, err = regexp2.Compile(regexpNodejsFramework, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexpNodejsFramework)
+		return nil
+	}
+	return &nodejs
+}
+
+func (p *NodejsFramework) FrameworkDiscovery(containerId string, cmdList []*cmdItem) *assets.ContainerFrameworkInfo {
+	var framework assets.ContainerFrameworkInfo
+	for _, cmd := range cmdList {
+		binary, argus := parseCmdBySpace(cmd.cmdStr)
+		isMatch, err := p.languageRegex.MatchString(binary)
+		if err != nil {
+			logging.Get().Err(err).Msgf("match language failed. binary:%s", binary)
+			continue
+		}
+		if !isMatch {
+			continue
+		}
+		framework.LanguageName = p.languageName
+		framework.LanguageBinPath = getBinaryPathByPid(cmd.pid)
+		// version
+		/*
+			root@nodejs-sailsjs-79978bf79b-lkm8l:/proc# node -v
+			v12.13.0
+		*/
+		ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
+		monoVersionCmd := []string{binary, `-v`}
+		output, err := runCmd(ctx, containerId, monoVersionCmd)
+		cancelFunc()
+		if err != nil {
+			logging.Get().Err(err).Msgf("run cmd[%s] failed.", monoVersionCmd)
+		} else {
+			framework.LanguageVersion = output
+		}
+		// framework
+		var railsBinaryPath string
+		for _, argu := range argus {
+			match, err := p.frameworkRegex.MatchString(argu)
+			if err == nil && match {
+				framework.FrameworkName = "Sails.js"
+				railsBinaryPath = argu
+				break
+			}
+		}
+		if framework.FrameworkName == "" {
+			break
+		}
+		framework.FrameworkPath = argus[0]
+		/*
+			root@nodejs-sailsjs-79978bf79b-lkm8l:/proc# /usr/local/bin/sails -v
+			1.2.3
+		*/
+		ctx, cancelFunc = context.WithTimeout(context.Background(), 5*time.Second)
+		frameworkCmd := []string{railsBinaryPath, `-v`}
+		output, err = runCmd(ctx, containerId, frameworkCmd)
+		cancelFunc()
+		if err != nil {
+			logging.Get().Err(err).Msgf("run cmd[%s] failed.", monoVersionCmd)
+		} else {
+			framework.FrameworkVersion = output
+		}
+		logging.Get().Info().Msgf("containerId:%s,framework:%v", containerId, framework)
+		break
+	}
+	if framework.LanguageName == "" {
+		return nil
+	}
 	return &framework
 }
