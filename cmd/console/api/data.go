@@ -8,8 +8,6 @@ import (
 	"time"
 
 	"github.com/go-chi/chi"
-	param "github.com/oceanicdev/chi-param"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/data"
 	"gitlab.com/piccolo_su/vegeta/cmd/data/def"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
@@ -137,11 +135,6 @@ func (api *api) getGCTask() http.HandlerFunc {
 }
 
 func (api *api) getDataTTLs() http.HandlerFunc {
-	type rsp struct {
-		ColdTTLDays       int `json:"coldTTLDays"`
-		HotOfflineTTLDays int `json:"hotOfflineTTLDays"`
-		HotLogicTTLDays   int `json:"hotLogicTTLDays"`
-	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), dataDefaultTimeout)
 		defer cancel()
@@ -205,6 +198,21 @@ func (api *api) setDataTTLs() http.HandlerFunc {
 					fmt.Errorf("failed to decode json: %w", err)))
 			return
 		}
+
+		if config.HotLogicTTLDays >= config.ColdTTLDays || config.HotOfflineTTLDays >= config.ColdTTLDays {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewInvalidTtlDataError(http.StatusBadRequest, def.ErrInvalidTTL))
+			return
+		}
+		if config.HotLogicTTLDays <= 0 || config.HotOfflineTTLDays <= 0 {
+			apperror.RespAndLog(w, ctx,
+				apperror.NewInvalidTtlDataError(http.StatusBadRequest, def.ErrInvalidTTL, apperror.Suberror{
+					Location: "ttlDays",
+					Message:  def.ErrInvalidTTL.Error(),
+				}))
+			return
+		}
+
 		dataService, ok := data.GetService(ctx)
 		if !ok {
 			apperror.RespAndLog(w, ctx, ErrServiceNotReady)
@@ -223,21 +231,6 @@ func (api *api) setDataTTLs() http.HandlerFunc {
 			case model.DataTypeHotLogic:
 				ttldata = config.HotLogicTTLDays
 
-			}
-
-			ttlValid, err := api.checkTTL(ctx, value, ttldata)
-			if err != nil {
-				apperror.RespAndLog(w, ctx, fmt.Errorf("couldn't check data tll: %w", err))
-				return
-			}
-
-			if !ttlValid {
-				apperror.RespAndLog(w, ctx,
-					apperror.NewInvalidTtlDataError(http.StatusBadRequest, def.ErrInvalidTTL, apperror.Suberror{
-						Location: "ttlDays",
-						Message:  def.ErrInvalidTTL.Error(),
-					}))
-				return
 			}
 
 			err = dataService.SetDataTTL(ctx, value, ttldata)
@@ -266,19 +259,6 @@ func (api *api) setDataTTLs() http.HandlerFunc {
 
 		response.Ok(w, response.WithItem(config), response.WithApiVersion(dataAPIVersion))
 	}
-}
-
-func (api *api) getDataType(r *http.Request) (string, error) {
-	dataType, err := param.QueryString(r, "dataType")
-	if err != nil {
-		return "", err
-	}
-
-	if !checkDataType(dataType) {
-		return "", def.ErrInvalidDataType
-	}
-
-	return dataType, nil
 }
 
 func getGCTaskIDFromURL(r *http.Request) (string, error) {
