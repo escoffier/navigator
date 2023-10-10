@@ -397,7 +397,6 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 			}
 		}
 	case Ingress2Watch:
-		logging.Get().Debug().Msg("processing ingress")
 		ingre := &TensorIngress{}
 		err = json.Unmarshal(rawMsg, ingre)
 		if err != nil {
@@ -405,8 +404,10 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 			return err
 		}
 		if ingre.Name == "" {
-			logging.Get().Warn().Msgf("empty keyname: %+v", ingre)
+			logging.Get().Warn().Msgf("empty ingress keyname: %+v", ingre)
 		}
+		logging.Get().Debug().Msgf("processing ingress,ingressName:%s", ingre.Name)
+
 		if event.Action == ActionDelete || ingre.DuplicatedChecked() || !w.dupCache.Check(ingre) {
 			errored := false
 			for _, cb := range cbs.callbacks {
@@ -434,11 +435,11 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 			logging.Get().Err(err).Msg("unmarshal TensorService err")
 			return err
 		}
+		if obj.Name == "" {
+			logging.Get().Warn().Msgf("empty service keyname: %+v", obj)
+		}
 		logging.Get().Debug().Msgf("processing service,svcName:%s", obj.Service.Name)
 
-		if obj.Name == "" {
-			logging.Get().Warn().Msgf("empty keyname: %+v", obj)
-		}
 		if event.Action == ActionDelete || obj.DuplicatedChecked() || !w.dupCache.Check(obj) {
 			errored := false
 			for _, cb := range cbs.callbacks {
@@ -460,7 +461,6 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 			logging.Get().Info().Str("key", obj.KeyName()).Str("idStr", obj.IdentityString()).Msg("duplicated and bypass.")
 		}
 	case Endpoints2Watch:
-		logging.Get().Debug().Msg("processing endpoints")
 		obj := &TensorEndpoints{}
 		err = json.Unmarshal(rawMsg, obj)
 		if err != nil {
@@ -468,8 +468,10 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 			return err
 		}
 		if obj.Name == "" {
-			logging.Get().Warn().Msgf("empty keyname: %+v", obj)
+			logging.Get().Warn().Msgf("empty endpoints keyname: %+v", obj)
 		}
+		logging.Get().Debug().Msgf("processing endpoints,endpointsName:%s", obj.Name)
+
 		if event.Action == ActionDelete || obj.DuplicatedChecked() || !w.dupCache.Check(obj) {
 			errored := false
 			for _, cb := range cbs.callbacks {
@@ -491,7 +493,6 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 			logging.Get().Info().Str("key", obj.KeyName()).Str("idStr", obj.IdentityString()).Msg("duplicated and bypass.")
 		}
 	case Secrets2Watch:
-		logging.Get().Debug().Msg("processing secret")
 		obj := &TensorSecret{}
 		err = json.Unmarshal(rawMsg, obj)
 		if err != nil {
@@ -499,8 +500,9 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 			return err
 		}
 		if obj.Name == "" {
-			logging.Get().Warn().Msgf("empty keyname: %+v", obj)
+			logging.Get().Warn().Msgf("empty secret keyname: %+v", obj)
 		}
+		logging.Get().Debug().Msgf("processing secret,secretName:%s", obj.Name)
 		if event.Action == ActionDelete || obj.DuplicatedChecked() || !w.dupCache.Check(obj) {
 			errored := false
 			for _, cb := range cbs.callbacks {
@@ -529,7 +531,7 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 			return err
 		}
 		if obj.Name == "" {
-			logging.Get().Warn().Msgf("empty keyname: %+v", obj)
+			logging.Get().Warn().Msgf("empty pv keyname: %+v", obj)
 		}
 		logging.Get().Debug().Msgf("processing pv %s", obj.Name)
 		if event.Action == ActionDelete || obj.DuplicatedChecked() || !w.dupCache.Check(obj) {
@@ -560,7 +562,7 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 			return err
 		}
 		if obj.Name == "" {
-			logging.Get().Warn().Msgf("empty keyname: %+v", obj)
+			logging.Get().Warn().Msgf("empty pvc keyname: %+v", obj)
 		}
 		logging.Get().Debug().Msgf("processing pvc %s", obj.Name)
 		if event.Action == ActionDelete || obj.DuplicatedChecked() || !w.dupCache.Check(obj) {

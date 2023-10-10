@@ -44,7 +44,7 @@ const clientConnectTimeout time.Duration = time.Duration(5 * time.Second)
 
 const (
 	StorageTypeNfs    = "kubernetes.io~nfs"
-	StorageTypeCephfs = "kubernetes.io~kubernetes.io~rbd"
+	StorageTypeCephfs = "kubernetes.io~rbd"
 )
 
 type ContainerdInfoManager struct {

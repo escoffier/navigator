@@ -410,9 +410,7 @@ func (ac *Controller) updatePod(oldObj, newObject interface{}) {
 	newD := newObject.(*corev1.Pod)
 	logging.Get().Debug().Msgf("update pod %s", oldD.Name)
 
-	if newD.Generation != oldD.Generation {
-		ac.enqueue(newD, pkgassets.ActionUpdate)
-	}
+	ac.enqueue(newD, pkgassets.ActionUpdate)
 }
 
 func (ac *Controller) deletePod(obj interface{}) {
@@ -431,9 +429,7 @@ func (ac *Controller) updateRole(oldObj, newObject interface{}) {
 	oldR := oldObj.(*rbacv1.Role)
 	newR := newObject.(*rbacv1.Role)
 	logging.Get().Debug().Msgf("update role %s", oldR.Name)
-	if newR.Generation != oldR.Generation {
-		ac.enqueue(newR, pkgassets.ActionUpdate)
-	}
+	ac.enqueue(newR, pkgassets.ActionUpdate)
 }
 
 func (ac *Controller) deleteRole(obj interface{}) {
@@ -452,9 +448,7 @@ func (ac *Controller) updateClusterRole(oldObj, newObject interface{}) {
 	oldR := oldObj.(*rbacv1.ClusterRole)
 	newR := newObject.(*rbacv1.ClusterRole)
 	logging.Get().Debug().Msgf("update cluster role %s", oldR.Name)
-	if newR.Generation != oldR.Generation {
-		ac.enqueue(newR, pkgassets.ActionUpdate)
-	}
+	ac.enqueue(newR, pkgassets.ActionUpdate)
 }
 
 func (ac *Controller) deleteClusterRole(obj interface{}) {
@@ -473,9 +467,7 @@ func (ac *Controller) updateNamespace(oldObj, newObject interface{}) {
 	oldR := oldObj.(*corev1.Namespace)
 	newR := newObject.(*corev1.Namespace)
 	logging.Get().Debug().Msgf("update namespace %s", oldR.Name)
-	if newR.Generation != oldR.Generation {
-		ac.enqueue(newR, pkgassets.ActionUpdate)
-	}
+	ac.enqueue(newR, pkgassets.ActionUpdate)
 }
 
 func (ac *Controller) deleteNamespace(obj interface{}) {
@@ -494,9 +486,7 @@ func (ac *Controller) updateNode(oldObj, newObject interface{}) {
 	oldR := oldObj.(*corev1.Node)
 	newR := newObject.(*corev1.Node)
 	logging.Get().Debug().Msgf("update node %s", oldR.Name)
-	if newR.Generation != oldR.Generation {
-		ac.enqueue(newR, pkgassets.ActionUpdate)
-	}
+	ac.enqueue(newR, pkgassets.ActionUpdate)
 }
 
 func (ac *Controller) deleteNode(obj interface{}) {
@@ -539,9 +529,7 @@ func (ac *Controller) updateJob(oldObj, newObject interface{}) {
 	if newR.OwnerReferences != nil && len(newR.OwnerReferences) != 0 { // 表示该job为其他资源(如cronjob)派生
 		return
 	}
-	if newR.Generation != oldR.Generation {
-		ac.enqueue(newR, pkgassets.ActionUpdate)
-	}
+	ac.enqueue(newR, pkgassets.ActionUpdate)
 }
 
 func (ac *Controller) deleteJob(obj interface{}) {
@@ -567,22 +555,7 @@ func (ac *Controller) updateCronJob(oldObj, newObject interface{}) {
 		return
 	}
 	logging.Get().Debug().Msgf("update CronJob %s/%s", meta.GetNamespace(), meta.GetName())
-	if oldR, ok := oldObj.(*v1beta1.CronJob); ok {
-		newR, _ := newObject.(*v1beta1.CronJob)
-		if newR.Generation != oldR.Generation {
-			ac.enqueue(newR, pkgassets.ActionUpdate)
-		}
-	} else {
-		oldR, ok := oldObj.(*batchv1.CronJob)
-		if !ok {
-			logging.Get().Error().Msg("invalid CronJob type")
-			return
-		}
-		newR, _ := newObject.(*batchv1.CronJob)
-		if newR.Generation != oldR.Generation {
-			ac.enqueue(newR, pkgassets.ActionUpdate)
-		}
-	}
+	ac.enqueue(newObject, pkgassets.ActionUpdate)
 }
 
 func (ac *Controller) deleteCronJob(obj interface{}) {
@@ -626,9 +599,7 @@ func (ac *Controller) updateHoneySpot(oldObj, newObject interface{}) {
 	oldD := oldObj.(*defensev1.Honeypot)
 	newD := newObject.(*defensev1.Honeypot)
 	logging.Get().Debug().Msgf("update HoneySpot %s", oldD.Name)
-	if newD.Generation != oldD.Generation {
-		ac.enqueue(newD, pkgassets.ActionUpdate)
-	}
+	ac.enqueue(newD, pkgassets.ActionUpdate)
 }
 
 func (ac *Controller) deleteHoneySpot(obj interface{}) {
@@ -1363,9 +1334,7 @@ func (ac *Controller) updateSvc(oldObj, newObj interface{}) {
 	oldS := oldObj.(*corev1.Service)
 	newS := newObj.(*corev1.Service)
 	logging.Get().Debug().Msgf("update pod %s", oldS.Name)
-	if oldS.Generation != newS.Generation {
-		ac.enqueue(newS, pkgassets.ActionUpdate)
-	}
+	ac.enqueue(newS, pkgassets.ActionUpdate)
 }
 
 func (ac *Controller) deleteSvc(obj interface{}) {
@@ -1384,9 +1353,7 @@ func (ac *Controller) updateIngress(oldObj, newObj interface{}) {
 	oldS := oldObj.(*netv1.Ingress)
 	newS := newObj.(*netv1.Ingress)
 	logging.Get().Debug().Msgf("update ingress %s", oldS.Name)
-	if oldS.Generation != newS.Generation {
-		ac.enqueue(newS, pkgassets.ActionUpdate)
-	}
+	ac.enqueue(newS, pkgassets.ActionUpdate)
 }
 
 func (ac *Controller) deleteIngress(obj interface{}) {
@@ -1405,9 +1372,7 @@ func (ac *Controller) updateEndpoints(oldObj, newObj interface{}) {
 	oldS := oldObj.(*corev1.Endpoints)
 	newS := newObj.(*corev1.Endpoints)
 	logging.Get().Debug().Msgf("update endpoints %s", oldS.Name)
-	if oldS.Generation != newS.Generation {
-		ac.enqueue(newS, pkgassets.ActionUpdate)
-	}
+	ac.enqueue(newS, pkgassets.ActionUpdate)
 }
 
 func (ac *Controller) deleteEndpoints(obj interface{}) {
@@ -1426,9 +1391,7 @@ func (ac *Controller) updateSecret(oldObj, newObj interface{}) {
 	oldS := oldObj.(*corev1.Secret)
 	newS := newObj.(*corev1.Secret)
 	logging.Get().Debug().Msgf("update secret %s", oldS.Name)
-	if oldS.Generation != newS.Generation {
-		ac.enqueue(newS, pkgassets.ActionUpdate)
-	}
+	ac.enqueue(newS, pkgassets.ActionUpdate)
 }
 
 func (ac *Controller) deleteSecret(obj interface{}) {
@@ -1447,9 +1410,7 @@ func (ac *Controller) updatePV(oldObj, newObj interface{}) {
 	oldS := oldObj.(*corev1.PersistentVolume)
 	newS := newObj.(*corev1.PersistentVolume)
 	logging.Get().Debug().Msgf("update pv %s", oldS.Name)
-	if oldS.Generation != newS.Generation {
-		ac.enqueue(newS, pkgassets.ActionUpdate)
-	}
+	ac.enqueue(newS, pkgassets.ActionUpdate)
 }
 
 func (ac *Controller) deletePV(obj interface{}) {
@@ -1468,9 +1429,7 @@ func (ac *Controller) updatePVC(oldObj, newObj interface{}) {
 	oldS := oldObj.(*corev1.PersistentVolumeClaim)
 	newS := newObj.(*corev1.PersistentVolumeClaim)
 	logging.Get().Debug().Msgf("update pvc %s", oldS.Name)
-	if oldS.Generation != newS.Generation {
-		ac.enqueue(newS, pkgassets.ActionUpdate)
-	}
+	ac.enqueue(newS, pkgassets.ActionUpdate)
 }
 
 func (ac *Controller) deletePVC(obj interface{}) {

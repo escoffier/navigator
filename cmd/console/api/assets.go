@@ -2381,6 +2381,7 @@ type GetRawContainersWithFramework struct {
 	UseRedis         bool     `in:"-"`
 	FrameworkName    string   `in:"query" name:"framework_name"`
 	FrameworkVersion string   `in:"query" name:"framework_version"`
+	ContainerIds     []string `in:"query" name:"container_ids"`
 }
 
 func (req *GetRawContainersWithFramework) Render(r *http.Request) error {
@@ -2404,6 +2405,10 @@ func (req *GetRawContainersWithFramework) Render(r *http.Request) error {
 	}
 	req.Status, _ = param.QueryIntArray(r, "status")
 	req.ResourceNames, _ = param.QueryStringArray(r, "resource_name")
+	containerIds, _ := param.QueryString(r, "container_ids")
+	if len(containerIds) > 0 {
+		req.ContainerIds = strings.Split(containerIds, ",")
+	}
 	return nil
 }
 
@@ -2426,6 +2431,9 @@ func (req *GetRawContainersWithFramework) Execute(ctx context.Context) ([]*dal.R
 	}
 	if len(req.PodNames) != 0 {
 		query.WithColumnMultiQuery("pod_name", req.PodNames)
+	}
+	if len(req.ContainerIds) != 0 {
+		query.WithInConditionCustom("id", req.ContainerIds)
 	}
 	if len(req.ContainerName) != 0 {
 		query.WithColumnQuery("name", req.ContainerName)
@@ -3976,8 +3984,7 @@ func (g *GetPVCsReq) Execute(ctx context.Context) ([]*model.TensorPVC, int64, er
 		pvQuery.WhereLikeCondition["name"] = g.name
 	}
 	if g.storageClassName != "" {
-		models := strings.Split(g.storageClassName, ",")
-		pvQuery.WhereInCondition["storage_class_name"] = models
+		pvQuery.WhereLikeCondition["storage_class_name"] = g.storageClassName
 	}
 	if g.namespace != "" {
 		pvQuery.WhereLikeCondition["namespace"] = g.namespace
@@ -4415,7 +4422,7 @@ func (api *api) getBusiServiceDbKind() http.HandlerFunc {
 
 type ExposeHostReq struct {
 	webDesc  string
-	protocol string
+	protocol []string
 	limit    int
 	offset   int
 	//Ip            string //?
@@ -4426,7 +4433,10 @@ type ExposeHostReq struct {
 func (e *ExposeHostReq) Render(r *http.Request) {
 	e.limit, e.offset = getLimitAndOffsetWithDefault(r)
 	e.webDesc = getNormalizedQueryParam(r, "webDesc")
-	e.protocol = getNormalizedQueryParam(r, "protocol")
+	protocol := getNormalizedQueryParam(r, "protocol")
+	if protocol != "" {
+		e.protocol = strings.Split(protocol, ",")
+	}
 }
 
 func (g *ExposeHostReq) Execute(ctx context.Context) ([]*dal.ExposeHostItem, int64, error) {
