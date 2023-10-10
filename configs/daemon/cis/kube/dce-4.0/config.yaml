@@ -1,0 +1,43 @@
+---
+## Version-specific settings that override the values in cfg/config.yaml
+master:
+  apiserver:
+    confs:
+      - /etc/daocloud/dce/kubelet/manifests/dce_kube_apiserver.yaml
+    defaultconf: /etc/daocloud/dce/kubelet/manifests/dce_kube_apiserver.yaml
+
+  scheduler:
+    confs:
+      - /etc/daocloud/dce/kubelet/manifests/dce_kube_scheduler.yaml
+    defaultconf: /etc/daocloud/dce/kubelet/manifests/dce_kube_scheduler.yaml
+    kubeconfig:
+      - /etc/daocloud/dce/kube-scheduler/kubeconfig.yaml
+    defaultkubeconfig: /etc/daocloud/dce/kube-scheduler/kubeconfig.yaml
+
+  controllermanager:
+    confs:
+      - /etc/daocloud/dce/kubelet/manifests/dce_kube_controller_manager.yaml
+    defaultconf: /etc/daocloud/dce/kubelet/manifests/dce_kube_controller_manager.yaml
+    kubeconfig:
+      - /etc/daocloud/dce/kube-controller-manager/kubeconfig.yaml
+    defaultkubeconfig: /etc/daocloud/dce/kube-controller-manager/kubeconfig.yaml
+
+  etcd:
+    confs:
+      - /etc/daocloud/dce/kubelet/manifests/dce_etcd.yaml
+    defaultconf: /etc/daocloud/dce/kubelet/manifests/dce_etcd.yaml
+
+node:
+  kubelet:
+    cafile:
+      - "/etc/daocloud/dce/ca.crt"
+    kubeconfig:
+      - "/etc/daocloud/dce/kubelet/kubeconfig.yaml"
+    confs:
+      - "/etc/daocloud/dce/kubelet/config.yaml"
+
+etcd:
+  etcd:
+    confs:
+      - /etc/daocloud/dce/kubelet/manifests/dce_etcd.yaml
+    defaultconf: /etc/daocloud/dce/kubelet/manifests/dce_etcd.yaml
