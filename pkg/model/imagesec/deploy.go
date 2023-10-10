@@ -246,7 +246,7 @@ type DeployMonitorImage struct {
 }
 
 func (vi *DeployMonitorImage) Empty() bool {
-	if vi.Image == "" || vi.Digest == "" {
+	if vi.Image == "" {
 		return true
 	}
 	return false

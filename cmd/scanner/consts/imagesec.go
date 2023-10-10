@@ -39,5 +39,7 @@ const (
 const (
 	ModelImageMeta   = "imageMeta"
 	ModelImageScan   = "imagescan"
+	LogModule        = "module"
+	LogSubModule     = "submodule"
 	ModelImageDetect = "imageDetect"
 )

@@ -2,8 +2,10 @@ package scannerUtils
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"gitlab.com/security-rd/go-pkg/logging"
 
@@ -44,4 +46,51 @@ func MainCluster() bool {
 
 	logging.Get().Info().Msg("in main cluster")
 	return true
+}
+
+func CommonFilter(fi os.FileInfo) bool {
+	mod := fi.Mode()
+	if mod&os.ModeSymlink != 0 {
+		return false
+	}
+	if mod&os.ModeDir != 0 {
+		return false
+	}
+	if mod&os.ModeDevice != 0 {
+		return false
+	}
+	if mod&os.ModeNamedPipe != 0 {
+		return false
+	}
+	if mod&os.ModeSymlink != 0 {
+		return false
+	}
+	if mod&os.ModeSocket != 0 {
+		return false
+	}
+	if mod&os.ModeSocket != 0 {
+		return false
+	}
+	if fi.Size() == 0 {
+		return false
+	}
+	if fi.IsDir() {
+		return false
+	}
+
+	return true
+}
+
+type FileFilter func(fi os.FileInfo) bool
+
+func GetSimDigest(di string) string {
+	split := strings.Split(di, ":")
+	if len(split) >= 2 {
+		return split[1]
+	}
+	return "tmp"
+}
+
+func GetDetDigest(di string) string {
+	return fmt.Sprintf("sha256:%s", di)
 }

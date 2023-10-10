@@ -18,6 +18,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/types"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/avira"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -64,6 +65,7 @@ type AviraSrv struct {
 	ClientPollCnt    int
 	ServerAddr       string
 	ScanTimeout      int64
+	Log              *scannerUtils.LogEvent
 }
 
 func NewSavServer() (*AviraSrv, error) {
@@ -86,6 +88,10 @@ func NewSavServer() (*AviraSrv, error) {
 		ClientWG:         &sync.Mutex{},
 		ScanTimeout:      5 * 60, // 单个文件扫描的超时时间2分种
 		ClientPollCnt:    20,     // FIXME 后期应该做成可配置的
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithSubModule("AviraSrv"),
+			scannerUtils.WithModule(consts.ModelImageScan),
+		),
 	}
 	srv.ClientPoll = make([]*AviraClient, 0)
 
@@ -131,7 +137,6 @@ func NewSavEngin() *avira.SavServer {
 			}
 		}()
 		savServer.StartServer()
-		logging.Get().Info().Str("module", "imagescan").Msg("start avira server succeed")
 	}()
 	// 一定要做这一步，不然就会出错，具体原因不明白
 	time.Sleep(time.Minute) // 等实例化好
@@ -149,7 +154,7 @@ func (s *AviraSrv) CreateClientPoll(ctx context.Context) error {
 			if err != nil {
 				cnt++
 				if cnt > s.ClientPollCnt*5 {
-					logging.Get().Info().Str("module", "imagescan").Msg("AviraSrv not CreateClientPoll")
+					s.Log.Info().Msg("AviraSrv not CreateClientPoll")
 					return fmt.Errorf("can not create aviara client")
 				}
 				continue
@@ -163,7 +168,7 @@ func (s *AviraSrv) CreateClientPoll(ctx context.Context) error {
 			break
 		}
 	}
-	logging.Get().Info().Str("module", "imagescan").Int("pollCnt", len(s.ClientPoll)).Msg("AviraSrv CreateClientPoll")
+	s.Log.Info().Int("pollCnt", len(s.ClientPoll)).Msg("AviraSrv CreateClientPoll")
 	return nil
 }
 
@@ -173,7 +178,7 @@ func (s *AviraSrv) GenEnginChan(ctx context.Context) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Stack().Str("module", "imagescan").Msg("panic recover GenEnginChan")
+				s.Log.Error().Str("Stack", string(debug.Stack())).Msg("panic recover GenEnginChan")
 			}
 		}()
 
@@ -192,15 +197,15 @@ func (s *AviraSrv) GenEnginChan(ctx context.Context) {
 			}
 
 			if !s.needUpdate(ctx) {
-				logging.Get().Debug().Str("module", "imagescan").Interface("LastDBPathInfo",
+				s.Log.Debug().Interface("LastDBPathInfo",
 					s.LastDBPathInfo).Msg("AviraSrv GenEnginChan do not need update db")
 
 				if s.Client == nil {
-					logging.Get().Debug().Str("module", "imagescan").Msg("AviraSrv GenEnginChan client is nil")
+					s.Log.Debug().Msg("AviraSrv GenEnginChan client is nil")
 					client, err := avira.NewSavClient(s.ServerAddr)
 					if err != nil {
 						ticker.Reset(10 * time.Second)
-						logging.Get().Err(err).Str("module", "imagescan").Msg("AviraSrv NewSavClient")
+						s.Log.Err(err).Msg("AviraSrv NewSavClient")
 						<-ticker.C
 						continue
 					}
@@ -208,29 +213,29 @@ func (s *AviraSrv) GenEnginChan(ctx context.Context) {
 					s.Client = client
 				}
 
-				logging.Get().Info().Str("module", "imagescan").Msg("AviraSrv GenEnginChan send client")
+				s.Log.Info().Msg("AviraSrv GenEnginChan send client")
 				s.ClientChan <- s.Client
 				continue
 			}
 
-			logging.Get().Debug().Str("module", "imagescan").Interface("LastDBPathInfo", s.LastDBPathInfo).Msg("AviraSrv GenEnginChan need update db")
+			s.Log.Debug().Interface("LastDBPathInfo", s.LastDBPathInfo).Msg("AviraSrv GenEnginChan need update db")
 
 			s.TaskWG.Wait() // 等待任务执行完成
 
 			if err := s.AviraServer.KillServer(); err != nil {
-				logging.Get().Err(err).Str("module", "imagescan").Msg("AviraSrv GenEnginChan Close AviraServer")
+				s.Log.Err(err).Msg("AviraSrv GenEnginChan Close AviraServer")
 				<-ticker.C
 				continue
 			}
 
-			logging.Get().Debug().Str("module", "imagescan").Msg("AviraSrv GenEnginChan killed server")
+			s.Log.Debug().Msg("AviraSrv GenEnginChan killed server")
 
 			// copy all db files
 			osCMD := exec.Command("cp", "-rf", s.getUpdateClamavPath(ctx), s.WorkDBPathInfo.WorkPath)
-			logging.Get().Info().Str("module", "imagescan").Strs("cmd", osCMD.Args).Msg("GenEnginChan copy db file")
+			s.Log.Info().Strs("cmd", osCMD.Args).Msg("GenEnginChan copy db file")
 
 			if err := osCMD.Run(); err != nil {
-				logging.Get().Err(err).Str("module", "imagescan").Strs("cmd", osCMD.Args).Msg("GenEnginChan copy db file")
+				s.Log.Err(err).Strs("cmd", osCMD.Args).Msg("GenEnginChan copy db file")
 				<-ticker.C
 				continue
 			}
@@ -239,7 +244,7 @@ func (s *AviraSrv) GenEnginChan(ctx context.Context) {
 			s.AviraServer = NewSavEngin()
 			s.Client = nil
 
-			logging.Get().Debug().Str("module", "imagescan").Interface("LastVersion", s.LastVersion).Msg("GenEnginChan restart server")
+			s.Log.Debug().Interface("LastVersion", s.LastVersion).Msg("GenEnginChan restart server")
 
 			s.WorkingVersion = s.LastVersion
 
@@ -247,7 +252,7 @@ func (s *AviraSrv) GenEnginChan(ctx context.Context) {
 			_ = os.RemoveAll(s.LastDBPathInfo.UpdateUnZipPath)
 			// 向子集群及和节点全部发送完之后才能删除
 			// _ = os.RemoveAll(s.LastDBPathInfo.UpdateZipFilename)
-			logging.Get().Debug().Str("module", "imagescan").Interface("LastDBPathInfo", s.LastDBPathInfo).Msg("GenEnginChan")
+			s.Log.Debug().Interface("LastDBPathInfo", s.LastDBPathInfo).Msg("GenEnginChan")
 		}
 	}()
 }
@@ -276,7 +281,7 @@ func (s *AviraSrv) ScanFile(_ context.Context, engin *avira.SavClient, filename 
 
 	malware, err := engin.ScanFile(filename)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Str("filename", filename).
+		s.Log.Err(err).Str("filename", filename).
 			Str("MalwareEnginName", s.MalwareEnginName).Msg("AviraSrv ScanFile")
 		return nil, err
 	}
@@ -294,7 +299,7 @@ func (s *AviraSrv) Task(ctx context.Context, cli *avira.SavClient, filename stri
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("module", "imagescan").Stack().Str("Stack", string(debug.Stack())).Msg("AviraSrv panic")
+				logging.Get().Error().Str("module", "imagescan").Str("Stack", string(debug.Stack())).Msg("AviraSrv panic")
 			}
 		}()
 
@@ -305,7 +310,7 @@ func (s *AviraSrv) Task(ctx context.Context, cli *avira.SavClient, filename stri
 		}
 		out <- res
 
-		logging.Get().Debug().Str("module", "imagescan").Str("filename", filename).
+		s.Log.Debug().Str("filename", filename).
 			Str("MalwareEnginName", s.MalwareEnginName).Msg("AviraSrv scan end")
 	}()
 	return out
@@ -319,7 +324,7 @@ func (s *AviraSrv) DoScanFile(ctx context.Context, client *avira.SavClient, file
 	for {
 		select {
 		case <-ctxT.Done():
-			logging.Get().Info().Str("module", "imagescan").Str("filename", filename).Msg("AviraSrv time out")
+			s.Log.Info().Str("filename", filename).Msg("AviraSrv time out")
 			return []avira.Malware{}, fmt.Errorf("scan %s timeout", filename)
 		case res := <-s.Task(ctxT, client, filename):
 			return res.data, res.err
@@ -341,16 +346,16 @@ func (s *AviraSrv) GetClient(ctx context.Context) (*AviraClient, error) {
 				s.ClientPoll[i].Status = AviraClientUsing
 				eng.Status = AviraClientUsing
 				s.ClientWG.Unlock()
-				logging.Get().Info().Str("model", "imagescan").Str("engin", eng.LogStr()).Msg("AviraSrv GetClient")
+				s.Log.Info().Str("engin", eng.LogStr()).Msg("AviraSrv GetClient")
 				return eng, nil
 			}
 		}
 		s.ClientWG.Unlock()
-		logging.Get().Info().Str("model", "imagescan").Msg("AviraSrv not get client and wait next")
+		s.Log.Info().Msg("AviraSrv not get client and wait next")
 
 		if time.Now().Unix()-start > s.ScanTimeout*int64(s.ClientPollCnt) {
 			err := fmt.Errorf("get avira client engin timeout")
-			logging.Get().Err(err).Str("model", "imagescan").Msg("AviraSrv get client timeout")
+			s.Log.Err(err).Msg("AviraSrv get client timeout")
 			return nil, err
 		}
 		<-ticker.C
@@ -368,7 +373,7 @@ func (s *AviraSrv) BackClient(ctx context.Context, eng *AviraClient) {
 	if eng == nil {
 		return
 	}
-	logging.Get().Debug().Str("model", "imagescan").Str("engin", eng.LogStr()).Msg("AviraSrv BackClient start")
+	s.Log.Debug().Str("engin", eng.LogStr()).Msg("AviraSrv BackClient start")
 	s.ClientWG.Lock()
 	defer s.ClientWG.Unlock()
 	for i := range s.ClientPoll {
@@ -378,7 +383,7 @@ func (s *AviraSrv) BackClient(ctx context.Context, eng *AviraClient) {
 			en.Status = AviraClientUnUsing
 		}
 	}
-	logging.Get().Info().Str("model", "imagescan").Str("engin", eng.LogStr()).Msg("AviraSrv BackClient end")
+	s.Log.Info().Str("engin", eng.LogStr()).Msg("AviraSrv BackClient end")
 }
 
 // 当用户在界面上更新病毒库后，只有当获取扫描 engin 时才会去加载新的病毒库，如果一直没有扫描任务则一直不会加载病毒库
@@ -386,7 +391,7 @@ func (s *AviraSrv) getEnginBackground(_ context.Context) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Msg("panic recover GenEnginChan")
+				s.Log.Error().Str("Stack", string(debug.Stack())).Msg("panic recover GenEnginChan")
 			}
 		}()
 
@@ -406,12 +411,12 @@ func (s *AviraSrv) getVersionFromFile(ctx context.Context, filename string) imag
 
 	fileContent, err := os.ReadFile(filename)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Str("filename", filename).Msg("getVersionFromFile")
+		s.Log.Err(err).Str("filename", filename).Msg("getVersionFromFile")
 		return imagesecModel.DBVersionInfo{}
 	}
 	t := AviraVersion{}
 	if err := json.Unmarshal(fileContent, &t); err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Str("filename", filename).Msg("getVersionFromFile")
+		s.Log.Err(err).Str("filename", filename).Msg("getVersionFromFile")
 		return imagesecModel.DBVersionInfo{}
 	}
 	vv := imagesecModel.DBVersionInfo{
@@ -435,12 +440,12 @@ func (s *AviraSrv) UpdateDB(ctx context.Context, param imagesecModel.UpdateDbPar
 	pa.UpdateUnZipPath = path.Join(pa.UpdatePath, timestamp)
 
 	if err := os.WriteFile(pa.UpdateZipFilename, param.Data, os.ModePerm); err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Msg("UpdateDB")
+		s.Log.Err(err).Msg("UpdateDB")
 		return nil, err
 	}
 
 	if err := util.Unzip(pa.UpdateZipFilename, pa.UpdateUnZipPath, consts.DBPassword); err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Msg("ClamavSrv not zip file")
+		s.Log.Err(err).Msg("ClamavSrv not zip file")
 		return nil, err
 	}
 
@@ -448,7 +453,7 @@ func (s *AviraSrv) UpdateDB(ctx context.Context, param imagesecModel.UpdateDbPar
 
 	version := s.getVersionFromFile(ctx, pa.UpdateVersionFilename)
 
-	logging.Get().Info().Str("module", "imagescan").Str("dbType", param.DbType).Str("dbVersion", version.Version).
+	s.Log.Info().Str("dbType", param.DbType).Str("dbVersion", version.Version).
 		Str("zipFile", pa.UpdateZipFilename).Str("zipPath", pa.UpdateUnZipPath).Msg("UpdateDB ok")
 
 	// s.LastDBPathInfo = pa
@@ -491,7 +496,7 @@ func (s *AviraSrv) getVersionFromBinFile() (string, error) {
 	out, err := cmd.CombinedOutput()
 	version := ""
 	if err != nil && !strings.Contains(err.Error(), "exit status 101") {
-		logging.Get().Err(err).Str("module", "imagescan").Msg("get avira version")
+		s.Log.Err(err).Msg("get avira version")
 		return version, err
 	}
 	strOut := string(out)
@@ -528,7 +533,7 @@ func (s *AviraSrv) getVersionFromBinFile() (string, error) {
 func (s *AviraSrv) getVersionLastVersion(ctx context.Context) (imagesecModel.DBVersionInfo, error) {
 	dir, err := os.ReadDir(s.LastDBPathInfo.UpdatePath)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Str("path", s.LastDBPathInfo.UpdatePath).Msg("getVersionLastVersion")
+		s.Log.Err(err).Str("path", s.LastDBPathInfo.UpdatePath).Msg("getVersionLastVersion")
 		return imagesecModel.DBVersionInfo{}, err
 	}
 	dirs := make([]int, 0)
@@ -558,13 +563,13 @@ func (s *AviraSrv) generateVersionFromWorkPath() error {
 	}
 	ver, err := s.getVersionFromBinFile()
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Msg("generateVersionFromWorkPath")
+		s.Log.Err(err).Msg("generateVersionFromWorkPath")
 		return err
 	}
 	md5Str, err := util.Md5FromFile(s.WorkDBPathInfo.BinFilename)
 
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Msg("generateVersionFromWorkPath Md5FromFile")
+		s.Log.Err(err).Msg("generateVersionFromWorkPath Md5FromFile")
 		return err
 	}
 	version := AviraVersion{
@@ -583,12 +588,12 @@ func (s *AviraSrv) generateVersionFromWorkPath() error {
 
 	verByte, err := json.Marshal(version)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Msg("generateVersionFromWorkPath Marshal")
+		s.Log.Err(err).Msg("generateVersionFromWorkPath Marshal")
 		return err
 	}
 	err = os.WriteFile(s.WorkDBPathInfo.WorkVersionFilename, verByte, 0600)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Msg("generateVersionFromWorkPath do not write version file")
+		s.Log.Err(err).Msg("generateVersionFromWorkPath do not write version file")
 		return err
 	}
 	return nil
@@ -597,7 +602,7 @@ func (s *AviraSrv) generateVersionFromWorkPath() error {
 func (s *AviraSrv) getLastUpdatePath(_ context.Context) (string, error) {
 	dir, err := os.ReadDir(s.LastDBPathInfo.UpdatePath)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Str("path", s.LastDBPathInfo.UpdatePath).Msg("getVersionLastVersion")
+		s.Log.Err(err).Str("path", s.LastDBPathInfo.UpdatePath).Msg("getVersionLastVersion")
 		return "", err
 	}
 	dirs := make([]int, 0)
@@ -612,7 +617,7 @@ func (s *AviraSrv) getLastUpdatePath(_ context.Context) (string, error) {
 	sort.Ints(dirs)
 	if len(dirs) == 0 {
 		// 如果没有升级过就不会有这个目录，所以这里最好 debug 日志
-		logging.Get().Debug().Str("module", "imagescan").Msg("not find last db path")
+		s.Log.Debug().Msg("not find last db path")
 		return "", fmt.Errorf("not find last db path")
 	}
 	return fmt.Sprintf("%d", dirs[0]), nil

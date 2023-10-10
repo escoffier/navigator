@@ -9,8 +9,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/rs/zerolog"
-	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
@@ -26,8 +24,7 @@ type ScanHM struct {
 	WG          sync.Locker // 主要用于获取引擎
 	HmRootPath  string      // /opt/webshell/hm
 	ScanTimeout int64       // 单位：秒
-	DebugLog    *zerolog.Event
-	InfoLog     *zerolog.Event
+	Log         *scannerUtils.LogEvent
 }
 
 type EnginMeta struct {
@@ -37,6 +34,7 @@ type EnginMeta struct {
 	BinFilename string // hm 的二制制执行文件
 	DbFilename  string // hm 扫描后会把结果果保存在当前目录的data.db文件中,这是一个sqlite文件
 	CsvFilename string // hm 扫描后会把结果果保存在当前目录的result.csv文件中,这是一个csv文件
+	Log         *scannerUtils.LogEvent
 }
 
 type SingleHMSrv struct {
@@ -67,8 +65,10 @@ func NewScanHM() (*ScanHM, error) {
 		ScanTimeout: 10 * 60,
 		WG:          &sync.Mutex{},
 		BinCnt:      consts.DefaultHmEnginCnt,
-		InfoLog:     consts.ImageScanInfo().Str("scanEngin", "hm"),
-		DebugLog:    consts.ImageScanDebug().Str("scanEngin", "hm"),
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithSubModule("ScanHM"),
+			scannerUtils.WithModule(consts.ModelImageScan),
+		),
 	}
 	cnt, err := strconv.Atoi(os.Getenv("HM_ENGIN_CNT"))
 	if err == nil && cnt > 0 {
@@ -94,7 +94,7 @@ func (s *ScanHM) createHmBack(ctx context.Context, n int) error {
 		cmd := exec.CommandContext(toCtx, "cp", "-r", s.HmRootPath, str)
 		err := cmd.Run()
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imagescan").Msg("CreateHmBack error")
+			s.Log.Err(err).Msg("CreateHmBack error")
 			return err
 		}
 		en := &EnginMeta{
@@ -103,6 +103,10 @@ func (s *ScanHM) createHmBack(ctx context.Context, n int) error {
 			BinFilename: fmt.Sprintf("%s/%s", str, "hm"),
 			DbFilename:  fmt.Sprintf("%s/%s", str, "data.db"),
 			CsvFilename: fmt.Sprintf("%s/%s", str, "result.csv"),
+			Log: scannerUtils.NewLogEvent(
+				scannerUtils.WithSubModule("ScanHM"),
+				scannerUtils.WithModule(consts.ModelImageScan),
+			),
 		}
 		s.EnginBack = append(s.EnginBack, en)
 	}
@@ -123,16 +127,16 @@ func (s *ScanHM) GetHMEngin(ctx context.Context) (*EnginMeta, error) {
 				s.EnginBack[i].Using = true
 				en.Using = true
 				s.WG.Unlock()
-				logging.Get().Info().Str("model", "imagescan").Interface("engin", en).Msg("GetHMEngin")
+				s.Log.Info().Interface("engin", en).Msg("GetHMEngin")
 				return en, nil
 			}
 		}
 		s.WG.Unlock()
-		logging.Get().Info().Str("model", "imagescan").Msg("GetHMEngin not get hm engin and wait next")
+		s.Log.Info().Msg("GetHMEngin not get hm engin and wait next")
 
 		if time.Now().Unix()-start > s.ScanTimeout {
 			err := fmt.Errorf("get hm engin timeout")
-			logging.Get().Err(err).Str("model", "imagescan").Msg("GetHMEngin get engin timeout")
+			s.Log.Err(err).Msg("GetHMEngin get engin timeout")
 			return nil, err
 		}
 		<-ticker.C
@@ -141,7 +145,7 @@ func (s *ScanHM) GetHMEngin(ctx context.Context) (*EnginMeta, error) {
 
 // 归还引擎
 func (s *ScanHM) BackHMEngin(ctx context.Context, eng *EnginMeta) {
-	s.DebugLog.Interface("engin", eng).Msg("BackHMEngin start")
+	s.Log.Debug().Interface("engin", eng).Msg("BackHMEngin start")
 
 	s.WG.Lock()
 	defer s.WG.Unlock()
@@ -152,16 +156,16 @@ func (s *ScanHM) BackHMEngin(ctx context.Context, eng *EnginMeta) {
 			en.Using = false
 		}
 	}
-	s.InfoLog.Interface("engin", eng).Msg("BackHMEngin end")
+	s.Log.Info().Interface("engin", eng).Msg("BackHMEngin end")
 }
 
 func (s *ScanHM) ScanWebshell(ctx context.Context, scanPath string) ([]imagesecTypes.HmWebshell, error) {
-	logging.Get().Debug().Str("module", "imagescan").Str("scanPath", scanPath).Msg("ScanWebshell")
+	s.Log.Debug().Str("scanPath", scanPath).Msg("ScanWebshell")
 
 	en, err := s.GetHMEngin(ctx)
 
 	if err != nil {
-		logging.Get().Info().Str("module", "imagescan").Str("scanPath", scanPath).Msg("ScanWebshell GetHMEngin")
+		s.Log.Info().Str("scanPath", scanPath).Msg("ScanWebshell GetHMEngin")
 		return nil, err
 	}
 
@@ -169,17 +173,17 @@ func (s *ScanHM) ScanWebshell(ctx context.Context, scanPath string) ([]imagesecT
 	defer func() { _ = en.removeWhDb(ctx, en.DbFilename) }()
 	defer func() { _ = en.removeWhDb(ctx, en.CsvFilename) }()
 
-	logging.Get().Info().Str("module", "imagescan").Interface("EnginMeta", en).Msg("ScanWebshell GetHMEngin")
+	s.Log.Info().Interface("EnginMeta", en).Msg("ScanWebshell GetHMEngin")
 
 	err = en.cmdScan(ctx, scanPath, consts.DefaultScanTimeout)
 	if err != nil {
-		logging.Get().Info().Str("module", "imagescan").Str("scanPath", scanPath).Msg("ScanWebshell cmdScan")
+		s.Log.Info().Str("scanPath", scanPath).Msg("ScanWebshell cmdScan")
 		return nil, err
 	}
 
 	pre, err := en.parseWhDb(ctx, en.DbFilename)
 	if err != nil {
-		logging.Get().Info().Str("module", "imagescan").Str("scanPath", scanPath).Msg("ScanWebshell parseWhDb")
+		s.Log.Info().Str("scanPath", scanPath).Msg("ScanWebshell parseWhDb")
 		return nil, err
 	}
 	return pre, nil
@@ -194,21 +198,21 @@ func (s *EnginMeta) parseWhDb(ctx context.Context, dbFilename string) ([]imagese
 
 	db, err := gorm.Open(sqlite.Open(dbFilename), &gorm.Config{})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Msg("open hm sqlite error")
+		s.Log.Err(err).Msg("open hm sqlite error")
 		return nil, err
 	}
 	resB := make([]imagesecModel.CertainWebshell, 0)
 
 	err = db.Model(&imagesecModel.CertainWebshell{}).Select("*").Find(&resB).Error
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Msg("get hm tbl_b error")
+		s.Log.Err(err).Msg("get hm tbl_b error")
 		return nil, err
 	}
 	resS := make([]imagesecModel.MaybeWebshell, 0)
 
 	err = db.Model(&imagesecModel.MaybeWebshell{}).Select("*").Find(&resS).Error
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Msg("get hm tbl_s error")
+		s.Log.Err(err).Msg("get hm tbl_s error")
 		return nil, err
 	}
 

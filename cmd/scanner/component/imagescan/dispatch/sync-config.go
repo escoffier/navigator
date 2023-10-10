@@ -13,7 +13,9 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/types"
 	imagesecStream "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/stream"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
 	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
@@ -27,6 +29,7 @@ type ScanImageConfigSyncService interface {
 type ScanImageConfigSyncSrv struct {
 	configDal   imagesecStore.ScanImageConfigDal
 	nodeInfoSrv types.NodeReportService
+	Log         *scannerUtils.LogEvent
 }
 
 func (s *ScanImageConfigSyncSrv) SyncConfig(ctx context.Context) error {
@@ -41,12 +44,12 @@ func (s *ScanImageConfigSyncSrv) SyncConfig(ctx context.Context) error {
 		defer ticker.Stop()
 		for {
 			t := <-ticker.C
-			logging.Get().Info().Str("module", "imagescan").Int64("syncTime", t.Unix()).Msg("ScanImageConfigSyncSrv start sync config")
+			s.Log.Info().Int64("syncTime", t.Unix()).Msg("ScanImageConfigSyncSrv start sync config")
 			if err := s.syncConfig(ctx); err != nil {
-				logging.Get().Err(err).Str("module", "imagescan").Int64("syncTime", t.Unix()).Msg("ScanImageConfigSyncSrv start sync scan config fail")
+				s.Log.Err(err).Int64("syncTime", t.Unix()).Msg("ScanImageConfigSyncSrv start sync scan config fail")
 				continue
 			}
-			logging.Get().Info().Str("module", "imagescan").Int64("syncTime", t.Unix()).Msg("ScanImageConfigSyncSrv sync scan config succeed")
+			s.Log.Info().Int64("syncTime", t.Unix()).Msg("ScanImageConfigSyncSrv sync scan config succeed")
 		}
 	}()
 	return nil
@@ -57,14 +60,14 @@ func (s *ScanImageConfigSyncSrv) syncConfig(ctx context.Context) error {
 
 	scanImageCfg, err := s.configDal.GetScanImageConfig(ctx, imagesecModel.ConfigTypeNodeScanImage)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Msg("ScanImageConfigSyncSrv failed to get scan image config")
+		s.Log.Err(err).Msg("ScanImageConfigSyncSrv failed to get scan image config")
 		return err
 	}
 
 	// get all cluster nodes
 	nodes, _, err := s.nodeInfoSrv.SearchNode(ctx, imagesecModel.SearchNodeInfoParam{})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Msg("ScanImageConfigSyncSrv failed to get nodes")
+		s.Log.Err(err).Msg("ScanImageConfigSyncSrv failed to get nodes")
 		return err
 	}
 
@@ -73,16 +76,16 @@ func (s *ScanImageConfigSyncSrv) syncConfig(ctx context.Context) error {
 	for _, n := range nodes {
 		clusterNodes[n.ClusterKey] = append(clusterNodes[n.ClusterKey], n.Hostname)
 	}
-	logging.Get().Info().Str("module", "imagescan").Int("clusterCnt", len(clusterNodes)).Msg("ready to publish config to cluster")
+	s.Log.Info().Int("clusterCnt", len(clusterNodes)).Msg("ready to publish config to cluster")
 
 	// publish config by cluster
 	msgData, err := json.Marshal(scanImageCfg.ImageScanConfig)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Msg("ScanImageConfigSyncSrv failed to marshal node image config")
+		s.Log.Err(err).Msg("ScanImageConfigSyncSrv failed to marshal node image config")
 		return err
 	}
 	_ = s.publishConfigByCluster(grpcClient, clusterNodes, msgData)
-	logging.Get().Info().Str("module", "imagescan").Int("clusterCnt", len(clusterNodes)).Msg("ScanImageConfigSyncSrv publish config to all cluster end")
+	s.Log.Info().Int("clusterCnt", len(clusterNodes)).Msg("ScanImageConfigSyncSrv publish config to all cluster end")
 	return nil
 }
 
@@ -103,7 +106,7 @@ func (s *ScanImageConfigSyncSrv) publishConfigByCluster(grpcClient rpcstream.Mes
 			rsp, err := grpcClient.ScannerPushImageSecMsg(ctx, req)
 			if err != nil {
 				retErr = multierror.Append(retErr, err)
-				logging.Get().Err(err).Str("module", "imagescan").Str("cluster", k).Msg("ScanImageConfigSyncSrv failed to publish config to cluster")
+				s.Log.Err(err).Str("cluster", k).Msg("ScanImageConfigSyncSrv failed to publish config to cluster")
 				return
 			}
 			if rsp.Status != 0 {
@@ -112,12 +115,18 @@ func (s *ScanImageConfigSyncSrv) publishConfigByCluster(grpcClient rpcstream.Mes
 					Msg("ScanImageConfigSyncSrv failed to publish config to cluster,status err")
 				return
 			}
-			logging.Get().Info().Str("module", "imagescan").Str("cluster", k).Msg("ScanImageConfigSyncSrv publish config to cluster ok")
+			s.Log.Info().Str("cluster", k).Msg("ScanImageConfigSyncSrv publish config to cluster ok")
 		}()
 	}
 	return retErr
 }
 
 func NewScannerConfigSyncSrv(configDal imagesecStore.ScanImageConfigDal, nodeInfoSrv types.NodeReportService) *ScanImageConfigSyncSrv {
-	return &ScanImageConfigSyncSrv{configDal: configDal, nodeInfoSrv: nodeInfoSrv}
+	sr := &ScanImageConfigSyncSrv{configDal: configDal, nodeInfoSrv: nodeInfoSrv,
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithSubModule("ConfigSync"),
+			scannerUtils.WithModule(consts.ModelImageScan),
+		),
+	}
+	return sr
 }
