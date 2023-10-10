@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"runtime/debug"
 	"strconv"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/types"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	imagesecTypes "gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
@@ -28,6 +30,7 @@ type RegImageScanQueue struct {
 	sensitiveRuleDal          imagesecStore.SensitiveRuleDal
 	maxProgressTask           int64
 	maxProgressSubtaskPerNode int64
+	Log                       *scannerUtils.LogEvent
 }
 
 func (s *RegImageScanQueue) GenUpdateSubtaskChan(ctx context.Context) chan types.UpdateSubTask {
@@ -38,8 +41,8 @@ func (s *RegImageScanQueue) updateSubtask(ctx context.Context) {
 
 	for up := range s.updateSubtaskChan {
 		if up.RetryCnt > consts.DefaultMaxRetryCount {
-			logging.Get().Info().Str("module", "imagescan").Int64("subtaskID", up.SubtaskID).
-				Msg("RegImageScanQueue UpdateScanSubtask exceed max retry count")
+			s.Log.Info().Int64("subtaskID", up.SubtaskID).
+				Msg("UpdateScanSubtask exceed max retry count")
 			continue
 		}
 
@@ -67,17 +70,17 @@ func (s *RegImageScanQueue) updateSubtask(ctx context.Context) {
 		}
 
 		if err := s.ScanTaskDal.UpdateScanSubtask(ctx, param); err != nil {
-			logging.Get().Err(err).Str("module", "imagescan").Int64("subtaskID", up.SubtaskID).
+			s.Log.Err(err).Int64("subtaskID", up.SubtaskID).
 				Interface("updater", updater).
-				Msg("RegImageScanQueue UpdateScanSubtask")
+				Msg("UpdateScanSubtask")
 
 			up.RetryCnt++
 			go func() { s.updateSubtaskChan <- up }()
 			continue
 		}
-		logging.Get().Debug().Str("module", "imagescan").Int64("subtaskID", up.SubtaskID).
+		s.Log.Debug().Int64("subtaskID", up.SubtaskID).
 			Interface("statusStr", updater["status_str"]).
-			Msg("RegImageScanQueue UpdateScanSubtask succeed")
+			Msg("UpdateScanSubtask succeed")
 	}
 }
 
@@ -87,7 +90,7 @@ func (s *RegImageScanQueue) GenTaskChan(ctx context.Context) chan *imagesecModel
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
-				logging.Get().Error().Str("module", "imagescan").Stack().Msg("RegImageScanQueue recover")
+				logging.Get().Error().Str("module", "imagescan").Str("Stack", string(debug.Stack())).Msg("RegImageScanQueue recover")
 			}
 		}()
 
@@ -116,12 +119,12 @@ func (s *RegImageScanQueue) GenTaskChan(ctx context.Context) chan *imagesecModel
 			})
 			if err != nil {
 				ticker.Reset(time.Minute)
-				logging.Get().Err(err).Str("module", "imagescan").
-					Msg("RegImageScanQueue find inprogress scan task")
+				s.Log.Err(err).
+					Msg("find inprogress scan task")
 				continue
 			}
-			logging.Get().Info().Str("module", "imagescan").Int64("taskCnt", cnt).
-				Msg("RegImageScanQueue find registry image scan task")
+			s.Log.Info().Int64("taskCnt", cnt).
+				Msg("find registry image scan task")
 
 			for i := range task {
 				out <- task[i]
@@ -150,18 +153,18 @@ func (s *RegImageScanQueue) GenSubtaskChan(ctx context.Context) chan imagesecTyp
 		taskChan := s.GenTaskChan(ctx)
 
 		for task := range taskChan {
-			logging.Get().Info().Str("module", "imagescan").Int64("taskID", task.ID).
-				Msg("RegImageScanQueue get a scan task")
+			s.Log.Info().Int64("taskID", task.ID).
+				Msg("get a scan task")
 
 			if err := s.UpdateTaskInprogress(ctx, task.ID); err != nil {
-				logging.Get().Err(err).Str("module", "imagescan").Int64("taskID", task.ID).
-					Msg("RegImageScanQueue start task")
+				s.Log.Err(err).Int64("taskID", task.ID).
+					Msg("start task")
 				continue
 			}
 
 			if err := s.SearchSubtaskAndSendToChan(ctx, task, subtaskChan); err != nil {
-				logging.Get().Err(err).Str("module", "imagescan").Interface("task", task).
-					Msg("RegImageScanQueue SearchSubtaskAndSendToChan")
+				s.Log.Err(err).Interface("task", task).
+					Msg("SearchSubtaskAndSendToChan")
 				continue
 			}
 		}
@@ -178,20 +181,20 @@ func (s *RegImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, task
 
 	instance, err := s.scanInstanceDal.SearchScannerInfo(ctx, imagesecModel.ScanInstanceParam{})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Msg("RegImageScanQueue SearchNodeInfo")
+		s.Log.Err(err).Msg("SearchNodeInfo")
 		return err
 	}
 
 	config, err := s.scanImageConfigDal.GetScanImageConfig(ctx, imagesecModel.ConfigTypeRegScanImage)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Msg("RegImageScanQueue GetScanImageConfig")
+		s.Log.Err(err).Msg("GetScanImageConfig")
 		return err
 	}
 
 	for i := range instance {
 		no := instance[i]
-		logging.Get().Debug().Str("module", "imagescan").Str("ClusterName", no.ClusterName).
-			Msg("RegImageScanQueue find instance")
+		s.Log.Debug().Str("ClusterName", no.ClusterName).
+			Msg("find instance")
 		// 查找当前节点在执行的所有子任务
 		_, sendSubtask, err := s.ScanTaskDal.SearchScanSubtask(ctx, imagesecModel.SearchTaskParam{
 			NodeUniqueID: uint64(no.ID),
@@ -201,8 +204,8 @@ func (s *RegImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, task
 			Filter:          model.EmptyFilter().SetLimit(1),
 		})
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imagescan").Int64("taskID", task.ID).
-				Msg("RegImageScanQueue SearchScanSubtask")
+			s.Log.Err(err).Int64("taskID", task.ID).
+				Msg("SearchScanSubtask")
 			return err
 		}
 		if sendSubtask >= s.maxProgressSubtaskPerNode {
@@ -225,8 +228,8 @@ func (s *RegImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, task
 
 		subtask, _, err := s.ScanTaskDal.SearchScanSubtask(ctx, subtaskParam)
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imagescan").Int64("taskID", task.ID).
-				Msg("RegImageScanQueue SearchScanSubtask")
+			s.Log.Err(err).Int64("taskID", task.ID).
+				Msg("SearchScanSubtask")
 			continue
 		}
 
@@ -238,8 +241,8 @@ func (s *RegImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, task
 				ScanInstanceEnable: true,
 			})
 			if err != nil {
-				logging.Get().Err(err).Str("module", "imagescan").Int64("taskID", task.ID).Uint64("ImageUniqueID",
-					subtask[0].ImageUniqueID).Msg("RegImageScanQueue GetImageCorrelateData")
+				s.Log.Err(err).Int64("taskID", task.ID).Uint64("ImageUniqueID",
+					subtask[0].ImageUniqueID).Msg("GetImageCorrelateData")
 
 				up := types.UpdateSubTask{
 					SubtaskID: subtask[j].ID,
@@ -257,7 +260,7 @@ func (s *RegImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, task
 			if imageDate.ScanInstance == nil {
 				e := fmt.Errorf("not get scan instance info:%d", subtask[j].ImageUniqueID)
 
-				logging.Get().Err(e).Uint64("ImageUniqueID", subtask[j].ImageUniqueID).Msg("RegImageScanQueue not get instance info")
+				logging.Get().Err(e).Uint64("ImageUniqueID", subtask[j].ImageUniqueID).Msg("not get instance info")
 
 				up := types.UpdateSubTask{
 					SubtaskID: subtask[j].ID,
@@ -300,16 +303,16 @@ func (s *RegImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, task
 
 			subtaskChan <- typesSubTask
 
-			logging.Get().Debug().Str("module", "imagescan").Int64("subtask", subtask[j].ID).
+			s.Log.Debug().Int64("subtask", subtask[j].ID).
 				Int64("taskID", subtask[j].TaskID).
 				Interface("RegInfo", typesSubTask.RegInfo).
 				Interface("ScanInstance", typesSubTask.ScanInstance).
-				Msg("RegImageScanQueue get subtask and send to chan")
+				Msg("get subtask and send to chan")
 
-			logging.Get().Info().Str("module", "imagescan").Int64("subtask", subtask[j].ID).
+			s.Log.Info().Int64("subtask", subtask[j].ID).
 				Int64("taskID", subtask[j].TaskID).
 				Str("RegInfo", typesSubTask.RegInfo.Name).Str("ScannerCluster", typesSubTask.ScanInstance.ClusterName).
-				Msg("RegImageScanQueue get subtask and send to chan")
+				Msg("get subtask and send to chan")
 		}
 	}
 
@@ -327,12 +330,12 @@ func (s *RegImageScanQueue) UpdateTaskInprogress(ctx context.Context, taskID int
 		Updater: updater,
 		Where:   fmt.Sprintf("status < %d", imagesecModel.TaskStatusInprogress),
 	}); err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Interface("updater", updater).
+		s.Log.Err(err).Interface("updater", updater).
 			Int64("taskID", taskID).Msg("UpdateTaskInprogress")
 		return err
 	}
-	logging.Get().Debug().Str("module", "imagescan").Interface("updater", updater).
-		Int64("taskID", taskID).Msg("RegImageScanQueue UpdateTaskInprogress")
+	s.Log.Debug().Interface("updater", updater).
+		Int64("taskID", taskID).Msg("UpdateTaskInprogress")
 	return nil
 }
 
@@ -345,7 +348,7 @@ func (s *RegImageScanQueue) SearchAllSensitiveRule(ctx context.Context) []string
 		Filed:     []string{"id", "value"},
 	})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Msg("ScanImageQueue SearchAllSensitiveRule")
+		s.Log.Err(err).Msg("ScanImageQueue SearchAllSensitiveRule")
 		return ans
 	}
 	for i := range rule {
@@ -417,6 +420,10 @@ func NewScanLibImageQueue(
 		scanImageConfigDal:        scanImageConfigDal,
 		maxProgressTask:           consts.MaxInprogressTask,
 		maxProgressSubtaskPerNode: consts.MaxInprogressSubtaskPerNode,
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithSubModule("NodeImageScanQueue"),
+			scannerUtils.WithModule(consts.ModelImageScan),
+		),
 	}
 
 	cnt1, err := strconv.ParseInt(os.Getenv("MAX_PROGRESS_TASK"), 10, 64)

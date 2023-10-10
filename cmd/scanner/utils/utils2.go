@@ -152,23 +152,6 @@ func FileExist(filename string) bool {
 	return true
 }
 
-func GetFileModString(filePath string, uidUser, gidUser map[int64]string) string {
-	permStr, _ := FilePerm(filePath)
-
-	// get user id
-	uid, _ := FileUID(filePath)
-	gid, _ := FileGID(filePath)
-	logging.Get().Debug().Str("file", filePath).Int64("uid", uid).Msg("file user groups")
-
-	// get username,group name
-	userName := uidUser[uid]
-	groupName := gidUser[gid]
-	if groupName == "" {
-		groupName = fmt.Sprintf("%d", gid)
-	}
-	return fmt.Sprintf("%s %s %s", permStr, userName, groupName)
-}
-
 // webshell文件后缀列表
 var extSlice = []string{
 	".php", ".php5", ".php4", ".asp", ".aspx", ".asmx", ".ashx", ".jsp",
@@ -177,7 +160,6 @@ var extSlice = []string{
 
 // 判断webshell文件后缀是否是给定的后缀
 func WebshellFileExt(ext string) bool {
-
 	for i := range extSlice {
 		if extSlice[i] == ext {
 			return true
