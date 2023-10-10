@@ -211,6 +211,7 @@ func start(config starter.Config) {
 	scanTaskDal := imagesecStore.NewScanTaskDao(config.Rdb)
 	deployDal := imagesecStore.NewDeployDao(config.Rdb)
 	preScanTaskDal := imagesecStore.NewScanTaskPreDao(config.Rdb)
+	cacheDal := imagesecStore.NewImageCacheDao(config.Rdb)
 
 	imageSrv := imagemeta.NewImageMetaSrv(
 		imageDal,
@@ -225,9 +226,10 @@ func start(config starter.Config) {
 		nodeTaskDal,
 		scannerInstanceInfoDal,
 		deployDal,
+		cacheDal,
 	)
 
-	vulnSrv := imagescanService.NewScanResultSrv(scanResultDal)
+	vulnSrv := imagescanService.NewScanResultSrv(scanResultDal, cacheDal)
 
 	scanTaskSrv := imagescanService.NewScanTaskSrv(
 		scanTaskDal,

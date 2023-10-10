@@ -60,6 +60,23 @@ type ScanSubTask struct {
 	DeepScan       bool          `json:"deepScan"`
 }
 
+func (vi *ScanSubTask) LogStr() string {
+	s := fmt.Sprintf("taskID=%d subtaskID=%d deepScan=%t", vi.TaskID, vi.SubTaskID, vi.DeepScan)
+	// 说明是节点镜像
+	if vi.NodeInfo.ClusterKey != "" {
+		s1 := fmt.Sprintf("clusterKey=%s hostName=%s imageName=%q", vi.NodeInfo.ClusterKey, vi.NodeInfo.HostName, vi.NodeImageMeta.RepoTags)
+		s = fmt.Sprintf("%s %s", s, s1)
+	}
+	// 说明是仓库镜像
+	if vi.RegInfo.Username != "" {
+		s1 := fmt.Sprintf("regUsername=%s imageName=%s scanInstance=%s",
+			vi.RegInfo.Username, vi.RegImageMeta.ImageName(), vi.ScanInstance.ClusterName)
+		s = fmt.Sprintf("%s %s", s, s1)
+	}
+
+	return s
+}
+
 func (vi *ScanSubTask) GenUniqueID() string {
 	vi.UniqueID = fmt.Sprintf("%d-%d-%d", vi.TaskID, vi.SubTaskID, time.Now().UnixMilli())
 	return vi.UniqueID
@@ -67,6 +84,7 @@ func (vi *ScanSubTask) GenUniqueID() string {
 
 // VulnResult 软件包和漏洞.参考trivy的结果.注意软件包信息从这里提取,即使没有漏洞
 type VulnResult struct {
+	Scanned         bool                 `json:"scanned"`
 	Target          string               `json:"target"`          // imageName,Java,PHP...
 	Class           string               `json:"class"`           // os-pkgs,lang-pkgs
 	Type            string               `json:"type"`            // e.g. bundler and pipenv,jar

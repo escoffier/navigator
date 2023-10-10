@@ -575,30 +575,32 @@ func ConnectUint64(uid []uint64) string {
 	return strings.Join(ans, ",")
 }
 
-func DaysSinceUnixEpoch(date time.Time) int64 {
-	unixEpoch := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
+func DaySinceUnixEpoch(date time.Time) int64 {
+	date = date.UTC()
+	unixEpoch := time.Date(1970, time.January, 0, 0, 0, 30, 0, time.UTC)
 	duration := date.Sub(unixEpoch)
 
-	days := int64(math.Ceil(duration.Hours() / 24))
+	days := int64(math.Floor(duration.Hours() / 24))
 	return days
 }
 
 func HourSinceUnixEpoch(date time.Time) int64 {
-	unixEpoch := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
+	date = date.UTC()
+	unixEpoch := time.Date(1970, time.January, 0, 0, 0, 30, 0, time.UTC)
 	duration := date.Sub(unixEpoch)
 
-	hours := int64(math.Ceil(duration.Hours()))
+	hours := int64(math.Floor(duration.Hours()))
 	return hours
 }
 
 func UnixEpochAddDay(d int64) int64 {
-	unixEpoch := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
+	unixEpoch := time.Date(1970, time.January, 0, 0, 0, 30, 0, time.UTC)
 	at := unixEpoch.Add(24 * time.Hour * time.Duration(d))
 	return at.UnixMilli()
 }
 
 func UnixEpochAddHour(h int64) int64 {
-	unixEpoch := time.Date(1970, time.January, 1, 0, 0, 0, 0, time.UTC)
+	unixEpoch := time.Date(1970, time.January, 0, 0, 0, 30, 0, time.UTC)
 	at := unixEpoch.Add(time.Hour * time.Duration(h))
 	return at.UnixMilli()
 }

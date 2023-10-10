@@ -424,15 +424,6 @@ func GetImageSheetInfo(task model.ExportTensorTask) []types.ExcelMeta {
 	sheets[6] = GenImageResourcesInfoMeta(task.Lang)
 	sheets[7] = GenImageTypeInfoMeta(task.Lang)
 
-	// 统一以镜像搜索的方式导出了
-	// if task.ExecuteType == consts.ExportSingleImage {
-	// 	for i := range sheets {
-	// 		if sheets[i].SheetName != GenImageTypeInfoMeta(task.Lang).SheetName &&
-	// 			sheets[i].SheetName != GenImageBaseInfoMeta(task.Lang).SheetName {
-	// 			sheets[i].Header = sheets[i].Header[2:]
-	// 		}
-	// 	}
-	// }
 	return sheets
 }
 

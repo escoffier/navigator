@@ -280,7 +280,7 @@ func (s *ScanTaskSrv) CreateSubtask(ctx context.Context, taskID int64, imageSear
 
 	var startID int64
 	imageSearchParam.Filter = model.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortAsc().SetSortFiledByID()
-	imageSearchParam.AssociateParam = imagesecModel.GetImageAssociateDataParam{
+	imageSearchParam.AssociateParam = imagesecModel.ImageAssociateParam{
 		RegistryEnable:     true,
 		ScanInstanceEnable: true,
 		NodeInfoEnable:     true,

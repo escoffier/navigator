@@ -18,7 +18,6 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/avira"
 	scanvuln "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/bolt-vuln"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/malicious"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -84,19 +83,19 @@ func (u *UpdateVersionSrv) UpdateAvriaDB() (bool, error) {
 }
 
 func (u *UpdateVersionSrv) UpdateClamAvDB() (bool, error) {
-	maliciousSrv := malicious.GetMaliciousServer()
-	dst, err := maliciousSrv.Updata.GenerateDir(filepath.Join(maliciousSrv.Updata.PvcPath, scannermodel.UnzipPath, scannermodel.ClamavDBPath))
-	if err != nil {
-		logging.GetLogger().Err(err).Msgf("generateDir err :%v", err)
-		return false, fmt.Errorf("generateDir err :%v", err)
-	}
-	res := scannermodel.UpdateResult{DBPath: dst, Result: make(chan bool)}
-	maliciousSrv.Updata.PathCh <- res
-	ok := <-res.Result
-	if !ok {
-		return false, fmt.Errorf("load clamDB error")
-	}
-	maliciousSrv.Updata.UpdateDB(filepath.Join(maliciousSrv.Updata.PvcPath, scannermodel.UnzipPath))
+	// maliciousSrv := malicious.GetMaliciousServer()
+	// dst, err := maliciousSrv.Updata.GenerateDir(filepath.Join(maliciousSrv.Updata.PvcPath, scannermodel.UnzipPath, scannermodel.ClamavDBPath))
+	// if err != nil {
+	// 	logging.GetLogger().Err(err).Msgf("generateDir err :%v", err)
+	// 	return false, fmt.Errorf("generateDir err :%v", err)
+	// }
+	// res := scannermodel.UpdateResult{DBPath: dst, Result: make(chan bool)}
+	// maliciousSrv.Updata.PathCh <- res
+	// ok := <-res.Result
+	// if !ok {
+	// 	return false, fmt.Errorf("load clamDB error")
+	// }
+	// maliciousSrv.Updata.UpdateDB(filepath.Join(maliciousSrv.Updata.PvcPath, scannermodel.UnzipPath))
 	return true, nil
 }
 

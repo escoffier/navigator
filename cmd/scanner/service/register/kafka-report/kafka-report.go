@@ -145,6 +145,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	nodeScanResultDal := imagesecStore.NewScanResultDao(rdbInstance)
 	scannerConfigDal := imagesecStore.NewScanImageConfigDao(rdbInstance)
 	issueDal := imagesecStore.NewScanIssueDao(rdbInstance)
+	cacheDal := imagesecStore.NewImageCacheDao(rdbInstance)
 	resourceDal := imagesecStore.NewResourceDao(rdbInstance)
 	trustedImageDal := store.NewScannerOrm(rdbInstance)
 	detectResultDal := imagesecStore.NewImageDetectResultDao(rdbInstance)
@@ -166,9 +167,12 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 		nodeScanTaskDal,
 		scanInstanceDal,
 		deployRecordDal,
+		cacheDal,
 	)
+	versionDal := imagesecStore.NewScanDbMetaDao(rdbInstance)
+	detectTaskSrv := detect.NewImageDetectTaskSrv(imageSvc, detectTaskDal, policyDal, detectResultDal)
 
-	nodeUpdateImageSvc := imageMetaSrv.NewImageUpdateSrv(
+	updateImageSvc := imageMetaSrv.NewImageUpdateSrv(
 		imageDal,
 		registryDal,
 		policyDal,
@@ -180,10 +184,9 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 		nodeScanTaskDal,
 		nodeDal,
 		scanResultDal,
+		detectTaskSrv,
+		cacheDal,
 	)
-
-	versionDal := imagesecStore.NewScanDbMetaDao(rdbInstance)
-	detectTaskSrv := detect.NewImageDetectTaskSrv(imageSvc, detectTaskDal, policyDal, detectResultDal)
 
 	scanTaskSrv := imagescanSrv.NewScanTaskSrv(
 		nodeScanTaskDal,
@@ -196,7 +199,16 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 		userDal,
 	)
 
-	nodeImageReportSrv := imagesecReport.NewImageReport(imageDal, nodeReportDal, scanResultDal, mqReader, configDal, scanTaskSrv)
+	imageReportSrv := imagesecReport.NewImageReport(
+		imageDal,
+		nodeReportDal,
+		scanResultDal,
+		mqReader,
+		configDal,
+		scanTaskSrv,
+		detectTaskSrv,
+	)
+
 	scanInstanceReport := imagesecReport.NewScanInstanceReport(scanInstanceDal, mqReader, mqWriter)
 	fileUploadSrv := imagesecReport.NewFileUploadSrv(mqReader)
 	nodeInfoSrv := imagesecSrv.NewNodeReportSrv(nodeReportDal)
@@ -207,11 +219,11 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	scanConfigSyncSrv := dispatch.NewScannerConfigSyncSrv(scannerConfigDal, nodeInfoSrv)
 
 	n := &NodeImage{
-		ImageReport:        nodeImageReportSrv,
+		ImageReport:        imageReportSrv,
 		ScanInstanceReport: scanInstanceReport,
 		FileUploadSrv:      fileUploadSrv,
 		ScanTaskSrv:        scanTaskSrv,
-		ImageUpdateSrv:     nodeUpdateImageSvc,
+		ImageUpdateSrv:     updateImageSvc,
 		scanResultService:  scanResultSrv,
 		detectTaskService:  detectTaskSrv,
 		syncConfigService:  scanConfigSyncSrv,

@@ -17,13 +17,13 @@ import (
 )
 
 type DBUpdateSrv struct {
-	AviraUpdate  types.UpdateDEngin
-	ClamavUpdate types.UpdateDEngin
+	AviraUpdate  types.UpdateDBEngin
+	ClamavUpdate types.UpdateDBEngin
 }
 
 func NewDBUpdateSrv(
-	aviraUpdateSrv types.UpdateDEngin,
-	clamavUpdateSrv types.UpdateDEngin,
+	aviraUpdateSrv types.UpdateDBEngin,
+	clamavUpdateSrv types.UpdateDBEngin,
 ) *DBUpdateSrv {
 	srv := &DBUpdateSrv{
 		AviraUpdate:  aviraUpdateSrv,
@@ -33,13 +33,13 @@ func NewDBUpdateSrv(
 }
 
 type SubScanner struct {
-	AviraUpdate  types.UpdateDEngin
-	ClamavUpdate types.UpdateDEngin
+	AviraUpdate  types.UpdateDBEngin
+	ClamavUpdate types.UpdateDBEngin
 }
 
 func NewSubScanner(
-	aviraUpdateSrv types.UpdateDEngin,
-	clamavUpdateSrv types.UpdateDEngin) *SubScanner {
+	aviraUpdateSrv types.UpdateDBEngin,
+	clamavUpdateSrv types.UpdateDBEngin) *SubScanner {
 	srv := &SubScanner{
 		AviraUpdate:  aviraUpdateSrv,
 		ClamavUpdate: clamavUpdateSrv,

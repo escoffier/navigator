@@ -69,11 +69,11 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 
 	registrySrv := regSrv.NewRegistrySrv(registryDal, syncTaskDal, scanInstanceDal, policyDal, scanConfigDal)
 
-	libImageScanner, err := imageScanJob.NewRegistryImageScan(mqWriter, *cli)
+	imageScanner, err := imageScanJob.NewRegistryImageScan(mqWriter, *cli)
 	if err != nil {
 		return nil, err
 	}
-	handler := imagesecStream.NewHandler(libImageScanner, syncSrv, registrySrv)
+	handler := imagesecStream.NewHandler(imageScanner, syncSrv, registrySrv)
 
 	sr := imagesecStream.NewRpcStream(handler)
 

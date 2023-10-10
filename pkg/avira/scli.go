@@ -18,7 +18,7 @@ const (
 )
 
 type SavClient struct {
-	serverAddr   string   // server addr,e.g.tcp:127.0.0.1:9090
+	ServerAddr   string   // server addr,e.g.tcp:127.0.0.1:9090
 	serverSchema string   // tcp or unix
 	serverUrl    string   // 127.0.0.1:9090
 	conn         net.Conn // connection with server
@@ -33,8 +33,9 @@ func (s *SavClient) GetProductID() string {
 	return value
 }
 
+// FIXME 测试该处可能一直卡死
 func (s *SavClient) ScanFile(filePath string) ([]Malware, error) {
-	logging.Get().Info().Str("file", filePath).Msg("SavClient start scan")
+	logging.Get().Debug().Str("file", filePath).Msg("SavClient start scan")
 
 	// send scan command
 	err := s.send([]byte(fmt.Sprintf("SCAN %s", filePath)))
@@ -50,7 +51,7 @@ func (s *SavClient) ScanFile(filePath string) ([]Malware, error) {
 		return res, err
 	}
 
-	logging.Get().Info().Str("file", filePath).Int("malwareCnt", len(res)).Msg("SavClient scan end")
+	logging.Get().Debug().Str("file", filePath).Int("malwareCnt", len(res)).Msg("SavClient scan end")
 	return res, nil
 }
 
@@ -231,7 +232,7 @@ func (s *SavClient) readRsp() (string, error) {
 }
 
 func (s *SavClient) ConnServer() error {
-	logging.Get().Info().Msgf("start connect,%s,%s", s.serverSchema, s.serverUrl)
+	logging.Get().Info().Msgf("SavClient start connect,%s,%s", s.serverSchema, s.serverUrl)
 	conn, err := net.Dial(s.serverSchema, s.serverUrl)
 	if err != nil {
 		logging.Get().Err(err).Msg("connect failed")
@@ -281,17 +282,17 @@ func (s *SavClient) Close() error {
 
 func NewSavClient(serverAddr string) (*SavClient, error) {
 	s := &SavClient{
-		serverAddr: serverAddr,
+		ServerAddr: serverAddr,
 	}
 
 	// a little check
-	arr := strings.Split(s.serverAddr, ":")
+	arr := strings.Split(s.ServerAddr, ":")
 	if len(arr) < 2 {
 		return nil, fmt.Errorf("wrong server addr format:%s", serverAddr)
 	}
 	s.serverSchema = arr[0]
 	s.serverUrl = strings.Join(arr[1:], ":")
-	logging.Get().Info().Str("schema", s.serverSchema).Str("url", s.serverUrl).Msg("")
+	logging.Get().Info().Str("schema", s.serverSchema).Str("url", s.serverUrl).Msg("NewSavClient")
 
 	// connect to server
 	if err := s.ConnServer(); err != nil {

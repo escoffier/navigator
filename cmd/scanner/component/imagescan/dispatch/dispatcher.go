@@ -125,7 +125,7 @@ func (s *TaskDispatcher) PublishRegImageSubtaskHelper(ctx context.Context, subTa
 	for subtask := range subTaskChan {
 		<-ticker.C
 		logging.Get().Info().Str("module", "imagescan").Int64("subtaskID", subtask.SubTaskID).Int64("taskID", subtask.TaskID).
-			Str("image", subtask.RegImageMeta.ImageName()).Str("scannerInstance", subtask.ScanInstance.ScannerInstance).
+			Str("image", subtask.RegImageMeta.ImageName()).Str("scannerClusterName", subtask.ScanInstance.ClusterName).
 			Msg("Dispatcher get registry image scan subtask")
 
 		data, err := json.Marshal(subtask)
@@ -149,7 +149,7 @@ func (s *TaskDispatcher) PublishRegImageSubtaskHelper(ctx context.Context, subTa
 		}
 		req.RequestID = s.GenReqID(req)
 
-		logging.Get().Info().Str("module", "imagescan").Interface("reg", req).Msg("Dispatcher sendMsg")
+		logging.Get().Debug().Str("module", "imagescan").Interface("reg", req).Msg("Dispatcher sendMsg")
 
 		if err := s.DoSendSubtaskRpc(ctx, req); err != nil {
 			logging.Get().Err(err).Str("module", "imagescan").Str("msgID", req.RequestID).Int64("taskID", subtask.TaskID).

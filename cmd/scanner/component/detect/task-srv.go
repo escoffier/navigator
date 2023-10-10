@@ -18,7 +18,7 @@ type ImageDetectTaskService interface {
 	CreateImageDetectTask(ctx context.Context,
 		imageSearchParam imagesecModel.ImageSearchApiParam,
 		taskInfo imagesecModel.ImageDetectTask,
-		policy []*imagesecModel.SecurityPolicy,
+		policy *imagesecModel.SecurityPolicy,
 	) error
 	DeleteDetectData(ctx context.Context, param imagesecModel.SearchTaskParam) error
 }
@@ -53,7 +53,7 @@ func (s *ImageDetectTaskSrv) CreateImageDetectTask(
 	ctx context.Context,
 	imageSearchParam imagesecModel.ImageSearchApiParam,
 	taskInfo imagesecModel.ImageDetectTask,
-	policy []*imagesecModel.SecurityPolicy,
+	policy *imagesecModel.SecurityPolicy, // 只加特定策略的镜像
 ) error {
 
 	task := &imagesecModel.ImageDetectTask{
@@ -155,16 +155,24 @@ func (s *ImageDetectTaskSrv) CreateDetectSubtask(
 	ctx context.Context,
 	task *imagesecModel.ImageDetectTask,
 	imageSearchParam imagesecModel.ImageSearchApiParam,
-	policy []*imagesecModel.SecurityPolicy,
+	policy *imagesecModel.SecurityPolicy,
 ) error {
 	var startId int64
-	if len(policy) == 0 {
-		po, _, err := s.policyDal.SearchDetectPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{Deleted: consts.FalseString})
+	all := make([]*imagesecModel.SecurityPolicy, 0)
+
+	if policy == nil {
+		po, _, err := s.policyDal.SearchDetectPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{
+			Deleted:  consts.FalseString,
+			NotCount: true,
+		})
 		if err != nil {
 			logging.Get().Err(err).Str("module", "detectImage").Msg("CreateDetectSubtask SearchDetectPolicy")
 			return err
 		}
-		policy = po
+		all = append(all, po...)
+	}
+	if policy != nil {
+		all = append(all, policy)
 	}
 
 	filter := &model.Filter{
@@ -192,11 +200,11 @@ func (s *ImageDetectTaskSrv) CreateDetectSubtask(
 
 		for i := range images {
 			im := images[i]
-			for j := range policy {
-				po := policy[j]
-				if !NeedAddDetectSubtask(im, po) {
-					continue
-				}
+			// 把这个镜像相关的所有策略都找出来，重新加
+			// 可以这样做的原因是：在扫描时，会同时把同一个镜像的所有策略找到一起检测
+			added := FindNeedAddPolicy(im, all)
+			for j := range added {
+				po := added[j]
 				subtask := &imagesecModel.ImageDetectSubTask{
 					TaskID:        task.ID,
 					ImageUniqueID: im.UniqueID,
@@ -204,7 +212,6 @@ func (s *ImageDetectTaskSrv) CreateDetectSubtask(
 					Status:        imagesecModel.TaskStatusPending,
 					StatusStr:     imagesecModel.ScanStatusToStr(imagesecModel.TaskStatusPending),
 				}
-
 				subtasks = append(subtasks, subtask)
 			}
 		}
@@ -231,57 +238,75 @@ func (s *ImageDetectTaskSrv) CreateDetectSubtask(
 	return nil
 }
 
-func NeedAddDetectSubtask(image *imagesecModel.ImageBaseResponse, policy *imagesecModel.SecurityPolicy) bool {
+func NeedDetectImage(im *imagesecModel.ImageBaseResponse, po *imagesecModel.SecurityPolicy) bool {
 
-	if image == nil || policy == nil {
+	if im == nil || po == nil {
 		return false
 	}
 
-	if image.ImageFromType == imagesecModel.ImageFromRegistry && policy.PolicyType != imagesecModel.ConfigTypeRegScanImage {
+	if im.ImageFromType == imagesecModel.ImageFromRegistry && po.PolicyType != imagesecModel.ConfigTypeRegScanImage {
 		return false
 	}
 
-	if image.ImageFromType == imagesecModel.ImageFromNode && policy.PolicyType != imagesecModel.ConfigTypeNodeScanImage {
+	if im.ImageFromType == imagesecModel.ImageFromNode && po.PolicyType != imagesecModel.ConfigTypeNodeScanImage {
 		return false
 	}
 
-	scope := policy.Scope
+	scope := po.Scope
 
 	if scope.ScopeType == imagesecModel.DetectScopeTypeImage {
 		// 所有的正则都只要包含就行
-		for i := range policy.Scope.ImageRegexp {
-			reg := policy.Scope.ImageRegexp[i]
-			if reg != "" {
-				com, err := regexp.Compile(reg)
-				if err != nil {
-					logging.Get().Err(err).Str("module", "detectImage").Msg("NeedAddDetectSubtask")
-					continue
-				}
-				imageName := fmt.Sprintf("%s/%s:%s", image.RegistryUrl, image.FullRepoName, image.Tag)
-				if com.FindString(imageName) != "" {
-					return true
-				}
+		for i := range po.Scope.ImageRegexp {
+			reg := po.Scope.ImageRegexp[i]
+			if reg == "" {
+				continue
+			}
+			com, err := regexp.Compile(reg)
+			if err != nil {
+				logging.Get().Err(err).Str("module", "detectImage").Msg("NeedDetectImage")
+				continue
+			}
+			imageName := fmt.Sprintf("%s/%s:%s", im.RegistryUrl, im.FullRepoName, im.Tag)
+			if com.FindString(imageName) != "" {
+				return true
 			}
 		}
 	}
 
 	if scope.ScopeType == imagesecModel.DetectScopeTypeCluster {
+		if im.ImageFromType != imagesecModel.ImageFromNode {
+			return false
+		}
 		if scope.AllCluster {
 			return true
 		}
-		if util.ExistInStringSlice(scope.ClusterKey, image.ClusterKey) {
+		if util.ExistInStringSlice(scope.ClusterKey, im.ClusterKey) {
 			return true
 		}
 	}
 
 	if scope.ScopeType == imagesecModel.DetectScopeTypeReg {
+		if im.ImageFromType != imagesecModel.ImageFromRegistry {
+			return false
+		}
 		if scope.AllReg {
 			return true
 		}
-		if util.ExistInInt64Slice(scope.RegIds, image.RegistryID) {
+		if util.ExistInInt64Slice(scope.RegIds, im.RegistryID) {
 			return true
 		}
 	}
 
 	return false
+}
+
+func FindNeedAddPolicy(im *imagesecModel.ImageBaseResponse, policy []*imagesecModel.SecurityPolicy) []*imagesecModel.SecurityPolicy {
+	ans := make([]*imagesecModel.SecurityPolicy, 0)
+	for i := range policy {
+		po := policy[i]
+		if NeedDetectImage(im, po) {
+			ans = append(ans, po)
+		}
+	}
+	return ans
 }

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/security-rd/go-pkg/logging"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 
 	imagesecTypes "gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
@@ -155,8 +156,9 @@ func (vi *Image) Serialize() {
 	if bys, err := json.Marshal(vi.OS); err == nil {
 		vi.OSJson = string(bys)
 	}
+	// 本身属性
 	if vi.User == BootRootUser || vi.User == "" {
-		vi.Flag = util.SetBit1(vi.Flag, FlagExceptionBoot)
+		vi.Flag = util.SetBit1(vi.Flag, FlagImageExceptionBoot)
 	}
 
 	vi.ImageName = vi.GetImageName()
@@ -177,14 +179,9 @@ func (vi *Image) DeepCopy() *Image {
 func (vi *Image) GenDefaultFlag() uint64 {
 	var flag uint64
 	flag = util.SetBit1(flag, FlagImageSafeUnknown)
-	// flag = util.SetBit1(flag, FlagImageUnTrusted)
+	flag = util.SetBit1(flag, FlagImageUnTrusted)
 	flag = util.SetBit1(flag, FlagImageNotOnline)
-	// flag = util.SetBit1(flag, FlagImageNotInRegistry)
 	flag = util.SetBit1(flag, FlagAppImage)
-
-	// if vi.User == BootRootUser || vi.User == "" {
-	// 	flag = util.SetBit1(flag, FlagExceptionBoot)
-	// }
 	vi.Flag = flag
 	return flag
 }
@@ -342,10 +339,10 @@ type SecurityIssueStatic struct {
 	License       int64 `json:"exceptionLicense"`
 	ExceptionBoot int64 `json:"exceptionBoot"`
 	PkgLicense    int64 `json:"exceptionPkgLicense"`
-	HasFixedVuln  int64 `json:"hasFixedVuln"`
-	NotInRegistry int64 `json:"notInRegistry"` // 不在仓库中
-	Untrusted     int64 `json:"untrusted"`
-	HasSuggestion int64 `json:"hasSuggestion"`
+	// HasFixedVuln     int64 `json:"hasFixedVuln"` // 属于镜像属性，不再属于安全问题
+	NotInRegistry    int64 `json:"notInRegistry"` // 不在仓库中
+	Untrusted        int64 `json:"untrusted"`
+	NotExitBaseImage int64 `json:"notExitBaseImage"`
 }
 
 func (vi *SecurityIssueStatic) DeepCopy() SecurityIssueStatic {
@@ -362,10 +359,9 @@ func (vi *SecurityIssueStatic) DeepCopy() SecurityIssueStatic {
 		License:       vi.License,
 		ExceptionBoot: vi.ExceptionBoot,
 		PkgLicense:    vi.PkgLicense,
-		HasFixedVuln:  vi.HasFixedVuln,
+		// HasFixedVuln:  vi.HasFixedVuln,
 		NotInRegistry: vi.NotInRegistry,
 		Untrusted:     vi.Untrusted,
-		HasSuggestion: vi.HasSuggestion,
 	}
 }
 
@@ -398,3 +394,84 @@ type BaseImageRule struct {
 	CreatedAt int64  `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
 	UpdatedAt int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
 }
+
+type CacheInfo struct {
+	ID               int64             `gorm:"primary_key;AUTO_INCREMENT" json:"id" `
+	DataType         string            `gorm:"column:data_type" json:"dataType"`
+	Data             string            `gorm:"column:data" json:"data"`
+	ImagePrepareData *ImagePrepareData `gorm:"-" json:"imagePrepareData"`
+	VulnOverview     *VulnOverview     `gorm:"-" json:"vulnOverview"`
+	CreatedAt        int64             `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
+	UpdatedAt        int64             `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
+}
+
+func (vi *CacheInfo) Serialize() {
+	if vi.DataType == CacheTypeImagePrepare {
+		bys, err := json.Marshal(vi.ImagePrepareData)
+		if err != nil {
+			logging.Get().Err(err).Str("module", "imageMeta").Msg("Marshal")
+		} else {
+			vi.Data = string(bys)
+		}
+	}
+
+	if vi.DataType == CacheTypVulnOverview {
+		bys, err := json.Marshal(vi.VulnOverview)
+		if err != nil {
+			logging.Get().Err(err).Str("module", "imageMeta").Msg("Marshal")
+		} else {
+			vi.Data = string(bys)
+		}
+	}
+}
+
+func (vi *CacheInfo) Deserializer() {
+	if vi.DataType == CacheTypeImagePrepare {
+		pre := &ImagePrepareData{}
+		err := json.Unmarshal([]byte(vi.Data), pre)
+		if err != nil {
+			logging.Get().Err(err).Str("module", "imageMeta").Msg("Unmarshal")
+		} else {
+			vi.ImagePrepareData = pre
+		}
+	}
+
+	if vi.DataType == CacheTypVulnOverview {
+		pre := &VulnOverview{}
+		err := json.Unmarshal([]byte(vi.Data), pre)
+		if err != nil {
+			logging.Get().Err(err).Str("module", "imageMeta").Msg("Unmarshal")
+		} else {
+			vi.VulnOverview = pre
+		}
+	}
+}
+
+func (vi *CacheInfo) Check() error {
+	if vi.DataType == CacheTypeImagePrepare && vi.ImagePrepareData == nil {
+		return fmt.Errorf("not get ImagePrepareData")
+	}
+	if vi.DataType == CacheTypVulnOverview && vi.VulnOverview == nil {
+		return fmt.Errorf("not get VulnOverview")
+	}
+
+	return nil
+}
+
+func (vi *CacheInfo) ToUpdater() map[string]interface{} {
+	updater := map[string]interface{}{
+		"data":       vi.Data,
+		"updated_at": time.Now().UTC().UnixMilli(),
+	}
+
+	return updater
+}
+
+func (vi *CacheInfo) TableName() string {
+	return "ivan_scan_image_cache"
+}
+
+const (
+	CacheTypeImagePrepare = "imagePrepare"
+	CacheTypVulnOverview  = "vulnOverview"
+)

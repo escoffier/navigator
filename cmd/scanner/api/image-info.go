@@ -37,7 +37,7 @@ func (s *ImageInfoAPI) GetBaseImages(ctx *gin.Context) {
 
 	filter := model.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit)
 
-	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageFromType:   imageFromType,
 		ImageId:         imageID,
 		ImageUniqueID:   imageUniqueID,
@@ -68,7 +68,7 @@ func (s *ImageInfoAPI) GetAppImages(ctx *gin.Context) {
 
 	filter := model.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit)
 
-	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageFromType:  imageFromType,
 		ImageId:        imageID,
 		ImageUniqueID:  imageUniqueID,
@@ -94,7 +94,7 @@ func (s *ImageInfoAPI) GetLicense(ctx *gin.Context) {
 	param.LicenseSearch = util.GetStringSliceFromQuery(ctx, "name")
 	filter := model.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit)
 
-	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageFromType:         param.ImageFromType,
 		ImageId:               param.ImageID,
 		ImageUniqueID:         param.ImageUniqueID,
@@ -120,7 +120,7 @@ func (s *ImageInfoAPI) DeleteBaseImage(ctx *gin.Context) {
 	imageID := util.GetInt64FromQuery(ctx, "imageID")
 	imageUniqueID := util.GetUint64FromQuery(ctx, "imageUniqueID")
 
-	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageId:       imageID,
 		ImageUniqueID: imageUniqueID,
 		ImageFromType: imageFromType,
@@ -241,7 +241,7 @@ func (s *ImageInfoAPI) SearchImageWithScan(ctx *gin.Context) {
 	body.Filter = body.Filter.SetSortFiled("flag").SetSortDesc()
 
 	// 镜像列表需要这些数据
-	assParam := imagesecModel.GetImageAssociateDataParam{
+	assParam := imagesecModel.ImageAssociateParam{
 		RegistryEnable:     true,
 		VulnEnable:         true,
 		NodeInfoEnable:     true,
@@ -367,9 +367,10 @@ func (s *ImageInfoAPI) ExistenceCount(ctx *gin.Context) {
 
 	filter := model.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit)
 	param := imagesecModel.ImageSearchApiParam{
-		ImageKeyword: imageKeyword,
-		UUIDs:        uuids,
-		Filter:       filter,
+		ImageFromType: imagesecModel.ImageFromNode,
+		ImageKeyword:  imageKeyword,
+		UUIDs:         uuids,
+		Filter:        filter,
 	}
 	if imageKeyword == "" || len(param.UUIDs) == 0 {
 		response.JSONOK(ctx, response.WithItem(exits{Exit: 0, All: 0}))
@@ -433,7 +434,7 @@ func (s *ImageInfoAPI) RiskImageOverview(ctx *gin.Context) {
 	over := make(map[uint32]ImageRiskOverview)
 
 	for i := range images {
-		data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+		data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 			ImageId:         images[i].ID,
 			VulnEnable:      true,
 			MalwareEnable:   true,

@@ -37,7 +37,7 @@ func CheckImageWebshell(ctx context.Context, data *imagesecModel.ImageWithCorrel
 		if (ws.RiskLevel == imagesecModel.WebshellRiskLevelCertain && certain) ||
 			(ws.RiskLevel == imagesecModel.WebshellRiskLevelMaybe && maybe) {
 
-			flag = util.SetBit1(util.SetBit1(flag, imagesecModel.FlagDetectException), imagesecModel.FlagDetectInBlack)
+			flag = util.SetBit1(flag, imagesecModel.FlagDetectException)
 		}
 		if util.ExistBit1(flag, imagesecModel.FlagDetectException) && !util.ExistBit1(flag, imagesecModel.FlagDetectInWhite) {
 			switch policy.Webshell.Action {

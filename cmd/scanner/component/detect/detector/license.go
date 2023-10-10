@@ -20,7 +20,6 @@ func CheckImageLicense(ctx context.Context, data *imagesecModel.ImageWithCorrela
 		var flag uint64
 		for j := range black {
 			if data.License[i].Name == black[j] {
-				flag = util.SetBit1(flag, imagesecModel.FlagDetectInBlack)
 				flag = util.SetBit1(flag, imagesecModel.FlagDetectException)
 			}
 		}

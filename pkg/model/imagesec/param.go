@@ -25,6 +25,7 @@ type SearchSecurityPolicyParam struct {
 	DeployMod   []string
 	Filter      *model.Filter
 	Deleted     string
+	Filed       []string
 	Enable      []string
 	Default     string
 }
@@ -495,9 +496,6 @@ func (vi *CreateDetectResultParam) Check() error {
 	}
 	if vi.ImageUniqueID <= 0 {
 		return fmt.Errorf("not get ImageID")
-	}
-	if vi.PolicyID <= 0 {
-		return fmt.Errorf("not get PolicyID")
 	}
 	return nil
 }

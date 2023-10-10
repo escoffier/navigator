@@ -119,6 +119,7 @@ var accessUrlMap = map[string][]string{
 		"/api/v2/containerSec/scanner/db/update",
 		"/api/v2/containerSec/scanner/managementCenter/docs",
 		"/api/v2/platform/configs",
+		"/api/v2/containerSec/scanner/config/scan/sensitive/rule",
 	},
 }
 

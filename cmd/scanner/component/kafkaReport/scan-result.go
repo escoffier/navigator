@@ -121,7 +121,6 @@ func (s *ScanResultReportSrv) CreateScanResult(ctx context.Context, data imagese
 		Int("vulnCnt", len(correlate.Vuln)).
 		Int("sensitiveCnt", len(correlate.Sensitive)).
 		Int("WebshellCnt", len(correlate.Webshell)).
-		Int("WeakPasswordCnt", len(correlate.WeakPassword)).
 		Int("licenseCnt", len(correlate.License)).
 		Int64("subtaskID", data.SubTaskID).
 		Int64("taskID", data.TaskID).
@@ -341,8 +340,7 @@ func (s *ScanResultReportSrv) CreatePkgVuln(ctx context.Context, data imagesecTy
 				Filepath:   pk.FilePath,
 				Class:      res.Class,
 			}
-
-			pkg.UniqueID = pkg.GenUniqueID()
+			pkg.Serialize()
 
 			pkgMap[pkg.UniqueID] = pkg
 			pkgs = append(pkgs, pkg)
@@ -617,7 +615,7 @@ func (s *ScanResultReportSrv) ContinueCreateDetectTask(ctx context.Context) erro
 				ctx,
 				imageSearchParam,
 				imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectPriorityScan, ScanSubTaskID: task.SubtaskID},
-				make([]*imagesecModel.SecurityPolicy, 0),
+				nil,
 			); err != nil {
 				logging.Get().Err(err).Str("module", "KafkaReport").Uint64("imageUniqueID", task.ImageUniqueID).
 					Msg("AddDetectTask")
@@ -632,6 +630,12 @@ func (s *ScanResultReportSrv) ContinueCreateDetectTask(ctx context.Context) erro
 
 func (s *ScanResultReportSrv) CreateMalware(ctx context.Context, data imagesecTypes.ScanResult, imageUniqueID uint64,
 	correlate *imagesecModel.ImageWithCorrelateData2) error {
+	if !data.Malwares.Scanned {
+		logging.Get().Info().Str("module", "KafkaReport").Uint64("imageUniqueID", data.ImageUniqueID).
+			Msg("malware not scanned")
+		return nil
+	}
+
 	res := make([]*imagesecModel.Malware, 0)
 	issue := make([]*imagesecModel.MalwareToImage, 0)
 
@@ -722,6 +726,12 @@ func (s *ScanResultReportSrv) CreateMalware(ctx context.Context, data imagesecTy
 
 func (s *ScanResultReportSrv) CreateWebshell(ctx context.Context, data imagesecTypes.ScanResult, imageUniqueID uint64,
 	correlate *imagesecModel.ImageWithCorrelateData2) error {
+	if !data.Webshells.Scanned {
+		logging.Get().Info().Str("module", "KafkaReport").Uint64("imageUniqueID", data.ImageUniqueID).
+			Msg("webshell not scanned")
+		return nil
+	}
+
 	res1 := make([]*imagesecModel.Webshell, 0)
 	res2 := make([]*imagesecModel.WebshellView, 0)
 	issue := make([]*imagesecModel.WebshellToImage, 0)
@@ -856,6 +866,16 @@ func (s *ScanResultReportSrv) ReceiveImageScanResult(ctx context.Context, msg ka
 		Msg("CreateScanResult receive image scan result report")
 	logging.Get().Info().Str("module", "KafkaReport").Int64("subtaskID", data.SubTaskID).Int64("taskID", data.TaskID).Str("msg", data.Msg).
 		Msg("CreateScanResult receive image scan result report")
+
+	if data.StatusStr == imagesecModel.TaskStatusFailedStr {
+		if err := s.UpdateSubtaskScanFinished(ctx, data); err != nil {
+			logging.Get().Err(err).Str("module", "KafkaReport").Int64("subtaskID", data.SubTaskID).Int64("taskID", data.TaskID).Msg("CreateScanResult")
+			return err
+		}
+		logging.Get().Err(err).Str("module", "KafkaReport").Int64("subtaskID", data.SubTaskID).
+			Int64("taskID", data.TaskID).Msg("CreateScanResult scan failed just update scan subtask")
+		return nil
+	}
 
 	if data.SubTaskID > 0 {
 		if err := s.CreateScanResult(ctx, data); err != nil {

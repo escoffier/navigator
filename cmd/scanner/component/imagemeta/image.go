@@ -20,8 +20,8 @@ type ImageService interface {
 	SearchProject(ctx context.Context, param imagesecModel.SearchProjectParam) ([]imagesecModel.GroupProject, error)
 	UpdateImage(ctx context.Context, param imagesecModel.UpdateImageParam) error
 	// 查询很重的接口，慎重传参
-	GetImageCorrelateData(ctx context.Context, param imagesecModel.GetImageAssociateDataParam) (*imagesecModel.ImageWithCorrelateData2, error)
-	GetImageOverView(ctx context.Context) (imagesecModel.ImagePrepareData, error)
+	GetImageCorrelateData(ctx context.Context, param imagesecModel.ImageAssociateParam) (*imagesecModel.ImageWithCorrelateData2, error)
+	GetImageOverView(ctx context.Context) (*imagesecModel.ImagePrepareData, error)
 	TopRiskImage(ctx context.Context) ([]*imagesecModel.ImageBaseResponse, error)
 	SearchResources(ctx context.Context, param imagesecModel.SearchResourceParam) ([]model.TensorRawContainer, int64, error)
 	GetImageForDeploy(ctx context.Context, param imagesecModel.DeployMonitorImage) GetImageForDeployRes
@@ -41,7 +41,9 @@ type ImageInfoMetaSrv struct {
 	configDal       imagesecStore.ScanImageConfigDal
 	scanTaskDal     imagesecStore.ScanTaskDal
 	deployRecordDal imagesecStore.DeployDal
-	RiskImageTop5   *metaGlobal.RiskImageTop5
+	imageCacheDal   imagesecStore.ImageCacheDal
+
+	RiskImageTop5 *metaGlobal.RiskImageTop5
 }
 
 func NewImageMetaSrv(
@@ -57,6 +59,7 @@ func NewImageMetaSrv(
 	scanTaskDal imagesecStore.ScanTaskDal,
 	scanInstanceDal imagesecStore.ScanInstanceDal,
 	deployRecordDal imagesecStore.DeployDal,
+	imageCacheDal imagesecStore.ImageCacheDal,
 ) *ImageInfoMetaSrv {
 	srv := ImageInfoMetaSrv{
 		imageDal:        imageDal,
@@ -71,6 +74,7 @@ func NewImageMetaSrv(
 		configDal:       configDal,
 		scanTaskDal:     scanTaskDal,
 		deployRecordDal: deployRecordDal,
+		imageCacheDal:   imageCacheDal,
 		RiskImageTop5:   metaGlobal.GetRiskImageTop5(),
 	}
 	return &srv
@@ -126,7 +130,7 @@ func (s *ImageInfoMetaSrv) UpdateImage(ctx context.Context, param imagesecModel.
 }
 
 func (s *ImageInfoMetaSrv) GetImageCorrelateData(ctx context.Context,
-	param imagesecModel.GetImageAssociateDataParam) (*imagesecModel.ImageWithCorrelateData2, error) {
+	param imagesecModel.ImageAssociateParam) (*imagesecModel.ImageWithCorrelateData2, error) {
 
 	param.Deserialize()
 
@@ -146,8 +150,24 @@ func (s *ImageInfoMetaSrv) GetImageCorrelateData(ctx context.Context,
 	}
 
 	ans := &imagesecModel.ImageWithCorrelateData2{
-		RiskPolicy:  make([]imagesecModel.SecurityPolicy, 0),
-		TotalPolicy: make([]imagesecModel.SecurityPolicy, 0),
+		Image:             imagesecModel.Image{},
+		ImageBaseResponse: imagesecModel.ImageBaseResponse{},
+		Sensitive:         make([]*imagesecModel.SensitiveFile, 0),
+		Webshell:          make([]*imagesecModel.WebshellView, 0),
+		Env:               make([]*imagesecModel.ImageEnv, 0),
+		Vuln:              make([]*imagesecModel.VulnView, 0),
+		Pkg:               make([]*imagesecModel.Pkg, 0),
+		License:           make([]*imagesecModel.License, 0),
+		Malware:           make([]*imagesecModel.Malware, 0),
+		BaseImages:        make([]*imagesecModel.ImageBaseResponse, 0),
+		AppImages:         make([]*imagesecModel.ImageBaseResponse, 0),
+		Container:         make([]*imagesecModel.RawContainer, 0),
+		ScanSubTask:       make([]*imagesecModel.ImageScanSubTask, 0),
+		TrustedDigest:     make([]string, 0),
+		RegIds:            make([]int64, 0),
+		RiskPolicy:        make([]imagesecModel.SecurityPolicy, 0),
+		TotalPolicy:       make([]imagesecModel.SecurityPolicy, 0),
+		DetectResult:      make(map[string][]*imagesecModel.ImageDetectResult),
 	}
 
 	if err := s.addImageMeta(ctx, &param, ans); err != nil {
@@ -156,7 +176,11 @@ func (s *ImageInfoMetaSrv) GetImageCorrelateData(ctx context.Context,
 		return nil, err
 	}
 
-	param.ImageFromType = ""
+	if err := s.addDeployMeta(ctx, &param, ans); err != nil {
+		logging.Get().Err(err).Str("module", "imageMeta").Int64("ImageID", param.ImageId).
+			Msg("ImageWithCorrelateData addDeployMeta")
+		return nil, err
+	}
 
 	errs := make([]error, 0)
 	errs = append(errs, s.addRegistryData(ctx, &param, ans))
@@ -171,16 +195,16 @@ func (s *ImageInfoMetaSrv) GetImageCorrelateData(ctx context.Context,
 	errs = append(errs, s.addFinishedSubtaskData(ctx, &param, ans))
 	errs = append(errs, s.addContainerData(ctx, &param, ans))
 	errs = append(errs, s.addBaseAppData(ctx, &param, ans))
+	errs = append(errs, s.addTrustedData(ctx, &param, ans))
+	errs = append(errs, s.addImageInRegData(ctx, &param, ans))
 	errs = append(errs, s.addNodeInfoData(ctx, &param, ans))
 	errs = append(errs, s.addImageRiskPolicyData(ctx, &param, ans))
-	errs = append(errs, s.addImageSimplePolicyData(ctx, &param, ans))
-	errs = append(errs, s.addDeploySimplePolicyData(ctx, &param, ans))
+	errs = append(errs, s.addSimplePolicyData(ctx, &param, ans))
 	errs = append(errs, s.addDetectResultData(ctx, &param, ans))
 
 	for i := range errs {
 		if errs[i] != nil {
 			logging.Get().Err(errs[i]).Msg("GetImageCorrelateData")
-			return ans, scani18.GetImageInfo(errs[0])
 		}
 	}
 
@@ -189,6 +213,9 @@ func (s *ImageInfoMetaSrv) GetImageCorrelateData(ctx context.Context,
 	ans.AddDeployDetect()
 
 	ans.ExceptionFilter(param.ScanResultSearchParam)
+
+	// 只判断返回的数据
+	_ = s.addCheckDownloadable(ctx, &param, ans)
 
 	ans.ImageBaseResponse = ans.ToImageBaseResponse()
 	base := ans.ImageBaseResponse
@@ -211,25 +238,41 @@ func (s *ImageInfoMetaSrv) GetImageCorrelateData(ctx context.Context,
 // 搜索是前端做的，后端返回全量数据
 func (s *ImageInfoMetaSrv) SearchProject(ctx context.Context, param imagesecModel.SearchProjectParam) (
 	[]imagesecModel.GroupProject, error) {
-
 	if err := param.Check(); err != nil {
+		return nil, scani18.GetImageFromType()
+	}
+	info, err := s.imageCacheDal.SearchCacheInfo(ctx, imagesecModel.CacheTypeImagePrepare)
+	if err != nil {
+		logging.Get().Err(err).Str("module", consts.ModelImageMeta).Msg("SearchProject")
 		return nil, err
 	}
-	pre := metaGlobal.GetPrepareData().GetImagePrepareData()
+
+	if info.ImagePrepareData == nil {
+		return nil, scani18.SearchImage(err)
+	}
 
 	switch param.ImageFromType {
 	case imagesecModel.ImageFromNode:
-		return pre.NodeGroupProject, nil
+		return info.ImagePrepareData.NodeGroupProject, nil
 	case imagesecModel.ImageFromRegistry:
-		return pre.RegGroupProject, nil
+		return info.ImagePrepareData.RegGroupProject, nil
 	default:
 		return make([]imagesecModel.GroupProject, 0), scani18.GetImageFromType()
 	}
 }
 
-func (s *ImageInfoMetaSrv) GetImageOverView(ctx context.Context) (imagesecModel.ImagePrepareData, error) {
-	pre := metaGlobal.GetPrepareData().GetImagePrepareData()
-	return *pre, nil
+func (s *ImageInfoMetaSrv) GetImageOverView(ctx context.Context) (*imagesecModel.ImagePrepareData, error) {
+	ans := &imagesecModel.ImagePrepareData{}
+	info, err := s.imageCacheDal.SearchCacheInfo(ctx, imagesecModel.CacheTypeImagePrepare)
+	if err != nil {
+		logging.Get().Err(err).Str("module", consts.ModelImageMeta).Msg("SearchProject")
+		return ans, err
+	}
+
+	if info.ImagePrepareData == nil {
+		return ans, scani18.SearchImage(err)
+	}
+	return info.ImagePrepareData, nil
 }
 
 func (s *ImageInfoMetaSrv) TopRiskImage(ctx context.Context) ([]*imagesecModel.ImageBaseResponse, error) {
@@ -240,7 +283,7 @@ func (s *ImageInfoMetaSrv) TopRiskImage(ctx context.Context) ([]*imagesecModel.I
 	images, _, err := s.ListImageWithScanInfo(ctx, imagesecModel.ImageSearchApiParam{
 		OnlineStr: []string{consts.TrueString},
 		SafeAttr:  []string{imagesecModel.ImageUnsafeString},
-		AssociateParam: imagesecModel.GetImageAssociateDataParam{
+		AssociateParam: imagesecModel.ImageAssociateParam{
 			VulnEnable:         true,
 			MalwareEnable:      true,
 			SensitiveEnable:    true,
@@ -253,7 +296,7 @@ func (s *ImageInfoMetaSrv) TopRiskImage(ctx context.Context) ([]*imagesecModel.I
 		Filter: model.EmptyFilter().SetLimit(consts.DefaultPerPage),
 	})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("TopRiskImage")
+		logging.Get().Err(err).Str("module", consts.ModelImageMeta).Msg("TopRiskImage")
 		return nil, err
 	}
 	s.RiskImageTop5.Add(images...)
@@ -363,6 +406,9 @@ func (s *ImageInfoMetaSrv) SearchRelatedImage(ctx context.Context, param imagese
 		uuid := ima.ImageUUID
 		if _, ok := res[images[i].ImageUUID]; !ok {
 			im := imagesecModel.RelatedImageRes{
+				ImageID:       ima.ID,
+				ImageUUID:     ima.ImageUUID,
+				Digest:        ima.Digest,
 				ImageFromType: ima.ImageFromType,
 				ImageUniqueID: ima.UniqueID,
 				Image:         ima.GetImageName(),
@@ -409,6 +455,60 @@ func (s *ImageInfoMetaSrv) SearchRelatedImage(ctx context.Context, param imagese
 		end = len(ans)
 	}
 	ans = ans[start:end]
+	if len(ans) == 0 {
+		return ans, cnt, nil
+	}
+	ansUuids := make([]uint32, 0)
+	for i := range ans {
+		ansUuids = append(ansUuids, ans[i].ImageUUID)
+	}
+	ass := imagesecModel.ImageAssociateParam{RegistryEnable: true, NodeInfoEnable: true}
+	infos, _, err := s.ListImageWithScanInfo(ctx, imagesecModel.ImageSearchApiParam{UUIDs: ansUuids, AssociateParam: ass})
+	if err != nil {
+		return ans, cnt, scani18.SearchImage(err)
+	}
+
+	uuidReg := make(map[uint32][]imagesecModel.RegistrySimple)
+	uuidNode := make(map[uint32][]*imagesecModel.NodeInfo)
+
+	for i := range infos {
+		in := infos[i]
+		if uuidReg[in.UUID] == nil {
+			uuidReg[in.UUID] = make([]imagesecModel.RegistrySimple, 0)
+		}
+		if in.ImageFromType == imagesecModel.ImageFromRegistry {
+			uuidReg[in.UUID] = append(uuidReg[in.UUID], imagesecModel.RegistrySimple{
+				ID:   in.RegistryID,
+				Name: in.RegistryName,
+				Url:  in.RegistryUrl,
+			})
+		}
+	}
+
+	for i := range infos {
+		in := infos[i]
+		if uuidNode[in.UUID] == nil {
+			uuidNode[in.UUID] = make([]*imagesecModel.NodeInfo, 0)
+		}
+		if in.ImageFromType == imagesecModel.ImageFromNode {
+			uuidNode[in.UUID] = append(uuidNode[in.UUID], &imagesecModel.NodeInfo{
+				UniqueID:    in.NodeUniqueID,
+				Hostname:    in.NodeHostname,
+				ClusterKey:  in.ClusterKey,
+				ClusterName: in.ClusterName,
+			})
+		}
+	}
+	for i := range ans {
+		ans[i].Registry = uuidReg[ans[i].ImageUUID]
+		ans[i].Node = uuidNode[ans[i].ImageUUID]
+		if len(ans[i].Registry) == 0 {
+			ans[i].Registry = make([]imagesecModel.RegistrySimple, 0)
+		}
+		if len(ans[i].Node) == 0 {
+			ans[i].Node = make([]*imagesecModel.NodeInfo, 0)
+		}
+	}
 
 	return ans, cnt, nil
 }

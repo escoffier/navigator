@@ -5,6 +5,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
+	imagesecTypes "gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
 )
 
 type ImageLayer struct {
@@ -15,11 +16,14 @@ type ImageLayer struct {
 }
 
 type PrepareScan struct {
+	Subtask       imagesecTypes.ScanSubTask
 	Layers        []ImageLayer
 	ImageRootDir  string // 扫描完成后删除该
 	Image         imagesec.Image
 	UserDockerCli bool
 	LayerFile     map[string][]string // 各层及的文件
+	EtcPasswdFile string              // etc/passwd文件，供 webshell 使用
+	EtcGroupFile  string              // etc/group文件，供 webshell 使用
 	Errs          []error
 }
 

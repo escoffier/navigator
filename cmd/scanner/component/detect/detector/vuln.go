@@ -61,7 +61,7 @@ func CheckImageVuln(ctx context.Context, data *imagesecModel.ImageWithCorrelateD
 		}
 
 		if !util.ExistBit1(flag, imagesecModel.FlagDetectInWhite) && blackAdd {
-			flag = util.SetBit1(util.SetBit1(flag, imagesecModel.FlagDetectInBlack), imagesecModel.FlagDetectException)
+			flag = util.SetBit1(flag, imagesecModel.FlagDetectException)
 		}
 
 		if !util.ExistBit1(flag, imagesecModel.FlagDetectInWhite) && (policy.VulnDB.Severity != "" &&

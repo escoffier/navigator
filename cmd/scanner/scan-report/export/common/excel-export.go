@@ -187,7 +187,7 @@ func (s *ExcelExportSrv) GetExcelData(ctx context.Context, image imagesecModel.I
 	logging.Get().Info().Int64("imageID", image.ID).Uint64("ImageUniqueID", image.UniqueID).
 		Msg("GetExcelData GetImageDetail start")
 
-	data, err := s.getImageSrv(ctx, image.ImageFromType).GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.getImageSrv(ctx, image.ImageFromType).GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageUniqueID:   image.UniqueID,
 		ImageId:         image.ID,
 		VulnEnable:      true,
@@ -201,6 +201,9 @@ func (s *ExcelExportSrv) GetExcelData(ctx context.Context, image imagesecModel.I
 		RegistryEnable:  true,
 		BaseImageEnable: true,
 		AppImageEnable:  true,
+		TrustedEnable:   true,
+		ImageInReg:      true,
+		NodeInfoEnable:  true,
 	})
 	if err != nil {
 		logging.Get().Info().Int64("imageID", image.ID).Uint64("ImageUniqueID", image.UniqueID).

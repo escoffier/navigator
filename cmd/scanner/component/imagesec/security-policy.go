@@ -76,7 +76,7 @@ func (s *SecurityPolicySrv) CreatePolicy(ctx context.Context, data *imagesecMode
 		if err := s.imageDetectTaskSrv.CreateImageDetectTask(ctx,
 			imageSearchParam,
 			imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectPriorityPolicyCreate},
-			[]*imagesecModel.SecurityPolicy{data},
+			data,
 		); err != nil {
 			logging.Get().Err(err).Msg("CreateDetectPolicy CreateDetectTask")
 			return
@@ -121,13 +121,15 @@ func (s *SecurityPolicySrv) UpdatePolicy(ctx context.Context, param imagesecMode
 
 	// 写快照
 	if param.CreateSnapshot {
-		data.CreatedAt = policy[0].CreatedAt
-		data.UpdatedAt = policy[0].UpdatedAt
+		data.CreatedAt = time.Now().UnixMilli()
+		data.UpdatedAt = time.Now().UnixMilli()
 		if err := s.policyDal.CreateDetectPolicySnapshot(ctx, &data); err != nil {
 			logging.Get().Err(err).Interface("data", data).Int64("policyID", param.ID).
 				Msg("UpdateDetectPolicy CreateDetectPolicySnapshot")
 		}
 	}
+
+	scopeChanged := !data.Scope.Same(policy[0].Scope)
 
 	// 加检测任务
 	go func() {
@@ -137,7 +139,7 @@ func (s *SecurityPolicySrv) UpdatePolicy(ctx context.Context, param imagesecMode
 		if data.PolicyType == imagesecModel.ConfigTypeDeploy {
 			return
 		}
-		// 删除这个策略的任务
+		// 删除这个策略的子任务,对于扫描任务的检测任务已做特殊处理
 		deleteParam := imagesecModel.SearchTaskParam{PolicyID: data.ID}
 
 		if err := s.imageDetectTaskSrv.DeleteDetectData(ctx, deleteParam); err != nil {
@@ -145,10 +147,11 @@ func (s *SecurityPolicySrv) UpdatePolicy(ctx context.Context, param imagesecMode
 		}
 
 		imageSearchParam := imagesecModel.ImageSearchApiParam{ImageFromType: data.Scope.ImageFromType}
-		if err := s.imageDetectTaskSrv.CreateImageDetectTask(ctx,
+		if err := s.imageDetectTaskSrv.CreateImageDetectTask(
+			ctx,
 			imageSearchParam,
 			imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectPriorityPolicyUpdate},
-			[]*imagesecModel.SecurityPolicy{&data},
+			&data,
 		); err != nil {
 			logging.Get().Err(err).Msg("UpdateDetectPolicy CreateDetectTask")
 			return
@@ -156,40 +159,38 @@ func (s *SecurityPolicySrv) UpdatePolicy(ctx context.Context, param imagesecMode
 		logging.Get().Info().Msg("UpdateDetectPolicy CreateDetectTask succeed")
 	}()
 
-	// 再加一个默认策略的检测任务，只是优先级低些
-	// go func() {
-	// 	if !param.CreateDetectTask {
-	// 		return
-	// 	}
-	//
-	// 	defaultP, _, err := s.policyDal.SearchDetectPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{
-	// 		PolicyType: data.PolicyType,
-	// 		Default:    consts.TrueString,
-	// 	})
-	// 	if err != nil {
-	// 		logging.Get().Err(err).Msg("UpdateDetectPolicy not find default detect task")
-	// 	}
-	//
-	// 	// 删除这个策略的任务
-	// 	deleteParam := imagesecModel.SearchTaskParam{
-	// 		PolicyID: data.ID,
-	// 	}
-	//
-	// 	if err := s.imageDetectTaskSrv.DeleteDetectData(ctx, deleteParam); err != nil {
-	// 		logging.Get().Err(err).Msg("UpdateDetectPolicy delete not finished detect task and subtask")
-	// 	}
-	//
-	// 	imageSearchParam := imagesecModel.ImageSearchApiParam{ImageFromType: data.Scope.ImageFromType}
-	//
-	// 	if err := s.imageDetectTaskSrv.CreateImageDetectTask(ctx, imageSearchParam,
-	// 		imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectPriorityPolicyUpdate},
-	// 		[]*imagesecModel.SecurityPolicy{&data},
-	// 	); err != nil {
-	// 		logging.Get().Err(err).Msg("UpdateDetectPolicy CreateDetectTask")
-	// 		return
-	// 	}
-	// 	logging.Get().Info().Msg("UpdateDetectPolicy CreateDetectTask succeed")
-	// }()
+	// 再加一个默认策略的检测任务，只是优先级低些,防止策略范围变小
+	// 默认策略是所有的镜像
+	// 检测时是查询所有的策略一起检测的
+	go func(scopeChanged bool) {
+		if !param.CreateDetectTask {
+			return
+		}
+		if !scopeChanged {
+			return
+		}
+
+		defaultP, _, err := s.policyDal.SearchDetectPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{
+			PolicyType: policy[0].PolicyType,
+			Default:    consts.TrueString,
+		})
+		if err != nil {
+			logging.Get().Err(err).Msg("UpdateDetectPolicy not find default detect task")
+		}
+		if len(defaultP) == 0 {
+			return
+		}
+
+		imageSearchParam := imagesecModel.ImageSearchApiParam{ImageFromType: data.Scope.ImageFromType}
+		if err := s.imageDetectTaskSrv.CreateImageDetectTask(ctx, imageSearchParam,
+			imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectPriorityDefaultPolicy},
+			defaultP[0],
+		); err != nil {
+			logging.Get().Err(err).Msg("UpdateDetectPolicy CreateDetectTask")
+			return
+		}
+		logging.Get().Info().Msg("UpdateDetectPolicy CreateDetectTask succeed")
+	}(scopeChanged)
 
 	return nil
 }
@@ -324,7 +325,7 @@ func (s *SecurityPolicySrv) DeletePolicy(ctx context.Context, id int64) error {
 		if err := s.imageDetectTaskSrv.CreateImageDetectTask(ctx,
 			imageSearchParam,
 			imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectPriorityPolicyDelete},
-			[]*imagesecModel.SecurityPolicy{},
+			nil,
 		); err != nil {
 			logging.Get().Err(err).Msg("CreateDetectPolicy CreateDetectTask")
 			return

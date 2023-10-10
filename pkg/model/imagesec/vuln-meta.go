@@ -526,13 +526,13 @@ func GetVulnClassView(lang string) map[string]string {
 	avCH := map[string]string{
 		report.ClassOSPkg:   "系统漏洞",
 		report.ClassLangPkg: "应用漏洞",
-		report.ClassConfig:  "配置文件漏洞",
+		// report.ClassConfig:  "配置文件漏洞",
 	}
 
 	avEn := map[string]string{
 		report.ClassOSPkg:   "System FLAW",
 		report.ClassLangPkg: "Application vulnerability",
-		report.ClassConfig:  "Config vulnerability",
+		// report.ClassConfig:  "Config vulnerability",
 	}
 	if lang == model.LangEn {
 		return avEn

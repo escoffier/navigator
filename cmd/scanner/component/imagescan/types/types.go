@@ -29,7 +29,7 @@ type UpdateTask struct {
 }
 
 type ImageService interface {
-	GetImageCorrelateData(ctx context.Context, param imagesecModel.GetImageAssociateDataParam) (
+	GetImageCorrelateData(ctx context.Context, param imagesecModel.ImageAssociateParam) (
 		*imagesecModel.ImageWithCorrelateData2, error)
 	ListImageWithScanInfo(ctx context.Context, param imagesecModel.ImageSearchApiParam) (
 		[]*imagesecModel.ImageBaseResponse, int64, error)
@@ -56,7 +56,7 @@ type UpdateDBService interface {
 	UpdateDB(ctx context.Context, param imagesecModel.UpdateDbParam) error
 }
 
-type UpdateDEngin interface {
+type UpdateDBEngin interface {
 	UpdateDB(ctx context.Context, param imagesecModel.UpdateDbParam) (*imagesecModel.ScanDbMeta, error)
 }
 

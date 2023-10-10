@@ -239,10 +239,10 @@ type hMWebshellCode struct {
 
 type WebshellCode struct {
 	Name   string `json:"name"`
-	Offset int64  `json:"offset"`
+	Offset int64  `json:"offset"` // 注意，河马把 \n 也算了的,且是从文件头第一个字符起算，不是以该行起算
 	Data   string `json:"data"`
-	LineNo int64  `json:"lineNo"`
-	Parsed bool   `json:"parsed"` // 河马加密，是否能解析，不对解析的数据不能返回给前端
+	LineNo int64  `json:"lineNo"` // 扫描结果都是0，可以认为这个字段已废弃
+	Parsed bool   `json:"parsed"` // 河马加密，是否能解析，不能解析的数据不能返回给前端
 }
 
 type WebshellCodes []WebshellCode

@@ -16,10 +16,12 @@ import (
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-cache"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/imagescan"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/kafka-report"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/malicious"
+
+	// _ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/malicious"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/registry"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/scanner-vuln"
-	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/scanner-webshell"
+
+	// _ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/scanner-webshell"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/stream2"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/subscanner-log"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/trivy-srv"

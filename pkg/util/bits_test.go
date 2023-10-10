@@ -34,7 +34,10 @@ func TestSetBit0(t *testing.T) {
 		convey.So(ExistBit1(uint64(9223372045294241088), uint64(29)), convey.ShouldEqual, true)
 		convey.So(ExistBit1(uint64(9223372045294241088), uint64(30)), convey.ShouldEqual, true)
 		convey.So(ExistBit1(uint64(9223372045294241088), uint64(31)), convey.ShouldEqual, true)
-		convey.So(ExistBit1(uint64(9223372045294241088), uint64(32)), convey.ShouldEqual, true)
+		// convey.So(ExistBit1(uint64(8589934592), uint64(36)), convey.ShouldEqual, true)
+		// convey.So(ExistBit1(uint64(8589934592), uint64(35)), convey.ShouldEqual, true)
+		// convey.So(ExistBit1(uint64(8589934592), uint64(34)), convey.ShouldEqual, true)
+		convey.So(ExistBit1(uint64(8589934592), uint64(33)), convey.ShouldEqual, true)
 	})
 
 }

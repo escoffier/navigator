@@ -13,8 +13,6 @@ import (
 	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
-	aviraengin "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/engin/avira"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/engin/hm"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/engin/prepare"
 	scanTrivy "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/engin/trivy"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/types"
@@ -22,28 +20,25 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
-	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 	imagesecTypes "gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
 )
 
-var registryImageScan *RegistryImageScan
+var registryImageScan *RegImageScan
 
-type RegistryImageScan struct {
-	MqWriter mq.Writer
-
-	ScanSubtaskChan chan imagesecTypes.ScanSubTask
-	TaskQueue       *TaskQueue
+type RegImageScan struct {
+	MqWriter         mq.Writer
+	MaxSingeFileSize int64
+	ScanSubtaskChan  chan imagesecTypes.ScanSubTask
+	TaskQueue        *TaskQueue
 	// 主集群会控制下发任务的数量，但是各子集群的配置可能不一样，所以子集群也需要控制并发度
 	ScanEnginNum  chan int64
 	ScanP         *prepare.ScanPrepare
 	TrivyEngin    *scanTrivy.TrivyEngin
-	AviraEngin    *aviraengin.AviraSrv
-	HM            *hm.ScanHM
 	ImageCacheURL string
 }
 
 // 增加超时控制
-func (s *RegistryImageScan) ScanAndSend(ctx context.Context, subtask imagesecTypes.ScanSubTask) error {
+func (s *RegImageScan) ScanAndSend(ctx context.Context, subtask imagesecTypes.ScanSubTask) error {
 	defer s.DeleteTaskQueue(ctx, subtask.SubTaskID)
 
 	if subtask.ScanTimeout <= 0 {
@@ -63,32 +58,42 @@ func (s *RegistryImageScan) ScanAndSend(ctx context.Context, subtask imagesecTyp
 
 	pullJob := NewPullImageJob(pullImageConfig)
 	errs := make([]error, 0)
-	malwareJob := NewNScanMalicious(s.MqWriter)
 	sensitiveJob := NewScanSensitive(subtask.SensitiveRules, s.MqWriter)
-	vulnJob := NewScanVuln()
-	webshellJob := NewScanWebshell(s.MqWriter)
+	vulnJob := NewScanVuln() // 为啥一定要做这一步呢，因为
 	licenseJob := NewScanLicense(s.MqWriter)
 	deleteJob := NewDeleteLayer()
 
 	logging.Get().Info().Str("module", "imagescan").Str("executor", "pull-image").
 		Int64("subtaskID", subtask.SubTaskID).Msg("scan start")
+
+	prepareScan, err := s.PrepareScan(ctx, subtask)
+	if err != nil {
+		errs = append(errs, err)
+	}
 	artifact, err := pullJob.Run(timeoutCtx)
 	if err != nil {
 		errs = append(errs, err)
 	}
+	// 删除中间数据
+	defer func() { _ = s.CleanUpScan(ctx, prepareScan) }()
+	defer func() {
+		// 为啥要删除两次呢：因为 pullJob.Run和PrepareScan都会增加一次引用
+		_ = deleteJob.Run(timeoutCtx, Param(artifact))
+		_ = deleteJob.Run(timeoutCtx, Param(artifact))
+	}()
 
 	logging.Get().Info().Str("module", "imagescan").Str("executor", "pull-image").
 		Int64("subtaskID", subtask.SubTaskID).Msg("scan end")
 
 	logging.Get().Info().Str("module", "imagescan").Str("executor", "malware").
 		Int64("subtaskID", subtask.SubTaskID).Msg("scan start")
-	malwareRes := malwareJob.DoTask(timeoutCtx, Param(artifact), subtask.DeepScan)
+	malwareRes, err := s.AviraSrv(ctx, prepareScan)
 
-	if malwareRes.Err != nil {
-		errs = append(errs, malwareRes.Err)
+	if err != nil {
+		errs = append(errs, err)
 	}
 	logging.Get().Info().Str("module", "imagescan").Str("executor", "malware").
-		Int("cnt", len(malwareRes.Ma)).Int64("subtaskID", subtask.SubTaskID).Msg("scan end")
+		Int("cnt", len(malwareRes.AviraScanResults)).Int64("subtaskID", subtask.SubTaskID).Msg("scan end")
 
 	logging.Get().Info().Str("module", "imagescan").Str("executor", "sensitive").
 		Int64("subtaskID", subtask.SubTaskID).Msg("scan start")
@@ -101,8 +106,9 @@ func (s *RegistryImageScan) ScanAndSend(ctx context.Context, subtask imagesecTyp
 
 	logging.Get().Info().Str("module", "imagescan").Str("executor", "vuln").
 		Int64("subtaskID", subtask.SubTaskID).Msg("scan start")
-	vuln, err := vulnJob.Scan(timeoutCtx, Param(artifact))
+	vulnRes, err := vulnJob.Scan(ctx, Param(artifact))
 	if err != nil {
+		// vuln, err := vulnJob.Scan(timeoutCtx, Param(artifact))
 		errs = append(errs, err)
 	}
 	logging.Get().Info().Str("module", "imagescan").Str("executor", "vuln").
@@ -110,11 +116,12 @@ func (s *RegistryImageScan) ScanAndSend(ctx context.Context, subtask imagesecTyp
 
 	logging.Get().Info().Str("module", "imagescan").Str("executor", "webshell").
 		Int64("subtaskID", subtask.SubTaskID).Msg("scan start")
-	webs := webshellJob.DoTask(timeoutCtx, Param(artifact), subtask.DeepScan)
-	if webs.Err != nil {
-		errs = append(errs, webs.Err)
+	webs, err := s.ScanWebshell(ctx, prepareScan)
+	// webs := webshellJob.DoTask(timeoutCtx, Param(artifact), subtask.DeepScan)
+	if err != nil {
+		errs = append(errs, err)
 	}
-	logging.Get().Info().Str("module", "imagescan").Str("executor", "webshell").Int("cnt", len(webs.WB)).
+	logging.Get().Info().Str("module", "imagescan").Str("executor", "webshell").Int("cnt", len(webs.HmWebshells)).
 		Int64("subtaskID", subtask.SubTaskID).Msg("scan end")
 
 	logging.Get().Info().Str("module", "imagescan").Str("executor", "license").
@@ -132,7 +139,7 @@ func (s *RegistryImageScan) ScanAndSend(ctx context.Context, subtask imagesecTyp
 			Int64("subtaskID", subtask.SubTaskID).Int64("taskID", subtask.TaskID).Msg("scan registry image")
 	}
 
-	scanResult := conversion(subtask, malwareRes.Ma, malwareRes.WF, sens, vuln, webs.WB, lis, errs)
+	scanResult := conversion(subtask, malwareRes, nil, sens, vulnRes, webs, lis, errs)
 
 	// send to kafka
 	sendData, err := json.Marshal(scanResult)
@@ -165,13 +172,13 @@ func (s *RegistryImageScan) ScanAndSend(ctx context.Context, subtask imagesecTyp
 	logging.Get().Info().Str("module", "imagescan").Str("executor", "send kafka").Int64("subtaskID", subtask.SubTaskID).Msg("scan end")
 
 	logging.Get().Info().Str("module", "imagescan").Str("executor", "delete layer").Int64("subtaskID", subtask.SubTaskID).Msg("scan start")
-	_ = deleteJob.Run(timeoutCtx, Param(artifact))
 
 	logging.Get().Info().Str("module", "imagescan").Str("executor", "delete layer").Int64("subtaskID", subtask.SubTaskID).Msg("scan end")
+
 	return nil
 }
 
-func (s *RegistryImageScan) ReceiveScanSubtask(ctx context.Context, subtask imagesecTypes.ScanSubTask) error {
+func (s *RegImageScan) ReceiveScanSubtask(ctx context.Context, subtask imagesecTypes.ScanSubTask) error {
 	exit := s.TaskQueue.Get(subtask.SubTaskID)
 	if exit {
 		logging.Get().Info().Str("module", "imagescan").Str("imageName", subtask.RegImageMeta.ImageName()).
@@ -183,13 +190,13 @@ func (s *RegistryImageScan) ReceiveScanSubtask(ctx context.Context, subtask imag
 	return nil
 }
 
-func (s *RegistryImageScan) DeleteTaskQueue(ctx context.Context, subtaskID int64) {
+func (s *RegImageScan) DeleteTaskQueue(ctx context.Context, subtaskID int64) {
 	// 延迟删除，主要是为了防止主集群持续发送
 	time.Sleep(time.Minute * 2)
 	s.TaskQueue.Delete(subtaskID)
 }
 
-func (s *RegistryImageScan) DoScanImageTask(ctx context.Context) error {
+func (s *RegImageScan) DoScanImageTask(ctx context.Context) error {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -208,16 +215,6 @@ func (s *RegistryImageScan) DoScanImageTask(ctx context.Context) error {
 					}
 				}()
 				_ = s.ScanAndSend(ctx, ta)
-
-				// res, err := s.PrepareScan(ctx, ta)
-				// if err != nil {
-				// 	logging.Get().Info().Str("module", "imagescan").Msg("PrepareScan")
-				// 	return
-				// }
-				// _ = s.ScanVuln(ctx, ta)
-				// _ = s.ScanAvira(ctx, res)
-				// _ = s.ScanWebshell(ctx, res)
-
 				s.ScanEnginNum <- cnt + 1
 			}(ta, cnt)
 		}
@@ -225,7 +222,7 @@ func (s *RegistryImageScan) DoScanImageTask(ctx context.Context) error {
 	return nil
 }
 
-func NewRegistryImageScan(mqWriter mq.Writer, cli redis.Client) (*RegistryImageScan, error) {
+func NewRegistryImageScan(mqWriter mq.Writer, cli redis.Client) (*RegImageScan, error) {
 	if registryImageScan != nil {
 		return registryImageScan, nil
 	}
@@ -235,26 +232,15 @@ func NewRegistryImageScan(mqWriter mq.Writer, cli redis.Client) (*RegistryImageS
 	// 	logging.Get().Err(err).Str("module", "imagescan").Msg("NewTrivyEngin")
 	// 	return nil, err
 	// }
-	// asvServer, err := aviraengin.NewSavServer()
-	// if err != nil {
-	// 	logging.Get().Err(err).Str("module", "imagescan").Msg("NewSavServer")
-	// 	return nil, err
-	// }
-	// scanHM, err := hm.NewScanHM()
-	// if err != nil {
-	// 	logging.Get().Err(err).Str("module", "imagescan").Msg("NewScanHM")
-	// 	return nil, err
-	// }
 
-	s := &RegistryImageScan{
+	s := &RegImageScan{
 		MqWriter:        mqWriter,
 		ScanSubtaskChan: make(chan imagesecTypes.ScanSubTask, 1),
 		TaskQueue:       NewTaskQueue(),
 		ScanP:           prepare.NewPrepareImageScan(),
-		// TrivyEngin:      trivyEngin,
-		// AviraEngin:    asvServer,
-		// HM:            scanHM,
-		ImageCacheURL: "0.0.0.0:5566/",
+		// TrivyEngin:       trivyEngin,
+		ImageCacheURL:    "0.0.0.0:5566/",
+		MaxSingeFileSize: (1 << 20) * 10,
 	}
 	_ = s.DoScanImageTask(context.Background())
 
@@ -278,13 +264,14 @@ func NewRegistryImageScan(mqWriter mq.Writer, cli redis.Client) (*RegistryImageS
 // 漏洞，病毒等扫描出错后，任务失败，但是依然需要上传数据
 func conversion(
 	subtask imagesecTypes.ScanSubTask,
-	malware []model.PerLayerMaliciousResult,
+	malware imagesecTypes.MalwareResults,
 	webInfo []model.WebFrameInfo,
 	sens []model.PerLayerSensitiveResult,
 	rep *report.Report,
-	webs []scannermodel.WebshellFileInfo,
+	webs imagesecTypes.WebshellResults,
 	lis []model.PerLayerLicenseResult,
 	errs []error,
+	// vulnRes imagesecTypes.ScanResult,
 ) imagesecTypes.ScanResult {
 	res := imagesecTypes.ScanResult{
 		TaskID:         subtask.TaskID,
@@ -292,11 +279,20 @@ func conversion(
 		OS:             ftypes.OS{},
 		VulnResults:    make([]imagesecTypes.VulnResult, 0),
 		Sensitives:     imagesecTypes.SensitiveFileResults{},
-		Malwares:       imagesecTypes.MalwareResults{},
-		Webshells:      imagesecTypes.WebshellResults{},
+		Malwares:       malware,
+		Webshells:      webs,
 		OriginArtifact: ftypes.ArtifactDetail{},
 		License:        make([]imagesecTypes.License, 0),
 		StatusStr:      imagesecModel.TaskStatusScanFinishedStr,
+	}
+	if len(errs) > 0 {
+		str := make([]string, 0)
+		for i := range errs {
+			str = append(str, errs[i].Error())
+		}
+		res.StatusStr = imagesecModel.TaskStatusFailedStr
+		res.Msg = strings.Join(str, ",")
+		return res
 	}
 
 	if rep != nil && rep.Metadata.OS != nil {
@@ -349,40 +345,43 @@ func conversion(
 			res.Sensitives.SensitiveFiles = append(res.Sensitives.SensitiveFiles, pk)
 		}
 	}
+	// 后面再重构漏洞的扫描器
+	// res.OS = vulnRes.OS
+	// res.VulnResults = vulnRes.VulnResults
 
-	// malware
-	// 当前版本不区分是那个扫描器的扫描结果，后期重构扫描器时再区分
-	ms := make([]imagesecTypes.ClamAvScanResult, 0)
-
-	for i := range malware {
-		for j := range malware[i].VirusInfos {
-			vi := malware[i].VirusInfos[j]
-			mm := imagesecTypes.ClamAvScanResult{
-				// "filepath":"/tmpscan/a1ec08056ec40da7cc34c242726678f33044bc7f8cea77373f83563214fa569c1693598192",
-				Filename:     vi.FileName, // vi.UnzipPath 是程序的临时解压目录，不可使用:
-				Hash:         vi.Md5,
-				MalwareNames: []string{vi.VirusName},
-				Layer:        malware[i].LayerDigest,
-			}
-			ms = append(ms, mm)
-		}
-	}
-	res.Malwares.ClamAvScanResults = ms
-
-	// webshell
-	wss := make([]imagesecTypes.HmWebshell, 0)
-	for _, w := range webs {
-		wss = append(wss, imagesecTypes.HmWebshell{
-			Filename:    w.FileName,
-			MD5:         w.Md5Hash,
-			Mod:         w.Mode,
-			Size:        w.Size,
-			Code:        w.MaliciousData,
-			RiskLevel:   getWebshellLevel(w.Level),
-			Description: w.Description,
-		})
-	}
-	res.Webshells.HmWebshells = wss
+	// // malware
+	// // 当前版本不区分是那个扫描器的扫描结果，后期重构扫描器时再区分
+	// ms := make([]imagesecTypes.ClamAvScanResult, 0)
+	//
+	// for i := range malware {
+	// 	for j := range malware[i].VirusInfos {
+	// 		vi := malware[i].VirusInfos[j]
+	// 		mm := imagesecTypes.ClamAvScanResult{
+	// 			// "filepath":"/tmpscan/a1ec08056ec40da7cc34c242726678f33044bc7f8cea77373f83563214fa569c1693598192",
+	// 			Filename:     vi.FileName, // vi.UnzipPath 是程序的临时解压目录，不可使用:
+	// 			Hash:         vi.Md5,
+	// 			MalwareNames: []string{vi.VirusName},
+	// 			Layer:        malware[i].LayerDigest,
+	// 		}
+	// 		ms = append(ms, mm)
+	// 	}
+	// }
+	// res.Malwares.ClamAvScanResults = ms
+	//
+	// // webshell
+	// wss := make([]imagesecTypes.HmWebshell, 0)
+	// for _, w := range webs {
+	// 	wss = append(wss, imagesecTypes.HmWebshell{
+	// 		Filename:    w.FileName,
+	// 		MD5:         w.Md5Hash,
+	// 		Mod:         w.Mode,
+	// 		Size:        w.Size,
+	// 		Code:        w.MaliciousData,
+	// 		RiskLevel:   getWebshellLevel(w.Level),
+	// 		Description: w.Description,
+	// 	})
+	// }
+	// res.Webshells.HmWebshells = wss
 
 	// license
 	for i := range lis {

@@ -39,7 +39,7 @@ func NewPreLibImageSrv() *PreLibImageSrv {
 	}
 }
 
-func (s *PreLibImageSrv) GetImageCorrelateData(ctx context.Context, param imagesecModel.GetImageAssociateDataParam) (
+func (s *PreLibImageSrv) GetImageCorrelateData(ctx context.Context, param imagesecModel.ImageAssociateParam) (
 	*imagesecModel.ImageWithCorrelateData2, error) {
 	param.Deserialize()
 
@@ -139,7 +139,7 @@ func ScanResultParamToStoreParam(s imagesecModel.ScanResultSearchParam) store.Se
 	return param
 }
 
-func (s *PreLibImageSrv) GetImageCorrelateDataFor211(ctx context.Context, param imagesecModel.GetImageAssociateDataParam) (
+func (s *PreLibImageSrv) GetImageCorrelateDataFor211(ctx context.Context, param imagesecModel.ImageAssociateParam) (
 	*imagesecModel.ImageWithCorrelateData, error) {
 	imageData, err := s.scanResultDal.SearchScanImage(ctx, param.ScanResultSearchParam)
 	if err != nil {

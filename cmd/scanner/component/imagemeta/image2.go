@@ -36,11 +36,11 @@ func (s *ImageInfoMetaSrv) ListBaseImageOfApp(ctx context.Context, param imagese
 	if len(images) == 0 || !util.ExistBit1(images[0].Flag, imagesecModel.FlagAppImage) || images[0].LayerStr == "" {
 		return empty, 0, nil
 	}
+	appImage := images[0]
 	daoParam := imagesecModel.ImageDalParam{
-		LayerStrPrefix: images[0].LayerStr,
-		ImageFromType:  param.ImageFromType,
-		ImageAttrFlag:  util.SetBit1(0, imagesecModel.FlagBaseImage),
-		Fields:         []string{"unique_id", "flag", "layer_str", "id"},
+		ImageFromType: param.ImageFromType,
+		ImageAttrFlag: util.SetBit1(0, imagesecModel.FlagBaseImage),
+		Fields:        []string{"unique_id", "flag", "layer_str", "id"},
 	}
 
 	// 先获取所有基础镜像
@@ -51,13 +51,9 @@ func (s *ImageInfoMetaSrv) ListBaseImageOfApp(ctx context.Context, param imagese
 		return nil, 0, scani18.GetImageInfo(err)
 	}
 
-	baseImageMap := make(map[int64]*imagesecModel.Image)
-	for i := range baseImages {
-		baseImageMap[baseImages[i].ID] = baseImages[i]
-	}
 	baseImageIds := make([]int64, 0)
 	for i := range baseImages {
-		if baseImages[i].LayerStr != "" && strings.HasPrefix(images[0].LayerStr, baseImages[i].LayerStr) {
+		if baseImages[i].LayerStr != "" && strings.HasPrefix(appImage.LayerStr, baseImages[i].LayerStr) {
 			baseImageIds = append(baseImageIds, baseImages[i].ID)
 		}
 	}
@@ -65,7 +61,7 @@ func (s *ImageInfoMetaSrv) ListBaseImageOfApp(ctx context.Context, param imagese
 	if len(baseImageIds) == 0 {
 		return empty, 0, nil
 	}
-	assParam := imagesecModel.GetImageAssociateDataParam{
+	assParam := imagesecModel.ImageAssociateParam{
 		RegistryEnable:   true,
 		SubtaskEnable:    true,
 		VulnEnable:       true,
@@ -99,7 +95,7 @@ func (s *ImageInfoMetaSrv) ListAppImageOfBase(ctx context.Context, param imagese
 		return nil, 0, scani18.SearchImage(err)
 	}
 	// 对于from scratch的镜像，可能没有层级信息
-	if len(images) == 0 || !util.ExistBit1(images[0].Flag, imagesecModel.FlagBaseImage) || images[0].LayerStr == "" {
+	if len(images) == 0 || util.ExistBit1(images[0].Flag, imagesecModel.FlagAppImage) || images[0].LayerStr == "" {
 		return empty, 0, nil
 	}
 	daoParam := imagesecModel.ImageDalParam{
@@ -115,16 +111,15 @@ func (s *ImageInfoMetaSrv) ListAppImageOfBase(ctx context.Context, param imagese
 	}
 	appImageIds := make([]int64, 0)
 	for i := range appImage {
-		if util.ExistBit1(appImage[i].Flag, imagesecModel.FlagBaseImage) {
-			continue
+		if util.ExistBit1(appImage[i].Flag, imagesecModel.FlagAppImage) {
+			appImageIds = append(appImageIds, appImage[i].ID)
 		}
-		appImageIds = append(appImageIds, appImage[i].ID)
 	}
 	if len(appImageIds) == 0 {
 		return empty, 0, nil
 	}
 
-	assParam := imagesecModel.GetImageAssociateDataParam{
+	assParam := imagesecModel.ImageAssociateParam{
 		RegistryEnable:   true,
 		SubtaskEnable:    true,
 		VulnEnable:       true,
@@ -249,7 +244,52 @@ func (s *ImageUpdateSrv) UpdateProject(ctx context.Context) error {
 
 	}
 	metaGlobal.GetPrepareData().SetNodeGroupProject(node)
+
 	return nil
+}
+
+// 周期执行
+func (s *ImageUpdateSrv) UpdateImagePrepareData(ctx context.Context) error {
+	res := &imagesecModel.ImagePrepareData{}
+	lib, err := s.groupRegProject(ctx, imagesecModel.SearchProjectParam{ImageFromType: imagesecModel.ImageFromRegistry})
+	if err != nil {
+		logging.Get().Err(err).Str("module", "imageMeta").Msg("groupRegProject")
+		return err
+	}
+	res.RegGroupProject = lib
+
+	node, err := s.groupNodeProject(ctx, imagesecModel.SearchProjectParam{ImageFromType: imagesecModel.ImageFromNode})
+	if err != nil {
+		logging.Get().Err(err).Str("module", "imageMeta").Msg("groupNodeProject")
+		return err
+	}
+
+	res.NodeGroupProject = node
+
+	libO, err := s.GetImageOverViewHelper(ctx, imagesecModel.ImageFromRegistry)
+	if err != nil {
+		logging.Get().Err(err).Str("module", "imageMeta").Msg("groupRegProject")
+		return err
+	}
+	res.RegImageOverView = libO
+
+	nodeO, err := s.GetImageOverViewHelper(ctx, imagesecModel.ImageFromNode)
+	if err != nil {
+		logging.Get().Err(err).Str("module", "imageMeta").Msg("groupNodeProject")
+		return err
+	}
+	res.NodeImageOverView = nodeO
+
+	cache := &imagesecModel.CacheInfo{
+		DataType:         imagesecModel.CacheTypeImagePrepare,
+		ImagePrepareData: res,
+	}
+	if err := s.imageCacheDal.CreateCacheInfo(ctx, cache); err != nil {
+		logging.Get().Err(err).Str("module", "imageMeta").Msg("CreateCacheInfo")
+		return err
+	}
+
+	return err
 }
 
 // 周期执行

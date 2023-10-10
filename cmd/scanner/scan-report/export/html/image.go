@@ -112,7 +112,7 @@ func (s *ExportImageHtmlSrv) GetImages(ctx context.Context, taskID int64, starID
 		res.StartID = starID
 		imageIds := make([]int64, 0)
 
-		param := imagesecModel.GetImageAssociateDataParam{
+		param := imagesecModel.ImageAssociateParam{
 			ImageFromType:   imagesecModel.ImageFromNode,
 			VulnEnable:      true,
 			MalwareEnable:   true,
@@ -207,7 +207,7 @@ func (s *ExportImageHtmlSrv) GetVirus(ctx context.Context, taskID int64) ([]type
 		startID = taskImages[len(taskImages)-1].ID
 
 		for i := range taskImages {
-			image, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{ImageId: taskImages[i].ImageID, MalwareEnable: true})
+			image, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{ImageId: taskImages[i].ImageID, MalwareEnable: true})
 			if err != nil {
 				logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", taskImages[i].ImageID).Msg("ExportImageHtmlSrv GetVirus")
 				return nil, err
@@ -327,7 +327,7 @@ func (s *ExportImageHtmlSrv) GetImageVuln(ctx context.Context, param types2.GetE
 	}
 	count := 0
 
-	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.GetImageAssociateDataParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageFromType: imagesecModel.ImageFromNode,
 		ImageId:       param.ImageID,
 		VulnEnable:    true,
@@ -401,7 +401,7 @@ func (s *ExportImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageID i
 	}
 
 	// 查漏洞和敏感文件，生成处置建议
-	param := imagesecModel.GetImageAssociateDataParam{
+	param := imagesecModel.ImageAssociateParam{
 		ImageFromType:         imagesecModel.ImageFromNode,
 		ImageId:               imageID,
 		VulnEnable:            true, // 漏洞单独查询
@@ -468,7 +468,7 @@ func (s *ExportImageHtmlSrv) createRiskOverView(ctx context.Context, task model.
 			break
 		}
 		for i := range taskImages {
-			param := imagesecModel.GetImageAssociateDataParam{
+			param := imagesecModel.ImageAssociateParam{
 				ImageFromType: imagesecModel.ImageFromNode,
 				ImageUniqueID: taskImages[i].ImageUniqueID,
 				ImageId:       taskImages[i].ImageID,
@@ -664,7 +664,7 @@ func (s *ExportImageHtmlSrv) createVulnImage(ctx context.Context, taskID int64) 
 		startID = exportImages[len(exportImages)-1].ID
 		for i := range exportImages {
 			// 获取该镜像的所有漏洞
-			param := imagesecModel.GetImageAssociateDataParam{
+			param := imagesecModel.ImageAssociateParam{
 				ImageFromType: imagesecModel.ImageFromNode,
 				ImageUniqueID: exportImages[i].ImageUniqueID,
 				VulnEnable:    true,

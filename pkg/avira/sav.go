@@ -109,10 +109,18 @@ func (s *SavServer) StartServer() {
 		if s.ShouldStop {
 			break
 		}
+
 		if s.PID > 0 {
-			logging.Get().Debug().Int("PID", s.PID).Msg("avira server is running")
-			continue
+			running, err := s.IsServerRunning()
+			if err == nil && running {
+				logging.Get().Debug().Int("PID", s.PID).Msg("avira server is running")
+				continue
+			}
 		}
+		if s.PID > 0 {
+			_ = s.KillServer()
+		}
+		// 然后重新启动
 		// cmd := exec.Command("sh", "-c", daemonCmdStr)
 		cmd := exec.Command(savApiBin, s.generateDaemonArgs()...)
 		err := cmd.Start()
@@ -126,11 +134,18 @@ func (s *SavServer) StartServer() {
 
 		logging.Get().Info().Int("PID", cmd.Process.Pid).Msg("start avira daemon ok")
 		if err = cmd.Wait(); err != nil {
-			logging.Get().Err(err).Int("PID", cmd.Process.Pid).Msg("start avira daemon ok,but not wait")
+			logging.Get().Err(err).Int("PID", cmd.Process.Pid).Msg("start avira daemon ok,but cmd not wait")
 		}
-
-		logging.Get().Info().Int("PID", cmd.Process.Pid).Msg("start avira daemon waite end,reset pid=0")
-		s.PID = 0
+		wait, err := cmd.Process.Wait()
+		if err != nil {
+			logging.Get().Err(err).Int("PID", cmd.Process.Pid).Msg("start avira daemon ok,but Process not wait")
+			continue
+		}
+		if wait.Exited() {
+			logging.Get().Info().Int("PrePID", cmd.Process.Pid).Msg("avira daemon Exited")
+			s.PID = 0
+			continue
+		}
 	}
 }
 

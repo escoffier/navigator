@@ -90,6 +90,7 @@ func (s *DeploySrv) CreateDeployRecord(ctx context.Context, data *imagesecModel.
 
 func (s *DeploySrv) SearchDeployRecord(ctx context.Context, param imagesecModel.ImageSearchApiParam) (
 	[]imagesecModel.DeployRecordView, int64, error) {
+
 	dalParam := param.ToImageDalParam()
 
 	record, cnt, err := s.DeployRecordDal.SearchDeployRecord(ctx, dalParam)
@@ -135,18 +136,23 @@ func (s *DeploySrv) SearchDeployRecord(ctx context.Context, param imagesecModel.
 		}
 
 		base := da.ToImageBaseResponse()
-		rec := imagesecModel.GenDeployRecordView(base, record[i])
+		rec := imagesecModel.GenDeployRecordView(&base, record[i])
 
 		res = append(res, rec)
 	}
 	for i := range res {
+		// 通过的不加白名单，再改的话就🐶了
+		if res[i].Action == imagesecModel.DeployActionPass {
+			res[i].InWhite = true
+			continue
+		}
 		for _, re := range wp {
-
 			if re.FindString(res[i].ImageName) != "" {
 				res[i].InWhite = true
 				break
 			}
 		}
+
 	}
 
 	return res, cnt, nil
@@ -161,7 +167,7 @@ func (s *DeploySrv) DeployOverview(ctx context.Context, param imagesecModel.Depl
 			logging.Get().Err(err).Str("module", "deployImage").Msg("DeployOverviewBlockTrend")
 			return res, scani18.SearchDeployRecord(err)
 		}
-		return day30, nil
+		res = day30
 
 	case consts.DeployGraphHour24:
 		hour24, err := s.deployOverviewHour24(ctx)
@@ -169,7 +175,7 @@ func (s *DeploySrv) DeployOverview(ctx context.Context, param imagesecModel.Depl
 			logging.Get().Err(err).Str("module", "deployImage").Msg("DeployOverviewBlockTrend")
 			return res, scani18.SearchDeployRecord(err)
 		}
-		return hour24, nil
+		res = hour24
 
 	case consts.DeployGraphDay7:
 		day7, err := s.deployOverviewDay7(ctx)
@@ -177,8 +183,9 @@ func (s *DeploySrv) DeployOverview(ctx context.Context, param imagesecModel.Depl
 			logging.Get().Err(err).Str("module", "deployImage").Msg("DeployOverviewBlockTrend")
 			return nil, scani18.SearchDeployRecord(err)
 		}
-		return day7, nil
+		res = day7
 	}
+
 	return res, nil
 }
 
@@ -192,8 +199,14 @@ func (s *DeploySrv) deployOverviewDay7(ctx context.Context) ([]*imagesecModel.Ac
 		return res, scani18.SearchDeployRecord(err)
 	}
 
-	exit := make(map[int64]*imagesecModel.ActionOverview)
-
+	exit := make(map[int64]*imagesecModel.ActionOverview, 7)
+	for i := 0; i < 7; i++ {
+		day := util.DaySinceUnixEpoch(time.Now().UTC()) - int64(i)
+		exit[day] = &imagesecModel.ActionOverview{
+			TimeAt: util.UnixEpochAddDay(day),
+			Group:  imagesecModel.ActionGroup{},
+		}
+	}
 	var day7Block int64
 	for i := 0; i < len(groups); i++ {
 		gr := groups[i]
@@ -228,7 +241,9 @@ func (s *DeploySrv) deployOverviewDay7(ctx context.Context) ([]*imagesecModel.Ac
 		res = append(res, v)
 	}
 	sort.Sort(imagesecModel.ActionOverviews(res))
-
+	for i := range res {
+		res[i].AdaptTimeZone()
+	}
 	return res, nil
 }
 
@@ -242,7 +257,14 @@ func (s *DeploySrv) deployOverviewDay30(ctx context.Context) ([]*imagesecModel.A
 		return res, scani18.SearchDeployRecord(err)
 	}
 
-	exit := make(map[int64]*imagesecModel.ActionOverview)
+	exit := make(map[int64]*imagesecModel.ActionOverview, 30)
+	for i := 0; i < 30; i++ {
+		day := util.DaySinceUnixEpoch(time.Now()) - int64(i)
+		exit[day] = &imagesecModel.ActionOverview{
+			TimeAt: util.UnixEpochAddDay(day),
+			Group:  imagesecModel.ActionGroup{},
+		}
+	}
 
 	var day30Block int64
 	for i := 0; i < len(groups); i++ {
@@ -278,6 +300,9 @@ func (s *DeploySrv) deployOverviewDay30(ctx context.Context) ([]*imagesecModel.A
 		res = append(res, v)
 	}
 	sort.Sort(imagesecModel.ActionOverviews(res))
+	for i := range res {
+		res[i].AdaptTimeZone()
+	}
 
 	return res, nil
 }
@@ -292,7 +317,16 @@ func (s *DeploySrv) deployOverviewHour24(ctx context.Context) ([]*imagesecModel.
 		logging.Get().Err(err).Str("module", "deployImage").Msg("GroupRecordFlag")
 		return res, scani18.SearchDeployRecord(err)
 	}
-	exit := make(map[int64]*imagesecModel.ActionOverview)
+
+	exit := make(map[int64]*imagesecModel.ActionOverview, 24)
+	for i := 0; i < 24; i++ {
+		day := util.HourSinceUnixEpoch(time.Now()) - int64(i)
+		exit[day] = &imagesecModel.ActionOverview{
+			TimeAt: util.UnixEpochAddHour(day),
+			Group:  imagesecModel.ActionGroup{},
+		}
+	}
+
 	var hour24Block int64
 	for i := 0; i < len(groups); i++ {
 		gr := groups[i]
@@ -336,6 +370,7 @@ func (s *DeploySrv) DeployOverviewBlockTrend(ctx context.Context) (imagesecModel
 }
 
 func (s *DeploySrv) DeployReasonTop5(ctx context.Context) ([]imagesecModel.ReasonOverview, error) {
+
 	var res []imagesecModel.ReasonOverview // 只需要返回reason top5即可
 	groups, err := s.DeployRecordDal.GroupRecordFlag(ctx, imagesecModel.GroupDeployFlagParam{
 		Reason: consts.TrueString,
@@ -348,5 +383,4 @@ func (s *DeploySrv) DeployReasonTop5(ctx context.Context) ([]imagesecModel.Reaso
 	// 先查全部
 	s.ReasonTop5.Set(groups)
 	return s.ReasonTop5.Get(), nil
-
 }

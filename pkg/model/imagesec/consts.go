@@ -129,11 +129,13 @@ const (
 
 const (
 	DetectPriorityScan          = 100
-	DetectPriorityPolicyCreate  = 99
-	DetectPriorityPolicyUpdate  = 98
-	DetectPriorityPolicyDelete  = 97
-	DetectPriorityDefaultPolicy = 96
-	DetectPriorityCycle         = 95
+	DetectAddImage              = 99
+	DetectPriorityPolicyCreate  = 98
+	DetectPriorityPolicyUpdate  = 97
+	DetectPriorityPolicyDelete  = 96
+	DetectPriorityDefaultPolicy = 95
+	DetectUpdateNodeImageInReg  = 94
+	DetectPriorityCycle         = 93
 )
 
 const (

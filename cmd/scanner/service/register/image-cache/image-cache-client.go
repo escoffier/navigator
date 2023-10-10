@@ -83,7 +83,6 @@ func (icc *Client) GetLayer(username, password, url, repository, digest string, 
 	}
 	jsonStr, err := json.Marshal(rq)
 	if err != nil {
-
 		return "", "", err
 	}
 	logging.Get().Debug().Msgf("client server addr %s,repo %s,digest %s", icc.serverAddr, rq.Repository, rq.Digest)

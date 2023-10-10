@@ -261,9 +261,9 @@ func WebAPI(router *gin.Engine,
 		v2.GET("/vulns/vuln/list", apiVulnSrv.SearchVuln)
 
 		v2.GET("/webshell/detail", scanResultApi.GetWebshellDetail)
+		v2.GET("/webshell/content", scanResultApi.GetWebshellContent)
 		v2.GET("/sensitive/detail", scanResultApi.GetSensitiveDetail)
 		v2.GET("/malware/detail", scanResultApi.GetMalwareDetail)
-		v2.GET("/webshell/content", scanResultApi.GetWebshellContent)
 		v2.GET("/webshell/file", scanResultApi.GetWebshellFile)
 		v2.GET("/sensitive/file", scanResultApi.GetSensitiveFile)
 		v2.GET("/malware/file", scanResultApi.GetMalwareFile)

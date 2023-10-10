@@ -30,6 +30,11 @@ type ImageMetaDal interface {
 	GroupImageFlags(ctx context.Context, param imagesecModel.ImageGroupParam) ([]imagesecModel.ImageFlagGroup, error)
 }
 
+type ImageCacheDal interface {
+	CreateCacheInfo(ctx context.Context, data *imagesecModel.CacheInfo) error
+	SearchCacheInfo(ctx context.Context, dataType string) (*imagesecModel.CacheInfo, error)
+}
+
 type PreImageDal interface {
 	DeletePreImage(ctx context.Context, image *model.ImageList) error
 	CreatePreImage(ctx context.Context, image *model.ImageList) error
@@ -42,6 +47,14 @@ type ImageMetaDao struct {
 
 func NewImageMetaDao(db *databases.RDBInstance, redisCli *redis.Client) *ImageMetaDao {
 	return &ImageMetaDao{db: db, redisCli: redisCli}
+}
+
+type ImageCacheDao struct {
+	db *databases.RDBInstance
+}
+
+func NewImageCacheDao(db *databases.RDBInstance) *ImageCacheDao {
+	return &ImageCacheDao{db: db}
 }
 
 func (dal *ImageMetaDao) DeleteImage(ctx context.Context, id int64) error {
@@ -478,11 +491,12 @@ func (dal *ImageMetaDao) GetRedisOnlineImageUUID(ctx context.Context) ([]uint32,
 	start := 0
 	tmx, cancelFunc := context.WithTimeout(context.Background(), time.Second*100)
 	defer cancelFunc()
+	cnt := 0
 	for {
 		opt := &redis.ZRangeBy{
-			Min: strconv.Itoa(int(start)),
-			Max: consts.RedisPositiveInfinity,
-			// Count: consts.DefaultMaxLimit,
+			Min:   strconv.Itoa(int(start)),
+			Max:   consts.RedisPositiveInfinity,
+			Count: consts.DefaultMaxLimit,
 		}
 		scores := dal.redisCli.ZRangeByScoreWithScores(tmx, consts.OnlineImageRedisKey, opt)
 		result, err := scores.Result()
@@ -502,12 +516,16 @@ func (dal *ImageMetaDao) GetRedisOnlineImageUUID(ctx context.Context) ([]uint32,
 		}
 		ans = util.DuplicateIntSlice(ans)
 		sort.Ints(ans)
-		logging.Get().Err(err).Str("module", "imageMeta").Ints("ans", ans).Msg("updateOnlineImage")
 		start = ans[len(ans)-1] + 1
 		for i := range ans {
 			uuids = append(uuids, uint32(ans[i]))
 		}
-		break
+		uuids = util.DuplicateUint32Slice(uuids)
+
+		if len(uuids) == cnt {
+			break
+		}
+		cnt = len(uuids)
 	}
 	return uuids, nil
 }
@@ -566,6 +584,52 @@ func (dal *ImageMetaDao) CreatePreImage(ctx context.Context, image *model.ImageL
 	return err
 }
 
+func (dal *ImageCacheDao) CreateCacheInfo(ctx context.Context, data *imagesecModel.CacheInfo) error {
+	if err := data.Check(); err != nil {
+		return err
+	}
+
+	data.Serialize()
+	tableName := data.TableName()
+	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*100)
+	defer cancelFunc()
+
+	info, err := dal.SearchCacheInfo(ctx, data.DataType)
+	if err == nil && info != nil {
+		up := data.ToUpdater()
+		if err := dal.db.Get().WithContext(cancelCtx).Table(tableName).Where("id =  ?", info.ID).Updates(up).Error; err != nil {
+			return err
+		}
+		return nil
+	}
+	if err := dal.db.Get().WithContext(cancelCtx).Table(tableName).Create(data).Error; err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (dal *ImageCacheDao) SearchCacheInfo(ctx context.Context, dataType string) (*imagesecModel.CacheInfo, error) {
+
+	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*100)
+	defer cancelFunc()
+	mod := &imagesecModel.CacheInfo{}
+	tableName := mod.TableName()
+	res := make([]*imagesecModel.CacheInfo, 0)
+	if err := dal.db.Get().WithContext(cancelCtx).Table(tableName).Where("data_type =  ?", dataType).Find(&res).Error; err != nil {
+		return nil, err
+	}
+	for i := range res {
+		res[i].Deserializer()
+	}
+	if len(res) == 0 {
+		return nil, fmt.Errorf("not find:%s", dataType)
+	}
+
+	return res[0], nil
+}
+
+// 所有镜像的统计，不统计镜像本身属性
 func ToSecurityOverView(groups []imagesecModel.ImageFlagGroup) imagesecModel.SecurityStatistic {
 	overView := imagesecModel.SecurityStatistic{}
 
@@ -596,16 +660,16 @@ func ToSecurityOverView(groups []imagesecModel.ImageFlagGroup) imagesecModel.Sec
 		if util.ExistBit1(groups[i].Flag, imagesecModel.FlagHasExceptionLicense) {
 			overView.Total.License += groups[i].Count
 		}
-		if util.ExistBit1(groups[i].Flag, imagesecModel.FlagHasFixedVuln) {
-			overView.Total.HasFixedVuln += groups[i].Count
-		}
-		if util.ExistBit1(groups[i].Flag, imagesecModel.FlagExceptionBoot) {
+		// if util.ExistBit1(groups[i].Flag, imagesecModel.FlagHasFixedVuln) {
+		// 	overView.Total.HasFixedVuln += groups[i].Count
+		// }
+		if util.ExistBit1(groups[i].Flag, imagesecModel.FlagDetectExceptionBoot) {
 			overView.Total.ExceptionBoot += groups[i].Count
 		}
-		if util.ExistBit1(groups[i].Flag, imagesecModel.FlagImageUnTrusted) {
+		if util.ExistBit1(groups[i].Flag, imagesecModel.FlagImageDetectUnTrusted) {
 			overView.Total.Untrusted += groups[i].Count
 		}
-		if util.ExistBit1(groups[i].Flag, imagesecModel.FlagImageNotInRegistry) {
+		if util.ExistBit1(groups[i].Flag, imagesecModel.FlagImageDetectNotExitINReg) {
 			overView.Total.NotInRegistry += groups[i].Count
 		}
 	}
@@ -639,17 +703,13 @@ func ToSecurityOverView(groups []imagesecModel.ImageFlagGroup) imagesecModel.Sec
 		if util.ExistBit1(groups[i].Flag, imagesecModel.FlagHasExceptionLicense) {
 			overView.Online.License += groups[i].Count
 		}
-		if util.ExistBit1(groups[i].Flag, imagesecModel.FlagHasFixedVuln) {
-			overView.Online.HasFixedVuln += groups[i].Count
-		}
-
-		if util.ExistBit1(groups[i].Flag, imagesecModel.FlagExceptionBoot) {
+		if util.ExistBit1(groups[i].Flag, imagesecModel.FlagDetectExceptionBoot) {
 			overView.Online.ExceptionBoot += groups[i].Count
 		}
-		if util.ExistBit1(groups[i].Flag, imagesecModel.FlagImageUnTrusted) {
+		if util.ExistBit1(groups[i].Flag, imagesecModel.FlagImageDetectUnTrusted) {
 			overView.Online.Untrusted += groups[i].Count
 		}
-		if util.ExistBit1(groups[i].Flag, imagesecModel.FlagImageNotInRegistry) {
+		if util.ExistBit1(groups[i].Flag, imagesecModel.FlagImageDetectNotExitINReg) {
 			overView.Online.NotInRegistry += groups[i].Count
 		}
 	}

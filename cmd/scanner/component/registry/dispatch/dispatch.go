@@ -17,6 +17,7 @@ import (
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
+	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
 	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 )
 
@@ -25,10 +26,10 @@ type SyncTaskDispatcher interface {
 }
 
 type RegDispatchSrv struct {
-	registryDal imagesecStore.RegistryDal
-	syncTaskDal imagesecStore.SyncTaskDal
-	scanInsDal  imagesecStore.ScanInstanceDal
-
+	registryDal        imagesecStore.RegistryDal
+	syncTaskDal        imagesecStore.SyncTaskDal
+	scanInsDal         imagesecStore.ScanInstanceDal
+	streamClient       rpcstream.MessageStream
 	SyncTaskUpdateChan chan SyncTaskUpdate
 }
 
@@ -53,6 +54,8 @@ func (s *RegDispatchSrv) DispatchSyncTask(ctx context.Context) error {
 		logging.Get().Info().Str("module", "RegistryImage").Msg("DispatchSyncTask not in main cluster did not PublishSubtask")
 		return nil
 	}
+
+	s.streamClient = imagesecStream.MustGetGrpcStream()
 
 	go func() {
 		defer func() {
@@ -89,7 +92,7 @@ func (s *RegDispatchSrv) DispatchSyncTask(ctx context.Context) error {
 
 func (s *RegDispatchSrv) sendRegSyncTask(ctx context.Context, task imagesecModel.ImageSyncTask) (int64, error) {
 
-	timeOutCxt, timeOutFunc := context.WithTimeout(ctx, 20*time.Second)
+	timeOutCxt, timeOutFunc := context.WithTimeout(ctx, time.Minute)
 	defer timeOutFunc()
 	data, err := json.Marshal(task)
 	if err != nil {
@@ -101,14 +104,14 @@ func (s *RegDispatchSrv) sendRegSyncTask(ctx context.Context, task imagesecModel
 	req := &pb.ImageSecReq{
 		ImageSecReqType: pb.ImageSecReqType_RegistryImageSync,
 		ClusterKey:      task.ScanInsInfo.ClusterKey,
-		RequestID:       uuid.New().String(),
 		Payload:         data,
 	}
+
+	req.RequestID = s.GenReqID(req)
+
 	logging.Get().Debug().Str("module", "RegistryImage").Interface("reg", req).Msg("DispatchSyncTask sendMsg")
 
-	streamClient := imagesecStream.MustGetGrpcStream()
-
-	rsp, err := streamClient.ScannerPushImageSecMsg(timeOutCxt, req)
+	rsp, err := s.streamClient.ScannerPushImageSecMsg(timeOutCxt, req)
 	if err != nil {
 		logging.Get().Err(err).Str("module", "RegistryImage").Interface("req", req).Msg("DispatchSyncTask")
 		return 0, err
@@ -341,8 +344,6 @@ func getSyncStatus(st int64) string {
 
 func (s *RegDispatchSrv) SendToScannerCheckHealth(ctx context.Context, reg imagesecModel.Registry) error {
 
-	streamClient := imagesecStream.MustGetGrpcStream()
-
 	timeOutCxt, timeOutFunc := context.WithTimeout(ctx, 10*time.Second)
 	defer timeOutFunc()
 	data, err := json.Marshal(reg)
@@ -361,7 +362,7 @@ func (s *RegDispatchSrv) SendToScannerCheckHealth(ctx context.Context, reg image
 	}
 	logging.Get().Debug().Str("module", "RegistryImage").Interface("reg", req).Msg("SendToScannerCheckHealth sendMsg")
 
-	rsp, err := streamClient.ScannerPushImageSecMsg(timeOutCxt, req)
+	rsp, err := s.streamClient.ScannerPushImageSecMsg(timeOutCxt, req)
 	if err != nil {
 		logging.Get().Err(err).Str("module", "RegistryImage").Interface("req", req).Msg("SendToScannerCheckHealth")
 		return err
@@ -384,3 +385,53 @@ func (s *RegDispatchSrv) SendToScannerCheckHealth(ctx context.Context, reg image
 	}
 	return nil
 }
+
+func (s *RegDispatchSrv) GenReqID(req *pb.ImageSecReq) string {
+	return fmt.Sprintf("%s-%s", req.ImageSecReqType.String(), uuid.New().String())
+}
+
+// func (s *RegDispatchSrv) DoSendSyncTaskRpc(ctx context.Context, req *pb.ImageSecReq) error {
+// 	timeOutCxt, timeOutFunc := context.WithTimeout(ctx, 10*time.Second)
+// 	defer timeOutFunc()
+//
+// 	for {
+// 		select {
+// 		case <-timeOutCxt.Done():
+// 			logging.Get().Error().Str("module", "RegistryImage").Interface("reg", req).Msg("send scan subtask to rpc")
+// 			return fmt.Errorf("time out")
+// 		case res := <-s.sendRpcTask(timeOutCxt, req):
+// 			return res
+// 		}
+// 	}
+// }
+//
+// func (s *RegDispatchSrv) sendSyncTask(ctx context.Context, req *pb.ImageSecReq) (int32, error) {
+// 	timeOutCxt, timeOutFunc := context.WithTimeout(ctx, 10*time.Second)
+//
+// 	defer timeOutFunc()
+// 	streamClient := imagesecStream.MustGetGrpcStream()
+// 	rsp, err := streamClient.ScannerPushImageSecMsg(timeOutCxt, req)
+// 	if err != nil {
+// 		logging.Get().Err(err).Str("module", "RegistryImage").Interface("req", req).Msg("Dispatcher sendScanSubtask")
+// 		return 0, err
+// 	}
+//
+// 	return rsp.Status, nil
+// }
+//
+
+//
+// func (s *RegDispatchSrv) sendRpcTask(ctx context.Context, req *pb.ImageSecReq) chan error {
+// 	out := make(chan error)
+// 	go func() {
+// 		defer func() {
+// 			if r := recover(); r != nil {
+// 				logging.Get().Error().Msg("ExecutorScanMalicious panic")
+// 			}
+// 		}()
+//
+// 		err := s.sendSyncTask(ctx, req)
+// 		out <- err
+// 	}()
+// 	return out
+// }
