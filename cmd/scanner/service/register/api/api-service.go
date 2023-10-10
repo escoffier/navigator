@@ -129,7 +129,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	dbManagerSrv := dbManage.NewDBManageSrv(versionDal, userDal)
 
 	detectTaskSrv := detect.NewImageDetectTaskSrv(imageSrv, detectTaskDal, policyDal, detectResultDal)
-	policySrv := imagesecSrv.NewPolicySrv(policyDal, detectTaskSrv, sensitiveRuleDal, userDal)
+	policySrv := detect.NewPolicySrv(policyDal, detectTaskSrv, sensitiveRuleDal, userDal)
 	scanInfoSrv := imagesecSrv.NewScanInstanceSrv(imagesecStore.NewScannerInstanceDao(rdbInstance))
 	webshellSrv2 := scanwebshell.NewWebshellComponent(webshellDal)
 	scanTaskSrv := imagescanSrv.NewScanTaskSrv(scanTaskDal, scanTaskPreDal, detectTaskDal, imageSrv, imageDal, scannerConfigDal, imageDal, userDal)

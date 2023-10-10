@@ -110,7 +110,9 @@ create table if not exists ivan_scan_vuln_pkg
     updated_at    bigint unsigned not null default 0,
 
     primary key (id),
-    unique index unq_idx_unique (unique_id)
-);
+    unique index unq_idx_unique (unique_id),
+    index idx_pkg (pkg_unique_id, vuln_name),
+    index idx_vuln (vuln_name, pkg_unique_id)
+)
 
 

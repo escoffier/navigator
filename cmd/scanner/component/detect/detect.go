@@ -20,7 +20,7 @@ import (
 )
 
 type Detector struct {
-	policySrv             SecurityPolicySrv
+	policySrv             SecurityPolicyService
 	detectResultDal       imagesecStore.ImageDetectResultDal
 	detectTaskDal         imagesecStore.DetectTaskDal
 	scanTaskDal           imagesecStore.ScanTaskDal
@@ -44,12 +44,8 @@ type GetImageWithCorrelateData interface {
 	UpdateImage(ctx context.Context, param imagesecModel.UpdateImageParam) error
 }
 
-type SecurityPolicySrv interface {
-	SearchPolicy(ctx context.Context, param imagesecModel.SearchSecurityPolicyParam) ([]*imagesecModel.SecurityPolicy, int64, error)
-}
-
 func NewDetector(
-	policySrv SecurityPolicySrv,
+	policySrv SecurityPolicyService,
 	detectResultDal imagesecStore.ImageDetectResultDal,
 	nodeScanTaskDal imagesecStore.ScanTaskDal,
 	detectTaskDal imagesecStore.DetectTaskDal,
@@ -162,15 +158,18 @@ func (s *Detector) DetectImage(ctx context.Context) {
 					Msg("Detector GetImageData")
 				continue
 			}
-			// FIXME 这里应该加缓存，不应该每一个子任务都去查询
-			param1 := imagesecModel.SearchSecurityPolicyParam{PolicyType: GetImagePolicyType(imageData.Image)}
-			allPolicy, _, err := s.policySrv.SearchPolicy(ctx, param1)
+			if len(allPolicy) == 0 {
+				param1 := imagesecModel.SearchSecurityPolicyParam{PolicyType: GetImagePolicyType(imageData.Image)}
+				allPolicy1, _, err := s.policySrv.SearchPolicy(ctx, param1)
 
-			if err != nil {
-				logging.Get().Err(err).Str("module", "detectImage").Uint64("ImageUniqueID", subData.ImageUniqueID).
-					Msg("Detector SearchPolicy")
-				continue
+				if err != nil {
+					logging.Get().Err(err).Str("module", "detectImage").Uint64("ImageUniqueID", subData.ImageUniqueID).
+						Msg("Detector SearchPolicy")
+					continue
+				}
+				allPolicy = allPolicy1
 			}
+
 			policy := make([]*imagesecModel.SecurityPolicy, 0)
 			for i := range allPolicy {
 				bas := imageData.ToImageBaseResponse()
@@ -548,54 +547,6 @@ func (s *Detector) ContinueUpdateImage(ctx context.Context) {
 		}
 	}
 }
-
-// func (s *Detector) ContinueUpdateTaskFinished(ctx context.Context) {
-// 	taskFilter := &model.Filter{
-// 		SortBy:    consts.SortByDesc,
-// 		SortFiled: "id",
-// 		Limit:     consts.DefaultMaxLimit,
-// 	}
-//
-// 	subtaskFilter := &model.Filter{
-// 		Limit: 1,
-// 	}
-//
-// 	taskParam := imagesecModel.SearchTaskParam{ScanStatus: []int64{imagesecModel.TaskStatusInprogress}, Filter: taskFilter}
-//
-// 	subtaskParam := imagesecModel.SearchTaskParam{
-// 		ScanStatus: []int64{imagesecModel.TaskStatusInprogress, imagesecModel.TaskStatusPending},
-// 		Filter:     subtaskFilter}
-//
-// 	ticker := time.NewTicker(time.Second * 30)
-// 	defer ticker.Stop()
-// 	for {
-// 		tasks, _, err := s.detectTaskDal.SearchDetectTask(ctx, taskParam)
-// 		if err != nil {
-// 			logging.Get().Err(err).Str("module", consts.ModelImageDetect).Msg("SearchDetectTask")
-// 			continue
-// 		}
-//
-// 		for i := range tasks {
-// 			ta := tasks[i]
-// 			subtaskParam.TaskID = ta.ID
-// 			_, cnt, err := s.detectTaskDal.SearchDetectSubtask(ctx, subtaskParam)
-// 			if err != nil {
-// 				logging.Get().Err(err).Str("module", consts.ModelImageDetect).Msg("SearchDetectSubtask")
-// 				continue
-// 			}
-// 			if cnt == 0 {
-// 				err := s.detectTaskDal.UpdateDetectTask(ctx, imagesecModel.UpdateTaskParam{
-// 					ID:      ta.ID,
-// 					Updater: getEndUpdater(nil),
-// 				})
-// 				if err != nil {
-// 					logging.Get().Err(err).Str("module", consts.ModelImageDetect).Msg("UpdateDetectTask")
-// 					continue
-// 				}
-// 			}
-// 		}
-// 	}
-// }
 
 func (s *Detector) AddDetectTaskEveryDay(ctx context.Context) error {
 	if !s.addDetectTaskEveryDay {

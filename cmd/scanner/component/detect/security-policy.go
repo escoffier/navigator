@@ -1,4 +1,4 @@
-package imagesec
+package detect
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 
 	"gitlab.com/security-rd/go-pkg/logging"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/detect"
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
@@ -27,14 +26,14 @@ type SecurityPolicyService interface {
 
 type SecurityPolicySrv struct {
 	policyDal          imagesecStore.DetectPolicyDal
-	imageDetectTaskSrv detect.ImageDetectTaskService
+	imageDetectTaskSrv ImageDetectTaskService
 	sensitiveRuleDal   imagesecStore.SensitiveRuleDal
 	userDal            imagesecStore.UserDal
 }
 
 func NewPolicySrv(
 	policyDal imagesecStore.DetectPolicyDal,
-	taskSrv detect.ImageDetectTaskService,
+	taskSrv ImageDetectTaskService,
 	sensitiveRuleDal imagesecStore.SensitiveRuleDal,
 	userDal imagesecStore.UserDal,
 ) *SecurityPolicySrv {
@@ -47,6 +46,8 @@ func NewPolicySrv(
 }
 
 func (s *SecurityPolicySrv) CreatePolicy(ctx context.Context, data *imagesecModel.SecurityPolicy) error {
+	allPolicy = nil
+
 	data.Serialize()
 
 	if data.Name == imagesecModel.DefaultPolicyNameZH || data.Name == imagesecModel.DefaultPolicyNameEN || data.IsDefault {
@@ -88,6 +89,7 @@ func (s *SecurityPolicySrv) CreatePolicy(ctx context.Context, data *imagesecMode
 }
 
 func (s *SecurityPolicySrv) UpdatePolicy(ctx context.Context, param imagesecModel.UpdatePolicyParam) error {
+	allPolicy = nil
 	data := param.Policy
 	data.ID = param.ID
 	data.Serialize()
@@ -289,6 +291,7 @@ func (s *SecurityPolicySrv) SearchPolicy(ctx context.Context, param imagesecMode
 }
 
 func (s *SecurityPolicySrv) DeletePolicy(ctx context.Context, id int64) error {
+	allPolicy = nil
 	policy, _, err := s.policyDal.SearchDetectPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{Ids: []int64{id}})
 	if err != nil {
 		return scani18.DeletePolicy(err)

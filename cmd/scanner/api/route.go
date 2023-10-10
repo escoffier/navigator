@@ -7,6 +7,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/ci"
 	dbManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/db-manage"
 	deploySrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/deployment"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/detect"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
 	imagesecScanSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/service"
 	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagesec"
@@ -29,7 +30,7 @@ func SetupGinRouter(
 	webshellSrv scanwebshell.WebshellController,
 	exportSrv scanReportService.ExportTaskInterface,
 	dbManageSrv dbManage.DBManageSrv,
-	policySrv imagesecSrv.SecurityPolicyService,
+	policySrv detect.SecurityPolicyService,
 	scanTaskSrv imagesecScanSrv.ScanTaskService,
 	sensitiveRuleService imagesecSrv.SensitiveRuleService,
 	scanImageConfigService imagesecSrv.ScanImageConfigService,
@@ -86,7 +87,7 @@ func WebAPI(router *gin.Engine,
 	webshellSrv scanwebshell.WebshellController,
 	exportSrv scanReportService.ExportTaskInterface,
 	dbManageSrv dbManage.DBManageSrv,
-	policySrv imagesecSrv.SecurityPolicyService,
+	policySrv detect.SecurityPolicyService,
 	scanTaskSrv imagesecScanSrv.ScanTaskService,
 	sensitiveRuleService imagesecSrv.SensitiveRuleService,
 	scanImageConfigService imagesecSrv.ScanImageConfigService,

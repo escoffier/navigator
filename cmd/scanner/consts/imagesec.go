@@ -39,6 +39,7 @@ const (
 const (
 	ModelImageMeta   = "imageMeta"
 	ModelImageScan   = "imagescan"
+	ModuleDeploy     = "deployImage"
 	LogModule        = "module"
 	LogSubModule     = "submodule"
 	ModelImageDetect = "imageDetect"
