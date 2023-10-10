@@ -99,3 +99,5 @@ func GenImageIssueFlag(res PolicyDetectResult2, flag uint64) uint64 {
 
 	return flag
 }
+
+var allPolicy []*imagesecModel.SecurityPolicy // 程序内缓存

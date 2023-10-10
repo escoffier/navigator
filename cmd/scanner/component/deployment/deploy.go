@@ -7,8 +7,6 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/security-rd/go-pkg/logging"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/deployment/detector"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/detect"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
@@ -28,6 +26,7 @@ func (s *DeploySrv) GetImageDataForDeploy(ctx context.Context, param imagesecMod
 	if param.Digest == "" {
 		ans.Exit = false
 		ans.Scanned = false
+		return ans
 	}
 
 	if param.ImageUUID <= 0 {
@@ -135,7 +134,7 @@ func (s *DeploySrv) CheckDeploy(ctx context.Context, param imagesecModel.DeployM
 	}
 	param.ImageUUID = param.GenImageUUID()
 
-	logging.Get().Info().Str("module", "deployImage").Interface("param", param).Msg("CheckDeploy start")
+	s.Log.Info().Interface("param", param).Msg("CheckDeploy start")
 
 	res := s.GetImageDataForDeploy(ctx, param)
 
@@ -175,7 +174,10 @@ func (s *DeploySrv) CheckDeploy(ctx context.Context, param imagesecModel.DeployM
 	// logging.Get().Debug().Str("module", "deployment").Interface("CorrelateData", res).Msg("GetImageDataForDeploy")
 
 	pos, _, err := s.detectPolicyDal.SearchDetectPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{PolicyType: imagesecModel.ConfigTypeDeploy})
-
+	if err != nil {
+		s.Log.Err(err).Msg("CheckWhite")
+		return true
+	}
 	policy := make([]*imagesecModel.SecurityPolicy, 0)
 
 	for i := range pos {
@@ -219,7 +221,7 @@ func (s *DeploySrv) CheckDeploy(ctx context.Context, param imagesecModel.DeployM
 
 	white, err := s.CheckWhite(ctx, param)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "deployImage").Msg("CheckWhite")
+		s.Log.Err(err).Msg("CheckWhite")
 		return true
 	}
 	if err == nil && white {
@@ -262,10 +264,10 @@ func (s *DeploySrv) CheckDeploy(ctx context.Context, param imagesecModel.DeployM
 	record.Flag = flag
 
 	if err := s.CreateDeployRecord(ctx, &record); err != nil {
-		logging.Get().Info().Str("module", "deployImage").Err(err).Msg("CheckDeploy CreateDeployRecord")
+		s.Log.Err(err).Msg("CheckDeploy CreateDeployRecord")
 	}
 
-	logging.Get().Info().Str("module", "deployImage").Interface("param", param).Str("action", act).
+	s.Log.Info().Interface("param", param).Str("action", act).
 		Msg("CheckDeploy end")
 
 	return record.Action != imagesecModel.DeployActionBlock
@@ -360,7 +362,7 @@ func AddIssueDeployRecord(record imagesecModel.DeployRecord, det map[string]map[
 func (s *DeploySrv) CheckWhite(ctx context.Context, res imagesecModel.DeployMonitorImage) (bool, error) {
 	image, _, err := s.DeployRecordDal.SearchDeployWhiteImage(ctx, imagesecModel.SearchDeployWhiteImageParam{})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "deployImage").Msg("SearchDeployWhiteImage")
+		s.Log.Err(err).Msg("SearchDeployWhiteImage")
 		return true, err
 	}
 	for i := range image {
@@ -370,7 +372,7 @@ func (s *DeploySrv) CheckWhite(ctx context.Context, res imagesecModel.DeployMoni
 		}
 		compile, err := regexp.Compile(im.ImageName)
 		if err != nil {
-			logging.Get().Err(err).Str("module", "deployImage").Str("image", im.ImageName).Msg("Compile")
+			s.Log.Err(err).Str("image", im.ImageName).Msg("Compile")
 			continue
 		}
 		findString := compile.FindString(res.Image)

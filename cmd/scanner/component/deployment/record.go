@@ -3,10 +3,12 @@ package deployment
 import (
 	"context"
 	"regexp"
+	"runtime/debug"
 	"sort"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -41,6 +43,7 @@ type DeploySrv struct {
 	DeployRecordDal    imagesecStore.DeployDal
 	BlockTrend         *DeployTrend
 	ReasonTop5         *ReasonOverview
+	Log                *scannerUtils.LogEvent
 }
 
 func NewDeploySrv(
@@ -63,12 +66,16 @@ func NewDeploySrv(
 		DeployRecordDal:    deployRecordDal,
 		BlockTrend:         NewDeployTrend(),
 		ReasonTop5:         NewReasonOverview(5),
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithSubModule("DeploySrv"),
+			scannerUtils.WithModule(consts.ModuleDeploy),
+		),
 	}
 
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Info().Str("module", "deployImage").Msg("panic DeployOverview")
+				logging.Get().Error().Str("module", "deployImage").Str("Stack", string(debug.Stack())).Msg("panic DeployOverview")
 			}
 		}()
 		_, _ = s.DeployOverview(context.Background(), imagesecModel.DeployDeployOverviewParam{Graph: consts.DeployGraphDay7})
@@ -82,7 +89,7 @@ func NewDeploySrv(
 func (s *DeploySrv) CreateDeployRecord(ctx context.Context, data *imagesecModel.DeployRecord) error {
 	err := s.DeployRecordDal.CreateDeployRecord(ctx, data)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "deployImage").Msg("CreateDeployRecord")
+		s.Log.Err(err).Msg("CreateDeployRecord")
 		return scani18.CreatDeployRecord(err)
 	}
 	return nil
@@ -95,7 +102,7 @@ func (s *DeploySrv) SearchDeployRecord(ctx context.Context, param imagesecModel.
 
 	record, cnt, err := s.DeployRecordDal.SearchDeployRecord(ctx, dalParam)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "deployImage").Msg("SearchDeployRecord")
+		s.Log.Err(err).Msg("SearchDeployRecord")
 		return nil, 0, scani18.SearchDeployRecord(err)
 	}
 	res := make([]imagesecModel.DeployRecordView, 0)
@@ -125,7 +132,7 @@ func (s *DeploySrv) SearchDeployRecord(ctx context.Context, param imagesecModel.
 		if len(record[i].Vuln) > 0 {
 			vuln, _, err := s.scanResultDal.SearchVuln(ctx, imagesecModel.SearchVulnDalParam{VulnUniqueIds: record[i].Vuln})
 			if err != nil {
-				logging.Get().Err(err).Str("module", "deployImage").Msg("SearchDeployRecord SearchVuln")
+				s.Log.Err(err).Msg("SearchDeployRecord SearchVuln")
 				return nil, 0, scani18.SearchDeployRecord(err)
 			}
 			vulns := make([]*imagesecModel.VulnView, len(vuln))
@@ -164,7 +171,7 @@ func (s *DeploySrv) DeployOverview(ctx context.Context, param imagesecModel.Depl
 	case consts.DeployGraphDay30:
 		day30, err := s.deployOverviewDay30(ctx)
 		if err != nil {
-			logging.Get().Err(err).Str("module", "deployImage").Msg("DeployOverviewBlockTrend")
+			s.Log.Err(err).Msg("DeployOverviewBlockTrend")
 			return res, scani18.SearchDeployRecord(err)
 		}
 		res = day30
@@ -172,7 +179,7 @@ func (s *DeploySrv) DeployOverview(ctx context.Context, param imagesecModel.Depl
 	case consts.DeployGraphHour24:
 		hour24, err := s.deployOverviewHour24(ctx)
 		if err != nil {
-			logging.Get().Err(err).Str("module", "deployImage").Msg("DeployOverviewBlockTrend")
+			s.Log.Err(err).Msg("DeployOverviewBlockTrend")
 			return res, scani18.SearchDeployRecord(err)
 		}
 		res = hour24
@@ -180,7 +187,7 @@ func (s *DeploySrv) DeployOverview(ctx context.Context, param imagesecModel.Depl
 	case consts.DeployGraphDay7:
 		day7, err := s.deployOverviewDay7(ctx)
 		if err != nil {
-			logging.Get().Err(err).Str("module", "deployImage").Msg("DeployOverviewBlockTrend")
+			s.Log.Err(err).Msg("DeployOverviewBlockTrend")
 			return nil, scani18.SearchDeployRecord(err)
 		}
 		res = day7
@@ -195,7 +202,7 @@ func (s *DeploySrv) deployOverviewDay7(ctx context.Context) ([]*imagesecModel.Ac
 		Day7: consts.TrueString,
 	})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "deployImage").Msg("GroupRecordFlag")
+		s.Log.Err(err).Msg("GroupRecordFlag")
 		return res, scani18.SearchDeployRecord(err)
 	}
 
@@ -253,7 +260,7 @@ func (s *DeploySrv) deployOverviewDay30(ctx context.Context) ([]*imagesecModel.A
 		Day30: consts.TrueString,
 	})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "deployImage").Msg("GroupRecordFlag")
+		s.Log.Err(err).Msg("GroupRecordFlag")
 		return res, scani18.SearchDeployRecord(err)
 	}
 
@@ -314,7 +321,7 @@ func (s *DeploySrv) deployOverviewHour24(ctx context.Context) ([]*imagesecModel.
 		Hour24: consts.TrueString,
 	})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "deployImage").Msg("GroupRecordFlag")
+		s.Log.Err(err).Msg("GroupRecordFlag")
 		return res, scani18.SearchDeployRecord(err)
 	}
 
@@ -377,7 +384,7 @@ func (s *DeploySrv) DeployReasonTop5(ctx context.Context) ([]imagesecModel.Reaso
 	})
 
 	if err != nil {
-		logging.Get().Err(err).Str("module", "deployImage").Msg("GroupRecordFlag")
+		s.Log.Err(err).Msg("GroupRecordFlag")
 		return res, scani18.SearchDeployRecord(err)
 	}
 	// 先查全部
