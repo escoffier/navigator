@@ -2,11 +2,12 @@ package processors
 
 import (
 	"context"
-	core "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"reflect"
 	"testing"
 	"time"
+
+	core "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func Test_mutatorChain_mutatePod(t *testing.T) {
@@ -36,21 +37,17 @@ func Test_mutatorChain_mutatePod(t *testing.T) {
 		Annotations:                nil,
 		OwnerReferences:            nil,
 		Finalizers:                 nil,
-		ClusterName:                "",
 	}}
 
-	//m := microsegmutator.MicroSegMutator{}
-
 	tests := []struct {
-		name   string
-		fields fields
-		args   args
-		want   []byte
+		name    string
+		fields  fields
+		args    args
+		want    []byte
+		wantErr bool
 	}{
-		// TODO: Add test cases.
 		{
 			name: "test1",
-			//fields: fields{podMutators: {}},
 			args: args{
 				ctx:        ctx,
 				parameters: nil,
@@ -63,7 +60,12 @@ func Test_mutatorChain_mutatePod(t *testing.T) {
 			m := &mutatorChain{
 				podMutators: tt.fields.podMutators,
 			}
-			if got := m.mutatePod(tt.args.ctx, tt.args.parameters, tt.args.pod); !reflect.DeepEqual(got, tt.want) {
+			got, err := m.mutatePod(tt.args.ctx, tt.args.parameters, tt.args.pod)
+			if err != nil {
+				t.Errorf("NetworkPolicyController.mutatePod() error = %v, wantErr %v", err, tt.wantErr)
+
+			}
+			if !reflect.DeepEqual(got, tt.want) {
 				t.Errorf("mutatePod() = %v, want %v", got, tt.want)
 			}
 		})

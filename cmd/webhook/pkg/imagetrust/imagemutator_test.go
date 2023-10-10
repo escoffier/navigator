@@ -3,7 +3,7 @@ package imagetrust
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"reflect"
 	"testing"
@@ -15,7 +15,7 @@ import (
 
 func Test_patchImageDigest(t *testing.T) {
 	type args struct {
-		imageDigest *ImageDigest
+		imageDigest *PodImageDigest
 	}
 	tests := []struct {
 		name string
@@ -24,9 +24,9 @@ func Test_patchImageDigest(t *testing.T) {
 	}{
 		{
 			name: "test-1",
-			args: args{imageDigest: &ImageDigest{
-				InitContainerImages: []string{"abc:122222", "hhhhh:6788"},
-				ContainerImages:     []string{"def:345555"},
+			args: args{imageDigest: &PodImageDigest{
+				InitContainerImages: []ImageDigest{{Image: "", Digest: "abc:122222"}, {Digest: "hhhhh:6788"}},
+				ContainerImages:     []ImageDigest{{Digest: "def:345555"}},
 			}},
 			want: []*processors.Patch{
 				{
@@ -64,7 +64,7 @@ func setUpServer() {
 		if r.Body == nil {
 			return
 		}
-		body, err := ioutil.ReadAll(r.Body)
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			return
 		}
@@ -309,64 +309,3 @@ func Test_getImageDigestFromHarbor(t *testing.T) {
 		})
 	}
 }
-
-// func TestMutator_checkRegistryUrl(t *testing.T) {
-// 	type fields struct {
-// 		client                *http.Client
-// 		digestUrl             string
-// 		IgnoredNameSpaces     []string
-// 		secretInformer        map[string]*coreinformers.SecretInformer
-// 		imageRegistryCheckUrl string
-// 	}
-// 	type args struct {
-// 		image string
-// 	}
-
-// 	go setUpServer()
-
-// 	tests := []struct {
-// 		name   string
-// 		fields fields
-// 		args   args
-// 		want   bool
-// 	}{
-// 		{
-// 			name: "test1",
-// 			fields: fields{
-// 				client:                http.DefaultClient,
-// 				digestUrl:             "",
-// 				IgnoredNameSpaces:     nil,
-// 				secretInformer:        nil,
-// 				imageRegistryCheckUrl: "http://localhost:1999/registries",
-// 			},
-// 			args: args{image: "harbor.tensorsecurity.com/tensorsecurity/console:testcn"},
-// 			want: true,
-// 		},
-// 		{
-// 			name: "test2",
-// 			fields: fields{
-// 				client:                http.DefaultClient,
-// 				digestUrl:             "",
-// 				IgnoredNameSpaces:     nil,
-// 				secretInformer:        nil,
-// 				imageRegistryCheckUrl: "http://localhost:1999/registries",
-// 			},
-// 			args: args{image: "harbor.aa.tensorsecurity.com/tensorsecurity/console:testcn"},
-// 			want: false,
-// 		},
-// 	}
-// 	for _, tt := range tests {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			// m := &Mutator{
-// 			// 	client:            tt.fields.client,
-// 			// 	digestUrl:         tt.fields.digestUrl,
-// 			// 	IgnoredNameSpaces: tt.fields.IgnoredNameSpaces,
-// 			// 	secretInformer:    tt.fields.secretInformer,
-// 			// 	// imageRegistryCheckUrl: tt.fields.imageRegistryCheckUrl,
-// 			// }
-// 			if got := m.checkRegistryUrl(context.Background(), tt.args.image); got != tt.want {
-// 				t.Errorf("checkRegistryUrl() = %v, want %v", got, tt.want)
-// 			}
-// 		})
-// 	}
-// }

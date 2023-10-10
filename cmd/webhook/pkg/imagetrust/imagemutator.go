@@ -21,18 +21,15 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/utils"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	coreinformers "k8s.io/client-go/informers/core/v1"
 )
 
 const configFile = "image-trust-mutator.yaml"
 
-var checkImageRegistryUrl = ""
+var checkImageRegistryUrl string
 
 type Mutator struct {
 	client            *http.Client
-	digestUrl         string
 	IgnoredNameSpaces []string
-	secretInformer    map[string]*coreinformers.SecretInformer
 	kubeCli           *kubernetes.Clientset
 	validator         *Validator
 }
@@ -43,8 +40,12 @@ type ImageTagReq struct {
 }
 
 type ImageDigest struct {
-	InitContainerImages []string `json:"init_container_images"`
-	ContainerImages     []string `json:"container_images"`
+	Image  string
+	Digest string
+}
+type PodImageDigest struct {
+	InitContainerImages []ImageDigest `json:"init_container_images"`
+	ContainerImages     []ImageDigest `json:"container_images"`
 }
 
 type ImageDigestResp ImageTagReq
@@ -96,7 +97,7 @@ func (m *Mutator) Init(webHookConfig *processors.WebHookConfig) error {
 }
 
 func (m *Mutator) Mutate(ctx context.Context, parameters *processors.MutatorParameters, pod *corev1.Pod) ([]*processors.Patch, error) {
-	digests := &ImageDigest{}
+	digests := &PodImageDigest{}
 	var kubeSecretNames []string
 	for _, secs := range pod.Spec.ImagePullSecrets {
 		kubeSecretNames = append(kubeSecretNames, secs.Name)
@@ -109,7 +110,7 @@ func (m *Mutator) Mutate(ctx context.Context, parameters *processors.MutatorPara
 	labelMap := make(map[string]string)
 	for index := range pod.Spec.Containers {
 		digestImage := m.buildDigestImage(ctx, parameters, &pod.Spec.Containers[index], kubeSecretNames)
-		if digestImage != "" {
+		if digestImage.Digest != "" {
 			imagTag := getImageTag(pod.Spec.Containers[index].Image)
 			labelMap[pod.Spec.Containers[index].Name] = imagTag
 		}
@@ -129,16 +130,10 @@ func (m *Mutator) Mutate(ctx context.Context, parameters *processors.MutatorPara
 }
 
 // buildDigestImage replace image name with image digest
-func (m *Mutator) buildDigestImage(ctx context.Context, parameters *processors.MutatorParameters, container *corev1.Container, kubeSecretNames []string) string {
+func (m *Mutator) buildDigestImage(ctx context.Context, parameters *processors.MutatorParameters, container *corev1.Container, kubeSecretNames []string) ImageDigest {
 	originImage := container.Image
-	result := checkRegistryUrl(ctx, originImage)
-	if !result {
-		logging.Get().Info().Msgf("skip check for image: %s", originImage)
-		return ""
-	}
-
 	if strings.Contains(originImage, "@sha256") || container.ImagePullPolicy != "Always" {
-		return ""
+		return ImageDigest{Image: originImage}
 	}
 	secret := m.getSecrets(parameters.ClusterKey, parameters.Namespace, originImage, kubeSecretNames)
 	digest := getImageDigestFromHarbor(ctx, originImage, secret)
@@ -147,10 +142,10 @@ func (m *Mutator) buildDigestImage(ctx context.Context, parameters *processors.M
 		if ok {
 			imgMap.add(digest, originImage)
 		}
-		return replaceTagWithDigest(originImage, digest)
+		return ImageDigest{Image: originImage, Digest: replaceTagWithDigest(originImage, digest)}
 	}
 	logging.Get().Warn().Msgf("can't get digest of [%s]", originImage)
-	return ""
+	return ImageDigest{Image: originImage}
 }
 
 func (m *Mutator) PreMutate(_ context.Context, _ *corev1.Pod, parameters *processors.MutatorParameters) bool {
@@ -163,26 +158,26 @@ func (m *Mutator) PreMutate(_ context.Context, _ *corev1.Pod, parameters *proces
 	return true
 }
 
-func patchImageDigest(imageDigest *ImageDigest) []*processors.Patch {
+func patchImageDigest(imageDigest *PodImageDigest) []*processors.Patch {
 	patches := make([]*processors.Patch, 0)
 	for i, digest := range imageDigest.InitContainerImages {
-		if digest != "" {
+		if digest.Digest != "" {
 			path := fmt.Sprintf("/spec/initContainers/%d/image", i)
 			patches = append(patches, &processors.Patch{
 				Op:    "replace",
 				Path:  path,
-				Value: imageDigest.InitContainerImages[i],
+				Value: imageDigest.InitContainerImages[i].Digest,
 			})
 		}
 	}
 
 	for i, digest := range imageDigest.ContainerImages {
-		if digest != "" {
+		if digest.Digest != "" {
 			path := fmt.Sprintf("/spec/containers/%d/image", i)
 			patches = append(patches, &processors.Patch{
 				Op:    "replace",
 				Path:  path,
-				Value: imageDigest.ContainerImages[i],
+				Value: imageDigest.ContainerImages[i].Digest,
 			})
 		}
 	}
