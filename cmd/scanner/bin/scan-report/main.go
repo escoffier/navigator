@@ -15,6 +15,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/cache"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/elastic"
+	"gitlab.com/security-rd/go-pkg/leaderelection"
 	"gitlab.com/security-rd/go-pkg/logging"
 	_ "go.uber.org/automaxprocs"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
@@ -31,7 +32,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	flag2 "gitlab.com/piccolo_su/vegeta/pkg/flag"
-	"gitlab.com/piccolo_su/vegeta/pkg/leaderelection"
 )
 
 var (
@@ -49,7 +49,7 @@ var (
 	HTTPListenAddr          string
 	expiration              int64
 	maxImageByOneExportTask int64
-	electionOpts            *flag2.ElectionOpts
+	electionOpts            *leaderelection.ElectionOpts
 )
 
 var (
@@ -162,16 +162,19 @@ func main() {
 	if elect == consts.TrueString {
 		enableLeaderElection = true
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	if enableLeaderElection {
 		elector, err := leaderelection.New(func(ctx context.Context) {
 			start(config)
 			logging.Get().Info().Msg("start scan report service")
-		}, electionOpts)
+		}, cancel, electionOpts)
 		if err != nil {
 			logging.Get().Err(err).Msg("error occurred when server running")
 			return
 		}
-		elector.Run(context.TODO())
+		elector.Run(ctx)
 		logging.Get().Info().Msg("lost lease")
 		return
 	}

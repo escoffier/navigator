@@ -11,7 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	flag2 "gitlab.com/piccolo_su/vegeta/pkg/flag"
-	"gitlab.com/piccolo_su/vegeta/pkg/leaderelection"
+	"gitlab.com/security-rd/go-pkg/leaderelection"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"k8s.io/klog/v2"
 )
@@ -81,7 +81,7 @@ func NewClusterManagerCommand() *cobra.Command {
 			}()
 
 			if enableLeaderElection {
-				elector, err := leaderelection.New(run, electionOpts)
+				elector, err := leaderelection.New(run, cancel, electionOpts)
 				if err != nil {
 					logging.Get().Err(err).Msg("error occurred when server running")
 					return
