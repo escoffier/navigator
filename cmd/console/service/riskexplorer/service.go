@@ -307,6 +307,11 @@ func (s *Service) WholeSummary(ctx context.Context, queryOpt *dal.ResContainersQ
 
 }
 
+func (s *Service) GetResourceName(ctx context.Context, clusterKey string, namespace string, resourceKind string, resourceName string) []*dal.UserNameAccount {
+	service, _ := assetsSvc.GetResourcesService(ctx)
+	return service.GetUserAccountByResource(ctx, clusterKey, namespace, resourceKind, resourceName)
+}
+
 func getImageVulnsRiskData(ctx context.Context, vulns []model.VulnerabilityInfo, sensitive []model.Sensitive) (json.RawMessage, bool) {
 	imageVulns := ImageVulnsDetails{
 		SensitiveFiles:  sensitive,

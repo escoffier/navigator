@@ -124,6 +124,7 @@ var (
 		"gateway",
 		"mac",
 		"network_mode",
+		"storage_type",
 	}
 	OnDupUpdatedColsForRawCtnFramework = []string{
 		"updated_at",
@@ -828,34 +829,31 @@ func CountResourceContainers(ctx context.Context, rdb *gorm.DB, query *ResContai
 	defer cancel()
 
 	var cntNum int64
-	err := util.RetryWithBackoff(pgCtx, func() error {
-		oneCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
-		defer cancel()
 
-		db := rdb.WithContext(oneCtx).Model(&model.TensorContainer{}).Where("status = ?", 0)
-		if len(query.WhereEqCondition) > 0 {
-			db = db.Where(query.WhereEqCondition)
+	db := rdb.WithContext(pgCtx).Model(&model.TensorRawContainer{})
+	if len(query.WhereEqCondition) > 0 {
+		db = db.Where(query.WhereEqCondition)
+	}
+	if len(query.whereInCondition) > 0 {
+		for column, val := range query.whereInCondition {
+			db = db.Where(fmt.Sprintf("%s in ?", column), val)
 		}
-		if len(query.whereInCondition) > 0 {
-			for column, val := range query.whereInCondition {
-				db = db.Where(fmt.Sprintf("%s in ?", column), val)
-			}
+	}
+	if len(query.whereNotNullCondition) > 0 {
+		for column := range query.whereNotNullCondition {
+			db = db.Where(fmt.Sprintf("%s IS NOT NULL", column))
 		}
-		if len(query.whereNotNullCondition) > 0 {
-			for column := range query.whereNotNullCondition {
-				db = db.Where(fmt.Sprintf("%s IS NOT NULL", column))
-			}
+	}
+	if len(query.whereGtCondition) > 0 {
+		for k, v := range query.whereGtCondition {
+			db = db.Where(fmt.Sprintf("%s > ?", k), v)
 		}
-		if len(query.whereGtCondition) > 0 {
-			for k, v := range query.whereGtCondition {
-				db = db.Where(fmt.Sprintf("%s > ?", k), v)
-			}
-		}
-		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), GetLikeExpr(query.columnQuery.query))
-		}
-		return db.Count(&cntNum).Error
-	})
+	}
+	if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
+		db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), GetLikeExpr(query.columnQuery.query))
+	}
+	db = db.Where("status = ?", 0)
+	err := db.Count(&cntNum).Error
 	if err != nil {
 		return 0, err
 	}
@@ -2781,37 +2779,28 @@ func CountContainer(ctx context.Context, rdb *gorm.DB, query *ResContainersQuery
 	defer cancel()
 
 	var count int64
-	notFound := false
-	err := util.RetryWithBackoff(pgCtx, func() error {
-		oneCtx, cancel := context.WithTimeout(ctx, 800*time.Millisecond)
-		defer cancel()
 
-		db := rdb.WithContext(oneCtx).Model(&model.TensorContainer{}).Where("status = ?", 0)
-		if len(query.WhereEqCondition) > 0 {
-			db = db.Where(query.WhereEqCondition)
+	db := rdb.WithContext(pgCtx).Model(&model.TensorRawContainer{}).Distinct("image_uuid")
+	if len(query.WhereEqCondition) > 0 {
+		db = db.Where(query.WhereEqCondition)
+	}
+	if len(query.whereInCondition) > 0 {
+		for column, val := range query.whereInCondition {
+			db = db.Where(fmt.Sprintf("%s in ?", column), val)
 		}
-		if len(query.whereInCondition) > 0 {
-			for column, val := range query.whereInCondition {
-				db = db.Where(fmt.Sprintf("%s in ?", column), val)
-			}
+	}
+	if len(query.whereNotNullCondition) > 0 {
+		for column := range query.whereNotNullCondition {
+			db = db.Where(fmt.Sprintf("%s IS NOT NULL", column))
 		}
-		if len(query.whereNotNullCondition) > 0 {
-			for column := range query.whereNotNullCondition {
-				db = db.Where(fmt.Sprintf("%s IS NOT NULL", column))
-			}
-		}
-		if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
-			db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), GetLikeExpr(query.columnQuery.query))
-		}
-		err := db.Distinct("image").Count(&count).Error
-		if err == gorm.ErrRecordNotFound {
-			notFound = true
-			return nil
-		}
-		return err
-	})
-	if notFound {
-		return 0, nil
+	}
+	if len(query.columnQuery.column) > 0 && len(query.columnQuery.query) > 0 {
+		db = db.Where(fmt.Sprintf("%s LIKE ?", query.columnQuery.column), GetLikeExpr(query.columnQuery.query))
+	}
+	db = db.Where("status = ?", 0)
+	err := db.Count(&count).Error
+	if err == gorm.ErrRecordNotFound {
+		return count, nil
 	}
 	if err != nil {
 		return 0, err
@@ -5685,6 +5674,7 @@ type ExposeHostPathBase struct {
 	HostPort       string `json:"hostPort" gorm:"column:hostPort;"`
 	ContainerPort  string `json:"containerPort" gorm:"column:containerPort;"`
 	ContainerNames string `json:"containerNames" gorm:"column:containerNames;"`
+	ContainerIds   string
 	BackendKind    string `json:"backendKind" gorm:"column:backendKind;"`
 	K8sSvcName     string `json:"k8sSvcName" gorm:"column:k8sSvcName;"`
 	SvcName        string `json:"svcName,omitempty" gorm:"column:svcName;"`
@@ -5693,7 +5683,7 @@ type ExposeHostPathBase struct {
 	Namespace      string `json:"namespace" gorm:"column:namespace;"`
 }
 
-func CountExposeHost(ctx context.Context, rdb *gorm.DB, webDesc, protocol string) (int64, error) {
+func CountExposeHost(ctx context.Context, rdb *gorm.DB, webDesc string, protocols []string) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, 9*time.Second)
 	defer cancel()
 
@@ -5707,8 +5697,8 @@ func CountExposeHost(ctx context.Context, rdb *gorm.DB, webDesc, protocol string
 		if len(webDesc) > 0 {
 			db = db.Where("host like ?", GetLikeExpr(webDesc))
 		}
-		if protocol != "" {
-			db = db.Where("protocol = ?", protocol)
+		if len(protocols) > 0 {
+			db = db.Where("protocol in ?", protocols)
 		}
 		db = db.Where("status =0 ").Distinct("host")
 		return db.Count(&cntNum).Error
@@ -5716,7 +5706,7 @@ func CountExposeHost(ctx context.Context, rdb *gorm.DB, webDesc, protocol string
 	return cntNum, err
 }
 
-func GetExposeHosts(ctx context.Context, rdb *gorm.DB, webDesc, protocol string, offset int, limit int) ([]*ExposeHostItem, error) {
+func GetExposeHosts(ctx context.Context, rdb *gorm.DB, webDesc string, protocols []string, offset, limit int) ([]*ExposeHostItem, error) {
 	rCtx, cancel := context.WithTimeout(ctx, 10000*time.Millisecond)
 	defer cancel()
 
@@ -5726,8 +5716,8 @@ func GetExposeHosts(ctx context.Context, rdb *gorm.DB, webDesc, protocol string,
 	if len(webDesc) > 0 {
 		db = db.Where("host like ?", GetLikeExpr(webDesc))
 	}
-	if protocol != "" {
-		db = db.Where("protocol = ?", protocol)
+	if len(protocols) > 0 {
+		db = db.Where("protocol in ?", protocols)
 	}
 	if offset >= 0 && limit >= 0 {
 		db.Offset(offset).Limit(limit)
@@ -5822,13 +5812,14 @@ func GetExposeHosts(ctx context.Context, rdb *gorm.DB, webDesc, protocol string,
 	hostMap := make(map[string]struct{})
 	for _, base := range baseList {
 		if _, isOk := hostMap[base.Host]; isOk {
-			result[len(result)].PathList = append(result[len(result)].PathList, base)
+			result[len(result)-1].PathList = append(result[len(result)-1].PathList, base)
 		} else {
 			result = append(result, &ExposeHostItem{
 				Host:     base.Host,
 				Protocol: base.Protocol,
 				PathList: []*ExposeHostPathBase{base},
 			})
+			hostMap[base.Host] = struct{}{}
 		}
 	}
 
@@ -5909,15 +5900,18 @@ func GetExposeHostDetail(ctx context.Context, rdb *gorm.DB, id int64) (*ExposeHo
 		return detail, nil
 	}
 	var containerNames []string
+	var containerIds []string
 	var ports model.PortSlice
 	for _, idName := range containerIdNames {
 		containerNames = append(containerNames, idName.Name)
+		containerIds = append(containerIds, idName.Id)
 		ports = append(ports, idName.Ports...)
 	}
 	if len(containerNames) == 0 {
 		return detail, nil
 	}
 	detail.ContainerNames = strings.Join(containerNames, ",")
+	detail.ContainerIds = strings.Join(containerIds, ",")
 	detail.Ports = ports
 	//busiSvc
 	type busiTemp struct {

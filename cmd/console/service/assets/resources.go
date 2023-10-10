@@ -136,6 +136,32 @@ func (rl *TensorResourcesService) GetResourcesWithUserAccount(ctx context.Contex
 	return result, total, nil
 }
 
+func (rl *TensorResourcesService) GetUserAccountByResource(ctx context.Context, clusterKey, namespace, resourceKind, resourceName string) []*dal.UserNameAccount {
+	if clusterKey == "" || namespace == "" || resourceKind == "" || resourceName == "" {
+		return nil
+	}
+
+	resource := &model.TensorResource{}
+	err := rl.rdb.GetReadDB().WithContext(ctx).Model(resource).Select("managers").
+		Where("cluster_key = ? and namespace = ? and kind= ? and name = ?", clusterKey, namespace, resourceKind, resourceName).Scan(resource).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil
+	}
+	if err != nil {
+		return nil
+	}
+
+	ok, resultMap, err := dal.SelectUserAccountByNames(ctx, rl.rdb.GetReadDB(), resource.Managers)
+	if !ok || err != nil {
+		return nil
+	}
+	var result []*dal.UserNameAccount
+	for _, account := range resultMap {
+		result = append(result, account)
+	}
+	return result
+}
+
 func getResourceViewByResources(ctx context.Context, resources []*model.TensorResource, db *gorm.DB) []*TensorResourceView {
 	nameAccountMap := make(map[string]*dal.UserNameAccount)
 	var names []string
@@ -161,6 +187,9 @@ func getResourceViewByResources(ctx context.Context, resources []*model.TensorRe
 	for i, resource := range resources {
 		result[i] = &TensorResourceView{TensorResource: resource}
 		for _, manager := range resource.Managers {
+			if manager == "" {
+				continue
+			}
 			tmp := nameAccountMap[manager]
 			if tmp == nil {
 				tmp = &dal.UserNameAccount{
@@ -1316,7 +1345,7 @@ func (rl *TensorResourcesService) GetBusiSvcDetail(ctx context.Context, id int32
 	return dal.GetBusiSvcDetail(ctx, rl.rdb.GetReadDB(), id)
 }
 
-func (rl *TensorResourcesService) ListExposeHost(ctx context.Context, webDesc, protocol string, offset, limit int) ([]*dal.ExposeHostItem, int64, error) {
+func (rl *TensorResourcesService) ListExposeHost(ctx context.Context, webDesc string, protocol []string, offset, limit int) ([]*dal.ExposeHostItem, int64, error) {
 	cnt, err := dal.CountExposeHost(ctx, rl.rdb.GetReadDB(), webDesc, protocol)
 	if err != nil {
 		return nil, 0, err

@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"errors"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"net/http"
 	"time"
 
@@ -35,6 +36,19 @@ func (api *api) wholeGraphOverrall() http.HandlerFunc {
 		if cluster != "" {
 			query.WithCluster(cluster)
 		}
+		// resource-detail page has these param
+		namespace, _ := param.QueryString(r, "namespace")
+		if namespace != "" {
+			query.WithNamespace(namespace)
+		}
+		resourceKind, _ := param.QueryString(r, "resource_kind")
+		if resourceKind != "" {
+			query.WithResourceKind(assets.ResourceKind(resourceKind))
+		}
+		resourceName, _ := param.QueryString(r, "resource_name")
+		if resourceName != "" {
+			query.WithResourceName(resourceName)
+		}
 
 		appType, err := param.QueryString(r, "apptype")
 		if err == nil && len(appType) > 0 {
@@ -55,7 +69,10 @@ func (api *api) wholeGraphOverrall() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
-
+		// resource-detail page  need  "managers"
+		if resourceName != "" && len(summary) == 1 && len(summary[0].ResourcesList) == 1 {
+			summary[0].ResourcesList[0].Managers = reSvc.GetResourceName(ctx, cluster, namespace, resourceKind, resourceName)
+		}
 		response.Ok(w, response.WithItems(summary))
 	}
 }
