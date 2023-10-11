@@ -163,9 +163,11 @@ func (s *Detector) DetectImage(ctx context.Context) {
 				continue
 			}
 			if len(allPolicy) == 0 {
-				param1 := imagesecModel.SearchSecurityPolicyParam{PolicyType: GetImagePolicyType(imageData.Image)}
+				param1 := imagesecModel.SearchSecurityPolicyParam{
+					PolicyType: GetImagePolicyType(imageData.Image),
+					Deleted:    consts.FalseString,
+				}
 				allPolicy1, _, err := s.policySrv.SearchPolicy(ctx, param1)
-
 				if err != nil {
 					s.Log.Err(err).Uint64("ImageUniqueID", subData.ImageUniqueID).
 						Msg("SearchPolicy")

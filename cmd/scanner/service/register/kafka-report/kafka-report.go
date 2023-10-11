@@ -136,7 +136,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	scanResultDal := imagesecStore.NewScanResultDao(rdbInstance)
 
 	registryDal := imagesecStore.NewRegistryDao(rdbInstance)
-	imageDal := imagesecStore.NewImageMetaDao(rdbInstance, redisCli)
+	imageDal := imagesecStore.NewImageMetaDao(rdbInstance)
 	userDal := imagesecStore.NewUserDao(rdbInstance)
 	policyDal := imagesecStore.NewDetectPolicyDao(rdbInstance)
 	nodeScanTaskDal := imagesecStore.NewScanTaskDao(rdbInstance)

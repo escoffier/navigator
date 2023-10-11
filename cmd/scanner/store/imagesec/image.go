@@ -3,12 +3,9 @@ package imagesec
 import (
 	"context"
 	"fmt"
-	"sort"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/go-redis/redis/v8"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 
@@ -26,7 +23,7 @@ type ImageMetaDal interface {
 	SearchImage(ctx context.Context, param imagesecModel.ImageDalParam) ([]*imagesecModel.Image, int64, error)
 	DeleteImage(ctx context.Context, id int64) error
 	SearchProject(ctx context.Context, param imagesecModel.SearchProjectParam) ([]imagesecModel.Project, error)
-	GetRedisOnlineImageUUID(ctx context.Context) ([]uint32, error)
+	GetOnlineImageUUID(ctx context.Context) ([]uint32, error)
 	GroupImageFlags(ctx context.Context, param imagesecModel.ImageGroupParam) ([]imagesecModel.ImageFlagGroup, error)
 }
 
@@ -41,12 +38,11 @@ type PreImageDal interface {
 }
 
 type ImageMetaDao struct {
-	db       *databases.RDBInstance
-	redisCli *redis.Client
+	db *databases.RDBInstance
 }
 
-func NewImageMetaDao(db *databases.RDBInstance, redisCli *redis.Client) *ImageMetaDao {
-	return &ImageMetaDao{db: db, redisCli: redisCli}
+func NewImageMetaDao(db *databases.RDBInstance) *ImageMetaDao {
+	return &ImageMetaDao{db: db}
 }
 
 type ImageCacheDao struct {
@@ -487,51 +483,90 @@ func (dal *ImageMetaDao) SearchProject(ctx context.Context, param imagesecModel.
 	return ans, nil
 }
 
-func (dal *ImageMetaDao) GetRedisOnlineImageUUID(ctx context.Context) ([]uint32, error) {
-	if dal.redisCli == nil {
-		return nil, fmt.Errorf("not get redis client")
-	}
-	uuids := make([]uint32, 0)
-	start := 0
-	tmx, cancelFunc := context.WithTimeout(context.Background(), time.Second*100)
-	defer cancelFunc()
-	cnt := 0
-	for {
-		opt := &redis.ZRangeBy{
-			Min:   strconv.Itoa(int(start)),
-			Max:   consts.RedisPositiveInfinity,
-			Count: consts.DefaultMaxLimit,
-		}
-		scores := dal.redisCli.ZRangeByScoreWithScores(tmx, consts.OnlineImageRedisKey, opt)
-		result, err := scores.Result()
-		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Int("uuid", len(uuids)).Msg("updateOnlineImage")
-			return nil, err
-		}
-		ans := make([]int, 0)
-		for i := range result {
-			if int(result[i].Score) <= 0 {
-				continue
-			}
-			ans = append(ans, int(result[i].Score))
-		}
-		if len(ans) == 0 {
-			break
-		}
-		ans = util.DuplicateIntSlice(ans)
-		sort.Ints(ans)
-		start = ans[len(ans)-1] + 1
-		for i := range ans {
-			uuids = append(uuids, uint32(ans[i]))
-		}
-		uuids = util.DuplicateUint32Slice(uuids)
+func (dal *ImageMetaDao) GetOnlineImageUUID(ctx context.Context) ([]uint32, error) {
 
-		if len(uuids) == cnt {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	ans := make([]uint32, 0)
+	db := dal.db.Get().WithContext(ctx).Table(new(model.TensorRawContainer).TableName())
+	filter := model.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiled("image_uuid").SetSortAsc()
+
+	var startID uint32
+
+	for {
+		res := make([]*model.TensorRawContainer, 0)
+
+		db = db.Where("image_uuid > ?", startID).Where("status = 0")
+		db = db.Select("image_uuid")
+
+		db = model.AddFilter(db, filter)
+		if err := db.Find(&res).Error; err != nil {
+			return ans, err
+		}
+		if len(res) == 0 {
 			break
 		}
-		cnt = len(uuids)
+		startID = res[len(res)-1].ImageUUID
+
+		th := make([]uint32, 0)
+		for i := range res {
+			th = append(th, res[i].ImageUUID)
+		}
+		th = util.DuplicateUint32Slice(th)
+		ans = append(ans, th...)
 	}
-	return uuids, nil
+
+	ans = util.DuplicateUint32Slice(ans)
+	return ans, nil
+	// if param.ImageUUID > 0 {
+	// 	db = db.Where("image_uuid = ?", param.ImageUUID)
+	// }
+
+	// 不能使用 redis 了，
+	// if dal.redisCli == nil {
+	// 	return nil, fmt.Errorf("not get redis client")
+	// }
+	// uuids := make([]uint32, 0)
+	// start := 0
+	// tmx, cancelFunc := context.WithTimeout(context.Background(), time.Second*100)
+	// defer cancelFunc()
+	// cnt := 0
+	// for {
+	// 	opt := &redis.ZRangeBy{
+	// 		Min:   strconv.Itoa(int(start)),
+	// 		Max:   consts.RedisPositiveInfinity,
+	// 		Count: consts.DefaultMaxLimit,
+	// 	}
+	// 	scores := dal.redisCli.ZRangeByScoreWithScores(tmx, consts.OnlineImageRedisKey, opt)
+	// 	result, err := scores.Result()
+	// 	if err != nil {
+	// 		logging.Get().Err(err).Str("module", "imageMeta").Int("uuid", len(uuids)).Msg("updateOnlineImage")
+	// 		return nil, err
+	// 	}
+	// 	ans := make([]int, 0)
+	// 	for i := range result {
+	// 		if int(result[i].Score) <= 0 {
+	// 			continue
+	// 		}
+	// 		ans = append(ans, int(result[i].Score))
+	// 	}
+	// 	if len(ans) == 0 {
+	// 		break
+	// 	}
+	// 	ans = util.DuplicateIntSlice(ans)
+	// 	sort.Ints(ans)
+	// 	start = ans[len(ans)-1] + 1
+	// 	for i := range ans {
+	// 		uuids = append(uuids, uint32(ans[i]))
+	// 	}
+	// 	uuids = util.DuplicateUint32Slice(uuids)
+	//
+	// 	if len(uuids) == cnt {
+	// 		break
+	// 	}
+	// 	cnt = len(uuids)
+	// }
+	// return uuids, nil
 }
 
 func (dal *ImageMetaDao) GroupImageFlags(ctx context.Context, param imagesecModel.ImageGroupParam) ([]imagesecModel.ImageFlagGroup, error) {

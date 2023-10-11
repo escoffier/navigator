@@ -54,7 +54,7 @@ func GetImageMigrate() (*ImageMigrate, error) {
 	imageDal := store.NewScannerOrm(rdbInstance)
 	dataMigrateDal := imagesecStore.NewDataMigrateDao(rdbInstance)
 	scanIssueDal := imagesecStore.NewScanIssueDao(rdbInstance)
-	imageMetaDal := imagesecStore.NewImageMetaDao(rdbInstance, nil)
+	imageMetaDal := imagesecStore.NewImageMetaDao(rdbInstance)
 	policyDal := imagesecStore.NewDetectPolicyDao(rdbInstance)
 	preLib := imagemeta.NewPreLibImageSrv()
 

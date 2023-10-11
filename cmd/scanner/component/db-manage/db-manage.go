@@ -548,7 +548,7 @@ func (v *DBManage) generateScanTask() error {
 	// vuln trigger task enabled,generate scan task
 	scanTaskDal := imagesecStore.NewScanTaskDao(rdbInstance)
 	preScanTaskDal := imagesecStore.NewScanTaskPreDao(rdbInstance)
-	imageDal := imagesecStore.NewImageMetaDao(rdbInstance, nil)
+	imageDal := imagesecStore.NewImageMetaDao(rdbInstance)
 	registryDal := imagesecStore.NewRegistryDao(rdbInstance)
 	instanceDal := imagesecStore.NewScannerInstanceDao(rdbInstance)
 	resourceDal := imagesecStore.NewResourceDao(rdbInstance)
