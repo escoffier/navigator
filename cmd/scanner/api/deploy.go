@@ -150,7 +150,7 @@ func (s *DeploySrv) CreateDeployWhiteImage(ctx *gin.Context) {
 		return
 	}
 	if body.ExpirationAt <= time.Now().UnixMilli() {
-		response.JSONError(ctx, i18.CreateI18BadReqErr("过期时间设置不正确", "expiration not incorrect"))
+		response.JSONError(ctx, i18.CreateI18BadReqErr("有效期不能小于当前时间", "expiration cannot less than current time"))
 		return
 	}
 

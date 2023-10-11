@@ -126,13 +126,9 @@ func (s *ImageInfoMetaSrv) addEnvData(ctx context.Context,
 
 	if ans.DeployRecord != nil {
 		param.ScanResultSearchParam.UniqueIds = ans.DeployRecord.Env
-		if len(param.ScanResultSearchParam.UniqueIds) == 0 {
-			ans.Env = make([]*imagesecModel.ImageEnv, 0)
-			return nil
-		}
 	}
 
-	if param.EnvEnable && ans.Image.UniqueID > 0 {
+	if param.EnvEnable && (ans.Image.UniqueID > 0 || len(param.ScanResultSearchParam.UniqueIds) > 0) {
 		env, cnt, err := s.scanResultDal.SearchImageEnv(ctx, param.ScanResultSearchParam)
 		if err != nil {
 			s.Log.Err(err).Str("imageName", ans.Image.GetImageName()).
@@ -150,13 +146,9 @@ func (s *ImageInfoMetaSrv) addSensitiveData(ctx context.Context,
 
 	if ans.DeployRecord != nil {
 		param.ScanResultSearchParam.UniqueIds = ans.DeployRecord.Sensitive
-		if len(param.ScanResultSearchParam.UniqueIds) == 0 {
-			ans.Sensitive = make([]*imagesecModel.SensitiveFile, 0)
-			return nil
-		}
 	}
 
-	if param.SensitiveEnable && ans.Image.UniqueID > 0 {
+	if param.SensitiveEnable && (ans.Image.UniqueID > 0 || len(param.ScanResultSearchParam.UniqueIds) > 0) {
 		sensitive, cnt, err := s.scanResultDal.SearchSensitive(ctx, param.ScanResultSearchParam)
 		if err != nil {
 			s.Log.Err(err).Str("imageName", ans.Image.GetImageName()).
@@ -175,13 +167,9 @@ func (s *ImageInfoMetaSrv) addPkgData(ctx context.Context,
 
 	if ans.DeployRecord != nil {
 		param.ScanResultSearchParam.UniqueIds = ans.DeployRecord.Pkg
-		if len(param.ScanResultSearchParam.UniqueIds) == 0 {
-			ans.Pkg = make([]*imagesecModel.Pkg, 0)
-			return nil
-		}
 	}
 
-	if param.PkgEnable && ans.Image.UniqueID > 0 {
+	if param.PkgEnable && (ans.Image.UniqueID > 0 || len(param.ScanResultSearchParam.UniqueIds) > 0) {
 		pkg, cnt, err := s.scanResultDal.SearchPkg(ctx, param.ScanResultSearchParam)
 		if err != nil {
 			s.Log.Err(err).Int64("ImageID", imageID).Str("imageName", ans.Image.GetImageName()).
@@ -200,13 +188,9 @@ func (s *ImageInfoMetaSrv) addLicenseData(ctx context.Context,
 
 	if ans.DeployRecord != nil {
 		param.ScanResultSearchParam.UniqueIds = ans.DeployRecord.License
-		if len(param.ScanResultSearchParam.UniqueIds) == 0 {
-			ans.License = make([]*imagesecModel.License, 0)
-			return nil
-		}
 	}
 
-	if param.LicenseEnable && ans.Image.UniqueID > 0 {
+	if param.LicenseEnable && (ans.Image.UniqueID > 0 || len(param.ScanResultSearchParam.UniqueIds) > 0) {
 		license, cnt, err := s.scanResultDal.SearchLicense(ctx, param.ScanResultSearchParam)
 		if err != nil {
 			s.Log.Err(err).Int64("imageID", imageID).Str("imageName", ans.Image.GetImageName()).
@@ -225,13 +209,9 @@ func (s *ImageInfoMetaSrv) addMalwareData(ctx context.Context,
 
 	if ans.DeployRecord != nil {
 		param.ScanResultSearchParam.UniqueIds = ans.DeployRecord.Malware
-		if len(param.ScanResultSearchParam.UniqueIds) == 0 {
-			ans.Malware = make([]*imagesecModel.Malware, 0)
-			return nil
-		}
 	}
 
-	if param.MalwareEnable && ans.Image.UniqueID > 0 {
+	if param.MalwareEnable && (ans.Image.UniqueID > 0 || len(param.ScanResultSearchParam.UniqueIds) > 0) {
 		virus, cnt, err := s.scanResultDal.SearchMalware(ctx, param.ScanResultSearchParam)
 		if err != nil {
 			s.Log.Err(err).Int64("ImageID", imageID).Str("imageName", ans.Image.GetImageName()).
@@ -251,13 +231,9 @@ func (s *ImageInfoMetaSrv) addWebshellData(ctx context.Context,
 
 	if ans.DeployRecord != nil {
 		param.ScanResultSearchParam.UniqueIds = ans.DeployRecord.Webshell
-		if len(param.ScanResultSearchParam.UniqueIds) == 0 {
-			ans.Webshell = make([]*imagesecModel.WebshellView, 0)
-			return nil
-		}
 	}
 
-	if param.WebshellEnable && ans.Image.UniqueID > 0 {
+	if param.WebshellEnable && (ans.Image.UniqueID > 0 || len(param.ScanResultSearchParam.UniqueIds) > 0) {
 		webshell, webshellCnt, err := s.scanResultDal.SearchWebshell(ctx, param.ScanResultSearchParam)
 		if err != nil {
 			s.Log.Err(err).Int64("imageID", imageID).
@@ -280,13 +256,9 @@ func (s *ImageInfoMetaSrv) addVulnData(ctx context.Context,
 
 	if ans.DeployRecord != nil {
 		param.SearchVulnParam.VulnUniqueIds = ans.DeployRecord.Vuln
-		if len(param.SearchVulnParam.VulnUniqueIds) == 0 {
-			ans.Vuln = make([]*imagesecModel.VulnView, 0)
-			return nil
-		}
 	}
 
-	if param.VulnEnable && ans.Image.UniqueID > 0 {
+	if param.VulnEnable && (ans.Image.UniqueID > 0 || len(param.ScanResultSearchParam.UniqueIds) > 0) {
 		vuln, cnt, err := s.scanResultDal.SearchVuln(ctx, param.SearchVulnParam.ToDaoSearchVulnParam())
 		if err != nil {
 			s.Log.Err(err).Int64("ImageID", imageID).Str("imageName", ans.Image.GetImageName()).

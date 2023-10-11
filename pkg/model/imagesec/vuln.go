@@ -26,7 +26,8 @@ type VulnToImage struct {
 }
 
 func (vi *VulnToImage) Same(after *VulnToImage) bool {
-	if vi.ImageUniqueID != after.ImageUniqueID || vi.UniqueTarget != after.UniqueTarget || vi.LayerDigest != after.LayerDigest {
+	if vi.ImageUniqueID != after.ImageUniqueID || vi.UniqueTarget != after.UniqueTarget ||
+		vi.LayerDigest != after.LayerDigest {
 		return false
 	}
 	return true
@@ -281,15 +282,13 @@ func (vi *VulnToPkg) GenUniqueID() uint64 {
 }
 
 func (vi *Vuln) Same(after *Vuln) bool {
-	vi.CheckSum = vi.GenCheckSum()
-	after.CheckSum = after.GenCheckSum()
-	return vi.CheckSum == after.CheckSum
+	if vi.UniqueID == after.UniqueID && vi.CheckSum == after.CheckSum && vi.Flag == after.Flag {
+		return true
+	}
+	return false
 }
 
 func (vi *Vuln) GenCheckSum() uint64 {
-	if vi.CheckSum > 0 {
-		return vi.CheckSum
-	}
 	createdAt, updatedAt, preCheck, uniqueID := vi.CreatedAt, vi.UpdatedAt, vi.CheckSum, vi.UniqueID
 	vi.CreatedAt, vi.UpdatedAt, vi.CheckSum, vi.UniqueID = 0, 0, 0, 0
 
@@ -393,9 +392,10 @@ func (vi *Vuln) Serialize() {
 	}
 
 	vi.AttackPath = vi.GenAttackPath()
-	vi.CheckSum = vi.GenCheckSum()
 	vi.UniqueID = vi.GenUniqueID()
 	vi.Flag = vi.GenFlag()
+
+	vi.CheckSum = vi.GenCheckSum()
 }
 
 func (vi *Vuln) Deserialize() {
