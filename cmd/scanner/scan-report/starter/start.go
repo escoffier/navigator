@@ -72,7 +72,7 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 	registryDal := imagesecStore.NewRegistryDao(config.Rdb)
 	scanResultDal := imagesecStore.NewScanResultDao(config.Rdb)
 	idempotentDal := store.NewIdempotentDao(config.Rdb)
-	imageDal := imagesecStore.NewImageMetaDao(config.Rdb, nil)
+	imageDal := imagesecStore.NewImageMetaDao(config.Rdb)
 	nodeReportDal := imagesecStore.NewNodeReportDao(config.Rdb)
 	scanInstanceDal := imagesecStore.NewScannerInstanceDao(config.Rdb)
 	policyDal := imagesecStore.NewDetectPolicyDao(config.Rdb)

@@ -60,7 +60,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 
 	rdbInstance := store.GetRDBInstance()
 	registryDal := imagesecStore.NewRegistryDao(rdbInstance)
-	nodeImageDal := imagesecStore.NewImageMetaDao(rdbInstance, nil)
+	nodeImageDal := imagesecStore.NewImageMetaDao(rdbInstance)
 	nodeReportDal := imagesecStore.NewNodeReportDao(rdbInstance)
 	policyDal := imagesecStore.NewDetectPolicyDao(rdbInstance)
 	nodeScanResultDal := imagesecStore.NewScanResultDao(rdbInstance)

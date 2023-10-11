@@ -353,7 +353,7 @@ func (s *ImageUpdateSrv) deleteOverdueImage(ctx context.Context) error {
 func (s *ImageUpdateSrv) updateOnlineImage(ctx context.Context) error {
 	updateVuln := metaGlobal.GetVulnUpdate()
 
-	uuids, err := s.imageDal.GetRedisOnlineImageUUID(ctx)
+	uuids, err := s.imageDal.GetOnlineImageUUID(ctx)
 	if err != nil {
 		s.Log.Err(err).Msg("updateOnlineImage")
 		return err
@@ -715,9 +715,7 @@ func (s *ImageUpdateSrv) updateImageSafeFlag(ctx context.Context) error {
 	filter := &model.Filter{Limit: consts.DefaultExportBathSize, SortFiled: "id", SortBy: consts.SortByAsc}
 
 	for {
-		images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{
-			Fields: []string{"id", "flag"}, StartID: startID, Filter: filter,
-		})
+		images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{StartID: startID, Filter: filter})
 		if err != nil {
 			s.Log.Err(err).Msg("SearchImage")
 			return err

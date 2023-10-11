@@ -213,6 +213,7 @@ func (dal *ImageDetectResultDao) CreateDetectBrief(ctx context.Context, imageUni
 
 	data := make([]*imagesecModel.ImageDetectBrief, 0)
 	for i := range data2 {
+		data2[i].ImageUniqueID = imageUniqueID
 		data2[i].Serialize()
 
 		if err := data2[i].Check(); err == nil {

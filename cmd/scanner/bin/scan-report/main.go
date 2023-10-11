@@ -199,7 +199,7 @@ func start(config starter.Config) {
 	updateTaskDal := common.NewUpdateTaskSrv(exportTaskDal, config.RedisCli)
 
 	scanResultDal := imagesecStore.NewScanResultDao(config.Rdb)
-	imageDal := imagesecStore.NewImageMetaDao(config.Rdb, nil)
+	imageDal := imagesecStore.NewImageMetaDao(config.Rdb)
 	userDal := imagesecStore.NewUserDao(config.Rdb)
 
 	policyDal := imagesecStore.NewDetectPolicyDao(config.Rdb)

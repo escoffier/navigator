@@ -68,18 +68,12 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	dal := store.GetScannerOrmDb()
 	rdbInstance := store.GetRDBInstance()
 
-	rc, err := store.GetRedisClient(0)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("get redis client failed")
-		return nil, err
-	}
-
 	registryDal := imagesecStore.NewRegistryDao(rdbInstance)
 	vulnDal := store.NewVulnDao(rdbInstance)
 	ciDal := store.NewCiDao(rdbInstance)
 	webshellDal := store.NewWebsehllDao(rdbInstance)
 	scannerInstanceDal := imagesecStore.NewScannerInstanceDao(rdbInstance)
-	nodeImageDal := imagesecStore.NewImageMetaDao(rdbInstance, nil)
+	nodeImageDal := imagesecStore.NewImageMetaDao(rdbInstance)
 	nodeReportDal := imagesecStore.NewNodeReportDao(rdbInstance)
 	policyDal := imagesecStore.NewDetectPolicyDao(rdbInstance)
 	userDal := imagesecStore.NewUserDao(rdbInstance)
@@ -97,7 +91,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	syncTaskDal := imagesecStore.NewSyncTaskDao(rdbInstance)
 	exportDal := imagesecStore.NewExportTaskDao(rdbInstance)
 	versionDal := store.NewVersionDao(rdbInstance)
-	imageDal := imagesecStore.NewImageMetaDao(rdbInstance, rc)
+	imageDal := imagesecStore.NewImageMetaDao(rdbInstance)
 
 	detectPolicyDal := imagesecStore.NewDetectPolicyDao(rdbInstance)
 	deployRecordDal := imagesecStore.NewDeployDao(rdbInstance)
