@@ -15,8 +15,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 func (s *ImageInfoMetaSrv) addImageMeta(ctx context.Context,
@@ -30,7 +28,7 @@ func (s *ImageInfoMetaSrv) addImageMeta(ctx context.Context,
 	images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{
 		ID: param.ImageId, UniqueId: param.ImageUniqueID})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Int64("ImageID", param.ImageId).Msg("ImageWithCorrelateData ImageBaseDetail")
+		s.Log.Err(err).Int64("ImageID", param.ImageId).Msg("ImageWithCorrelateData ImageBaseDetail")
 		return err
 	}
 	if len(images) == 0 {
@@ -137,7 +135,7 @@ func (s *ImageInfoMetaSrv) addEnvData(ctx context.Context,
 	if param.EnvEnable && ans.Image.UniqueID > 0 {
 		env, cnt, err := s.scanResultDal.SearchImageEnv(ctx, param.ScanResultSearchParam)
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Str("imageName", ans.Image.GetImageName()).
+			s.Log.Err(err).Str("imageName", ans.Image.GetImageName()).
 				Msg("ImageWithCorrelateData SearchImageEnv")
 			return err
 		}
@@ -161,7 +159,7 @@ func (s *ImageInfoMetaSrv) addSensitiveData(ctx context.Context,
 	if param.SensitiveEnable && ans.Image.UniqueID > 0 {
 		sensitive, cnt, err := s.scanResultDal.SearchSensitive(ctx, param.ScanResultSearchParam)
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Str("imageName", ans.Image.GetImageName()).
+			s.Log.Err(err).Str("imageName", ans.Image.GetImageName()).
 				Msg("ImageWithCorrelateData SearchSensitive")
 			return err
 		}
@@ -186,7 +184,7 @@ func (s *ImageInfoMetaSrv) addPkgData(ctx context.Context,
 	if param.PkgEnable && ans.Image.UniqueID > 0 {
 		pkg, cnt, err := s.scanResultDal.SearchPkg(ctx, param.ScanResultSearchParam)
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Int64("ImageID", imageID).Str("imageName", ans.Image.GetImageName()).
+			s.Log.Err(err).Int64("ImageID", imageID).Str("imageName", ans.Image.GetImageName()).
 				Msg("ImageWithCorrelateData SearchPkg")
 			return err
 		}
@@ -211,7 +209,7 @@ func (s *ImageInfoMetaSrv) addLicenseData(ctx context.Context,
 	if param.LicenseEnable && ans.Image.UniqueID > 0 {
 		license, cnt, err := s.scanResultDal.SearchLicense(ctx, param.ScanResultSearchParam)
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Int64("imageID", imageID).Str("imageName", ans.Image.GetImageName()).
+			s.Log.Err(err).Int64("imageID", imageID).Str("imageName", ans.Image.GetImageName()).
 				Msg("ImageWithCorrelateData SearchLicense")
 			return err
 		}
@@ -236,7 +234,7 @@ func (s *ImageInfoMetaSrv) addMalwareData(ctx context.Context,
 	if param.MalwareEnable && ans.Image.UniqueID > 0 {
 		virus, cnt, err := s.scanResultDal.SearchMalware(ctx, param.ScanResultSearchParam)
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Int64("ImageID", imageID).Str("imageName", ans.Image.GetImageName()).
+			s.Log.Err(err).Int64("ImageID", imageID).Str("imageName", ans.Image.GetImageName()).
 				Msg("ImageWithCorrelateData SearchVirus")
 			return err
 		}
@@ -262,7 +260,7 @@ func (s *ImageInfoMetaSrv) addWebshellData(ctx context.Context,
 	if param.WebshellEnable && ans.Image.UniqueID > 0 {
 		webshell, webshellCnt, err := s.scanResultDal.SearchWebshell(ctx, param.ScanResultSearchParam)
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Int64("imageID", imageID).
+			s.Log.Err(err).Int64("imageID", imageID).
 				Str("imageName", ans.Image.GetImageName()).Msg("SearchImageWithScan.SearchWebshell")
 			return err
 		}
@@ -291,7 +289,7 @@ func (s *ImageInfoMetaSrv) addVulnData(ctx context.Context,
 	if param.VulnEnable && ans.Image.UniqueID > 0 {
 		vuln, cnt, err := s.scanResultDal.SearchVuln(ctx, param.SearchVulnParam.ToDaoSearchVulnParam())
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Int64("ImageID", imageID).Str("imageName", ans.Image.GetImageName()).
+			s.Log.Err(err).Int64("ImageID", imageID).Str("imageName", ans.Image.GetImageName()).
 				Msg("ImageWithCorrelateData SearchVuln")
 			return err
 		}
@@ -319,7 +317,7 @@ func (s *ImageInfoMetaSrv) addFinishedSubtaskData(ctx context.Context,
 		subtasks, cnt, err := s.scanTaskDal.SearchScanSubtask(ctx, subtaskParam)
 
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Int64("imageID", imageID).
+			s.Log.Err(err).Int64("imageID", imageID).
 				Str("imageName", ans.Image.GetImageName()).Msg("ImageWithCorrelateData.SearchScanSubtask")
 			return err
 		}
@@ -342,7 +340,7 @@ func (s *ImageInfoMetaSrv) addContainerData(ctx context.Context,
 
 		raw, _, err := s.resourceDal.SearchResources(ctx, conParam)
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Int64("imageID", imageID).Str("imageName", ans.Image.GetImageName()).
+			s.Log.Err(err).Int64("imageID", imageID).Str("imageName", ans.Image.GetImageName()).
 				Msg("ImageWithCorrelateData.SearchResources")
 			return err
 		}
@@ -354,7 +352,7 @@ func (s *ImageInfoMetaSrv) addContainerData(ctx context.Context,
 		if len(clusterKey) > 0 {
 			clusterName, err := s.resourceDal.SearchClusterName(ctx, clusterKey)
 			if err != nil {
-				logging.Get().Err(err).Str("module", "imageMeta").Int64("imageID", imageID).
+				s.Log.Err(err).Int64("imageID", imageID).
 					Str("imageName", ans.Image.GetImageName()).Msg("ImageWithCorrelateData.SearchClusterName")
 			}
 			for i := range raw {
@@ -379,7 +377,7 @@ func (s *ImageInfoMetaSrv) addBaseAppData(ctx context.Context,
 		}
 		appImages, appImageCnt, err := s.ListAppImageOfBase(ctx, appImageParam)
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Int64("imageID", imageID).
+			s.Log.Err(err).Int64("imageID", imageID).
 				Str("imageName", ans.Image.GetImageName()).Msg("ImageWithCorrelateData.ListAppImageOfBase")
 			return err
 		}
@@ -396,7 +394,7 @@ func (s *ImageInfoMetaSrv) addBaseAppData(ctx context.Context,
 
 		baseImages, baseImageCnt, err := s.ListBaseImageOfApp(ctx, baseImageParam)
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Int64("imageID", imageID).
+			s.Log.Err(err).Int64("imageID", imageID).
 				Str("imageName", ans.Image.GetImageName()).Msg("ImageWithCorrelateData.SearchResources")
 			return err
 		}
@@ -416,7 +414,7 @@ func (s *ImageInfoMetaSrv) addTrustedData(ctx context.Context,
 	image := ans.Image
 	trustedImage, err := s.trustedDal.SearchTrustedImage(ctx, store.SearchTrustedImageParam{Digests: []string{image.Digest}})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Int64("imageID", imageID).
+		s.Log.Err(err).Int64("imageID", imageID).
 			Str("imageName", ans.Image.GetImageName()).Msg("ImageWithCorrelateData addTrustedData")
 		return err
 	}
@@ -445,7 +443,7 @@ func (s *ImageInfoMetaSrv) addImageInRegData(ctx context.Context,
 
 	images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{UUIDs: []uint32{image.ImageUUID}})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Int64("imageID", imageID).
+		s.Log.Err(err).Int64("imageID", imageID).
 			Str("imageName", ans.Image.GetImageName()).Msg("ImageWithCorrelateData addImageInRegData")
 		return err
 	}
@@ -469,14 +467,14 @@ func (s *ImageInfoMetaSrv) addNodeInfoData(ctx context.Context,
 	if param.NodeInfoEnable && image.NodeID > 0 {
 		nodes, _, err := s.nodeDal.SearchNodeInfo(ctx, imagesecModel.SearchNodeInfoParam{UniqueIds: []uint64{image.NodeID}})
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Int64("imageID", imageID).
+			s.Log.Err(err).Int64("imageID", imageID).
 				Str("imageName", ans.Image.GetImageName()).Msg("ImageWithCorrelateData.SearchNodeInfo")
 			return err
 		}
 		if len(nodes) > 0 {
 			cluster, err := s.resourceDal.SearchClusterName(ctx, []string{nodes[0].ClusterKey})
 			if err != nil {
-				logging.Get().Err(err).Str("module", "imageMeta").Int64("imageID", imageID).
+				s.Log.Err(err).Int64("imageID", imageID).
 					Str("imageName", ans.Image.GetImageName()).Msg("ImageWithCorrelateData.SearchCluster")
 			}
 			nodes[0].ClusterName = cluster[nodes[0].ClusterKey]
@@ -496,7 +494,7 @@ func (s *ImageInfoMetaSrv) addImageRiskPolicyData(ctx context.Context,
 		brief, err := s.detectResultDal.SearchDetectBrief(ctx, imagesecModel.SearchDetectBriefParam{
 			ImageUniqueID: imageUniqueID, NeedPolicy: true})
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Str("imageName", ans.Image.GetImageName()).
+			s.Log.Err(err).Str("imageName", ans.Image.GetImageName()).
 				Str("imageName", ans.Image.GetImageName()).Msg("ImageWithCorrelateData.SearchDetectBrief")
 			return err
 		}
@@ -519,7 +517,7 @@ func (s *ImageInfoMetaSrv) addImageRiskPolicyData(ctx context.Context,
 		}
 		snapshot, err := s.policyDal.SearchDetectPolicySnapshot(ctx, imagesecModel.SearchSecurityPolicyParam{UniqueIds: uid})
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Str("imageName", ans.Image.GetImageName()).
+			s.Log.Err(err).Str("imageName", ans.Image.GetImageName()).
 				Str("imageName", ans.Image.GetImageName()).Msg("ImageWithCorrelateData.SearchDetectBrief")
 			return err
 		}
@@ -540,7 +538,7 @@ func (s *ImageInfoMetaSrv) addSimplePolicyData(ctx context.Context,
 		brief, err := s.detectResultDal.SearchDetectBrief(ctx, imagesecModel.SearchDetectBriefParam{
 			ImageUniqueID: imageUniqueID})
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Int64("imageID", imageID).
+			s.Log.Err(err).Int64("imageID", imageID).
 				Str("imageName", ans.Image.GetImageName()).Msg("ImageWithCorrelateData.addSimplePolicyData")
 			return err
 		}
@@ -598,7 +596,7 @@ func (s *ImageInfoMetaSrv) addDetectResultData(ctx context.Context,
 				DetectType:    dt,
 			})
 			if err != nil {
-				logging.Get().Err(err).Str("module", "imageMeta").Int64("imageID", imageID).
+				s.Log.Err(err).Int64("imageID", imageID).
 					Str("imageName", ans.Image.GetImageName()).Msg("ImageWithCorrelateData.SearchDetectResult")
 				return err
 			}
@@ -618,7 +616,7 @@ func (s *ImageInfoMetaSrv) addScannerInfoData(ctx context.Context,
 	if param.ScanInstanceEnable && ans.Registry != nil {
 		ins, err := s.scanInstanceDal.SearchScannerInfo(ctx, imagesecModel.ScanInstanceParam{ScannerInstance: ans.Registry.ScannerInstance})
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Int64("imageID", imageID).
+			s.Log.Err(err).Int64("imageID", imageID).
 				Str("imageName", ans.Image.GetImageName()).Msg("ImageWithCorrelateData.SearchScannerInfo")
 			return err
 		}
@@ -669,7 +667,7 @@ func (s *ImageInfoMetaSrv) addRegistryData(ctx context.Context,
 	if param.RegistryEnable && ans.Image.RegID > 0 {
 		registry, _, err := s.registryDal.SearchRegistry(ctx, imagesecModel.SearchRegistryParam{Deleted: consts.FalseString, ID: ans.Image.RegID})
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Int64("imageID", imageID).
+			s.Log.Err(err).Int64("imageID", imageID).
 				Str("imageName", ans.Image.GetImageName()).Msg("ImageWithCorrelateData.SearchRegistry")
 			return err
 		}

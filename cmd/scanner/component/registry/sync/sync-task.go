@@ -2,27 +2,26 @@ package sync
 
 import (
 	"context"
+	"runtime/debug"
 	"time"
-
-	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
-func getRegistryDriver(ctx context.Context, reg imagesecModel.Registry) (warehouse.Registry, error) {
+func (s *RegSyncSrv) getRegistryDriver(ctx context.Context, reg imagesecModel.Registry) (warehouse.Registry, error) {
 
 	drive, err := warehouse.Open(warehouse.RegToRegistryConf(reg))
 	if err != nil {
-		logging.Get().Err(err).Str("module", "RegistryImage").Str("name", reg.Name).Msg("sync image open registry")
+		s.Log.Err(err).Str("name", reg.Name).Msg("sync image open registry")
 		return nil, err
 	}
 	if err := drive.Ping(); err != nil {
-		logging.Get().Err(err).Str("module", "RegistryImage").Str("regName", reg.Name).Msg("connect registry")
+		s.Log.Err(err).Str("regName", reg.Name).Msg("connect registry")
 		return nil, err
 	}
-	logging.Get().Debug().Str("module", "RegistryImage").Interface("reg", reg).Msg("getRegistryDriver")
+	s.Log.Debug().Interface("reg", reg).Msg("getRegistryDriver")
 
 	return drive, nil
 }
@@ -41,7 +40,7 @@ func (s *RegSyncSrv) createFullSyncTask(ctx context.Context) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Msg(" panic recover")
+				s.Log.Error().Str("Stack", string(debug.Stack())).Msg(" panic recover")
 			}
 		}()
 
@@ -50,18 +49,18 @@ func (s *RegSyncSrv) createFullSyncTask(ctx context.Context) {
 		for {
 			<-ticker.C
 
-			logging.Get().Info().Str("module", "RegistryImage").Msg("createFullSyncTask start")
+			s.Log.Info().Msg("createFullSyncTask start")
 			// 每次都去数据库查询，因为数据增加了用户之后要能感知到
 			registries, _, err := s.registryDal.SearchRegistry(ctx, imagesecModel.SearchRegistryParam{Deleted: consts.FalseString})
 			if err != nil {
-				logging.Get().Err(err).Str("module", "RegistryImage").Msg("createFullSyncTask")
+				s.Log.Err(err).Msg("createFullSyncTask")
 				continue
 			}
 
 			for i := range registries {
-				driver, err := getRegistryDriver(ctx, registries[i])
+				driver, err := s.getRegistryDriver(ctx, registries[i])
 				if err != nil {
-					logging.Get().Err(err).Str("module", "RegistryImage").Str("regName", registries[i].Name).Str("regUrl", registries[i].Url).
+					s.Log.Err(err).Str("regName", registries[i].Name).Str("regUrl", registries[i].Url).
 						Msg("AddSyncTask getRegistryDriver")
 					continue
 				}
@@ -74,11 +73,11 @@ func (s *RegSyncSrv) createFullSyncTask(ctx context.Context) {
 				}
 
 				if err := s.syncTaskDal.CreateSyncTask(ctx, &tas); err != nil {
-					logging.Get().Err(err).Str("module", "RegistryImage").Str("regName", registries[i].Name).Str("syncType", imagesecModel.CycleFullSync.String()).
+					s.Log.Err(err).Str("regName", registries[i].Name).Str("syncType", imagesecModel.CycleFullSync.String()).
 						Msg("AddSyncTask CreateSyncTask failure")
 					continue
 				}
-				logging.Get().Info().Str("module", "RegistryImage").Str("syncType", imagesecModel.CycleFullSync.String()).Msg("AddSyncTask end")
+				s.Log.Info().Str("syncType", imagesecModel.CycleFullSync.String()).Msg("AddSyncTask end")
 			}
 		}
 
@@ -90,7 +89,7 @@ func (s *RegSyncSrv) createCronSyncTask(ctx context.Context) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Msg("createCronSyncTask panic recover")
+				s.Log.Error().Str("Stack", string(debug.Stack())).Msg("createCronSyncTask panic recover")
 			}
 		}()
 
@@ -104,11 +103,11 @@ func (s *RegSyncSrv) createCronSyncTask(ctx context.Context) {
 				continue
 			}
 
-			logging.Get().Info().Str("module", "RegistryImage").Msg("createFullSyncTask start")
+			s.Log.Info().Msg("createFullSyncTask start")
 			// 每次都去数据库查询，因为数据增加了用户之后要能感知到
 			registries, _, err := s.registryDal.SearchRegistry(ctx, imagesecModel.SearchRegistryParam{Deleted: consts.FalseString})
 			if err != nil {
-				logging.Get().Err(err).Str("module", "RegistryImage").Msg("createCronSyncTask")
+				s.Log.Err(err).Msg("createCronSyncTask")
 				continue
 			}
 
@@ -119,13 +118,13 @@ func (s *RegSyncSrv) createCronSyncTask(ctx context.Context) {
 				}
 
 				if err := s.syncTaskDal.CreateSyncTask(ctx, &tas); err != nil {
-					logging.Get().Err(err).Str("module", "RegistryImage").Str("regName", registries[i].Name).Str("syncType", imagesecModel.TimingFullSync.String()).
+					s.Log.Err(err).Str("regName", registries[i].Name).Str("syncType", imagesecModel.TimingFullSync.String()).
 						Msg("CreateSyncTask failure")
 					continue
 				}
 			}
 
-			logging.Get().Info().Str("module", "RegistryImage").Str("syncType", imagesecModel.TimingFullSync.String()).Msg("createCronSyncTask")
+			s.Log.Info().Str("syncType", imagesecModel.TimingFullSync.String()).Msg("createCronSyncTask")
 		}
 	}()
 

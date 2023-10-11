@@ -2,14 +2,16 @@ package sync
 
 import (
 	"context"
+	"runtime/debug"
 	"time"
 
-	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
@@ -24,6 +26,7 @@ type RegSyncSrv struct {
 	registryDal imagesecStore.RegistryDal
 	syncTaskDal imagesecStore.SyncTaskDal
 	scanInsDal  imagesecStore.ScanInstanceDal
+	Log         *scannerUtils.LogEvent
 }
 
 type ImageSyncService interface {
@@ -48,6 +51,10 @@ func NewRegSyncSrv(
 		registryDal:   registryDal,
 		syncTaskDal:   syncTaskDal,
 		scanInsDal:    scanInsDal,
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithSubModule("Sync"),
+			scannerUtils.WithModule(consts.ModuleRegistryImage),
+		),
 	}
 	// 开启增量同步
 	s.incSyncRegImage(context.Background())
@@ -84,26 +91,26 @@ func (s *RegSyncSrv) fullSyncRegImage(ctx context.Context) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Msg("fullSyncRegImage recover panic")
+				s.Log.Error().Str("Stack", string(debug.Stack())).Msg("fullSyncRegImage recover panic")
 			}
 		}()
 
 		for task := range s.FullSyncChan {
 			reg := task.Registry
-			logging.Get().Info().Str("module", "RegistryImage").Str("regName", reg.Name).Int64("regID", reg.ID).Msg("fullSyncRegImage start")
+			s.Log.Info().Str("regName", reg.Name).Int64("regID", reg.ID).Msg("fullSyncRegImage start")
 
 			if reg.ScannerInstance != global.ScannerInstance {
 				s.FullSyncQueue.Set(task.RegistryID, imagesecModel.TaskStatusFailedStr)
-				logging.Get().Error().Str("regName", reg.Name).Str("url", reg.Url).Msg("fullSyncRegImage registry not in this cluster")
+				s.Log.Error().Str("regName", reg.Name).Str("url", reg.Url).Msg("fullSyncRegImage registry not in this cluster")
 				continue
 			}
 
-			logging.Get().Info().Str("module", "RegistryImage").Str("regName", reg.Name).Int64("regID", reg.ID).Str("regUrl", reg.Url).
+			s.Log.Info().Str("regName", reg.Name).Int64("regID", reg.ID).Str("regUrl", reg.Url).
 				Msg("fullSyncRegImage start")
 
 			driver, err := warehouse.GetRegistryDriver(reg)
 			if err != nil {
-				logging.Get().Err(err).Str("module", "RegistryImage").Str("regName", reg.Name).Msg("fullSyncRegImage getRegistryDriver")
+				s.Log.Err(err).Str("regName", reg.Name).Msg("fullSyncRegImage getRegistryDriver")
 
 				s.FullSyncQueue.Set(task.RegistryID, imagesecModel.TaskStatusFailedStr)
 
@@ -114,7 +121,7 @@ func (s *RegSyncSrv) fullSyncRegImage(ctx context.Context) {
 
 			s.FullSyncQueue.Set(task.RegistryID, imagesecModel.TaskStatusImageSyncFinishedStr)
 
-			logging.Get().Info().Str("module", "RegistryImage").Str("regName", reg.Name).Int64("regID", reg.ID).
+			s.Log.Info().Str("regName", reg.Name).Int64("regID", reg.ID).
 				Str("regUrl", reg.Url).Msg("fullSyncRegImage end")
 		}
 	}()
@@ -125,22 +132,22 @@ func (s *RegSyncSrv) incSyncRegImage(ctx context.Context) {
 
 	go func() {
 		if r := recover(); r != nil {
-			logging.Get().Error().Msg("fullSyncRegImage recover panic")
+			s.Log.Error().Str("Stack", string(debug.Stack())).Msg("fullSyncRegImage recover panic")
 		}
 
 		for ta := range s.IncSyncChan {
 
 			reg := ta.Registry
 
-			logging.Get().Debug().Str("module", "RegistryImage").Str("regName", reg.Name).
+			s.Log.Debug().Str("regName", reg.Name).
 				Int64("regID", reg.ID).Str("regUrl", reg.Url).Msg("incSyncRegImage start")
 			if reg.ScannerInstance != global.ScannerInstance {
-				logging.Get().Error().Str("regName", reg.Name).Str("url", reg.Url).Msg("incSyncRegImage registry not in this cluster")
+				s.Log.Error().Str("regName", reg.Name).Str("url", reg.Url).Msg("incSyncRegImage registry not in this cluster")
 				continue
 			}
 			if time.Now().Unix()-reg.LastSyncAt/1000 > 60*60*24 {
 				// 增量同步最多同步一天的，防止audit log过多
-				logging.Get().Info().Str("module", "RegistryImage").Str("regName", reg.Name).
+				s.Log.Info().Str("regName", reg.Name).
 					Int64("regID", reg.ID).Int64("LastSyncAt", reg.LastSyncAt).
 					Str("regUrl", reg.Url).Msg("incSyncRegImage LastSyncAt")
 				continue
@@ -148,19 +155,19 @@ func (s *RegSyncSrv) incSyncRegImage(ctx context.Context) {
 
 			driver, err := warehouse.GetRegistryDriver(reg)
 			if err != nil {
-				logging.Get().Err(err).Str("module", "RegistryImage").Str("regName", reg.Name).Msg("SyncRegImage getRegistryDriver")
+				s.Log.Err(err).Str("regName", reg.Name).Msg("SyncRegImage getRegistryDriver")
 				continue
 			}
 
 			if !driver.SupportIncrementalSync(ctx) {
-				logging.Get().Info().Str("module", "RegistryImage").Str("regName", reg.Name).Int64("regID", reg.ID).
+				s.Log.Info().Str("regName", reg.Name).Int64("regID", reg.ID).
 					Str("regUrl", reg.Url).Msg("incSyncRegImage not support incremental sync")
 				continue
 			}
 			_, err = driver.ListImagesWithAuditLog(ctx, s.getExtender(),
 				warehouse.ListImagesAuditLog{StartAt: reg.LastSyncAt / 1000, EndAt: time.Now().Unix()},
 			)
-			logging.Get().Debug().Str("module", "RegistryImage").Str("regName", reg.Name).Int64("regID", reg.ID).
+			s.Log.Debug().Str("regName", reg.Name).Int64("regID", reg.ID).
 				Str("regUrl", reg.Url).Msg("incSyncRegImage end")
 		}
 	}()

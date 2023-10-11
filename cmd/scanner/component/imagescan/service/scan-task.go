@@ -89,7 +89,9 @@ func (s *ScanTaskSrv) CreateImageScanTask(ctx context.Context, imageSearchParam 
 		return err
 	}
 	// 加任务时仓库可能已删除
-	imageSearchParam.CheckRegDeleted = consts.TrueString
+	if imageSearchParam.ImageFromType == imagesecModel.ImageFromRegistry {
+		imageSearchParam.CheckRegDeleted = consts.TrueString
+	}
 	taskInfo.ImageListParam = imageSearchParam
 	imageSearchParam.Filter = model.EmptyFilter().SetLimit(1)
 

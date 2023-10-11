@@ -8,6 +8,7 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
 	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
@@ -19,6 +20,7 @@ type Handler struct {
 	ImageSyncer         ImageSyncer
 	RegistryValidator   RegistryValidator
 	ImageSecRespChan    chan RpcPong
+	Log                 *scannerUtils.LogEvent
 }
 
 func NewHandler(receiver ScanSubtaskReceiver, syncer ImageSyncer, registryValidator RegistryValidator) *Handler {
@@ -27,6 +29,10 @@ func NewHandler(receiver ScanSubtaskReceiver, syncer ImageSyncer, registryValida
 		ImageSyncer:         syncer,
 		RegistryValidator:   registryValidator,
 		ImageSecRespChan:    make(chan RpcPong),
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithSubModule("Handler"),
+			scannerUtils.WithModule(consts.ModuleRpcStream),
+		),
 	}
 	s.SendResponse(context.Background())
 	return s
@@ -37,7 +43,7 @@ func (vi *Handler) OnCreate(s rpcstream.Stream, reqID string, msg protoreflect.P
 	msgType := req.ImageSecReqType
 	msgID := req.RequestID
 
-	logging.Get().Info().Str("module", "stream").Str("msgID", msgID).Str("type", GetRpcType(req.ImageSecReqType)).
+	vi.Log.Info().Str("msgID", msgID).Str("type", GetRpcType(req.ImageSecReqType)).
 		Msg("receive grpc msg")
 
 	switch msgType {
@@ -48,20 +54,20 @@ func (vi *Handler) OnCreate(s rpcstream.Stream, reqID string, msg protoreflect.P
 	case pb.ImageSecReqType_RegistryHealthyCheck:
 		_ = vi.checkReg(s, reqID, msgID, req.Payload)
 	default:
-		logging.Get().Error().Int32("type", int32(msgType)).Msg("not support msg type")
+		vi.Log.Error().Int32("type", int32(msgType)).Msg("not support msg type")
 	}
 }
 
 func (vi *Handler) OnRead(_ rpcstream.Stream, _ string, _ protoreflect.ProtoMessage) {
-	logging.Get().Error().Msg("on-read not implement")
+	vi.Log.Error().Msg("on-read not implement")
 }
 
 func (vi *Handler) OnUpdate(_ rpcstream.Stream, _ string, _ protoreflect.ProtoMessage) {
-	logging.Get().Error().Msg("on-update not implement")
+	vi.Log.Error().Msg("on-update not implement")
 }
 
 func (vi *Handler) OnDelete(_ rpcstream.Stream, _ string, _ protoreflect.ProtoMessage) {
-	logging.Get().Info().Str("module", "stream").Msg("rcp stream delete")
+	vi.Log.Info().Msg("rcp stream delete")
 }
 
 // 扫描任务
@@ -76,7 +82,7 @@ func (vi *Handler) addScanTask(s rpcstream.Stream, reqID, msgID string, payload 
 
 		go func() { vi.ImageSecRespChan <- pong }()
 
-		logging.Get().Err(err).Str("module", "stream").Msg("RpcStream failed to unmarshal payload to scan task")
+		logging.Get().Err(err).Str("module", "stream").Msg("failed to unmarshal payload to scan task")
 		return err
 	}
 
@@ -86,7 +92,7 @@ func (vi *Handler) addScanTask(s rpcstream.Stream, reqID, msgID string, payload 
 
 	go func() { vi.ImageSecRespChan <- pong }()
 
-	logging.Get().Info().Str("module", "stream").
+	vi.Log.Info().
 		Str("msgID", msgID).
 		Str("reqID", reqID).
 		Int64("taskID", subTask.TaskID).
@@ -95,7 +101,7 @@ func (vi *Handler) addScanTask(s rpcstream.Stream, reqID, msgID string, payload 
 		Interface("ImageMeta", subTask.RegImageMeta).
 		Interface("ScanInstance", subTask.ScanInstance).
 		Interface("SensitiveRules", subTask.SensitiveRules).
-		Msg("RpcStream receive registry scan task")
+		Msg("receive registry scan task")
 
 	return nil
 }
@@ -114,7 +120,7 @@ func (vi *Handler) addSyncTask(s rpcstream.Stream, reqID, msgID string, payload 
 		return err
 	}
 	if subTask.SyncType != imagesecModel.CycleIncSync.String() {
-		logging.Get().Info().Str("module", "stream").
+		vi.Log.Info().
 			Str("msgID", msgID).
 			Str("reqID", reqID).
 			Int64("registryID", subTask.RegistryID).
@@ -122,7 +128,7 @@ func (vi *Handler) addSyncTask(s rpcstream.Stream, reqID, msgID string, payload 
 			Interface("regUrl", subTask.Registry.Url).
 			Interface("regUsername", subTask.Registry.Username).
 			Interface("ScanInsInfo", subTask.ScanInsInfo).
-			Msg("RpcStream receive rpc addSyncTask sync task")
+			Msg("receive rpc addSyncTask sync task")
 	}
 
 	status := vi.ImageSyncer.SyncImage(context.Background(), subTask)
@@ -145,13 +151,13 @@ func (vi *Handler) SendResponse(ctx context.Context) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Msg("SenResponse recover panic")
+				vi.Log.Error().Msg("SenResponse recover panic")
 			}
 		}()
 
 		for res := range vi.ImageSecRespChan {
 			if err := res.Stream.SendResponse(res.RegID, res.ImageSecResp); err != nil {
-				logging.Get().Err(err).Str("module", "stream").Msg("RpcStream SendResponse")
+				logging.Get().Err(err).Str("module", "stream").Msg("SendResponse")
 			}
 		}
 	}()
@@ -170,24 +176,24 @@ func (vi *Handler) checkReg(s rpcstream.Stream, reqID, msgID string, payload []b
 
 		go func() { vi.ImageSecRespChan <- pong }()
 
-		logging.Get().Err(err).Str("module", "stream").Str("payload", string(payload)).Msg("RpcStream ValidateRegistry failed to unmarshal payload to reg")
+		logging.Get().Err(err).Str("module", "stream").Str("payload", string(payload)).Msg("ValidateRegistry failed to unmarshal payload to reg")
 		return err
 	}
-	logging.Get().Info().Str("module", "stream").
+	vi.Log.Info().
 		Str("msgID", msgID).
 		Str("reqID", reqID).
 		Int64("registryID", reg.ID).
 		Str("regName", reg.Name).
 		Str("regUrl", reg.Url).
 		Str("regUser", reg.Username).
-		Msg("RpcStream receive rpc checkReg task")
+		Msg("receive rpc checkReg task")
 
 	err = vi.RegistryValidator.ValidateRegistry(context.Background(), reg)
 
 	if err != nil {
 		pong.ImageSecResp = &pb.ImageSecResp{Status: consts.StreamStatusRegNotOK, StatusMessage: err.Error()}
 		go func() { vi.ImageSecRespChan <- pong }()
-		logging.Get().Err(err).Str("module", "stream").Interface("reg", reg).Msg("RpcStream ValidateRegistry fail")
+		logging.Get().Err(err).Str("module", "stream").Interface("reg", reg).Msg("ValidateRegistry fail")
 		return err
 	}
 
@@ -195,6 +201,6 @@ func (vi *Handler) checkReg(s rpcstream.Stream, reqID, msgID string, payload []b
 
 	go func() { vi.ImageSecRespChan <- pong }()
 
-	logging.Get().Info().Str("module", "stream").Interface("reg", reg).Str("regType", reg.RegType).Msg("RpcStream ValidateRegistry succeed")
+	vi.Log.Info().Interface("reg", reg).Str("regType", reg.RegType).Msg("ValidateRegistry succeed")
 	return nil
 }

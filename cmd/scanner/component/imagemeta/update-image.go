@@ -12,6 +12,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -37,6 +38,7 @@ type ImageUpdateSrv struct {
 	imageDetectSrv  detect.ImageDetectTaskService
 	TrustedDigest   map[string]struct{} // 可信镜像的 digest
 	OnlineUUID      map[uint32]struct{} // 在线镜像 UUID
+	Log             *scannerUtils.LogEvent
 }
 
 func NewImageUpdateSrv(
@@ -70,6 +72,10 @@ func NewImageUpdateSrv(
 		imageCacheDal:   imageCacheDal,
 		TrustedDigest:   make(map[string]struct{}),
 		OnlineUUID:      make(map[uint32]struct{}),
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithSubModule("ImageUpdate"),
+			scannerUtils.WithModule(consts.ModelImageMeta),
+		),
 	}
 	return &srv
 }
@@ -78,14 +84,14 @@ func (s *ImageUpdateSrv) ContinueUpdate(ctx context.Context) error {
 
 	update := os.Getenv("CONTINUE_UPDATE_IMAGE")
 	if update == consts.FalseString {
-		logging.Get().Info().Str("module", "imageMeta").Msg("Close update image")
+		s.Log.Info().Msg("Close update image")
 		return nil
 	}
 
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
-				logging.Get().Error().Msg("ContinueUpdate recover")
+				s.Log.Error().Msg("ContinueUpdate recover")
 			}
 		}()
 		ticker := time.NewTicker(time.Minute * 5)
@@ -103,7 +109,7 @@ func (s *ImageUpdateSrv) ContinueUpdate(ctx context.Context) error {
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
-				logging.Get().Error().Msg("ContinueUpdate recover")
+				s.Log.Error().Msg("ContinueUpdate recover")
 			}
 		}()
 		ticker := time.NewTicker(time.Hour)
@@ -118,7 +124,7 @@ func (s *ImageUpdateSrv) ContinueUpdate(ctx context.Context) error {
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
-				logging.Get().Error().Msg("ContinueUpdate recover")
+				s.Log.Error().Msg("ContinueUpdate recover")
 			}
 		}()
 
@@ -142,7 +148,7 @@ func (s *ImageUpdateSrv) cleanAfterDeleteRegistry(ctx context.Context) error {
 		imagesecModel.SearchRegistryParam{Deleted: consts.TrueString, Filter: model.EmptyFilter().SetLimit(consts.DefaultMaxLimit)})
 
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("cleanAfterDeleteRegistry SearchRegistry")
+		s.Log.Err(err).Msg("cleanAfterDeleteRegistry SearchRegistry")
 		return err
 	}
 	if len(registries) == 0 {
@@ -152,12 +158,12 @@ func (s *ImageUpdateSrv) cleanAfterDeleteRegistry(ctx context.Context) error {
 		reg := registries[j]
 
 		if err := s.updatePolicyAfterDeleteReg(ctx, reg.ID); err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Int64("regID", reg.ID).
+			s.Log.Err(err).Int64("regID", reg.ID).
 				Msg("cleanAfterDeleteRegistry updatePolicy")
 			return err
 		}
 		if err := s.updateScanConfigAfterDeleteReg(ctx, reg.ID); err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Int64("regID", reg.ID).
+			s.Log.Err(err).Int64("regID", reg.ID).
 				Msg("cleanAfterDeleteRegistry updateScanConfig")
 			return err
 		}
@@ -170,7 +176,7 @@ func (s *ImageUpdateSrv) cleanAfterDeleteRegistry(ctx context.Context) error {
 				RegIds: []int64{reg.ID}, ImageFromType: imagesecModel.ImageFromRegistry,
 				Fields: []string{"id", "flag", "unique_id"}, StartID: startID, Filter: filter})
 			if err != nil {
-				logging.Get().Err(err).Str("module", "imageMeta").Int64("regID", reg.ID).
+				s.Log.Err(err).Int64("regID", reg.ID).
 					Msg("cleanAfterDeleteRegistry DeleteImage")
 				return err
 			}
@@ -181,7 +187,7 @@ func (s *ImageUpdateSrv) cleanAfterDeleteRegistry(ctx context.Context) error {
 
 			for i := range images {
 				if err := s.clearImage(ctx, images[i]); err != nil {
-					logging.Get().Err(err).Str("module", "imageMeta").Int64("imageID", images[i].ID).
+					s.Log.Err(err).Int64("imageID", images[i].ID).
 						Msg("cleanAfterDeleteRegistry DeleteImage")
 					return err
 				}
@@ -199,7 +205,7 @@ func (s *ImageUpdateSrv) updateTrustedImage(ctx context.Context) error {
 
 	trusted, err := s.trustedDal.SearchTrustedImage(ctx, store.SearchTrustedImageParam{IsTrusted: consts.TrueString})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("updateTrustedImage SearchTrustedImage")
+		s.Log.Err(err).Msg("updateTrustedImage SearchTrustedImage")
 		return err
 	}
 	trustedDigestMap := make(map[string]bool)
@@ -210,12 +216,12 @@ func (s *ImageUpdateSrv) updateTrustedImage(ctx context.Context) error {
 	}
 	changed, tr := trustedChanged(s.TrustedDigest, trustedDigest)
 	if !changed {
-		logging.Get().Info().Str("module", "imageMeta").Int("TrustedDigest", len(trustedDigest)).
+		s.Log.Info().Int("TrustedDigest", len(trustedDigest)).
 			Msg("updateTrustedImage not changed")
 		return nil
 	}
 	s.TrustedDigest = tr
-	logging.Get().Info().Str("module", "imageMeta").Int("TrustedDigest", len(trustedDigest)).
+	s.Log.Info().Int("TrustedDigest", len(trustedDigest)).
 		Msg("updateTrustedImage find trusted digest")
 	// NotTrusted ---> trusted
 	if len(trustedDigest) > 0 {
@@ -231,7 +237,7 @@ func (s *ImageUpdateSrv) updateTrustedImage(ctx context.Context) error {
 				Filter:  filter,
 			})
 			if err != nil {
-				logging.Get().Err(err).Str("module", "imageMeta").Msg("updateTrustedImage SearchImage")
+				s.Log.Err(err).Msg("updateTrustedImage SearchImage")
 				return err
 			}
 			if len(images) == 0 {
@@ -254,13 +260,13 @@ func (s *ImageUpdateSrv) updateTrustedImage(ctx context.Context) error {
 						ID:      images[i].ID,
 						Updater: updater,
 					}); err != nil {
-					logging.Get().Err(err).Str("module", "imageMeta").Int64("imageID", images[i].ID).
+					s.Log.Err(err).Int64("imageID", images[i].ID).
 						Msg("updateTrustedImage UpdateImage")
 					return err
 				}
 			}
 		}
-		logging.Get().Info().Str("module", "imageMeta").Int("change", cnt).
+		s.Log.Info().Int("change", cnt).
 			Msg("updateTrustedImage NotTrusted->trusted")
 	}
 
@@ -275,7 +281,7 @@ func (s *ImageUpdateSrv) updateTrustedImage(ctx context.Context) error {
 			Filter:  filter,
 		})
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Msg("updateTrustedImage ListImageWithScanInfo")
+			s.Log.Err(err).Msg("updateTrustedImage ListImageWithScanInfo")
 			return err
 		}
 		if len(images) == 0 {
@@ -300,14 +306,14 @@ func (s *ImageUpdateSrv) updateTrustedImage(ctx context.Context) error {
 				ID:      images[i].ID,
 				Updater: updater,
 			}); err != nil {
-				logging.Get().Err(err).Str("module", "imageMeta").Int64("imageID", images[i].ID).
+				s.Log.Err(err).Int64("imageID", images[i].ID).
 					Msg("updateTrustedImage UpdateImage")
 				return err
 			}
 		}
 	}
 
-	logging.Get().Info().Str("module", "imageMeta").Int("changed", cnt).
+	s.Log.Info().Int("changed", cnt).
 		Msg("updateTrustedImage trusted-->untrusted")
 	return nil
 }
@@ -316,7 +322,7 @@ func (s *ImageUpdateSrv) updateTrustedImage(ctx context.Context) error {
 func (s *ImageUpdateSrv) deleteOverdueImage(ctx context.Context) error {
 	config, err := s.configDal.GetScanImageConfig(ctx, imagesecModel.ConfigTypeNodeScanImage)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("deleteOverdueImage GetScanImageConfig")
+		s.Log.Err(err).Msg("deleteOverdueImage GetScanImageConfig")
 		return err
 	}
 
@@ -325,20 +331,20 @@ func (s *ImageUpdateSrv) deleteOverdueImage(ctx context.Context) error {
 	images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{LessHeartbeat: sub,
 		Fields: []string{"id", "unique_id"}})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("deleteOverdueImage SearchImage")
+		s.Log.Err(err).Msg("deleteOverdueImage SearchImage")
 		return err
 	}
-	logging.Get().Info().Str("module", "imageMeta").Int("images", len(images)).
+	s.Log.Info().Int("images", len(images)).
 		Msg("deleteOverdueImage find overdue image")
 
 	for i := range images {
 		if err := s.clearImage(ctx, images[i]); err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Int64("imageID", images[i].ID).
+			s.Log.Err(err).Int64("imageID", images[i].ID).
 				Msg("deleteOverdueImage DeleteImage")
 			return err
 		}
 	}
-	logging.Get().Info().Str("module", "imageMeta").Int("images", len(images)).
+	s.Log.Info().Int("images", len(images)).
 		Msg("deleteOverdueImage find overdue image and deleted")
 	return nil
 }
@@ -349,7 +355,7 @@ func (s *ImageUpdateSrv) updateOnlineImage(ctx context.Context) error {
 
 	uuids, err := s.imageDal.GetRedisOnlineImageUUID(ctx)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("updateOnlineImage")
+		s.Log.Err(err).Msg("updateOnlineImage")
 		return err
 	}
 	logging.Get().Info().Str("module", consts.ModelImageMeta).Int("uuidCnt", len(uuids)).
@@ -369,7 +375,7 @@ func (s *ImageUpdateSrv) updateOnlineImage(ctx context.Context) error {
 
 			image, _, err := s.imageDal.SearchImage(ctx, param)
 			if err != nil {
-				logging.Get().Err(err).Str("module", "imageMeta").Msg("updateOnlineImage")
+				s.Log.Err(err).Msg("updateOnlineImage")
 				return err
 			}
 			if len(image) == 0 {
@@ -384,13 +390,13 @@ func (s *ImageUpdateSrv) updateOnlineImage(ctx context.Context) error {
 
 	add, sub, nw := onlineUUID(s.OnlineUUID, uuids)
 	if len(add) == 0 && len(sub) == 0 {
-		logging.Get().Info().Str("module", "imageMeta").Int("add", len(add)).Int("sub", len(sub)).
+		s.Log.Info().Int("add", len(add)).Int("sub", len(sub)).
 			Int("online", len(s.OnlineUUID)).Msg("updateOnlineImage")
 		return nil
 	}
 	s.OnlineUUID = nw
 
-	logging.Get().Info().Str("module", "imageMeta").Int("add", len(add)).Int("sub", len(sub)).
+	s.Log.Info().Int("add", len(add)).Int("sub", len(sub)).
 		Int("online", len(s.OnlineUUID)).Msg("updateOnlineImage")
 
 	// NotOnline ---> online
@@ -400,11 +406,11 @@ func (s *ImageUpdateSrv) updateOnlineImage(ctx context.Context) error {
 			Fields: []string{"id", "flag", "image_uuid", "unique_id"},
 		})
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Msg("updateOnlineImage SearchImage")
+			s.Log.Err(err).Msg("updateOnlineImage SearchImage")
 			return err
 		}
 
-		logging.Get().Debug().Str("module", "imageMeta").Uint32("uuid", add[j]).
+		s.Log.Debug().Uint32("uuid", add[j]).
 			Int("imageCnt", len(images)).Msg("updateOnlineImage search online image")
 		for i := range images {
 			flag := util.SetBit0(util.SetBit1(images[i].Flag, imagesecModel.FlagImageOnline), imagesecModel.FlagImageNotOnline)
@@ -421,7 +427,7 @@ func (s *ImageUpdateSrv) updateOnlineImage(ctx context.Context) error {
 					ID:      images[i].ID,
 					Updater: updater,
 				}); err != nil {
-				logging.Get().Err(err).Str("module", "imageMeta").Int64("imageID", images[i].ID).
+				s.Log.Err(err).Int64("imageID", images[i].ID).
 					Msg("updateOnlineImage UpdateImage")
 				return err
 			}
@@ -435,11 +441,11 @@ func (s *ImageUpdateSrv) updateOnlineImage(ctx context.Context) error {
 			Fields: []string{"id", "flag", "image_uuid"},
 		})
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Msg("updateOnlineImage SearchImage")
+			s.Log.Err(err).Msg("updateOnlineImage SearchImage")
 			return err
 		}
 
-		logging.Get().Debug().Str("module", "imageMeta").Uint32("uuid", sub[j]).
+		s.Log.Debug().Uint32("uuid", sub[j]).
 			Int("images", len(images)).Msg("updateOnlineImage search online image")
 		for i := range images {
 			flag := util.SetBit1(util.SetBit0(images[i].Flag, imagesecModel.FlagImageOnline), imagesecModel.FlagImageNotOnline)
@@ -457,13 +463,13 @@ func (s *ImageUpdateSrv) updateOnlineImage(ctx context.Context) error {
 					ID:      images[i].ID,
 					Updater: updater,
 				}); err != nil {
-				logging.Get().Err(err).Str("module", "imageMeta").Int64("imageID", images[i].ID).
+				s.Log.Err(err).Int64("imageID", images[i].ID).
 					Msg("updateOnlineImage UpdateImage")
 				return err
 			}
 		}
 	}
-	logging.Get().Info().Str("module", "imageMeta").Msg("updateOnlineImage online --> notOnline succeed")
+	s.Log.Info().Msg("updateOnlineImage online --> notOnline succeed")
 	return nil
 }
 
@@ -473,7 +479,7 @@ func (s *ImageUpdateSrv) updateImageInReg(ctx context.Context) error {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Msg("updateImageInReg recover panic")
+				s.Log.Error().Msg("updateImageInReg recover panic")
 			}
 		}()
 
@@ -489,7 +495,7 @@ func (s *ImageUpdateSrv) updateImageInReg(ctx context.Context) error {
 				UUIDs:         []uint32{dig},
 			})
 			if err != nil {
-				logging.Get().Err(err).Str("module", "imageMeta").Msg("updateImageInReg SearchImage")
+				s.Log.Err(err).Msg("updateImageInReg SearchImage")
 				continue
 			}
 			for i := range images {
@@ -505,11 +511,11 @@ func (s *ImageUpdateSrv) updateImageInReg(ctx context.Context) error {
 					Updater: map[string]interface{}{"flag": flag},
 				})
 				if err != nil {
-					logging.Get().Err(err).Str("module", "imageMeta").Msg("updateImageInReg UpdateImage")
+					s.Log.Err(err).Msg("updateImageInReg UpdateImage")
 					continue
 				}
 			}
-			logging.Get().Info().Str("module", "imageMeta").Uint32("imageUUID", dig).
+			s.Log.Info().Uint32("imageUUID", dig).
 				Msg("updateImageInReg update node image in registry")
 			// 检测
 			imageSearchParam := imagesecModel.ImageSearchApiParam{
@@ -525,7 +531,7 @@ func (s *ImageUpdateSrv) updateImageInReg(ctx context.Context) error {
 				return
 			}
 
-			logging.Get().Info().Str("module", "imageMeta").Str("digest", im.Digest).
+			s.Log.Info().Str("digest", im.Digest).
 				Msg("updateImageInReg create detect task update node image in registry")
 		}
 
@@ -541,19 +547,19 @@ func (s *ImageUpdateSrv) cleanDeletedDetectPolicy(ctx context.Context) error {
 		Deleted: consts.TrueString, Default: consts.FalseString,
 		Filter: &model.Filter{Limit: consts.DefaultMaxLimit}})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("cleanDeletedDetectPolicy GetScanImageConfig")
+		s.Log.Err(err).Msg("cleanDeletedDetectPolicy GetScanImageConfig")
 		return err
 	}
 
 	if len(policy) == 0 {
 		return nil
 	}
-	logging.Get().Info().Str("module", "imageMeta").Int("policy", len(policy)).
+	s.Log.Info().Int("policy", len(policy)).
 		Msg("cleanDeletedDetectPolicy find deleted detect policy")
 	for i := range policy {
 		if policy[i].PolicyType != imagesecModel.ConfigTypeDeploy {
 			if err := s.deletePolicyDetect(ctx, policy[i].ID); err != nil {
-				logging.Get().Err(err).Str("module", "imageMeta").Int64("scanConfigID", policy[i].ID).
+				s.Log.Err(err).Int64("scanConfigID", policy[i].ID).
 					Msg("cleanDeletedDetectPolicy deletePolicyDetect")
 				return err
 			}
@@ -563,11 +569,11 @@ func (s *ImageUpdateSrv) cleanDeletedDetectPolicy(ctx context.Context) error {
 			ID:      policy[i].ID,
 			Updater: map[string]interface{}{"deleted_at": imagesecModel.DeletePolicyAndDeletedDetectResult},
 		}); err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Int64("policyID", policy[i].ID).Str("policyName", policy[i].Name).
+			s.Log.Err(err).Int64("policyID", policy[i].ID).Str("policyName", policy[i].Name).
 				Msg("deleteDetectResultAfterDeleteDetectPolicy UpdateDetectPolicy")
 			return err
 		}
-		logging.Get().Info().Str("module", "imageMeta").Str("policy", policy[i].Name).
+		s.Log.Info().Str("policy", policy[i].Name).
 			Msg("cleanDeletedDetectPolicy succeed")
 	}
 	return nil
@@ -589,12 +595,12 @@ func (s *ImageUpdateSrv) deletePolicyDetect(ctx context.Context, configID int64)
 				Fields:     []string{"id"},
 			})
 			if err != nil {
-				logging.Get().Err(err).Str("module", "imageMeta").
+				s.Log.Err(err).
 					Msg("cleanDeletedDetectPolicy SearchDetectResult")
 				return err
 			}
 			if len(result) == 0 {
-				logging.Get().Info().Str("module", "imageMeta").
+				s.Log.Info().
 					Msg("cleanDeletedDetectPolicy SearchDetectResult has no result")
 				break
 			}
@@ -606,14 +612,14 @@ func (s *ImageUpdateSrv) deletePolicyDetect(ctx context.Context, configID int64)
 			detectParam := imagesecModel.SearchDetectResultParam{Ids: resultIds, DetectType: det}
 
 			if err := s.detectResultDal.DeleteDetectResult(ctx, detectParam); err != nil {
-				logging.Get().Err(err).Str("module", "imageMeta").
+				s.Log.Err(err).
 					Msg("cleanDeletedDetectPolicy DeleteDetectResult")
 				return err
 			}
-			logging.Get().Info().Str("module", "imageMeta").Str("detectType", det).
+			s.Log.Info().Str("detectType", det).
 				Int("resultIds", len(resultIds)).Msg("DeleteDetectResult succeed")
 		}
-		logging.Get().Info().Str("module", "imageMeta").Str("detectType", det).
+		s.Log.Info().Str("detectType", det).
 			Msg("cleanDeletedDetectPolicy deletePolicyDetect succeed")
 	}
 
@@ -626,11 +632,11 @@ func (s *ImageUpdateSrv) deletePolicyDetect(ctx context.Context, configID int64)
 			Fields:   []string{"id", "flag"},
 		})
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Msg("SearchDetectBrief")
+			s.Log.Err(err).Msg("SearchDetectBrief")
 			return err
 		}
 		if len(result) == 0 {
-			logging.Get().Info().Str("module", "imageMeta").Msg("SearchDetectBrief has no result")
+			s.Log.Info().Msg("SearchDetectBrief has no result")
 			break
 		}
 		startID = result[len(result)-1].ID
@@ -639,13 +645,13 @@ func (s *ImageUpdateSrv) deletePolicyDetect(ctx context.Context, configID int64)
 			resultIds = append(resultIds, result[i].ID)
 		}
 		if err := s.detectResultDal.DeleteDetectBrief(ctx, imagesecModel.SearchDetectBriefParam{Ids: resultIds}); err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Msg("DeleteDetectBrief")
+			s.Log.Err(err).Msg("DeleteDetectBrief")
 			return err
 		}
-		logging.Get().Info().Str("module", "imageMeta").Int("resultIds", len(resultIds)).
+		s.Log.Info().Int("resultIds", len(resultIds)).
 			Msg("cleanDeletedDetectPolicy DeleteDetectBrief succeed")
 	}
-	logging.Get().Info().Str("module", "imageMeta").
+	s.Log.Info().
 		Msg("cleanDeletedDetectPolicy DeleteDetectBrief succeed")
 	return nil
 }
@@ -656,11 +662,11 @@ func (s *ImageUpdateSrv) updateSafeFlag(ctx context.Context) error {
 	// 等待所有已删除的策略先删除检测结果
 	policy, _, err := s.policyDal.SearchDetectPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{Deleted: consts.TrueString})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("updateSafeFlag SearchDetectPolicy")
+		s.Log.Err(err).Msg("updateSafeFlag SearchDetectPolicy")
 		return err
 	}
 
-	logging.Get().Info().Str("module", "imageMeta").Int("policy", len(policy)).
+	s.Log.Info().Int("policy", len(policy)).
 		Msg("updateSafeFlag find detect policy")
 
 	if len(policy) == 0 {
@@ -676,27 +682,27 @@ func (s *ImageUpdateSrv) updateSafeFlag(ctx context.Context) error {
 		}
 	}
 	if !ready {
-		logging.Get().Info().Str("module", "imageMeta").Int("policy", len(policy)).Msg("updateSafeFlag " +
+		s.Log.Info().Int("policy", len(policy)).Msg("updateSafeFlag " +
 			"find deleted detect policy but not ready")
 		return nil
 	}
 
-	logging.Get().Info().Str("module", "imageMeta").Int("policy", len(policy)).Msg("updateSafeFlag " +
+	s.Log.Info().Int("policy", len(policy)).Msg("updateSafeFlag " +
 		"find deleted detect policy and ready update image")
 
 	if err := s.updateImageSafeFlag(ctx); err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("updateSafeFlag updateImageSafeFlag")
+		s.Log.Err(err).Msg("updateSafeFlag updateImageSafeFlag")
 		return err
 	}
-	logging.Get().Info().Str("module", "imageMeta").Msg("updateSafeFlag updateImageSafeFlag succeed")
+	s.Log.Info().Msg("updateSafeFlag updateImageSafeFlag succeed")
 	// 更新完成之后就彻底删除策略
 	for i := range configIds {
 		if err := s.policyDal.DeleteDetectPolicy(ctx, configIds[i]); err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Msg("updateSafeFlag DeleteDetectPolicy")
+			s.Log.Err(err).Msg("updateSafeFlag DeleteDetectPolicy")
 			return err
 		}
 	}
-	logging.Get().Info().Str("module", "imageMeta").Interface("policyIds", configIds).
+	s.Log.Info().Interface("policyIds", configIds).
 		Msg("updateSafeFlag update image " +
 			"safe flag adn delete deleted delete policy")
 	return nil
@@ -713,7 +719,7 @@ func (s *ImageUpdateSrv) updateImageSafeFlag(ctx context.Context) error {
 			Fields: []string{"id", "flag"}, StartID: startID, Filter: filter,
 		})
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Msg("SearchImage")
+			s.Log.Err(err).Msg("SearchImage")
 			return err
 		}
 		if len(images) == 0 {
@@ -725,7 +731,7 @@ func (s *ImageUpdateSrv) updateImageSafeFlag(ctx context.Context) error {
 			brief, err := s.detectResultDal.SearchDetectBrief(ctx, imagesecModel.SearchDetectBriefParam{
 				ImageUniqueID: images[i].UniqueID})
 			if err != nil {
-				logging.Get().Err(err).Str("module", "imageMeta").Int64("imageID", images[i].ID).
+				s.Log.Err(err).Int64("imageID", images[i].ID).
 					Msg("SearchDetectBrief")
 				return err
 			}
@@ -738,7 +744,7 @@ func (s *ImageUpdateSrv) updateImageSafeFlag(ctx context.Context) error {
 				ID:      images[i].ID,
 				Updater: updater,
 			}); err != nil {
-				logging.Get().Err(err).Str("module", "imageMeta").Int64("ImageID", images[i].ID).
+				s.Log.Err(err).Int64("ImageID", images[i].ID).
 					Msg("UpdateImage UpdateImage")
 				return err
 			}
@@ -754,34 +760,34 @@ func (s *ImageUpdateSrv) clearImage(ctx context.Context, image *imagesecModel.Im
 
 	// 扫描结果
 	if err := s.scanIssueDal.CreateMalwareToImage(ctx, imagesecModel.CreateMalwareToImageParam{ImageUniqueID: image.UniqueID}); err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("clearImage malware")
+		s.Log.Err(err).Msg("clearImage malware")
 		return err
 	}
 
 	if err := s.scanIssueDal.CreateSensitiveToImage(ctx, imagesecModel.CreateSensitiveToImageParam{ImageUniqueID: image.UniqueID}); err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("clearImage sensitive file")
+		s.Log.Err(err).Msg("clearImage sensitive file")
 		return err
 	}
 	if err := s.scanIssueDal.CreatePkgToImage(ctx, imagesecModel.CreatePkgToImageParam{ImageUniqueID: image.UniqueID}); err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("clearImage pkg")
+		s.Log.Err(err).Msg("clearImage pkg")
 		return err
 	}
 	if err := s.scanIssueDal.CreateVulnToImage(ctx, imagesecModel.CreateVulnToImageParam{ImageUniqueID: image.UniqueID}); err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("clearImage vuln")
+		s.Log.Err(err).Msg("clearImage vuln")
 		return err
 	}
 	if err := s.scanIssueDal.CreateWebshellToImage(ctx, imagesecModel.CreateWebshellToImageParam{ImageUniqueID: image.UniqueID}); err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("clearImage webshell")
+		s.Log.Err(err).Msg("clearImage webshell")
 		return err
 	}
 	if err := s.scanIssueDal.CreateLicenseToImage(ctx, imagesecModel.CreateLicenseToImageParam{ImageUniqueID: image.UniqueID}); err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("clearImage license")
+		s.Log.Err(err).Msg("clearImage license")
 		return err
 	}
 
 	// 检测任务
 	if err := s.detectTaskDal.DeleteDetectSubtask(ctx, imagesecModel.SearchTaskParam{ImageUniqueID: image.UniqueID}); err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("clearImage")
+		s.Log.Err(err).Msg("clearImage")
 		return err
 	}
 
@@ -791,18 +797,18 @@ func (s *ImageUpdateSrv) clearImage(ctx context.Context, image *imagesecModel.Im
 			ImageUniqueID: image.UniqueID,
 			DetectType:    det,
 		}); err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Msg("clearImage")
+			s.Log.Err(err).Msg("clearImage")
 			return err
 		}
 	}
 	// 注意：扫描任务不清理
 	// 镜像
 	if err := s.imageDal.DeleteImage(ctx, image.ID); err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("clearImage")
+		s.Log.Err(err).Msg("clearImage")
 		return err
 	}
 
-	logging.Get().Info().Str("module", "imageMeta").Msg("clearImage end")
+	s.Log.Info().Msg("clearImage end")
 	return nil
 }
 
@@ -851,7 +857,7 @@ func onlineUUID(pre map[uint32]struct{}, now []uint32) ([]uint32, []uint32, map[
 func (s *ImageUpdateSrv) updatePolicyAfterDeleteReg(ctx context.Context, regID int64) error {
 	policy, _, err := s.policyDal.SearchDetectPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("SearchDetectPolicy")
+		s.Log.Err(err).Msg("SearchDetectPolicy")
 		return err
 	}
 	for i := range policy {
@@ -871,7 +877,7 @@ func (s *ImageUpdateSrv) updatePolicyAfterDeleteReg(ctx context.Context, regID i
 			param := imagesecModel.UpdateSecurityPolicyParam{
 				ID: po.ID, Updater: po.ToUpdater()}
 			if err := s.policyDal.UpdateDetectPolicy(ctx, param); err != nil {
-				logging.Get().Err(err).Str("module", "imageMeta").Msg("UpdateDetectPolicy")
+				s.Log.Err(err).Msg("UpdateDetectPolicy")
 				return err
 			}
 		}
@@ -882,7 +888,7 @@ func (s *ImageUpdateSrv) updatePolicyAfterDeleteReg(ctx context.Context, regID i
 func (s *ImageUpdateSrv) updateScanConfigAfterDeleteReg(ctx context.Context, regID int64) error {
 	policy, err := s.configDal.SearchImageConfig(ctx)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("SearchImageConfig")
+		s.Log.Err(err).Msg("SearchImageConfig")
 		return err
 	}
 	for i := range policy {
@@ -902,7 +908,7 @@ func (s *ImageUpdateSrv) updateScanConfigAfterDeleteReg(ctx context.Context, reg
 			data.ImageScanConfig = po
 
 			if err := s.configDal.UpdateScanImageConfig(ctx, po.ID, data); err != nil {
-				logging.Get().Err(err).Str("module", "imageMeta").Msg("UpdateScanImageConfig")
+				s.Log.Err(err).Msg("UpdateScanImageConfig")
 				return err
 			}
 		}

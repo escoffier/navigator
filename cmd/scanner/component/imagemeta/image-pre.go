@@ -6,40 +6,44 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/security-rd/go-pkg/logging"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
-type PreLibImageSrv struct {
+type PreRegImageSrv struct {
 	imageDal      store.ImageDal
 	registryDal   imagesecStore.RegistryDal
 	vulnDal       store.VulnDalInterface
 	scanResultDal store.ImageScanResultDal
+	Log           *scannerUtils.LogEvent
 }
 
 // 只做数据迁移及兼容老数据，就不管什么服务依赖了
-func NewPreLibImageSrv() *PreLibImageSrv {
+func NewPreLibImageSrv() *PreRegImageSrv {
 	db := store.GetRDBInstance()
 	imageDal := store.NewScannerOrm(db)
 	registryDal := imagesecStore.NewRegistryDao(db)
 	vulnDal := store.NewVulnDao(db)
 	scanResultDal := store.NewImageScanResultDao(db)
 
-	return &PreLibImageSrv{
+	return &PreRegImageSrv{
 		imageDal:      imageDal,
 		registryDal:   registryDal,
 		vulnDal:       vulnDal,
 		scanResultDal: scanResultDal,
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithSubModule("PreRegImage"),
+			scannerUtils.WithModule(consts.ModelImageMeta),
+		),
 	}
 }
 
-func (s *PreLibImageSrv) GetImageCorrelateData(ctx context.Context, param imagesecModel.ImageAssociateParam) (
+func (s *PreRegImageSrv) GetImageCorrelateData(ctx context.Context, param imagesecModel.ImageAssociateParam) (
 	*imagesecModel.ImageWithCorrelateData2, error) {
 	param.Deserialize()
 
@@ -47,7 +51,7 @@ func (s *PreLibImageSrv) GetImageCorrelateData(ctx context.Context, param images
 
 	images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.SearchImageParam{InIds: []int64{param.ImageId}}, nil)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Int64("ImageID", param.ImageId).Msg("ImageWithCorrelateData ImageBaseDetail")
+		s.Log.Err(err).Int64("ImageID", param.ImageId).Msg("ImageWithCorrelateData ImageBaseDetail")
 		return nil, err
 	}
 	if len(images) == 0 {
@@ -61,7 +65,7 @@ func (s *PreLibImageSrv) GetImageCorrelateData(ctx context.Context, param images
 
 	registry, _, err := s.registryDal.SearchRegistry(ctx, imagesecModel.SearchRegistryParam{Deleted: consts.FalseString, ID: image.RegistryID})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("SearchImageWithScan.SearchRegistry")
+		s.Log.Err(err).Msg("SearchImageWithScan.SearchRegistry")
 		return nil, err
 	}
 	if len(registry) > 0 {
@@ -74,7 +78,7 @@ func (s *PreLibImageSrv) GetImageCorrelateData(ctx context.Context, param images
 
 	dataFor211, err := s.GetImageCorrelateDataFor211(ctx, param)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Int64("imageID", param.ImageId).Msg("GetImageCorrelateData GetImageCorrelateDataFor211")
+		s.Log.Err(err).Int64("imageID", param.ImageId).Msg("GetImageCorrelateData GetImageCorrelateDataFor211")
 		return nil, err
 	}
 
@@ -90,7 +94,7 @@ func (s *PreLibImageSrv) GetImageCorrelateData(ctx context.Context, param images
 	if param.WebshellEnable {
 		webshell, webshellCnt, err := s.scanResultDal.SearchWebShell(ctx, daoParam, nil)
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Msg("SearchImageWithScan.SearchWebShell")
+			s.Log.Err(err).Msg("SearchImageWithScan.SearchWebShell")
 			return nil, err
 		}
 		ans.WebshellCnt = webshellCnt
@@ -102,7 +106,7 @@ func (s *PreLibImageSrv) GetImageCorrelateData(ctx context.Context, param images
 		vuln, cnt, err := s.vulnDal.SearchVuln(ctx, store.SearchVulnParam{ImageIds: []int64{imageID},
 			OmitFields: param.ScanResultSearchParam.OmitFields}, nil)
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Int64("ImageID", imageID).Msg("ImageWithCorrelateData SearchVuln")
+			s.Log.Err(err).Int64("ImageID", imageID).Msg("ImageWithCorrelateData SearchVuln")
 			return nil, err
 		}
 		ans.Vuln = vuln
@@ -139,11 +143,11 @@ func ScanResultParamToStoreParam(s imagesecModel.ScanResultSearchParam) store.Se
 	return param
 }
 
-func (s *PreLibImageSrv) GetImageCorrelateDataFor211(ctx context.Context, param imagesecModel.ImageAssociateParam) (
+func (s *PreRegImageSrv) GetImageCorrelateDataFor211(ctx context.Context, param imagesecModel.ImageAssociateParam) (
 	*imagesecModel.ImageWithCorrelateData, error) {
 	imageData, err := s.scanResultDal.SearchScanImage(ctx, param.ScanResultSearchParam)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Int64("imageID", param.ImageId).Msg("GetImageCorrelateDataFor211 SearchScanImage")
+		s.Log.Err(err).Int64("imageID", param.ImageId).Msg("GetImageCorrelateDataFor211 SearchScanImage")
 		return nil, err
 	}
 	if !param.PkgEnable || param.ScanResultSearchParam.ExceptionPkg == consts.TrueString {
@@ -162,7 +166,7 @@ func (s *PreLibImageSrv) GetImageCorrelateDataFor211(ctx context.Context, param 
 	}, nil)
 
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Int64("imageID", param.ImageId).Msg("GetImageCorrelateDataFor211 SearchVuln")
+		s.Log.Err(err).Int64("imageID", param.ImageId).Msg("GetImageCorrelateDataFor211 SearchVuln")
 		return nil, err
 	}
 
@@ -195,7 +199,7 @@ func (s *PreLibImageSrv) GetImageCorrelateDataFor211(ctx context.Context, param 
 	return imageData, nil
 }
 
-func (s *PreLibImageSrv) GetPreImage(ctx context.Context) error {
+func (s *PreRegImageSrv) GetPreImage(ctx context.Context) error {
 	ticker := time.NewTicker(time.Minute * 30)
 	defer ticker.Stop()
 	return nil
