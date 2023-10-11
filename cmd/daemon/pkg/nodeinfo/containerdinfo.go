@@ -833,13 +833,17 @@ func getContainerStorageType(isNfs, isCephfs, isHostPath bool) string {
 }
 
 func buildImageWithTag(imageName string, labels map[string]string, containerName string) string {
-	if len(labels) == 0 {
-		return imageName
-	}
 	if !strings.Contains(imageName, "@") {
 		return imageName
 	}
-	ima, isOk := labels[fmt.Sprintf("%s-image-tag", containerName)]
+	logging.Get().Info().Msgf("buildImageWithTag: find imageName:%s,containerName:%s")
+	if len(labels) == 0 {
+		logging.Get().Warn().Msgf("buildImageWithTag: label is empty ,can't find imageLabel")
+		return imageName
+	}
+	sprintf := fmt.Sprintf("%s-image-tag", containerName)
+	ima, isOk := labels[sprintf]
+	logging.Get().Info().Msgf("buildImageWithTag: labelKey[%s:%s]", sprintf, ima)
 	if !isOk {
 		return imageName
 	}
