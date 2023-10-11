@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"runtime/debug"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"gitlab.com/security-rd/go-pkg/logging"
 
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	imagesecStream "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/stream"
@@ -31,6 +31,7 @@ type RegDispatchSrv struct {
 	scanInsDal         imagesecStore.ScanInstanceDal
 	streamClient       rpcstream.MessageStream
 	SyncTaskUpdateChan chan SyncTaskUpdate
+	Log                *scannerUtils.LogEvent
 }
 
 func NewRegDispatchSrv(
@@ -44,6 +45,11 @@ func NewRegDispatchSrv(
 		syncTaskDal:        syncTaskDal,
 		scanInsDal:         scanInsDal,
 		SyncTaskUpdateChan: make(chan SyncTaskUpdate),
+
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithSubModule("dispatchTask"),
+			scannerUtils.WithModule(consts.ModuleRegistryImage),
+		),
 	}
 	s.UpdateSyncTask(context.Background())
 	return s
@@ -51,7 +57,7 @@ func NewRegDispatchSrv(
 
 func (s *RegDispatchSrv) DispatchSyncTask(ctx context.Context) error {
 	if !scannerUtils.MainCluster() {
-		logging.Get().Info().Str("module", "RegistryImage").Msg("DispatchSyncTask not in main cluster did not PublishSubtask")
+		s.Log.Info().Msg("DispatchSyncTask not in main cluster did not PublishSubtask")
 		return nil
 	}
 
@@ -60,7 +66,8 @@ func (s *RegDispatchSrv) DispatchSyncTask(ctx context.Context) error {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Msg("dispatchFullSyncTask panic recover")
+				s.Log.Error().Str("Stack", string(debug.Stack())).Msg("dispatchFullSyncTask panic recover")
+				s.Log.Error().Str("Stack", string(debug.Stack())).Msg("dispatchFullSyncTask panic recover")
 			}
 		}()
 
@@ -70,7 +77,7 @@ func (s *RegDispatchSrv) DispatchSyncTask(ctx context.Context) error {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Msg("dispatchIncrSyncTask panic recover")
+				s.Log.Error().Str("Stack", string(debug.Stack())).Msg("dispatchIncrSyncTask panic recover")
 			}
 		}()
 
@@ -80,7 +87,7 @@ func (s *RegDispatchSrv) DispatchSyncTask(ctx context.Context) error {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Msg("CheckRegistryHealth panic recover")
+				s.Log.Error().Str("Stack", string(debug.Stack())).Msg("CheckRegistryHealth panic recover")
 			}
 		}()
 
@@ -109,11 +116,11 @@ func (s *RegDispatchSrv) sendRegSyncTask(ctx context.Context, task imagesecModel
 
 	req.RequestID = s.GenReqID(req)
 
-	logging.Get().Debug().Str("module", "RegistryImage").Interface("reg", req).Msg("DispatchSyncTask sendMsg")
+	s.Log.Debug().Interface("reg", req).Msg("DispatchSyncTask sendMsg")
 
 	rsp, err := s.streamClient.ScannerPushImageSecMsg(timeOutCxt, req)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "RegistryImage").Interface("req", req).Msg("DispatchSyncTask")
+		s.Log.Err(err).Interface("req", req).Msg("DispatchSyncTask")
 		return 0, err
 	}
 
@@ -124,7 +131,7 @@ func (s *RegDispatchSrv) UpdateSyncTask(ctx context.Context) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Msg("recover panic")
+				s.Log.Error().Str("Stack", string(debug.Stack())).Msg("recover panic")
 			}
 		}()
 
@@ -143,12 +150,12 @@ func (s *RegDispatchSrv) UpdateSyncTask(ctx context.Context) {
 			if up.Result == imagesecModel.TaskStatusImageSyncFinishedStr {
 				task, err := s.syncTaskDal.SearchSyncTask(ctx, imagesecModel.SearchSyncTaskParam{TaskID: up.SyncTaskID})
 				if err != nil {
-					logging.Get().Err(err).Str("module", "RegistryImage").Int64("syncTaskID", up.SyncTaskID).
+					s.Log.Err(err).Int64("syncTaskID", up.SyncTaskID).
 						Msg("SearchSyncTask")
 					continue
 				}
 				if len(task) == 0 {
-					logging.Get().Err(err).Str("module", "RegistryImage").Int64("syncTaskID", up.SyncTaskID).
+					s.Log.Err(err).Int64("syncTaskID", up.SyncTaskID).
 						Msg("SearchSyncTask not find task")
 					continue
 				}
@@ -160,10 +167,10 @@ func (s *RegDispatchSrv) UpdateSyncTask(ctx context.Context) {
 				updater["result"] = up.Err.Error()
 			}
 			if err := s.syncTaskDal.UpdateSyncTask(ctx, where, updater); err != nil {
-				logging.Get().Err(err).Str("module", "RegistryImage").Int64("syncTaskID", up.SyncTaskID).Msg("UpdateSyncTask")
+				s.Log.Err(err).Int64("syncTaskID", up.SyncTaskID).Msg("UpdateSyncTask")
 				continue
 			}
-			logging.Get().Info().Str("module", "RegistryImage").Int64("syncTaskID", up.SyncTaskID).Interface("updater", up).Msg("UpdateSyncTask")
+			s.Log.Info().Int64("syncTaskID", up.SyncTaskID).Interface("updater", up).Msg("UpdateSyncTask")
 		}
 	}()
 }
@@ -180,7 +187,7 @@ func (s *RegDispatchSrv) dispatchFullSyncTask(ctx context.Context) {
 			Filter:   filter,
 		})
 		if err != nil {
-			logging.Get().Err(err).Str("module", "RegistryImage").Msg("SearchSyncTask")
+			s.Log.Err(err).Msg("SearchSyncTask")
 			continue
 		}
 		for _, ta := range tasks {
@@ -188,7 +195,7 @@ func (s *RegDispatchSrv) dispatchFullSyncTask(ctx context.Context) {
 			go func() { s.SyncTaskUpdateChan <- up }()
 			regs, _, err := s.registryDal.SearchRegistry(ctx, imagesecModel.SearchRegistryParam{ID: ta.RegistryID, Deleted: consts.FalseString})
 			if err != nil {
-				logging.Get().Err(err).Str("module", "RegistryImage").Msg("SearchRegistry")
+				s.Log.Err(err).Msg("SearchRegistry")
 				continue
 			}
 			if len(regs) == 0 {
@@ -197,13 +204,13 @@ func (s *RegDispatchSrv) dispatchFullSyncTask(ctx context.Context) {
 
 				go func() { s.SyncTaskUpdateChan <- up }()
 
-				logging.Get().Err(err).Str("module", "RegistryImage").Int64("regID", ta.RegistryID).Msg("dispatchFullSyncTask not find registry")
+				s.Log.Err(err).Int64("regID", ta.RegistryID).Msg("dispatchFullSyncTask not find registry")
 				continue
 			}
 
 			scanInsInfo, err := s.scanInsDal.SearchScannerInfo(ctx, imagesecModel.ScanInstanceParam{ScannerInstance: regs[0].ScannerInstance})
 			if err != nil {
-				logging.Get().Err(err).Str("module", "RegistryImage").Int64("regID", ta.RegistryID).Msg("dispatchFullSyncTask SearchScannerInfo")
+				s.Log.Err(err).Int64("regID", ta.RegistryID).Msg("dispatchFullSyncTask SearchScannerInfo")
 				continue
 			}
 
@@ -213,7 +220,7 @@ func (s *RegDispatchSrv) dispatchFullSyncTask(ctx context.Context) {
 
 				go func() { s.SyncTaskUpdateChan <- up }()
 
-				logging.Get().Err(err).Str("module", "RegistryImage").Int64("regID", ta.RegistryID).Str("ScannerInstance", regs[0].ScannerInstance).
+				s.Log.Err(err).Int64("regID", ta.RegistryID).Str("ScannerInstance", regs[0].ScannerInstance).
 					Msg("dispatchFullSyncTask not find scan instance")
 				continue
 			}
@@ -221,17 +228,17 @@ func (s *RegDispatchSrv) dispatchFullSyncTask(ctx context.Context) {
 			ta.Registry = regs[0]
 			ta.ScanInsInfo = scanInsInfo[0]
 
-			logging.Get().Debug().Str("module", "RegistryImage").Int64("regID", ta.RegistryID).Interface("syncTask", ta).
+			s.Log.Debug().Int64("regID", ta.RegistryID).Interface("syncTask", ta).
 				Msg("dispatchFullSyncTask ready to send")
 			syncStatus, err := s.sendRegSyncTask(ctx, ta)
 			if err != nil {
-				logging.Get().Err(err).Str("module", "RegistryImage").Int64("regID", ta.RegistryID).
+				s.Log.Err(err).Int64("regID", ta.RegistryID).
 					Msg("dispatchFullSyncTask sendRegSyncTask")
 				continue
 			}
 
 			if syncStatus != consts.StreamStatusSyncProgress {
-				logging.Get().Info().Str("module", "RegistryImage").Int64("regID", ta.RegistryID).Str("syncStatus", getSyncStatus(syncStatus)).
+				s.Log.Info().Int64("regID", ta.RegistryID).Str("syncStatus", s.getSyncStatus(syncStatus)).
 					Msg("dispatchFullSyncTask task finished")
 				up.End = true
 				if syncStatus == consts.StreamStatusSyncFinished {
@@ -243,7 +250,7 @@ func (s *RegDispatchSrv) dispatchFullSyncTask(ctx context.Context) {
 				go func() { s.SyncTaskUpdateChan <- up }()
 				continue
 			}
-			logging.Get().Info().Str("module", "RegistryImage").Int64("regID", ta.RegistryID).Str("regName", ta.Registry.Name).Str("syncStatus", getSyncStatus(syncStatus)).
+			s.Log.Info().Int64("regID", ta.RegistryID).Str("regName", ta.Registry.Name).Str("syncStatus", s.getSyncStatus(syncStatus)).
 				Str("ScannerInstance", regs[0].ScannerInstance).
 				Msg("dispatchFullSyncTask succeed")
 		}
@@ -262,19 +269,19 @@ func (s *RegDispatchSrv) dispatchIncrSyncTask(ctx context.Context) {
 
 		regs, _, err := s.registryDal.SearchRegistry(ctx, imagesecModel.SearchRegistryParam{Deleted: consts.FalseString})
 		if err != nil {
-			logging.Get().Err(err).Str("module", "RegistryImage").Msg("SearchRegistry")
+			s.Log.Err(err).Msg("SearchRegistry")
 			continue
 		}
 		for i := range regs {
 			reg := regs[i]
 			scanInsInfo, err := s.scanInsDal.SearchScannerInfo(ctx, imagesecModel.ScanInstanceParam{ScannerInstance: reg.ScannerInstance})
 			if err != nil {
-				logging.Get().Err(err).Str("module", "RegistryImage").Int64("regID", reg.ID).Msg("dispatchIncrSyncTask SearchScannerInfo")
+				s.Log.Err(err).Int64("regID", reg.ID).Msg("dispatchIncrSyncTask SearchScannerInfo")
 				continue
 			}
 
 			if len(scanInsInfo) == 0 {
-				logging.Get().Err(err).Str("module", "RegistryImage").Int64("regID", reg.ID).Str("ScannerInstance", regs[0].ScannerInstance).
+				s.Log.Err(err).Int64("regID", reg.ID).Str("ScannerInstance", regs[0].ScannerInstance).
 					Msg("dispatchFullSyncTask not find scan instance")
 				continue
 			}
@@ -291,7 +298,7 @@ func (s *RegDispatchSrv) dispatchIncrSyncTask(ctx context.Context) {
 			}
 
 			if _, err := s.sendRegSyncTask(ctx, ta); err != nil {
-				logging.Get().Err(err).Str("module", "RegistryImage").Interface("reg", reg).Msg("sendRegSyncTask")
+				s.Log.Err(err).Interface("reg", reg).Msg("sendRegSyncTask")
 				continue
 			}
 		}
@@ -309,12 +316,12 @@ func (s *RegDispatchSrv) CheckRegistryHealth(ctx context.Context) {
 
 		regs, _, err := s.registryDal.SearchRegistry(ctx, imagesecModel.SearchRegistryParam{Deleted: consts.FalseString})
 		if err != nil {
-			logging.Get().Err(err).Str("module", "RegistryImage").Msg("SearchRegistry")
+			s.Log.Err(err).Msg("SearchRegistry")
 			continue
 		}
 		for i := range regs {
 			if err := s.SendToScannerCheckHealth(ctx, regs[i]); err != nil {
-				logging.Get().Err(err).Str("module", "RegistryImage").Msg("CheckRegistryHealth")
+				s.Log.Err(err).Msg("CheckRegistryHealth")
 			}
 		}
 	}
@@ -328,7 +335,7 @@ type SyncTaskUpdate struct {
 	Err        error
 }
 
-func getSyncStatus(st int64) string {
+func (s *RegDispatchSrv) getSyncStatus(st int64) string {
 	switch st {
 	case consts.StreamStatusSyncProgress:
 		return imagesecModel.TaskStatusInprogressStr
@@ -337,7 +344,7 @@ func getSyncStatus(st int64) string {
 	case consts.StreamStatusSyncFinished:
 		return imagesecModel.TaskStatusImageSyncFinishedStr
 	default:
-		logging.Get().Error().Str("module", "RegistryImage").Int64("rpcStatus", st).Msg("getSyncStatus")
+		s.Log.Error().Str("Stack", string(debug.Stack())).Str("module", "RegistryImage").Int64("rpcStatus", st).Msg("getSyncStatus")
 		return "unknown"
 	}
 }
@@ -348,7 +355,7 @@ func (s *RegDispatchSrv) SendToScannerCheckHealth(ctx context.Context, reg image
 	defer timeOutFunc()
 	data, err := json.Marshal(reg)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "RegistryImage").Msg("SendToScannerCheckHealth")
+		s.Log.Err(err).Msg("SendToScannerCheckHealth")
 		return err
 	}
 	clusterKey := strings.TrimPrefix(reg.ScannerInstance, "scan-")
@@ -360,11 +367,11 @@ func (s *RegDispatchSrv) SendToScannerCheckHealth(ctx context.Context, reg image
 		RequestID:       uuid.New().String(),
 		Payload:         data,
 	}
-	logging.Get().Debug().Str("module", "RegistryImage").Interface("reg", req).Msg("SendToScannerCheckHealth sendMsg")
+	s.Log.Debug().Interface("reg", req).Msg("SendToScannerCheckHealth sendMsg")
 
 	rsp, err := s.streamClient.ScannerPushImageSecMsg(timeOutCxt, req)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "RegistryImage").Interface("req", req).Msg("SendToScannerCheckHealth")
+		s.Log.Err(err).Interface("req", req).Msg("SendToScannerCheckHealth")
 		return err
 	}
 	switch rsp.Status {
@@ -397,7 +404,7 @@ func (s *RegDispatchSrv) GenReqID(req *pb.ImageSecReq) string {
 // 	for {
 // 		select {
 // 		case <-timeOutCxt.Done():
-// 			logging.Get().Error().Str("module", "RegistryImage").Interface("reg", req).Msg("send scan subtask to rpc")
+// 			s.Log.Error().Str("Stack", string(debug.Stack())).Str("module", "RegistryImage").Interface("reg", req).Msg("send scan subtask to rpc")
 // 			return fmt.Errorf("time out")
 // 		case res := <-s.sendRpcTask(timeOutCxt, req):
 // 			return res
@@ -412,7 +419,7 @@ func (s *RegDispatchSrv) GenReqID(req *pb.ImageSecReq) string {
 // 	streamClient := imagesecStream.MustGetGrpcStream()
 // 	rsp, err := streamClient.ScannerPushImageSecMsg(timeOutCxt, req)
 // 	if err != nil {
-// 		logging.Get().Err(err).Str("module", "RegistryImage").Interface("req", req).Msg("Dispatcher sendScanSubtask")
+// 		s.Log.Err(err).Interface("req", req).Msg("Dispatcher sendScanSubtask")
 // 		return 0, err
 // 	}
 //
@@ -426,7 +433,7 @@ func (s *RegDispatchSrv) GenReqID(req *pb.ImageSecReq) string {
 // 	go func() {
 // 		defer func() {
 // 			if r := recover(); r != nil {
-// 				logging.Get().Error().Msg("ExecutorScanMalicious panic")
+// 				s.Log.Error().Str("Stack", string(debug.Stack())).Msg("ExecutorScanMalicious panic")
 // 			}
 // 		}()
 //

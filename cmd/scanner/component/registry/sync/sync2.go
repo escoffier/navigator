@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/segmentio/kafka-go"
-	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -16,7 +15,7 @@ import (
 )
 
 func (s *RegSyncSrv) createImageExtender(ctx context.Context, image warehouse.Image) (*warehouse.ListImagesRes, error) {
-	layers := GetLayers(image)
+	layers := s.GetLayers(image)
 	configFile := GetConfigFile(image)
 	report := &imagesecTypes.NodeReport{
 		UUID:       util.GenerateUUIDHex(),
@@ -40,13 +39,13 @@ func (s *RegSyncSrv) createImageExtender(ctx context.Context, image warehouse.Im
 	if image.Created.IsZero() {
 		imageMeta.Created = configFile.Created.String()
 	}
-	logging.Get().Debug().Str("module", "RegistryImage").Interface("imageMeta", imageMeta).Msg("get a imageMeta")
+	s.Log.Debug().Interface("imageMeta", imageMeta).Msg("get a imageMeta")
 
 	report.LibImages = append(report.LibImages, *imageMeta)
 
 	bys, err := json.Marshal(report)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "RegistryImage").Msg("Marshal")
+		s.Log.Err(err).Msg("Marshal")
 		return nil, err
 	}
 
@@ -57,10 +56,10 @@ func (s *RegSyncSrv) createImageExtender(ctx context.Context, image warehouse.Im
 	}
 
 	if err := s.MqWriter.Write(ctx, msg.Topic, msg); err != nil {
-		logging.Get().Err(err).Str("module", "RegistryImage").Msg("SyncAllImage SendToMq")
+		s.Log.Err(err).Msg("SyncAllImage SendToMq")
 		return nil, err
 	}
-	logging.Get().Debug().Str("module", "RegistryImage").Msg("sync a image and send to kafka")
+	s.Log.Debug().Msg("sync a image and send to kafka")
 
 	return &warehouse.ListImagesRes{}, nil
 }
@@ -86,8 +85,8 @@ func (s *RegSyncSrv) getExtender() warehouse.Extender {
 	}
 }
 
-func GetLayers(image warehouse.Image) []imagesecTypes.Layer {
-	// fixme(liuqianli) 没有对ManifestV2做兼容
+func (s *RegSyncSrv) GetLayers(image warehouse.Image) []imagesecTypes.Layer {
+	// FIXME 没有对ManifestV2做兼容
 	manifestV2 := model.ManifestV2{}
 	if image.ManifestV2 != "" {
 		_ = json.Unmarshal([]byte(image.ManifestV2), &manifestV2)
@@ -96,8 +95,8 @@ func GetLayers(image warehouse.Image) []imagesecTypes.Layer {
 	if image.ConfigJSON != "" {
 		_ = json.Unmarshal([]byte(image.ConfigJSON), &config)
 	}
-	logging.Get().Debug().Str("module", "RegistryImage").Interface("configFile", config).Msg("GetLayers")
-	logging.Get().Debug().Str("module", "RegistryImage").Interface("manifestV2", manifestV2).Msg("GetLayers")
+	s.Log.Debug().Interface("configFile", config).Msg("GetLayers")
+	s.Log.Debug().Interface("manifestV2", manifestV2).Msg("GetLayers")
 
 	layers1 := make([]imagesecTypes.Layer, 0)
 	for i := range manifestV2.Layers {

@@ -3,13 +3,12 @@ package imagemeta
 import (
 	"context"
 
-	"gitlab.com/security-rd/go-pkg/logging"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta/metaGlobal"
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -44,6 +43,8 @@ type ImageInfoMetaSrv struct {
 	imageCacheDal   imagesecStore.ImageCacheDal
 
 	RiskImageTop5 *metaGlobal.RiskImageTop5
+
+	Log *scannerUtils.LogEvent
 }
 
 func NewImageMetaSrv(
@@ -76,6 +77,11 @@ func NewImageMetaSrv(
 		deployRecordDal: deployRecordDal,
 		imageCacheDal:   imageCacheDal,
 		RiskImageTop5:   metaGlobal.GetRiskImageTop5(),
+
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithSubModule("MetaInfo"),
+			scannerUtils.WithModule(consts.ModelImageMeta),
+		),
 	}
 	return &srv
 }
@@ -85,17 +91,17 @@ func (s *ImageInfoMetaSrv) ListImageWithScanInfo(ctx context.Context, param imag
 
 	res := make([]*imagesecModel.ImageBaseResponse, 0)
 
-	logging.Get().Debug().Str("module", "imageMeta").Interface("param", param).Msg("ListImageWithScanInfo")
+	s.Log.Debug().Interface("param", param).Msg("ListImageWithScanInfo")
 
 	daoParam := param.ToImageDalParam()
 
 	daoParam.Fields = []string{"id", "unique_id"}
 
-	logging.Get().Debug().Str("module", "imageMeta").Interface("daoParam", daoParam).Interface("filter", param.Filter).Msg("SearchImageWithScan.SearchImage")
+	s.Log.Debug().Interface("daoParam", daoParam).Interface("filter", param.Filter).Msg("SearchImageWithScan SearchImage")
 
 	images, cnt, err := s.imageDal.SearchImage(ctx, daoParam)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("SearchImageWithScan.SearchImage")
+		s.Log.Err(err).Msg("SearchImageWithScan.SearchImage")
 		return nil, 0, err
 	}
 
@@ -110,7 +116,7 @@ func (s *ImageInfoMetaSrv) ListImageWithScanInfo(ctx context.Context, param imag
 		// 其他数据
 		data, err := s.GetImageCorrelateData(ctx, param.AssociateParam)
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imageMeta").Msg("SearchImageWithScan.GetImageCorrelateData")
+			s.Log.Err(err).Msg("SearchImageWithScan.GetImageCorrelateData")
 			return nil, 0, err
 		}
 		baseImageInfo := data.ToImageBaseResponse()
@@ -123,7 +129,7 @@ func (s *ImageInfoMetaSrv) ListImageWithScanInfo(ctx context.Context, param imag
 func (s *ImageInfoMetaSrv) UpdateImage(ctx context.Context, param imagesecModel.UpdateImageParam) error {
 	err := s.imageDal.UpdateImage(ctx, param)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Interface("param", param).Msg("UpdateImage")
+		s.Log.Err(err).Interface("param", param).Msg("UpdateImage")
 		return err
 	}
 	return nil
@@ -171,13 +177,13 @@ func (s *ImageInfoMetaSrv) GetImageCorrelateData(ctx context.Context,
 	}
 
 	if err := s.addImageMeta(ctx, &param, ans); err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Int64("ImageID", param.ImageId).
+		s.Log.Err(err).Int64("ImageID", param.ImageId).
 			Msg("ImageWithCorrelateData addImageMeta")
 		return nil, err
 	}
 
 	if err := s.addDeployMeta(ctx, &param, ans); err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Int64("ImageID", param.ImageId).
+		s.Log.Err(err).Int64("ImageID", param.ImageId).
 			Msg("ImageWithCorrelateData addDeployMeta")
 		return nil, err
 	}
@@ -204,7 +210,7 @@ func (s *ImageInfoMetaSrv) GetImageCorrelateData(ctx context.Context,
 
 	for i := range errs {
 		if errs[i] != nil {
-			logging.Get().Err(errs[i]).Msg("GetImageCorrelateData")
+			s.Log.Err(errs[i]).Msg("GetImageCorrelateData")
 		}
 	}
 
@@ -243,7 +249,7 @@ func (s *ImageInfoMetaSrv) SearchProject(ctx context.Context, param imagesecMode
 	}
 	info, err := s.imageCacheDal.SearchCacheInfo(ctx, imagesecModel.CacheTypeImagePrepare)
 	if err != nil {
-		logging.Get().Err(err).Str("module", consts.ModelImageMeta).Msg("SearchProject")
+		s.Log.Err(err).Msg("SearchProject")
 		return nil, err
 	}
 
@@ -265,7 +271,7 @@ func (s *ImageInfoMetaSrv) GetImageOverView(ctx context.Context) (*imagesecModel
 	ans := &imagesecModel.ImagePrepareData{}
 	info, err := s.imageCacheDal.SearchCacheInfo(ctx, imagesecModel.CacheTypeImagePrepare)
 	if err != nil {
-		logging.Get().Err(err).Str("module", consts.ModelImageMeta).Msg("SearchProject")
+		s.Log.Err(err).Msg("SearchProject")
 		return ans, err
 	}
 
@@ -296,7 +302,7 @@ func (s *ImageInfoMetaSrv) TopRiskImage(ctx context.Context) ([]*imagesecModel.I
 		Filter: model.EmptyFilter().SetLimit(consts.DefaultPerPage),
 	})
 	if err != nil {
-		logging.Get().Err(err).Str("module", consts.ModelImageMeta).Msg("TopRiskImage")
+		s.Log.Err(err).Msg("TopRiskImage")
 		return nil, err
 	}
 	s.RiskImageTop5.Add(images...)
@@ -308,7 +314,7 @@ func (s *ImageInfoMetaSrv) SearchResources(ctx context.Context, param imagesecMo
 	[]model.TensorRawContainer, int64, error) {
 	resources, cnt, err := s.resourceDal.SearchResources(ctx, param)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Interface("param", param).Msg("SearchResources")
+		s.Log.Err(err).Interface("param", param).Msg("SearchResources")
 		return nil, 0, scani18.SearchResource(err)
 	}
 	ans := make([]model.TensorRawContainer, 0)
@@ -340,7 +346,7 @@ func (s *ImageInfoMetaSrv) SearchRelatedImage(ctx context.Context, param imagese
 	}
 
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("SearchRelatedImage SearchImage")
+		s.Log.Err(err).Msg("SearchRelatedImage SearchImage")
 		return ans, 0, scani18.SearchImage(err)
 	}
 	if len(images) == 0 {
@@ -356,7 +362,7 @@ func (s *ImageInfoMetaSrv) SearchRelatedImage(ctx context.Context, param imagese
 	res := make(map[uint32]imagesecModel.RelatedImageRes)
 
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("SearchRelatedImage SearchImage")
+		s.Log.Err(err).Msg("SearchRelatedImage SearchImage")
 		return ans, 0, scani18.SearchImage(err)
 	}
 	regIds := make([]int64, 0)
@@ -377,7 +383,7 @@ func (s *ImageInfoMetaSrv) SearchRelatedImage(ctx context.Context, param imagese
 
 	regs, _, err := s.registryDal.SearchRegistry(ctx, imagesecModel.SearchRegistryParam{RegIds: regIds})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("SearchRelatedImage SearchRegistry")
+		s.Log.Err(err).Msg("SearchRelatedImage SearchRegistry")
 		return nil, 0, scani18.SearchImage(err)
 	}
 	for i := range regs {
@@ -385,7 +391,7 @@ func (s *ImageInfoMetaSrv) SearchRelatedImage(ctx context.Context, param imagese
 	}
 	nodes, _, err := s.nodeDal.SearchNodeInfo(ctx, imagesecModel.SearchNodeInfoParam{UniqueIds: nodeIds})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("SearchRelatedImage SearchNodeInfo")
+		s.Log.Err(err).Msg("SearchRelatedImage SearchNodeInfo")
 		return nil, 0, scani18.SearchImage(err)
 	}
 	for i := range nodes {
@@ -393,7 +399,7 @@ func (s *ImageInfoMetaSrv) SearchRelatedImage(ctx context.Context, param imagese
 	}
 	resources, _, err := s.resourceDal.SearchResources(ctx, imagesecModel.SearchResourceParam{ImageUUIDs: uuids, Fields: []string{"image_uuid", "name"}})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("SearchRelatedImage SearchResources")
+		s.Log.Err(err).Msg("SearchRelatedImage SearchResources")
 		return nil, 0, scani18.SearchImage(err)
 	}
 

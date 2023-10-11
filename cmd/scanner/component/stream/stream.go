@@ -9,6 +9,7 @@ import (
 
 	"gitlab.com/security-rd/go-pkg/logging"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
@@ -18,10 +19,16 @@ import (
 
 type RpcStream struct {
 	Handler rpcstream.MessageHandler
+	Log     *scannerUtils.LogEvent
 }
 
 func NewRpcStream(handler rpcstream.MessageHandler) *RpcStream {
-	return &RpcStream{Handler: handler}
+	return &RpcStream{Handler: handler,
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithSubModule("Stream"),
+			scannerUtils.WithModule(consts.ModuleRpcStream),
+		),
+	}
 }
 
 func MustGetGrpcStream() rpcstream.MessageStream {
@@ -62,86 +69,86 @@ type GrpcStream struct {
 // GetGrpcClient used for task dispatcher to publish image tasks. e.g. GetGrpcClient().DeliverImageSecMsg(...)
 func GetGrpcClient() (rpcstream.MessageStream, error) {
 	if !consoleStreamInstance.connected {
-		return nil, fmt.Errorf("RpcStream client stream not connected")
+		return nil, fmt.Errorf("client stream not connected")
 	}
 	return consoleStreamInstance.clientStream, nil
 }
 
-func (r *RpcStream) connectToConsole() error {
+func (vi *RpcStream) connectToConsole() error {
 	if scannerUtils.MainCluster() {
 		// connect to console in main cluster
 		consoleStreamInstance.grpcServerAddr = os.Getenv("CONSOLE_INTERNAL_GRPC_ADDR")
 	} else {
 		// not connect to console when in slave cluster
-		logging.Get().Info().Str("module", "stream").Msg("RpcStream scanner not connect to console grpc when in slave cluster")
+		vi.Log.Info().Msg("scanner not connect to console grpc when in slave cluster")
 		return nil
 	}
 
 	streamKey := util.ScannerConsoleGrpcStreamKey()
-	logging.Get().Info().Str("module", "stream").
+	vi.Log.Info().
 		Str("grpcServerAddr", consoleStreamInstance.grpcServerAddr).
 		Str("clusterKey", streamKey).
-		Msg("RpcStream console grpc server")
+		Msg("console grpc server")
 
 	fac := rpcstream.NewStreamFactory(rpcstream.WithClusterKey(streamKey))
 
 	consoleStreamInstance.clientStream = fac.Client(consoleStreamInstance.grpcServerAddr)
-	_ = consoleStreamInstance.clientStream.AddHandler(&pb.ImageSecReq{}, r.Handler)
+	_ = consoleStreamInstance.clientStream.AddHandler(&pb.ImageSecReq{}, vi.Handler)
 
 	for {
-		logging.Get().Debug().Str("module", "stream").Msg("RpcStream scanner grpc client try connecting to console")
+		vi.Log.Debug().Msg("scanner grpc client try connecting to console")
 
 		err := consoleStreamInstance.clientStream.Start()
 		if err == nil {
-			logging.Get().Info().Str("module", "stream").Msg("RpcStream scanner grpc client connect console ok")
+			vi.Log.Info().Msg("scanner grpc client connect console ok")
 			consoleStreamInstance.connected = true
 			break
 		}
 
-		logging.Get().Warn().Str("errMsg", err.Error()).Msg("RpcStream failed to connect console grpc server,will try again")
+		logging.Get().Warn().Str("errMsg", err.Error()).Msg("failed to connect console grpc server,will try again")
 		time.Sleep(time.Second * 5)
 	}
 
-	logging.Get().Info().Str("module", "stream").Msg("RpcStream scanner grpc client connect console end")
+	vi.Log.Info().Msg("scanner grpc client connect console end")
 	return nil
 }
 
 // connectToClusterManager scanner connect to cluster manager in master and slave cluster
-func (r *RpcStream) connectToClusterManager() error {
+func (vi *RpcStream) connectToClusterManager() error {
 	clusterManagerStreamInstance.grpcServerAddr = os.Getenv("CLUSTER_MANAGER_GRPC_ADDR")
 
 	streamKey := util.ScannerClusterManagerGrpcStreamKey(global.ClusterKey)
 
-	logging.Get().Info().Str("module", "stream").
+	vi.Log.Info().
 		Str("grpcServerAddr", clusterManagerStreamInstance.grpcServerAddr).
 		Str("clusterKey", streamKey).
-		Msg("RpcStream cluster manager grpc server")
+		Msg("cluster manager grpc server")
 
 	fac := rpcstream.NewStreamFactory(rpcstream.WithClusterKey(streamKey))
 
 	clusterManagerStreamInstance.clientStream = fac.Client(clusterManagerStreamInstance.grpcServerAddr)
-	_ = clusterManagerStreamInstance.clientStream.AddHandler(&pb.ImageSecReq{}, r.Handler)
+	_ = clusterManagerStreamInstance.clientStream.AddHandler(&pb.ImageSecReq{}, vi.Handler)
 
 	for {
 		err := clusterManagerStreamInstance.clientStream.Start()
 		if err == nil {
-			logging.Get().Info().Str("module", "stream").Msg("scanner grpc client connect cluster manager ok")
+			vi.Log.Info().Msg("scanner grpc client connect cluster manager ok")
 			clusterManagerStreamInstance.connected = true
 			break
 		}
 		time.Sleep(time.Second * 5)
 		logging.Get().Warn().Str("errMsg", err.Error()).Msg("failed to connect cluster manager grpc server,will try again")
 	}
-	logging.Get().Info().Str("module", "stream").Msg("RpcStream scanner grpc client connect cluster manager end")
+	vi.Log.Info().Msg("scanner grpc client connect cluster manager end")
 	return nil
 }
 
-func (r *RpcStream) Start(ctx context.Context) error {
+func (vi *RpcStream) Start(ctx context.Context) error {
 	// connect to console grpc server
-	_ = r.connectToConsole()
+	_ = vi.connectToConsole()
 
 	// connect to cluster manager grpc server
-	_ = r.connectToClusterManager()
+	_ = vi.connectToClusterManager()
 
 	return nil
 }

@@ -485,7 +485,7 @@ func (s *ScanResultAPI) GetImageRiskInfo(ctx *gin.Context) {
 		risk.ImageBaseResponse.Suggests = nil
 		ans = append(ans, risk)
 	}
-	// 以镜像名去重
+	// 以镜像UUID名去重
 	exit := make(map[uint32]bool)
 	res := make([]ImageRiskStatic, 0)
 	for i := range ans {

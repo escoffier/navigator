@@ -6,8 +6,6 @@ import (
 	"net/http"
 	"strings"
 
-	"gitlab.com/security-rd/go-pkg/logging"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta/metaGlobal"
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -30,7 +28,7 @@ func (s *ImageInfoMetaSrv) ListBaseImageOfApp(ctx context.Context, param imagese
 		UniqueId: param.UniqueId,
 		Fields:   []string{"id", "flag", "layer_str"}})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("SearchImage")
+		s.Log.Err(err).Msg("SearchImage")
 		return nil, 0, scani18.GetImageInfo(err)
 	}
 	if len(images) == 0 || !util.ExistBit1(images[0].Flag, imagesecModel.FlagAppImage) || images[0].LayerStr == "" {
@@ -47,7 +45,7 @@ func (s *ImageInfoMetaSrv) ListBaseImageOfApp(ctx context.Context, param imagese
 	baseImages, _, err := s.imageDal.SearchImage(ctx, daoParam)
 
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Ints64("imageIds", param.ImageIds).Msg("ListBaseImageOfApp")
+		s.Log.Err(err).Ints64("imageIds", param.ImageIds).Msg("ListBaseImageOfApp")
 		return nil, 0, scani18.GetImageInfo(err)
 	}
 
@@ -71,7 +69,7 @@ func (s *ImageInfoMetaSrv) ListBaseImageOfApp(ctx context.Context, param imagese
 
 	baseInfo, cnt, err := s.ListImageWithScanInfo(ctx, imagesecModel.ImageSearchApiParam{ImageIds: baseImageIds, AssociateParam: assParam})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Ints64("imageIds", param.ImageIds).Msg("ListBaseImageOfApp")
+		s.Log.Err(err).Ints64("imageIds", param.ImageIds).Msg("ListBaseImageOfApp")
 		return nil, 0, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf("ListBaseImageOfApp"))
 	}
 	return baseInfo, cnt, nil
@@ -91,7 +89,7 @@ func (s *ImageInfoMetaSrv) ListAppImageOfBase(ctx context.Context, param imagese
 		UniqueId: param.UniqueId,
 		Fields:   []string{"id", "flag", "layer_str"}})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Ints64("imageIds", param.ImageIds).Msg("ListAppImageOfBase")
+		s.Log.Err(err).Ints64("imageIds", param.ImageIds).Msg("ListAppImageOfBase")
 		return nil, 0, scani18.SearchImage(err)
 	}
 	// 对于from scratch的镜像，可能没有层级信息
@@ -106,7 +104,7 @@ func (s *ImageInfoMetaSrv) ListAppImageOfBase(ctx context.Context, param imagese
 
 	appImage, _, err := s.imageDal.SearchImage(ctx, daoParam)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Ints64("imageIds", param.ImageIds).Msg("ListAppImageOfBase")
+		s.Log.Err(err).Ints64("imageIds", param.ImageIds).Msg("ListAppImageOfBase")
 		return nil, 0, scani18.SearchImage(err)
 	}
 	appImageIds := make([]int64, 0)
@@ -129,7 +127,7 @@ func (s *ImageInfoMetaSrv) ListAppImageOfBase(ctx context.Context, param imagese
 
 	appInfo, cnt, err := s.ListImageWithScanInfo(ctx, imagesecModel.ImageSearchApiParam{ImageIds: appImageIds, AssociateParam: assParam})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Ints64("imageIds", param.ImageIds).Msg("ListBaseImageOfApp")
+		s.Log.Err(err).Ints64("imageIds", param.ImageIds).Msg("ListBaseImageOfApp")
 		return nil, 0, scani18.SearchImage(err)
 	}
 	return appInfo, cnt, nil
@@ -140,7 +138,7 @@ func (s *ImageUpdateSrv) groupRegProject(ctx context.Context, param imagesecMode
 	param.ImageFromType = imagesecModel.ImageFromRegistry
 	repos, err := s.imageDal.SearchProject(ctx, param)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("GetRegistryProject.GroupRegistryProject")
+		s.Log.Err(err).Msg("GetRegistryProject.GroupRegistryProject")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 	resMap := make(map[int64][]imagesecModel.Project)
@@ -150,7 +148,7 @@ func (s *ImageUpdateSrv) groupRegProject(ctx context.Context, param imagesecMode
 	// 查出所有的registry
 	registries, _, err := s.registryDal.SearchRegistry(ctx, imagesecModel.SearchRegistryParam{Deleted: consts.FalseString})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("GetRegistryProject.SearchRegistry")
+		s.Log.Err(err).Msg("GetRegistryProject.SearchRegistry")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 	regMap := make(map[int64]imagesecModel.Registry)
@@ -186,7 +184,7 @@ func (s *ImageUpdateSrv) groupNodeProject(ctx context.Context, param imagesecMod
 	param.ImageFromType = imagesecModel.ImageFromNode
 	repos, err := s.imageDal.SearchProject(ctx, param)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("GetRegistryProject.GroupRegistryProject")
+		s.Log.Err(err).Msg("GetRegistryProject.GroupRegistryProject")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 	resMap := make(map[uint64][]imagesecModel.Project)
@@ -195,7 +193,7 @@ func (s *ImageUpdateSrv) groupNodeProject(ctx context.Context, param imagesecMod
 	}
 	nodes, _, err := s.nodeDal.SearchNodeInfo(ctx, imagesecModel.SearchNodeInfoParam{})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("GetRegistryProject.SearchRegistry")
+		s.Log.Err(err).Msg("GetRegistryProject.SearchRegistry")
 		return nil, response.NewHttpError(http.StatusInternalServerError, fmt.Errorf(consts.StatusInternalServerErrorMsg))
 	}
 	nodeMap := make(map[uint64]*imagesecModel.NodeInfo)
@@ -231,7 +229,7 @@ func (s *ImageUpdateSrv) UpdateProject(ctx context.Context) error {
 
 	lib, err := s.groupRegProject(ctx, imagesecModel.SearchProjectParam{ImageFromType: imagesecModel.ImageFromRegistry})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("groupRegProject")
+		s.Log.Err(err).Msg("groupRegProject")
 		return err
 	}
 	metaGlobal.GetPrepareData().SetRegGroupProject(lib)
@@ -239,7 +237,7 @@ func (s *ImageUpdateSrv) UpdateProject(ctx context.Context) error {
 	node, err := s.groupNodeProject(ctx, imagesecModel.SearchProjectParam{ImageFromType: imagesecModel.ImageFromNode})
 	if err != nil {
 
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("groupNodeProject")
+		s.Log.Err(err).Msg("groupNodeProject")
 		return err
 
 	}
@@ -253,14 +251,14 @@ func (s *ImageUpdateSrv) UpdateImagePrepareData(ctx context.Context) error {
 	res := &imagesecModel.ImagePrepareData{}
 	lib, err := s.groupRegProject(ctx, imagesecModel.SearchProjectParam{ImageFromType: imagesecModel.ImageFromRegistry})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("groupRegProject")
+		s.Log.Err(err).Msg("groupRegProject")
 		return err
 	}
 	res.RegGroupProject = lib
 
 	node, err := s.groupNodeProject(ctx, imagesecModel.SearchProjectParam{ImageFromType: imagesecModel.ImageFromNode})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("groupNodeProject")
+		s.Log.Err(err).Msg("groupNodeProject")
 		return err
 	}
 
@@ -268,14 +266,14 @@ func (s *ImageUpdateSrv) UpdateImagePrepareData(ctx context.Context) error {
 
 	libO, err := s.GetImageOverViewHelper(ctx, imagesecModel.ImageFromRegistry)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("groupRegProject")
+		s.Log.Err(err).Msg("groupRegProject")
 		return err
 	}
 	res.RegImageOverView = libO
 
 	nodeO, err := s.GetImageOverViewHelper(ctx, imagesecModel.ImageFromNode)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("groupNodeProject")
+		s.Log.Err(err).Msg("groupNodeProject")
 		return err
 	}
 	res.NodeImageOverView = nodeO
@@ -285,7 +283,7 @@ func (s *ImageUpdateSrv) UpdateImagePrepareData(ctx context.Context) error {
 		ImagePrepareData: res,
 	}
 	if err := s.imageCacheDal.CreateCacheInfo(ctx, cache); err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("CreateCacheInfo")
+		s.Log.Err(err).Msg("CreateCacheInfo")
 		return err
 	}
 
@@ -297,14 +295,14 @@ func (s *ImageUpdateSrv) UpdateImageOverView(ctx context.Context) error {
 
 	lib, err := s.GetImageOverViewHelper(ctx, imagesecModel.ImageFromRegistry)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("groupRegProject")
+		s.Log.Err(err).Msg("groupRegProject")
 		return err
 	}
 	metaGlobal.GetPrepareData().SetRegImageOverView(lib)
 
 	node, err := s.GetImageOverViewHelper(ctx, imagesecModel.ImageFromNode)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("groupNodeProject")
+		s.Log.Err(err).Msg("groupNodeProject")
 		return err
 	}
 	metaGlobal.GetPrepareData().SetNodeImageOverView(node)
@@ -318,7 +316,7 @@ func (s *ImageUpdateSrv) GetImageOverViewHelper(ctx context.Context, imageFromTy
 	// 查总数
 	groups, err := s.imageDal.GroupImageFlags(ctx, imagesecModel.ImageGroupParam{ImageFromType: imageFromType})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("GetImageOverViewHelper.GroupImageFlags")
+		s.Log.Err(err).Msg("GetImageOverViewHelper.GroupImageFlags")
 		return overView, scani18.SearchImage(err)
 	}
 

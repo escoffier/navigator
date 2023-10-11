@@ -6,17 +6,18 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"runtime/debug"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
-	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	imagesecStream "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/stream"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 
@@ -44,6 +45,7 @@ type RegistrySrv struct {
 	scanInsDal    imagesecStore.ScanInstanceDal
 	policyDal     imagesecStore.DetectPolicyDal
 	scanConfigDal imagesecStore.ScanImageConfigDal
+	Log           *scannerUtils.LogEvent
 }
 
 func NewRegistrySrv(
@@ -62,6 +64,10 @@ func NewRegistrySrv(
 		scanInsDal:    scanInsDal,
 		policyDal:     policyDal,
 		scanConfigDal: scanConfigDal,
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithSubModule("ApiService"),
+			scannerUtils.WithModule(consts.ModuleRegistryImage),
+		),
 	}
 	sinRegistrySrv = s
 	return sinRegistrySrv
@@ -82,7 +88,7 @@ func (s *RegistrySrv) SearchRegistry(ctx context.Context, param imagesecModel.Se
 
 	registries, cnt, err := s.registryDal.SearchRegistry(ctx, param)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "RegistryImage").Msg("SearchRegistry")
+		s.Log.Err(err).Msg("SearchRegistry")
 		return nil, 0, scani18.SearchReg(err)
 	}
 	return registries, cnt, nil
@@ -97,7 +103,7 @@ func (s *RegistrySrv) DeleteRegistry(ctx context.Context, id int64) error {
 
 	err := s.registryDal.UpdateRegistry(ctx, imagesecModel.SearchRegistryParam{ID: id}, update)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "RegistryImage").Msg("DeleteRegistry")
+		s.Log.Err(err).Msg("DeleteRegistry")
 
 		return scani18.DeleteReg(err)
 	}
@@ -132,7 +138,7 @@ func (s *RegistrySrv) CreateRegistry(ctx context.Context, reg *imagesecModel.Reg
 	go func(regID int64) {
 		defer func() {
 			if err := recover(); err != nil {
-				logging.Get().Error().Msg("CreateRegistry recover")
+				s.Log.Error().Str("Stack", string(debug.Stack())).Msg("CreateRegistry recover")
 			}
 		}()
 		ticker := time.NewTicker(time.Minute * 1)
@@ -141,7 +147,7 @@ func (s *RegistrySrv) CreateRegistry(ctx context.Context, reg *imagesecModel.Reg
 
 		syncTask := &imagesecModel.ImageSyncTask{RegistryID: regID, SyncType: imagesecModel.CycleFullSync.String()}
 		if err := s.syncTaskDal.CreateSyncTask(ctx, syncTask); err != nil {
-			logging.Get().Err(err).Str("module", "RegistryImage").Int64("regID", regID).Msg("createRegistry CreateSyncTask")
+			s.Log.Err(err).Int64("regID", regID).Msg("createRegistry CreateSyncTask")
 		}
 	}(reg.ID)
 
@@ -178,7 +184,7 @@ func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg imagesec
 
 	registries, _, err := s.registryDal.SearchRegistry(ctx, imagesecModel.SearchRegistryParam{ID: id, Deleted: consts.FalseString})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "RegistryImage").Msg("UpdateRegistry.SearchRegistry")
+		s.Log.Err(err).Msg("UpdateRegistry.SearchRegistry")
 		return scani18.UpdateRegistry(err)
 	}
 	if len(registries) == 0 {
@@ -201,7 +207,7 @@ func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg imagesec
 	if prePass != "" {
 		encryPass, err := util.DesEncrypt([]byte(prePass), []byte(consts.EncryptPasswordKey))
 		if err != nil {
-			logging.Get().Err(err).Str("module", "RegistryImage").Msg("DesEncrypt")
+			s.Log.Err(err).Msg("DesEncrypt")
 			return scani18.UpdateRegistry(err)
 		}
 		reg.Password = encryPass
@@ -221,7 +227,7 @@ func (s *RegistrySrv) CreateSyncTask(ctx context.Context, param imagesecModel.Cr
 	regs, _, err := s.registryDal.SearchRegistry(ctx, imagesecModel.SearchRegistryParam{ID: param.RegID,
 		ScannerInstance: param.ScannerInstance, Deleted: consts.FalseString})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "RegistryImage").Interface("param", param).Msg("SearchRegistry")
+		s.Log.Err(err).Interface("param", param).Msg("SearchRegistry")
 		return err
 	}
 	for i := range regs {
@@ -229,13 +235,13 @@ func (s *RegistrySrv) CreateSyncTask(ctx context.Context, param imagesecModel.Cr
 		err = s.syncTaskDal.CreateSyncTask(ctx, syncTask)
 		if err != nil {
 			if strings.Contains(err.Error(), consts.DuplicateKey) {
-				logging.Get().Info().Str("module", "RegistryImage").Interface("syncTask", syncTask).Msg("has one sync task is running")
+				s.Log.Info().Interface("syncTask", syncTask).Msg("has one sync task is running")
 				continue
 			}
-			logging.Get().Err(err).Str("module", "RegistryImage").Interface("syncTask", syncTask).Msg("CreateSyncTask")
+			s.Log.Err(err).Interface("syncTask", syncTask).Msg("CreateSyncTask")
 			return err
 		}
-		logging.Get().Info().Str("module", "RegistryImage").Interface("syncTask", syncTask).Msg("CreateSyncTask")
+		s.Log.Info().Interface("syncTask", syncTask).Msg("CreateSyncTask")
 	}
 	return nil
 }
@@ -243,7 +249,7 @@ func (s *RegistrySrv) CreateSyncTask(ctx context.Context, param imagesecModel.Cr
 func (s *RegistrySrv) GetSyncStatus(ctx context.Context) ([]*imagesecModel.RegSyncStatus, error) {
 	registries, _, err := s.registryDal.SearchRegistry(ctx, imagesecModel.SearchRegistryParam{Deleted: consts.FalseString})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "RegistryImage").Msg("GetSyncStatus")
+		s.Log.Err(err).Msg("GetSyncStatus")
 		return nil, err
 	}
 	exit := make(map[int64]*imagesecModel.RegSyncStatus)
@@ -254,7 +260,7 @@ func (s *RegistrySrv) GetSyncStatus(ctx context.Context) ([]*imagesecModel.RegSy
 
 	syncTask, err := s.syncTaskDal.SearchSyncTask(ctx, imagesecModel.SearchSyncTaskParam{Finished: consts.FalseString})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "RegistryImage").Msg("GetSyncStatus SearchSyncTask")
+		s.Log.Err(err).Msg("GetSyncStatus SearchSyncTask")
 		return nil, err
 	}
 	for i := range syncTask {
@@ -274,19 +280,19 @@ func (s *RegistrySrv) GetSyncStatus(ctx context.Context) ([]*imagesecModel.RegSy
 func (s *RegistrySrv) ValidateRegistry(ctx context.Context, reg imagesecModel.Registry) error {
 	if reg.ScannerInstance != global.ScannerInstance {
 		err := fmt.Errorf("registry not in correct cluster")
-		logging.Get().Err(err).Str("module", "RegistryImage").Str("ScannerInstance", reg.ScannerInstance).Str("regName", reg.Name).
+		s.Log.Err(err).Str("ScannerInstance", reg.ScannerInstance).Str("regName", reg.Name).
 			Msg("the registry not in this cluster")
 		return err
 	}
 	conf := warehouse.RegToRegistryConf(reg)
 	driver, err := warehouse.Open(conf)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "RegistryImage").Str("ScannerInstance", reg.ScannerInstance).Str("regName", reg.Name).
+		s.Log.Err(err).Str("ScannerInstance", reg.ScannerInstance).Str("regName", reg.Name).
 			Msg("can not get registry driver")
 		return err
 	}
 	if err := driver.Ping(); err != nil {
-		logging.Get().Err(err).Str("module", "RegistryImage").Str("ScannerInstance", reg.ScannerInstance).Str("regName", reg.Name).
+		s.Log.Err(err).Str("ScannerInstance", reg.ScannerInstance).Str("regName", reg.Name).
 			Msg("can not ping registry")
 		return err
 	}
@@ -301,7 +307,7 @@ func (s *RegistrySrv) SendToScannerCheckHealth(ctx context.Context, reg imagesec
 	defer timeOutFunc()
 	data, err := json.Marshal(reg)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "RegistryImage").Msg("SendToScannerCheckHealth")
+		s.Log.Err(err).Msg("SendToScannerCheckHealth")
 		return err
 	}
 	clusterKey := strings.TrimPrefix(reg.ScannerInstance, "scan-")
@@ -313,11 +319,11 @@ func (s *RegistrySrv) SendToScannerCheckHealth(ctx context.Context, reg imagesec
 		RequestID:       uuid.New().String(),
 		Payload:         data,
 	}
-	logging.Get().Debug().Str("module", "RegistryImage").Interface("reg", req).Msg("SendToScannerCheckHealth sendMsg")
+	s.Log.Debug().Interface("reg", req).Msg("SendToScannerCheckHealth sendMsg")
 
 	rsp, err := streamClient.ScannerPushImageSecMsg(timeOutCxt, req)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "RegistryImage").Interface("req", req).Msg("SendToScannerCheckHealth")
+		s.Log.Err(err).Interface("req", req).Msg("SendToScannerCheckHealth")
 		return err
 	}
 	switch rsp.Status {
@@ -334,7 +340,7 @@ func (s *RegistrySrv) SendToScannerCheckHealth(ctx context.Context, reg imagesec
 func (s *RegistrySrv) updatePolicyAfterDeleteReg(ctx context.Context, regID int64) error {
 	policy, _, err := s.policyDal.SearchDetectPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("SearchDetectPolicy")
+		s.Log.Err(err).Msg("SearchDetectPolicy")
 		return err
 	}
 	for i := range policy {
@@ -354,7 +360,7 @@ func (s *RegistrySrv) updatePolicyAfterDeleteReg(ctx context.Context, regID int6
 			param := imagesecModel.UpdateSecurityPolicyParam{
 				ID: po.ID, Updater: po.ToUpdater()}
 			if err := s.policyDal.UpdateDetectPolicy(ctx, param); err != nil {
-				logging.Get().Err(err).Str("module", "imageMeta").Msg("UpdateDetectPolicy")
+				s.Log.Err(err).Msg("UpdateDetectPolicy")
 				return err
 			}
 		}
@@ -365,7 +371,7 @@ func (s *RegistrySrv) updatePolicyAfterDeleteReg(ctx context.Context, regID int6
 func (s *RegistrySrv) updateScanConfigAfterDeleteReg(ctx context.Context, regID int64) error {
 	policy, err := s.scanConfigDal.SearchImageConfig(ctx)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imageMeta").Msg("SearchImageConfig")
+		s.Log.Err(err).Msg("SearchImageConfig")
 		return err
 	}
 	for i := range policy {
@@ -385,7 +391,7 @@ func (s *RegistrySrv) updateScanConfigAfterDeleteReg(ctx context.Context, regID 
 			data.ImageScanConfig = po
 
 			if err := s.scanConfigDal.UpdateScanImageConfig(ctx, po.ID, data); err != nil {
-				logging.Get().Err(err).Str("module", "imageMeta").Msg("UpdateScanImageConfig")
+				s.Log.Err(err).Msg("UpdateScanImageConfig")
 				return err
 			}
 		}

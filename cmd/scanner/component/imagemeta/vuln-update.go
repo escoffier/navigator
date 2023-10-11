@@ -3,8 +3,6 @@ package imagemeta
 import (
 	"context"
 
-	"gitlab.com/security-rd/go-pkg/logging"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta/metaGlobal"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -17,12 +15,12 @@ func (s *ImageUpdateSrv) UpdateVulnFlag(ctx context.Context) error {
 	go func(subOnlineImage chan *imagesecModel.Image) {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Msg("CreateOnlineVuln recover panic")
+				s.Log.Error().Msg("CreateOnlineVuln recover panic")
 			}
 		}()
 
 		for im := range subOnlineImage {
-			logging.Get().Info().Str("module", "imageMeta").Str("image", im.GetImageName()).Msg("CreateOnlineVuln image not online and set vuln not online")
+			s.Log.Info().Str("image", im.GetImageName()).Msg("CreateOnlineVuln image not online and set vuln not online")
 			if im.UniqueID <= 0 || util.ExistBit1(im.Flag, imagesecModel.FlagImageOnline) {
 				continue
 			}
@@ -32,7 +30,7 @@ func (s *ImageUpdateSrv) UpdateVulnFlag(ctx context.Context) error {
 				ImageUniqueID: im.UniqueID,
 			})
 			if err != nil {
-				logging.Get().Err(err).Str("module", "imageMeta").Msg("DeleteOnlineVuln SearchVuln")
+				s.Log.Err(err).Msg("DeleteOnlineVuln SearchVuln")
 				continue
 			}
 			update := make([]uint64, 0)
@@ -41,7 +39,7 @@ func (s *ImageUpdateSrv) UpdateVulnFlag(ctx context.Context) error {
 				sub := true
 				images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{VulnUniqueID: vulns[i].UniqueID})
 				if err != nil {
-					logging.Get().Err(err).Str("module", "imageMeta").Msg("DeleteOnlineVuln SearchImage")
+					s.Log.Err(err).Msg("DeleteOnlineVuln SearchImage")
 					continue
 				}
 				for _, ima := range images {
@@ -58,11 +56,11 @@ func (s *ImageUpdateSrv) UpdateVulnFlag(ctx context.Context) error {
 
 			err = s.scanResult.DeleteOnlineVuln(ctx, update)
 			if err != nil {
-				logging.Get().Err(err).Str("module", "imageMeta").Msg("DeleteOnlineVuln")
+				s.Log.Err(err).Msg("DeleteOnlineVuln")
 				continue
 			}
 
-			logging.Get().Info().Str("module", "imageMeta").Int("notOnlineVuln", len(update)).
+			s.Log.Info().Int("notOnlineVuln", len(update)).
 				Msg("DeleteOnlineVuln")
 		}
 	}(subOnlineImage)
@@ -71,12 +69,12 @@ func (s *ImageUpdateSrv) UpdateVulnFlag(ctx context.Context) error {
 	go func(addOnlineImage chan *imagesecModel.Image) {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Msg("CreateOnlineVuln recover panic")
+				s.Log.Error().Msg("CreateOnlineVuln recover panic")
 			}
 		}()
 
 		for im := range addOnlineImage {
-			logging.Get().Info().Str("module", "imageMeta").Int64("image", im.ID).Msg("CreateOnlineVuln")
+			s.Log.Info().Int64("image", im.ID).Msg("CreateOnlineVuln")
 			if im.UniqueID <= 0 || !util.ExistBit1(im.Flag, imagesecModel.FlagImageOnline) {
 				continue
 			}
@@ -84,7 +82,7 @@ func (s *ImageUpdateSrv) UpdateVulnFlag(ctx context.Context) error {
 				ImageUniqueID: im.UniqueID,
 			})
 			if err != nil {
-				logging.Get().Err(err).Str("module", "imageMeta").Msg("CreateOnlineVuln SearchVuln")
+				s.Log.Err(err).Msg("CreateOnlineVuln SearchVuln")
 				continue
 			}
 			update := make([]*imagesecModel.Vuln, 0)
@@ -94,10 +92,10 @@ func (s *ImageUpdateSrv) UpdateVulnFlag(ctx context.Context) error {
 				}
 			}
 			if err := s.scanResult.CreateVuln(ctx, imagesecModel.CreateVulnParam{OnlineVuln: true, Data: update}); err != nil {
-				logging.Get().Err(err).Str("module", "imageMeta").Msg("CreateOnlineVuln")
+				s.Log.Err(err).Msg("CreateOnlineVuln")
 				continue
 			}
-			logging.Get().Info().Str("module", "imageMeta").Int("onlineVuln", len(update)).Msg("CreateOnlineVuln")
+			s.Log.Info().Int("onlineVuln", len(update)).Msg("CreateOnlineVuln")
 		}
 	}(addOnlineImage)
 
