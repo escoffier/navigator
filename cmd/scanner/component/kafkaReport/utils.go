@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/boltdb/bolt"
-	"gitlab.com/security-rd/go-pkg/logging"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 	trivyTypes "scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/types"
 
@@ -86,54 +85,33 @@ func GetCnvdFromBolt(cnvdBoltDB *bolt.DB, vulnName string) ([]cnvd.Metadata, err
 	return cnvdRes, err
 }
 
-func MustMkEmptyDir(path string) {
-	ticker := time.NewTicker(time.Second * 2)
-	defer ticker.Stop()
-	for {
-		<-ticker.C
-		_ = os.RemoveAll(path)
+func MkEmptyDir(path string) error {
+	_ = os.RemoveAll(path)
 
-		if err := os.MkdirAll(path, os.ModePerm); err != nil {
-			logging.Get().Err(err).Str("module", "KafkaReport").Str("path", path).Msg("MkdirAll")
-			continue
-		}
-		logging.Get().Info().Str("module", "KafkaReport").Str("path", path).Msg("create dir")
-		return
+	if err := os.MkdirAll(path, os.ModePerm); err != nil {
+		return err
 	}
+	return nil
 }
 
-func MustOpenBoltDB(path string) *bolt.DB {
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-	for {
-		<-ticker.C
-		options := bolt.Options{
-			Timeout:  time.Second * 10,
-			ReadOnly: true,
-		}
-		options.Timeout = time.Second * 15
-		db, err := bolt.Open(string(path), 0600, &options)
-		if err != nil {
-			logging.Get().Err(err).Str("module", "KafkaReport").Str("path", path).Msg("can not open boltDB")
-			continue
-		}
-		logging.Get().Info().Str("module", "KafkaReport").Str("path", path).Msg("open bold db")
-		return db
+func OpenBoltDB(path string) (*bolt.DB, error) {
+	options := bolt.Options{
+		Timeout:  time.Second * 10,
+		ReadOnly: true,
 	}
+	options.Timeout = time.Second * 15
+	db, err := bolt.Open(string(path), 0600, &options)
+	if err != nil {
+		return nil, err
+	}
+	return db, nil
 }
 
-func MustCopyFile(pre, after string) {
-	ticker := time.NewTicker(time.Minute)
-	defer ticker.Stop()
-	for {
-		<-ticker.C
-		if err := copyFile(pre, after); err != nil {
-			logging.Get().Err(err).Str("module", "KafkaReport").Str("pre", pre).Str("after", after).Msg("copy file")
-			continue
-		}
-		logging.Get().Info().Str("module", "KafkaReport").Str("pre", pre).Str("after", after).Msg("copy file succeed")
-		return
+func CopyFile(pre, after string) error {
+	if err := copyFile(pre, after); err != nil {
+		return err
 	}
+	return nil
 }
 
 func copyFile(source, destination string) error {
@@ -215,7 +193,6 @@ func GetRegImageInfo(data imagesecTypes.NodeReport) ([]*imagesecModel.Image,
 	ans := make([]*imagesecModel.Image, 0)
 	for i := range images {
 		if err := images[i].Check(); err != nil {
-			logging.Get().Err(err).Str("module", "KafkaReport").Str("image", images[i].GetImageName()).Msg("image check")
 			continue
 		}
 		ans = append(ans, images[i])
@@ -224,7 +201,7 @@ func GetRegImageInfo(data imagesecTypes.NodeReport) ([]*imagesecModel.Image,
 	return ans, envs
 }
 
-func GetNodeImageInfo(data imagesecTypes.NodeReport) ([]*imagesecModel.Image, *imagesecModel.NodeInfo,
+func (s *ImageReport) GetNodeImageInfo(data imagesecTypes.NodeReport) ([]*imagesecModel.Image, *imagesecModel.NodeInfo,
 	map[uint64][]*imagesecModel.ImageEnv) {
 	//  contanerd 会有这样的数据，要处理
 	//  digests=["docker.io/maohaoxin/syslog_upd_app_linux@sha256:b2d3f7e9af1d16382539dc3c330acc7d2d5cd2109d0eeff0f60679769bc91f55"]
@@ -292,7 +269,7 @@ func GetNodeImageInfo(data imagesecTypes.NodeReport) ([]*imagesecModel.Image, *i
 	ans := make([]*imagesecModel.Image, 0)
 	for i := range images {
 		if err := images[i].Check(); err != nil {
-			logging.Get().Debug().Str("module", "KafkaReport").Str("image", images[i].GetImageName()).Msg("image check")
+			s.Log.Debug().Str("image", images[i].GetImageName()).Msg("image check")
 			continue
 		}
 		ans = append(ans, images[i])

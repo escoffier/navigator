@@ -44,6 +44,7 @@ type ScanResultReportSrv struct {
 	imageDetectSrv  ImageDetectTaskService
 	detectImageChan chan DetectImageData
 	OnlineVulnChan  chan []*imagesecModel.Vuln
+	Log             *scannerUtils.LogEvent
 }
 
 type DetectImageData struct {
@@ -63,14 +64,14 @@ func (s *ScanResultReportSrv) matchVuln(res *imagesecTypes.ScanResult) (report.R
 	// match vuln by image artifact
 	matcher, err := vulnMatch.NewMatcher(vulnMatch.WithCachePath(vulnMatch.DefaultCachePath))
 	if err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Int64("subtaskID", res.SubTaskID).Int64("taskID", res.TaskID).
+		s.Log.Err(err).Int64("subtaskID", res.SubTaskID).Int64("taskID", res.TaskID).
 			Msg("CreateScanResult failed to create vuln matcher")
 		return nil, err
 	}
 
 	err = matcher.MatchVulnerability(res.OriginArtifact)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Int64("subtaskID", res.SubTaskID).Int64("taskID", res.TaskID).
+		s.Log.Err(err).Int64("subtaskID", res.SubTaskID).Int64("taskID", res.TaskID).
 			Msg("CreateScanResult failed to match vuln")
 		return nil, err
 	}
@@ -81,7 +82,7 @@ func (s *ScanResultReportSrv) CreateScanResult(ctx context.Context, data imagese
 
 	image, err := s.GetImageInfo(ctx, data.TaskID, data.SubTaskID)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Int64("subtaskID", data.SubTaskID).Int64("taskID", data.TaskID).
+		s.Log.Err(err).Int64("subtaskID", data.SubTaskID).Int64("taskID", data.TaskID).
 			Msg("CreateScanResult GetImageInfo")
 		return err
 	}
@@ -115,7 +116,7 @@ func (s *ScanResultReportSrv) CreateScanResult(ctx context.Context, data imagese
 		s.detectImageChan <- dd
 	}()
 
-	logging.Get().Info().Str("module", "KafkaReport").
+	s.Log.Info().
 		Int("malwareCnt", len(correlate.Malware)).
 		Int("pkgCnt", len(correlate.Pkg)).
 		Int("vulnCnt", len(correlate.Vuln)).
@@ -128,7 +129,7 @@ func (s *ScanResultReportSrv) CreateScanResult(ctx context.Context, data imagese
 		Msg("CreateScanResult get scan result and create succeed")
 
 	if err := s.UpdateSubtaskScanFinished(ctx, data); err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Int64("subtaskID", data.SubTaskID).Int64("taskID", data.TaskID).Msg("CreateScanResult")
+		s.Log.Err(err).Int64("subtaskID", data.SubTaskID).Int64("taskID", data.TaskID).Msg("CreateScanResult")
 		return err
 	}
 
@@ -144,7 +145,7 @@ func (s *ScanResultReportSrv) CreateScanResultForDataMigrate(ctx context.Context
 	_ = s.CreateMalware(ctx, data, image.UniqueID, correlate)
 	_ = s.CreateWebshell(ctx, data, image.UniqueID, correlate)
 
-	logging.Get().Info().Str("module", "KafkaReport").Int64("imageID", image.ID).Int64("subtaskID", data.SubTaskID).Msg("CreateScanResult succeed")
+	s.Log.Info().Int64("imageID", image.ID).Int64("subtaskID", data.SubTaskID).Msg("CreateScanResult succeed")
 
 	return nil
 }
@@ -154,12 +155,12 @@ func (s *ScanResultReportSrv) UpdateImage(ctx context.Context, imageID int64, da
 	image, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{ID: imageID})
 
 	if err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Int64("imageID", imageID).Msg("SearchImage")
+		s.Log.Err(err).Int64("imageID", imageID).Msg("SearchImage")
 		return err
 	}
 	if len(image) == 0 {
 		err = fmt.Errorf("not find image:%d", imageID)
-		logging.Get().Err(err).Str("module", "KafkaReport").Int64("imageID", imageID).Msg("SearchImage")
+		s.Log.Err(err).Int64("imageID", imageID).Msg("SearchImage")
 		return err
 	}
 
@@ -227,10 +228,10 @@ func (s *ScanResultReportSrv) UpdateImage(ctx context.Context, imageID int64, da
 	}
 
 	if err := s.imageDal.UpdateImage(ctx, imagesecModel.UpdateImageParam{ID: imageID, Updater: updater}); err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Int64("imageID", imageID).Msg("UpdateImage")
+		s.Log.Err(err).Int64("imageID", imageID).Msg("UpdateImage")
 		return err
 	}
-	logging.Get().Info().Str("module", "KafkaReport").Int64("imageID", imageID).Interface("updater", updater).Msg("CreateScanResult UpdateImage")
+	s.Log.Info().Int64("imageID", imageID).Interface("updater", updater).Msg("CreateScanResult UpdateImage")
 	return nil
 }
 
@@ -241,31 +242,31 @@ func (s *ScanResultReportSrv) GetImageInfo(ctx context.Context, taskID, subtaskI
 		TaskID:    taskID,
 	})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Int64("subtaskID", subtaskID).Int64("taskID", taskID).Msg("ScanResultReportSrv SearchScanTask")
+		s.Log.Err(err).Int64("subtaskID", subtaskID).Int64("taskID", taskID).Msg("SearchScanTask")
 		return empty, err
 	}
 	if len(subtask) == 0 {
-		logging.Get().Info().Str("module", "KafkaReport").Int64("subtaskID", subtaskID).Int64("taskID", taskID).Msg("ScanResultReportSrv not find subtask")
+		s.Log.Info().Int64("subtaskID", subtaskID).Int64("taskID", taskID).Msg("not find subtask")
 		return empty, err
 	}
 	image, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{UniqueId: subtask[0].ImageUniqueID})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Int64("subtaskID", subtaskID).Int64("taskID", taskID).Uint64("ImageUniqueID", subtask[0].ImageUniqueID).Msg("ScanResultReportSrv SearchImage")
+		s.Log.Err(err).Int64("subtaskID", subtaskID).Int64("taskID", taskID).Uint64("ImageUniqueID", subtask[0].ImageUniqueID).Msg("SearchImage")
 		return empty, err
 	}
 
 	if len(image) == 0 {
-		logging.Get().Err(err).Str("module", "KafkaReport").Int64("subtaskID", subtaskID).Int64("taskID", taskID).Uint64("ImageUniqueID", subtask[0].ImageUniqueID).Msg("ScanResultReportSrv not find image")
+		s.Log.Err(err).Int64("subtaskID", subtaskID).Int64("taskID", taskID).Uint64("ImageUniqueID", subtask[0].ImageUniqueID).Msg("not find image")
 		return empty, fmt.Errorf("not find image:%d", subtask[0].ImageUniqueID)
 	}
-	logging.Get().Info().Str("module", "KafkaReport").Int64("imageID", image[0].ID).Msg("ScanResultReportSrv GetImageInfo")
+	s.Log.Info().Int64("imageID", image[0].ID).Msg("GetImageInfo")
 	return *(image[0]), nil
 }
 
 func (s *ScanResultReportSrv) UpdateSubtaskScanFinished(ctx context.Context, data imagesecTypes.ScanResult) error {
 	subtask, _, err := s.nodeTaskDal.SearchScanSubtask(ctx, imagesecModel.SearchTaskParam{SubtaskID: data.SubTaskID})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Int64("subTaskID", data.SubTaskID).Msg("SearchScanSubtask")
+		s.Log.Err(err).Int64("subTaskID", data.SubTaskID).Msg("SearchScanSubtask")
 		return err
 	}
 	if len(subtask) == 0 {
@@ -290,12 +291,12 @@ func (s *ScanResultReportSrv) UpdateSubtaskScanFinished(ctx context.Context, dat
 		ID:      data.SubTaskID,
 		Updater: updater,
 	}); err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Int64("subtaskID", data.SubTaskID).Int64("taskID", data.TaskID).
-			Msg("ScanResultReportSrv UpdateSubtaskScanFinished")
+		s.Log.Err(err).Int64("subtaskID", data.SubTaskID).Int64("taskID", data.TaskID).
+			Msg("UpdateSubtaskScanFinished")
 		return err
 	}
-	logging.Get().Info().Str("module", "KafkaReport").Int64("subtaskID", data.SubTaskID).Int64("taskID", data.TaskID).Interface("updater", updater).
-		Msg("ScanResultReportSrv UpdateSubtaskScanFinished succeed")
+	s.Log.Info().Int64("subtaskID", data.SubTaskID).Int64("taskID", data.TaskID).Interface("updater", updater).
+		Msg("UpdateSubtaskScanFinished succeed")
 	return nil
 }
 
@@ -305,14 +306,14 @@ func (s *ScanResultReportSrv) CreatePkgVuln(ctx context.Context, data imagesecTy
 	// match vuln
 	results, err := s.matchVuln(&data)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Int64("taskID", data.TaskID).Int64("subtaskID", data.SubTaskID).
-			Msg("ScanResultReportSrv not match vuln")
+		s.Log.Err(err).Int64("taskID", data.TaskID).Int64("subtaskID", data.SubTaskID).
+			Msg("not match vuln")
 		return emp, err
 	}
 
-	logging.Get().Debug().Str("module", "KafkaReport").Interface("matchVulnResult", results).Msg("matchVuln")
+	s.Log.Debug().Interface("matchVulnResult", results).Msg("matchVuln")
 
-	statisticsMathRes(results)
+	s.StatisticsMathRes(results)
 
 	pkgs := make([]*imagesecModel.Pkg, 0)
 	pkgToImage := make([]*imagesecModel.PkgToImage, 0)
@@ -445,19 +446,19 @@ func (s *ScanResultReportSrv) CreatePkgVuln(ctx context.Context, data imagesecTy
 	pkgs = imagesecModel.DuplicatePkg(pkgs)
 
 	if err := s.scanResultDal.CreateVuln(ctx, imagesecModel.CreateVulnParam{Data: vuln}); err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Uint64("ImageUniqueID", imageUniqueID).Msg("ScanResultReportSrv CreateVuln")
+		s.Log.Err(err).Uint64("ImageUniqueID", imageUniqueID).Msg("CreateVuln")
 		return emp, err
 	}
 
 	if err := s.scanResultDal.CreatePkg(ctx, pkgs); err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Uint64("ImageUniqueID", imageUniqueID).Msg("ScanResultReportSrv CreatePkg")
+		s.Log.Err(err).Uint64("ImageUniqueID", imageUniqueID).Msg("CreatePkg")
 		return emp, err
 	}
 	if err := s.issueDal.CreatePkgToImage(ctx, imagesecModel.CreatePkgToImageParam{
 		ImageUniqueID: imageUniqueID,
 		Data:          pkgToImage,
 	}); err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Uint64("ImageUniqueID", imageUniqueID).Msg("ScanResultReportSrv CreatePkgToImage")
+		s.Log.Err(err).Uint64("ImageUniqueID", imageUniqueID).Msg("CreatePkgToImage")
 		return emp, err
 	}
 
@@ -465,16 +466,16 @@ func (s *ScanResultReportSrv) CreatePkgVuln(ctx context.Context, data imagesecTy
 		ImageUniqueID: imageUniqueID,
 		Data:          vulnIssue,
 	}); err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Uint64("ImageUniqueID", imageUniqueID).Msg("ScanResultReportSrv CreateVulnToImage")
+		s.Log.Err(err).Uint64("ImageUniqueID", imageUniqueID).Msg("CreateVulnToImage")
 		return emp, err
 	}
 
 	correlate.Vuln = vulnView
 	correlate.Pkg = pkgs
 
-	logging.Get().Info().Str("module", "KafkaReport").Int("vulnCnt", len(vuln)).
+	s.Log.Info().Int("vulnCnt", len(vuln)).
 		Int("pkgCnt", len(pkgs)).Uint64("imageUniqueID", imageUniqueID).
-		Msg("ScanResultReportSrv CreatePkgVuln")
+		Msg("CreatePkgVuln")
 	return vuln, err
 }
 
@@ -500,18 +501,18 @@ func (s *ScanResultReportSrv) CreateSensitive(ctx context.Context, data imagesec
 	}
 
 	if err := s.scanResultDal.CreateSensitive(ctx, res); err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Uint64("ImageUniqueID", imageUniqueID).Msg("ScanResultReportSrv CreateSensitive")
+		s.Log.Err(err).Uint64("ImageUniqueID", imageUniqueID).Msg("CreateSensitive")
 		return err
 	}
 	if err := s.issueDal.CreateSensitiveToImage(ctx, imagesecModel.CreateSensitiveToImageParam{
 		ImageUniqueID: imageUniqueID,
 		Data:          issue,
 	}); err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Uint64("ImageUniqueID", imageUniqueID).Msg("ScanResultReportSrv CreateSensitiveToImage")
+		s.Log.Err(err).Uint64("ImageUniqueID", imageUniqueID).Msg("CreateSensitiveToImage")
 		return err
 	}
 	correlate.Sensitive = res
-	logging.Get().Info().Str("module", "KafkaReport").Int("sentCnt", len(res)).Uint64("imageUniqueID", imageUniqueID).Msg("ScanResultReportSrv CreateSensitive")
+	s.Log.Info().Int("sentCnt", len(res)).Uint64("imageUniqueID", imageUniqueID).Msg("CreateSensitive")
 	return nil
 }
 
@@ -533,12 +534,12 @@ func (s *ScanResultReportSrv) CreateWebFrameInfo(ctx context.Context, data image
 
 	err := s.scanResultDal.CreateWebFrameInfo(ctx, data.WebFrameInfo.ImageUUID, webs)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Uint32("ImageUUID", data.WebFrameInfo.ImageUUID).
-			Msg("ScanResultReportSrv CreateWebFrameInfo")
+		s.Log.Err(err).Uint32("ImageUUID", data.WebFrameInfo.ImageUUID).
+			Msg("CreateWebFrameInfo")
 		return err
 	}
-	logging.Get().Info().Str("module", "KafkaReport").Uint32("ImageUUID", data.WebFrameInfo.ImageUUID).
-		Msg("ScanResultReportSrv CreateWebFrameInfo")
+	s.Log.Info().Uint32("ImageUUID", data.WebFrameInfo.ImageUUID).
+		Msg("CreateWebFrameInfo")
 	return nil
 }
 
@@ -547,7 +548,7 @@ func (s *ScanResultReportSrv) GenBoltDBChan(ctx context.Context) chan *BoltDB {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Stack().Msg("GenBoltDBChan")
+				s.Log.Error().Stack().Msg("GenBoltDBChan")
 				return
 			}
 		}()
@@ -558,7 +559,7 @@ func (s *ScanResultReportSrv) GenBoltDBChan(ctx context.Context) chan *BoltDB {
 			if global.VulnDBVersion == nil || global.VulnDBVersion.VulnVersion.TrivyVersion.Version == "" ||
 				global.VulnDBVersion.VulnVersion.CustomDBVersion.Version == "" {
 
-				logging.Get().Info().Str("module", "KafkaReport").Msg("GenBoltDBChan not get global vuln db version")
+				s.Log.Info().Msg("GenBoltDBChan not get global vuln db version")
 				time.Sleep(time.Second * 10)
 				continue
 			}
@@ -568,18 +569,43 @@ func (s *ScanResultReportSrv) GenBoltDBChan(ctx context.Context) chan *BoltDB {
 				s.vulnDBVersion.CustomDBVersion.Version != global.VulnDBVersion.VulnVersion.CustomDBVersion.Version ||
 				s.availableBoltDB == nil {
 
-				MustMkEmptyDir(filepath.Join(s.pvcPath, consts.NodeVulnDir))
-				MustCopyFile(filepath.Join(global.PVCPath, scannerModel.TrivyDBPath), filepath.Join(s.pvcPath, consts.NodeTrivyDBPath))
-				MustCopyFile(filepath.Join(global.PVCPath, scannerModel.CustomDBPath), filepath.Join(s.pvcPath, consts.NodeCustomDBPath))
+				if err := MkEmptyDir(filepath.Join(s.pvcPath, consts.NodeVulnDir)); err != nil {
+					s.Log.Err(err).Msg("MkEmptyDir")
+					continue
+				}
+				if err := CopyFile(filepath.Join(global.PVCPath, scannerModel.TrivyDBPath), filepath.Join(s.pvcPath, consts.NodeTrivyDBPath)); err != nil {
+					s.Log.Err(err).Msg("CopyFile")
+					continue
+				}
+				if err := CopyFile(filepath.Join(global.PVCPath, scannerModel.CustomDBPath), filepath.Join(s.pvcPath, consts.NodeCustomDBPath)); err != nil {
+					s.Log.Err(err).Msg("CopyFile")
+					continue
+				}
 
 				s.vulnDBVersion = &global.VulnDBVersion.VulnVersion
+				vulnBoltDB, err := OpenBoltDB(filepath.Join(s.pvcPath, consts.NodeTrivyDBPath))
+				if err != nil {
+					s.Log.Err(err).Msg("OpenBoltDB")
+					continue
+				}
+
+				cnvdBoltDB, err := OpenBoltDB(filepath.Join(s.pvcPath, consts.NodeCustomDBPath))
+				if err != nil {
+					s.Log.Err(err).Msg("OpenBoltDB")
+					continue
+				}
+				cnnvdBoltDB, err := OpenBoltDB(filepath.Join(s.pvcPath, consts.NodeCustomDBPath))
+				if err != nil {
+					s.Log.Err(err).Msg("OpenBoltDB")
+					continue
+				}
 
 				boltDB := BoltDB{
-					VulnBoltDB:  MustOpenBoltDB(filepath.Join(s.pvcPath, consts.NodeTrivyDBPath)),
-					CnvdBoltDB:  MustOpenBoltDB(filepath.Join(s.pvcPath, consts.NodeCustomDBPath)),
-					CnnvdBoltDB: MustOpenBoltDB(filepath.Join(s.pvcPath, consts.NodeCustomDBPath)),
+					VulnBoltDB:  vulnBoltDB,
+					CnvdBoltDB:  cnvdBoltDB,
+					CnnvdBoltDB: cnnvdBoltDB,
 				}
-				logging.Get().Info().Str("module", "KafkaReport").Msg("GenBoltDBChan rebuild boltdb")
+				s.Log.Info().Msg("GenBoltDBChan rebuild boltdb")
 				s.availableBoltDB = &boltDB
 			}
 			out <- s.availableBoltDB
@@ -593,7 +619,7 @@ func (s *ScanResultReportSrv) ContinueCreateDetectTask(ctx context.Context) erro
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Stack().Msg("ContinueCreateDetectTask")
+				s.Log.Error().Stack().Msg("ContinueCreateDetectTask")
 				return
 			}
 		}()
@@ -601,7 +627,7 @@ func (s *ScanResultReportSrv) ContinueCreateDetectTask(ctx context.Context) erro
 		for task := range s.detectImageChan {
 
 			if task.RetryCnt > consts.DefaultMaxRetryCount {
-				logging.Get().Info().Str("module", "KafkaReport").Uint64("imageUniqueID", task.ImageUniqueID).
+				s.Log.Info().Uint64("imageUniqueID", task.ImageUniqueID).
 					Msg("AddDetectTask exceed max retry")
 				continue
 			}
@@ -617,11 +643,11 @@ func (s *ScanResultReportSrv) ContinueCreateDetectTask(ctx context.Context) erro
 				imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectPriorityScan, ScanSubTaskID: task.SubtaskID},
 				nil,
 			); err != nil {
-				logging.Get().Err(err).Str("module", "KafkaReport").Uint64("imageUniqueID", task.ImageUniqueID).
+				s.Log.Err(err).Uint64("imageUniqueID", task.ImageUniqueID).
 					Msg("AddDetectTask")
 				continue
 			}
-			logging.Get().Info().Str("module", "KafkaReport").Uint64("imageUniqueID", task.ImageUniqueID).
+			s.Log.Info().Uint64("imageUniqueID", task.ImageUniqueID).
 				Msg("get scan finished subtask,create detect task succeed")
 		}
 	}()
@@ -631,7 +657,7 @@ func (s *ScanResultReportSrv) ContinueCreateDetectTask(ctx context.Context) erro
 func (s *ScanResultReportSrv) CreateMalware(ctx context.Context, data imagesecTypes.ScanResult, imageUniqueID uint64,
 	correlate *imagesecModel.ImageWithCorrelateData2) error {
 	if !data.Malwares.Scanned {
-		logging.Get().Info().Str("module", "KafkaReport").Uint64("imageUniqueID", data.ImageUniqueID).
+		s.Log.Info().Uint64("imageUniqueID", data.ImageUniqueID).
 			Msg("malware not scanned")
 		return nil
 	}
@@ -698,36 +724,36 @@ func (s *ScanResultReportSrv) CreateMalware(ctx context.Context, data imagesecTy
 	// todo(liuqianli) 下期功能
 	// if err := clamV.Check(); err == nil {
 	// 	if err := s.versionDal.CreateScanDbMeta(ctx, clamV); err != nil {
-	// 		logging.Get().Err(err).Str("module", "KafkaReport").Uint64("ImageUniqueID", imageUniqueID).Msg("ScanResultReportSrv CreateDBVersion")
+	// 		s.Log.Err(err).Uint64("ImageUniqueID", imageUniqueID).Msg("CreateDBVersion")
 	// 	}
 	// }
 	//
 	// if err := aviraV.Check(); err == nil {
 	// 	if err := s.versionDal.CreateScanDbMeta(ctx, aviraV); err != nil {
-	// 		logging.Get().Err(err).Str("module", "KafkaReport").Uint64("ImageUniqueID", imageUniqueID).Msg("ScanResultReportSrv CreateDBVersion")
+	// 		s.Log.Err(err).Uint64("ImageUniqueID", imageUniqueID).Msg("CreateDBVersion")
 	// 	}
 	// }
 
 	if err := s.scanResultDal.CreateMalware(ctx, res); err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Uint64("ImageUniqueID", imageUniqueID).Msg("ScanResultReportSrv CreateMalware")
+		s.Log.Err(err).Uint64("ImageUniqueID", imageUniqueID).Msg("CreateMalware")
 		return err
 	}
 	if err := s.issueDal.CreateMalwareToImage(ctx, imagesecModel.CreateMalwareToImageParam{
 		ImageUniqueID: imageUniqueID,
 		Data:          issue,
 	}); err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Uint64("ImageUniqueID", imageUniqueID).Msg("ScanResultReportSrv CreateMalwareToImage")
+		s.Log.Err(err).Uint64("ImageUniqueID", imageUniqueID).Msg("CreateMalwareToImage")
 		return err
 	}
 	correlate.Malware = res
-	logging.Get().Info().Str("module", "KafkaReport").Int("malwareCnt", len(res)).Uint64("imageUniqueID", imageUniqueID).Msg("ScanResultReportSrv CreateMalware")
+	s.Log.Info().Int("malwareCnt", len(res)).Uint64("imageUniqueID", imageUniqueID).Msg("CreateMalware")
 	return nil
 }
 
 func (s *ScanResultReportSrv) CreateWebshell(ctx context.Context, data imagesecTypes.ScanResult, imageUniqueID uint64,
 	correlate *imagesecModel.ImageWithCorrelateData2) error {
 	if !data.Webshells.Scanned {
-		logging.Get().Info().Str("module", "KafkaReport").Uint64("imageUniqueID", data.ImageUniqueID).
+		s.Log.Info().Uint64("imageUniqueID", data.ImageUniqueID).
 			Msg("webshell not scanned")
 		return nil
 	}
@@ -770,20 +796,20 @@ func (s *ScanResultReportSrv) CreateWebshell(ctx context.Context, data imagesecT
 	}
 
 	if err := s.scanResultDal.CreateWebshell(ctx, res1); err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Uint64("ImageUniqueID", imageUniqueID).Msg("ScanResultReportSrv CreateWebshell")
+		s.Log.Err(err).Uint64("ImageUniqueID", imageUniqueID).Msg("CreateWebshell")
 		return err
 	}
 	if err := s.issueDal.CreateWebshellToImage(ctx, imagesecModel.CreateWebshellToImageParam{
 		ImageUniqueID: imageUniqueID,
 		Data:          issue,
 	}); err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Uint64("ImageUniqueID", imageUniqueID).Msg("ScanResultReportSrv CreateWebshellToImage")
+		s.Log.Err(err).Uint64("ImageUniqueID", imageUniqueID).Msg("CreateWebshellToImage")
 		return err
 	}
 	correlate.Webshell = res2
 
-	logging.Get().Info().Str("module", "KafkaReport").Int("webshellCnt", len(res1)).Uint64("imageUniqueID", imageUniqueID).
-		Msg("ScanResultReportSrv CreateWebshell")
+	s.Log.Info().Int("webshellCnt", len(res1)).Uint64("imageUniqueID", imageUniqueID).
+		Msg("CreateWebshell")
 	return nil
 }
 
@@ -809,8 +835,8 @@ func (s *ScanResultReportSrv) CreateLicense(ctx context.Context, data imagesecTy
 	correlate.License = res1
 
 	if err := s.scanResultDal.CreateLicense(ctx, res1); err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Uint64("ImageUniqueID", imageUniqueID).
-			Msg("ScanResultReportSrv CreateLicense")
+		s.Log.Err(err).Uint64("ImageUniqueID", imageUniqueID).
+			Msg("CreateLicense")
 		return err
 	}
 
@@ -818,11 +844,11 @@ func (s *ScanResultReportSrv) CreateLicense(ctx context.Context, data imagesecTy
 		ImageUniqueID: imageUniqueID,
 		Data:          issue,
 	}); err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Uint64("ImageUniqueID", imageUniqueID).Msg("ScanResultReportSrv CreateLicenseToImage")
+		s.Log.Err(err).Uint64("ImageUniqueID", imageUniqueID).Msg("CreateLicenseToImage")
 		return err
 	}
 
-	logging.Get().Info().Str("module", "KafkaReport").Int("licenseCnt", len(res1)).Uint64("imageUniqueID", imageUniqueID).
+	s.Log.Info().Int("licenseCnt", len(res1)).Uint64("imageUniqueID", imageUniqueID).
 		Msg("CreateScanResult CreateLicense")
 	return nil
 }
@@ -830,26 +856,26 @@ func (s *ScanResultReportSrv) CreateLicense(ctx context.Context, data imagesecTy
 func (s *ScanResultReportSrv) ReceiveReport(ctx context.Context) error {
 
 	if !scannerUtils.MainCluster() {
-		logging.Get().Info().Str("module", "KafkaReport").Msg("CreateScanResult scanner not in main cluster,ignore handle kafka msg")
+		s.Log.Info().Msg("CreateScanResult scanner not in main cluster,ignore handle kafka msg")
 		return nil
 	}
 
-	logging.Get().Info().Str("module", "KafkaReport").Msg("CreateScanResult scanner in main cluster,ready to handle kafka msg")
+	s.Log.Info().Msg("CreateScanResult scanner in main cluster,ready to handle kafka msg")
 
 	ch := make(chan struct{})
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Stack().Msg("CreateScanResult")
+				s.Log.Error().Stack().Msg("CreateScanResult")
 			}
 		}()
 
 		if err := s.ReceiveMsg(ch); err != nil {
-			logging.Get().Err(err).Str("module", "KafkaReport").Msg("CreateScanResult")
+			s.Log.Err(err).Msg("CreateScanResult")
 		}
 	}()
 
-	logging.Get().Error().Msg("CreateScanResult receive kafka started successfully")
+	s.Log.Error().Msg("CreateScanResult receive kafka started successfully")
 
 	return nil
 }
@@ -858,35 +884,35 @@ func (s *ScanResultReportSrv) ReceiveImageScanResult(ctx context.Context, msg ka
 	var data imagesecTypes.ScanResult
 	err := json.Unmarshal(msg.Value, &data)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Str("data", string(msg.Value)).Msg("CreateScanResult failed to unmarshal scan image result msg")
+		s.Log.Err(err).Str("data", string(msg.Value)).Msg("CreateScanResult failed to unmarshal scan image result msg")
 		return err
 	}
 
-	logging.Get().Debug().Str("module", "KafkaReport").Int64("subtaskID", data.SubTaskID).Interface("data", data).
+	s.Log.Debug().Int64("subtaskID", data.SubTaskID).Interface("data", data).
 		Msg("CreateScanResult receive image scan result report")
-	logging.Get().Info().Str("module", "KafkaReport").Int64("subtaskID", data.SubTaskID).Int64("taskID", data.TaskID).Str("msg", data.Msg).
+	s.Log.Info().Int64("subtaskID", data.SubTaskID).Int64("taskID", data.TaskID).Str("msg", data.Msg).
 		Msg("CreateScanResult receive image scan result report")
 
 	if data.StatusStr == imagesecModel.TaskStatusFailedStr {
 		if err := s.UpdateSubtaskScanFinished(ctx, data); err != nil {
-			logging.Get().Err(err).Str("module", "KafkaReport").Int64("subtaskID", data.SubTaskID).Int64("taskID", data.TaskID).Msg("CreateScanResult")
+			s.Log.Err(err).Int64("subtaskID", data.SubTaskID).Int64("taskID", data.TaskID).Msg("CreateScanResult")
 			return err
 		}
-		logging.Get().Err(err).Str("module", "KafkaReport").Int64("subtaskID", data.SubTaskID).
+		s.Log.Err(err).Int64("subtaskID", data.SubTaskID).
 			Int64("taskID", data.TaskID).Msg("CreateScanResult scan failed just update scan subtask")
 		return nil
 	}
 
 	if data.SubTaskID > 0 {
 		if err := s.CreateScanResult(ctx, data); err != nil {
-			logging.Get().Err(err).Str("module", "KafkaReport").Msg("CreateScanResult")
+			s.Log.Err(err).Msg("CreateScanResult")
 			// 消费消息后，不管扫描结果入库是否成功，对于 kafka来说都是成功消费，所以只记录，不返回 error
 		}
 	}
 	// subtaskID<=0 表示是数据迁移等情况
 	if data.SubTaskID <= 0 {
 		if err := s.CreateScanResultForDataMigrate(ctx, data); err != nil {
-			logging.Get().Err(err).Str("module", "KafkaReport").Msg("CreateScanResultForDataMigrate")
+			s.Log.Err(err).Msg("CreateScanResultForDataMigrate")
 			// 消费消息后，不管扫描结果入库是否成功，对于 kafka来说都是成功消费，所以只记录，不返回 error
 		}
 	}
@@ -897,12 +923,12 @@ func (s *ScanResultReportSrv) ReceiveImageScanResult(ctx context.Context, msg ka
 func (s *ScanResultReportSrv) ReceiveMsg(stopCh <-chan struct{}) error {
 	err := s.mqReader.Subscribe(model.NodeImageScanResultTopic, model.NodeImageScanResultGroup, s.ReceiveImageScanResult)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Msg("failed to sub message queue")
+		s.Log.Err(err).Msg("failed to sub message queue")
 		return err
 	}
-	logging.Get().Info().Str("module", "KafkaReport").Msg("sub message queue ok")
+	s.Log.Info().Msg("sub message queue ok")
 	<-stopCh
-	logging.Get().Info().Str("module", "KafkaReport").Msg("sub message queue end")
+	s.Log.Info().Msg("sub message queue end")
 
 	return fmt.Errorf("quit message handler")
 }
@@ -920,21 +946,21 @@ func (s *ScanResultReportSrv) AddDetailVuln(ctx context.Context, vuln *imagesecM
 	case boltDB = <-s.boltDBChan:
 		break
 	case <-timeoutCtx.Done():
-		logging.Get().Info().Str("module", "KafkaReport").Msg("boltDBChan time out")
+		s.Log.Info().Msg("boltDBChan time out")
 		return vuln
 	}
 
 	// boltData, err := GetVulnDetailFromBolt(boltDB.VulnBoltDB, vuln.Name)
 	// if err != nil {
-	// 	logging.Get().Err(err).Str("module", "KafkaReport").Str("vulnID", vuln.Name).Msg("ScanResultReportSrv GetVulnDetailFromBolt")
+	// 	s.Log.Err(err).Str("vulnID", vuln.Name).Msg("GetVulnDetailFromBolt")
 	// }
 	cnnvdData, err := GetCnnvdFromBolt(boltDB.CnnvdBoltDB, vuln.Name)
 	if err != nil {
-		logging.Get().Info().Str("module", "KafkaReport").Str("vulnID", vuln.Name).Msg("ScanResultReportSrv GetCnnvdFromBolt not get cnnvd")
+		s.Log.Info().Str("vulnID", vuln.Name).Msg("GetCnnvdFromBolt not get cnnvd")
 	}
 	cnvdData, err := GetCnvdFromBolt(boltDB.CnvdBoltDB, vuln.Name)
 	if err != nil {
-		logging.Get().Info().Str("module", "KafkaReport").Str("vulnID", vuln.Name).Msg("ScanResultReportSrv GetCnvdFromBolt not get cnvd")
+		s.Log.Info().Str("vulnID", vuln.Name).Msg("GetCnvdFromBolt not get cnvd")
 	}
 
 	if cnnvdData != nil {
@@ -951,7 +977,7 @@ func (s *ScanResultReportSrv) AddDetailVuln(ctx context.Context, vuln *imagesecM
 		vuln.CnvdTitle = cnvdData[0].Title
 		vuln.DescriptionZh = cnvdData[0].Description
 	}
-	logging.Get().Debug().Str("module", "KafkaReport").Str("vulnID", vuln.Name).Msg("ScanResultReportSrv AddDetailVuln")
+	s.Log.Debug().Str("vulnID", vuln.Name).Msg("AddDetailVuln")
 	return vuln
 }
 
@@ -961,23 +987,48 @@ func (s *ScanResultReportSrv) SetRiskScore(ctx context.Context, correlate *image
 	re := model.ImageSeverityScore{RiskScore: score}
 	bys, err := json.Marshal(re)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Str("key", key).Msg("SetRiskScore")
+		s.Log.Err(err).Str("key", key).Msg("SetRiskScore")
 		return err
 	}
 	if err := s.redisCli.Set(ctx, key, bys, -1).Err(); err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Str("key", key).Msg("SetRiskScore")
+		s.Log.Err(err).Str("key", key).Msg("SetRiskScore")
 		return err
 	}
 	return nil
 }
 
-func statisticsMathRes(data report.Results) (int, int) {
+// 在线镜像的漏洞
+func (s *ScanResultReportSrv) UpdateVulnFlag(ctx context.Context) error {
+
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				s.Log.Error().Msg("CreateOnlineVuln recover panic")
+			}
+		}()
+
+		for vu := range s.OnlineVulnChan {
+			if err := s.scanResultDal.CreateVuln(ctx, imagesecModel.CreateVulnParam{
+				OnlineVuln: true,
+				Data:       vu,
+			}); err != nil {
+				logging.Get().Err(err).Str("module", "imageMeta").Msg("CreateOnlineVuln UpdateVulnOnline")
+				continue
+			}
+			logging.Get().Info().Str("module", "imageMeta").Int("onlineVuln", len(vu)).Msg("CreateOnlineVuln update online vuln")
+		}
+	}()
+
+	return nil
+}
+
+func (s *ScanResultReportSrv) StatisticsMathRes(data report.Results) (int, int) {
 	vulnCnt, pkgCnt := 0, 0
 	for i := range data {
 		pkgCnt += len(data[i].Packages)
 		vulnCnt += len(data[i].Vulnerabilities)
 	}
-	logging.Get().Info().Str("module", "KafkaReport").Int("vulnCnt", vulnCnt).Int("pkgCnt", pkgCnt).Msg("mathVuln statisticsMathRes")
+	s.Log.Info().Int("vulnCnt", vulnCnt).Int("pkgCnt", pkgCnt).Msg("mathVuln statisticsMathRes")
 	return vulnCnt, pkgCnt
 }
 
@@ -1008,6 +1059,10 @@ func NewScanResultReportSrv(
 		redisCli:        redisCli,
 		detectImageChan: make(chan DetectImageData),
 		OnlineVulnChan:  make(chan []*imagesecModel.Vuln),
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithSubModule("ScanResult"),
+			scannerUtils.WithModule(consts.ModuleKafkaReport),
+		),
 	}
 	srv.boltDBChan = srv.GenBoltDBChan(context.Background())
 

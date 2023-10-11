@@ -3,14 +3,14 @@ package detect
 import (
 	"context"
 	"fmt"
+	"runtime/debug"
 	"strings"
 	"time"
-
-	"gitlab.com/security-rd/go-pkg/logging"
 
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/i18"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
@@ -29,6 +29,7 @@ type SecurityPolicySrv struct {
 	imageDetectTaskSrv ImageDetectTaskService
 	sensitiveRuleDal   imagesecStore.SensitiveRuleDal
 	userDal            imagesecStore.UserDal
+	Log                *scannerUtils.LogEvent
 }
 
 func NewPolicySrv(
@@ -42,6 +43,10 @@ func NewPolicySrv(
 		policyDal:          policyDal,
 		imageDetectTaskSrv: taskSrv,
 		sensitiveRuleDal:   sensitiveRuleDal,
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithSubModule("SecurityPolicy"),
+			scannerUtils.WithModule(consts.ModuleDetect),
+		),
 	}
 }
 
@@ -58,15 +63,15 @@ func (s *SecurityPolicySrv) CreatePolicy(ctx context.Context, data *imagesecMode
 		return err
 	}
 	if err := s.policyDal.CreateDetectPolicy(ctx, data); err != nil {
-		logging.Get().Err(err).Interface("data", data).Msg("CreateDetectPolicy")
+		s.Log.Err(err).Interface("data", data).Msg("CreateDetectPolicy")
 		return scani18.CreatePolicy(err)
 	}
 
 	if err := s.policyDal.CreateDetectPolicySnapshot(ctx, data); err != nil {
-		logging.Get().Err(err).Interface("data", data).Msg("CreateDetectPolicyCreateDetectPolicySnapshot")
+		s.Log.Err(err).Interface("data", data).Msg("CreateDetectPolicyCreateDetectPolicySnapshot")
 	}
 
-	logging.Get().Info().Int64("policyID", data.ID).Msg("CreateDetectPolicy succeed")
+	s.Log.Info().Int64("policyID", data.ID).Msg("CreateDetectPolicy succeed")
 	// 加检测任务
 	go func() {
 		if data.PolicyType == imagesecModel.ConfigTypeDeploy {
@@ -79,10 +84,10 @@ func (s *SecurityPolicySrv) CreatePolicy(ctx context.Context, data *imagesecMode
 			imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectPriorityPolicyCreate},
 			data,
 		); err != nil {
-			logging.Get().Err(err).Msg("CreateDetectPolicy CreateDetectTask")
+			s.Log.Err(err).Msg("CreateDetectPolicy CreateDetectTask")
 			return
 		}
-		logging.Get().Info().Msg("CreateDetectPolicy CreateDetectTask succeed")
+		s.Log.Info().Msg("CreateDetectPolicy CreateDetectTask succeed")
 	}()
 
 	return nil
@@ -100,14 +105,14 @@ func (s *SecurityPolicySrv) UpdatePolicy(ctx context.Context, param imagesecMode
 
 	policy, _, err := s.policyDal.SearchDetectPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{Ids: []int64{param.ID}})
 	if err != nil {
-		logging.Get().Err(err).Interface("data", data).Int64("policyID", param.ID).Msg("SearchPolicy")
+		s.Log.Err(err).Interface("data", data).Int64("policyID", param.ID).Msg("SearchPolicy")
 		return scani18.UpdatePolicy(err)
 	}
 	if len(policy) == 0 || policy[0].IsDefault {
 		return nil
 	}
 	if len(policy) > 0 && data.Same(policy[0]) {
-		logging.Get().Err(err).Interface("data", data).Int64("policyID", param.ID).Msg("policy not changed")
+		s.Log.Err(err).Interface("data", data).Int64("policyID", param.ID).Msg("policy not changed")
 		return nil
 	}
 
@@ -117,7 +122,7 @@ func (s *SecurityPolicySrv) UpdatePolicy(ctx context.Context, param imagesecMode
 	})
 
 	if err != nil {
-		logging.Get().Err(err).Interface("data", data).Int64("policyID", param.ID).Msg("UpdateDetectPolicy")
+		s.Log.Err(err).Interface("data", data).Int64("policyID", param.ID).Msg("UpdateDetectPolicy")
 		return scani18.UpdatePolicy(err)
 	}
 
@@ -126,7 +131,7 @@ func (s *SecurityPolicySrv) UpdatePolicy(ctx context.Context, param imagesecMode
 		data.CreatedAt = time.Now().UnixMilli()
 		data.UpdatedAt = time.Now().UnixMilli()
 		if err := s.policyDal.CreateDetectPolicySnapshot(ctx, &data); err != nil {
-			logging.Get().Err(err).Interface("data", data).Int64("policyID", param.ID).
+			s.Log.Err(err).Interface("data", data).Int64("policyID", param.ID).
 				Msg("UpdateDetectPolicy CreateDetectPolicySnapshot")
 		}
 	}
@@ -145,7 +150,7 @@ func (s *SecurityPolicySrv) UpdatePolicy(ctx context.Context, param imagesecMode
 		deleteParam := imagesecModel.SearchTaskParam{PolicyID: data.ID}
 
 		if err := s.imageDetectTaskSrv.DeleteDetectData(ctx, deleteParam); err != nil {
-			logging.Get().Err(err).Msg("UpdateDetectPolicy delete not finished detect task and subtask")
+			s.Log.Err(err).Msg("UpdateDetectPolicy delete not finished detect task and subtask")
 		}
 
 		imageSearchParam := imagesecModel.ImageSearchApiParam{ImageFromType: data.Scope.ImageFromType}
@@ -155,10 +160,10 @@ func (s *SecurityPolicySrv) UpdatePolicy(ctx context.Context, param imagesecMode
 			imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectPriorityPolicyUpdate},
 			&data,
 		); err != nil {
-			logging.Get().Err(err).Msg("UpdateDetectPolicy CreateDetectTask")
+			s.Log.Err(err).Msg("UpdateDetectPolicy CreateDetectTask")
 			return
 		}
-		logging.Get().Info().Msg("UpdateDetectPolicy CreateDetectTask succeed")
+		s.Log.Info().Msg("UpdateDetectPolicy CreateDetectTask succeed")
 	}()
 
 	// 再加一个默认策略的检测任务，只是优先级低些,防止策略范围变小
@@ -177,7 +182,7 @@ func (s *SecurityPolicySrv) UpdatePolicy(ctx context.Context, param imagesecMode
 			Default:    consts.TrueString,
 		})
 		if err != nil {
-			logging.Get().Err(err).Msg("UpdateDetectPolicy not find default detect task")
+			s.Log.Err(err).Msg("UpdateDetectPolicy not find default detect task")
 		}
 		if len(defaultP) == 0 {
 			return
@@ -188,10 +193,10 @@ func (s *SecurityPolicySrv) UpdatePolicy(ctx context.Context, param imagesecMode
 			imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectPriorityDefaultPolicy},
 			defaultP[0],
 		); err != nil {
-			logging.Get().Err(err).Msg("UpdateDetectPolicy CreateDetectTask")
+			s.Log.Err(err).Msg("UpdateDetectPolicy CreateDetectTask")
 			return
 		}
-		logging.Get().Info().Msg("UpdateDetectPolicy CreateDetectTask succeed")
+		s.Log.Info().Msg("UpdateDetectPolicy CreateDetectTask succeed")
 	}(scopeChanged)
 
 	return nil
@@ -214,7 +219,7 @@ func (s *SecurityPolicySrv) SearchPolicy(ctx context.Context, param imagesecMode
 
 	policy, cnt, err := s.policyDal.SearchDetectPolicy(ctx, param)
 	if err != nil {
-		logging.Get().Err(err).Interface("param", param).Msg("SearchDetectPolicy")
+		s.Log.Err(err).Interface("param", param).Msg("SearchDetectPolicy")
 		return nil, 0, scani18.SearchPolicy(err)
 	}
 	ans := make([]*imagesecModel.SecurityPolicy, 0)
@@ -258,7 +263,7 @@ func (s *SecurityPolicySrv) SearchPolicy(ctx context.Context, param imagesecMode
 		if (ans[i].Sensitive.AllBlack || ans[i].Sensitive.AllWhite) && ans[i].Sensitive.Enable {
 			rule, _, err := s.sensitiveRuleDal.SearchSensitiveRule(ctx, imagesecModel.SearchSensitiveRuleParam{})
 			if err != nil {
-				logging.Get().Err(err).Int64("policyID", ans[i].ID).Msg("SearchDetectPolicy SearchSensitiveRule")
+				s.Log.Err(err).Int64("policyID", ans[i].ID).Msg("SearchDetectPolicy SearchSensitiveRule")
 				return nil, 0, i18.SearchErr(err)
 			}
 			sesRule := make([]string, 0)
@@ -305,13 +310,13 @@ func (s *SecurityPolicySrv) DeletePolicy(ctx context.Context, id int64) error {
 		Updater: map[string]interface{}{"deleted_at": time.Now().UnixMilli()},
 	})
 	if err != nil {
-		logging.Get().Err(err).Int64("policyID", id).Msg("DeleteDetectPolicy")
+		s.Log.Err(err).Int64("policyID", id).Msg("DeleteDetectPolicy")
 		return scani18.DeletePolicy(err)
 	}
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Msg("DeletePolicy and delete detect task and subtask")
+				s.Log.Error().Str("Stack", string(debug.Stack())).Msg("DeletePolicy and delete detect task and subtask")
 			}
 		}()
 		if policy[0].PolicyType == imagesecModel.ConfigTypeDeploy {
@@ -320,7 +325,7 @@ func (s *SecurityPolicySrv) DeletePolicy(ctx context.Context, id int64) error {
 		// 删除这个策略未完成的任务
 		deleteParam := imagesecModel.SearchTaskParam{PolicyID: id}
 		if err := s.imageDetectTaskSrv.DeleteDetectData(ctx, deleteParam); err != nil {
-			logging.Get().Err(err).Msg("DeletePolicy delete not finished detect task and subtask")
+			s.Log.Err(err).Msg("DeletePolicy delete not finished detect task and subtask")
 		}
 
 		// 然后触发所有的重新扫描
@@ -330,10 +335,10 @@ func (s *SecurityPolicySrv) DeletePolicy(ctx context.Context, id int64) error {
 			imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectPriorityPolicyDelete},
 			nil,
 		); err != nil {
-			logging.Get().Err(err).Msg("CreateDetectPolicy CreateDetectTask")
+			s.Log.Err(err).Msg("CreateDetectPolicy CreateDetectTask")
 			return
 		}
-		logging.Get().Info().Msg("DeletePolicy and CreateDetectTask succeed")
+		s.Log.Info().Msg("DeletePolicy and CreateDetectTask succeed")
 	}()
 
 	return nil
@@ -347,7 +352,7 @@ func (s *SecurityPolicySrv) GetPolicySnapshot(ctx context.Context, uniqueID uint
 
 	po, err := s.policyDal.SearchDetectPolicySnapshot(ctx, imagesecModel.SearchSecurityPolicyParam{UniqueID: uniqueID})
 	if err != nil {
-		logging.Get().Err(err).Uint64("uniqueID", uniqueID).Msg("SearchDetectPolicySnapshot")
+		s.Log.Err(err).Uint64("uniqueID", uniqueID).Msg("SearchDetectPolicySnapshot")
 		return imagesecModel.SecurityPolicy{}, scani18.SearchPolicy(err)
 	}
 	if len(po) == 0 {

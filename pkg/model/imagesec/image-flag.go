@@ -15,7 +15,7 @@ const (
 	FlagBaseImage              = 10 // 基础镜像(本身属性)
 	FlagHasExceptionLicense    = 11 // 含有不合规的 license 文件
 
-	FlagImageDetectNotExitINReg = 12 // 镜像在仓库内(问题)
+	FlagImageDetectNotExitINReg = 12 // 镜像不在仓库内(问题)
 	// 部署上线特有
 	FlagImageNotScanned      = 13
 	FlagImageDetectUnTrusted = 14 // 镜像不可信 (问题)
