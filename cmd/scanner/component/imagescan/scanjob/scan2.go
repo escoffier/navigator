@@ -59,8 +59,8 @@ func (s *RegImageScan) PrepareScan(ctx context.Context, ta imagesecTypes.ScanSub
 		return nil, fmt.Errorf("not prepare for image scan")
 	}
 
-	logging.Get().Debug().Str("module", "imagescan").Interface("scanP", res).Interface("image", ta.RegImageMeta).
-		Msg("PrepareScan")
+	// logging.Get().Debug().Str("module", "imagescan").Interface("scanP", res).Interface("image", ta.RegImageMeta).
+	// 	Msg("PrepareScan")
 
 	return res, nil
 }

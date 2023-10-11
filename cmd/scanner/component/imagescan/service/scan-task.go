@@ -85,12 +85,12 @@ func NewScanTaskSrv(
 func (s *ScanTaskSrv) CreateImageScanTask(ctx context.Context, imageSearchParam imagesecModel.ImageSearchApiParam,
 	taskInfo imagesecModel.ImageScanTask) error {
 
-	taskInfo.ImageListParam = imageSearchParam
-
 	if err := imageSearchParam.Check(); err != nil {
 		return err
 	}
-
+	// 加任务时仓库可能已删除
+	imageSearchParam.CheckRegDeleted = consts.TrueString
+	taskInfo.ImageListParam = imageSearchParam
 	imageSearchParam.Filter = model.EmptyFilter().SetLimit(1)
 
 	taskInfo.Status = imagesecModel.TaskStatusNotReady

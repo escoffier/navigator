@@ -174,6 +174,7 @@ type ImageDalParam struct {
 	LayerStrPrefix         string
 	PolicyUniqueID         []string
 	PolicyIntersection     string
+	CheckRegDeleted        string // 检查镜像所属仓库是否删除
 	DeployFlag             uint64
 	StartTime              int64
 	EndTime                int64

@@ -44,9 +44,10 @@ type ImageSearchApiParam struct {
 	ClusterKey             []string `json:"clusterKey"`
 	Digests                []string `json:"digests"`
 	// 部署上线特有
-	DeployAction []string `json:"deployAction"`
-	StartTime    int64    `json:"startTime"`
-	EndTime      int64    `json:"endTime"`
+	DeployAction    []string `json:"deployAction"`
+	StartTime       int64    `json:"startTime"`
+	EndTime         int64    `json:"endTime"`
+	CheckRegDeleted string   `json:"checkRegDeleted"` // 检查镜像所属仓库是否删除
 
 	// 以下几个查询关联镜像，单独的接口
 	WebshellMD5  string `json:"webshellMd5"`
@@ -107,6 +108,7 @@ func (sp *ImageSearchApiParam) ToImageDalParam() ImageDalParam {
 		OnlineFlag:             sp.GenOnlineFlag(),
 		DeployActionFlag:       sp.GenDeployActionFlag(),
 		ImageAttrFlag:          sp.GenImageAttrFlag(),
+		CheckRegDeleted:        sp.CheckRegDeleted,
 	}
 
 	repos := make([]SearchProjectParam, 0)
