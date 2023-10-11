@@ -846,10 +846,10 @@ func (dal *ScanResultDao) CreateVuln(ctx context.Context, param imagesecModel.Cr
 
 	// find need delete data
 	for i := range dbPre {
-		needDelete := false
+		needDelete := true
 		for j := range data {
-			if data[j].UniqueID == dbPre[i].UniqueID && !dbPre[i].Same(data[j]) {
-				needDelete = true
+			if dbPre[i].Same(data[j]) {
+				needDelete = false
 				break
 			}
 		}
@@ -861,7 +861,7 @@ func (dal *ScanResultDao) CreateVuln(ctx context.Context, param imagesecModel.Cr
 	for i := range data {
 		needCreate := true
 		for j := range dbPre {
-			if data[i].UniqueID == dbPre[j].UniqueID && data[i].Same(dbPre[j]) {
+			if data[i].Same(dbPre[j]) {
 				needCreate = false
 				break
 			}
