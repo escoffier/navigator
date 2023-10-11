@@ -253,6 +253,10 @@ func (dal *ImageMetaDao) SearchImage(ctx context.Context, param imagesecModel.Im
 	if param.ImageFromType != "" {
 		db = db.Where("image_from_type = ?", param.ImageFromType)
 	}
+	if param.CheckRegDeleted == consts.TrueString {
+		sub := dal.db.Get().WithContext(ctx).Model(new(imagesecModel.Registry)).Select("id")
+		db = db.Where("reg_id IN ( ? )", sub)
+	}
 
 	if len(param.UUIDs) > 0 {
 		db = db.Where("image_uuid IN ? ", param.UUIDs)
