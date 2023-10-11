@@ -1495,7 +1495,7 @@ func (npc *NetworkPolicyController) caculateEgressRules(cnp *crdv1alpha1.Microse
 			rule1 := generateCRDPolicyRule(cnp, &r, addressesMap, toAddresses, peer.IPBlock, "egress")
 			for node, ads := range addressesMap {
 				for _, ep := range endpoints {
-					rules[node].Spec.Rules = append(rules[node].Spec.Rules, crdv1alpha1.NodeRule{
+					rule1[node].Spec.Rules = append(rule1[node].Spec.Rules, crdv1alpha1.NodeRule{
 						Direction:   "egress",
 						Priority:    cnp.Spec.Priority,
 						Protocol:    r.Protocol,
