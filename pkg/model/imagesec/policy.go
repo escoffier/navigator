@@ -938,7 +938,7 @@ type SimplePolicy struct {
 	IsDefault bool   `json:"isDefault"`
 	UniqueID  uint64 `json:"uniqueID,string"`
 	Name      string `json:"name"`
-	Flag      uint64 `json:"flag,string"` // 保存数据时该镜像在该策略下的结果
+	Flag      uint64 `json:"flag,string"` // 保存数据时该镜像在该策略下的结果:现在只用于部署上线
 }
 
 func (vi *SimplePolicy) ToPolicy() *SecurityPolicy {

@@ -349,30 +349,27 @@ func (vi *ImageDetectBrief) Deserialize() {
 }
 
 func (vi *ImageDetectBrief) Serialize() {
+	if vi.SimplePolicy == nil && vi.Policy != nil {
+		vi.SimplePolicy = &SimplePolicy{
+			ID:        vi.Policy.ID,
+			IsDefault: vi.Policy.IsDefault,
+			UniqueID:  vi.Policy.UniqueID,
+			Name:      vi.Policy.Name,
+		}
+	}
+
 	if vi.SimplePolicy != nil {
 		vi.PolicyUniqueID = vi.SimplePolicy.UniqueID
 		vi.PolicyID = vi.SimplePolicy.ID
+		if vi.SimplePolicy.Flag <= 0 {
+			vi.SimplePolicy.Flag = vi.Flag
+		}
+
 		if bys, err := json.Marshal(vi.SimplePolicy); err == nil {
 			vi.PolicyJson = string(bys)
 		}
 	}
-	if vi.Policy != nil {
-		vi.PolicyUniqueID = vi.Policy.UniqueID
-		vi.PolicyID = vi.Policy.ID
-
-		pn := SimplePolicy{
-			IsDefault: vi.Policy.IsDefault,
-			ID:        vi.Policy.ID,
-			UniqueID:  vi.Policy.UniqueID,
-			Name:      vi.Policy.Name,
-		}
-		if bys, err := json.Marshal(pn); err == nil {
-			vi.PolicyJson = string(bys)
-		}
-	}
 }
-
-type ImageDetectBriefResult []*ImageDetectBrief
 
 func AddImageSafeFlag(vi []*ImageDetectBrief, preFlag uint64) uint64 {
 	// 能这样判断是有以下两个条件：

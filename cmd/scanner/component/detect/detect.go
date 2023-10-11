@@ -7,7 +7,6 @@ import (
 	"runtime/debug"
 	"time"
 
-	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm/clause"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/detect/detector"
@@ -30,6 +29,7 @@ type Detector struct {
 	updateImageChan       chan UpdateImage
 	imageDetectTaskSrv    ImageDetectTaskService
 	addDetectTaskEveryDay bool
+	Log                   *scannerUtils.LogEvent
 }
 
 type UpdateImage struct {
@@ -65,6 +65,10 @@ func NewDetector(
 		imageDetectTaskSrv:    imageDetectTaskSrv,
 		updateImageChan:       make(chan UpdateImage),
 		addDetectTaskEveryDay: false,
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithSubModule("Detector"),
+			scannerUtils.WithModule(consts.ModuleDetect),
+		),
 	}
 	if os.Getenv("ADD_DETECT_EVERYDAY") == consts.TrueString {
 		s.addDetectTaskEveryDay = true
@@ -75,16 +79,16 @@ func NewDetector(
 
 func (s *Detector) Start(ctx context.Context) {
 	if !scannerUtils.MainCluster() {
-		logging.Get().Info().Str("module", "detectImage").Msg("Detector not in main cluster ")
+		s.Log.Info().Msg("not in main cluster ")
 		return
 	}
 
-	logging.Get().Info().Str("module", "detectImage").Msg("Detector in  main cluster")
+	s.Log.Info().Msg("in  main cluster")
 
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("Detector recover")
+				s.Log.Error().Str("stack", string(debug.Stack())).Msg("recover")
 			}
 		}()
 		s.ContinueUpdateImage(ctx)
@@ -93,7 +97,7 @@ func (s *Detector) Start(ctx context.Context) {
 	// go func() {
 	// 	defer func() {
 	// 		if r := recover(); r != nil {
-	// 			logging.Get().Error().Str("stack", string(debug.Stack())).Msg("Detector recover")
+	// 			s.Log.Error().Str("stack", string(debug.Stack())).Msg("recover")
 	// 		}
 	// 	}()
 	// 	s.ContinueUpdateTaskFinished(ctx)
@@ -102,7 +106,7 @@ func (s *Detector) Start(ctx context.Context) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("Detector recover")
+				s.Log.Error().Str("stack", string(debug.Stack())).Msg("recover")
 			}
 		}()
 		s.DetectImage(ctx)
@@ -111,7 +115,7 @@ func (s *Detector) Start(ctx context.Context) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("Detector recover")
+				s.Log.Error().Str("stack", string(debug.Stack())).Msg("recover")
 			}
 		}()
 		ticker := time.NewTicker(30 * time.Second)
@@ -131,18 +135,18 @@ func (s *Detector) DetectImage(ctx context.Context) {
 	taskChan := s.GenTaskChan(ctx)
 
 	for task := range taskChan {
-		logging.Get().Debug().Str("module", "detectImage").Int64("taskID", task.ID).Msg("Detector get task")
+		s.Log.Debug().Int64("taskID", task.ID).Msg("get task")
 
 		if err := s.UpdateTask(ctx, task.ID, getStartUpdater()); err != nil {
-			logging.Get().Err(err).Str("module", "detectImage").Int64("taskID", task.ID).Msg("Detector UpdateTask")
+			s.Log.Err(err).Int64("taskID", task.ID).Msg("UpdateTask")
 			continue
 		}
 
 		subtaskChan := s.GenSubtaskChan(ctx, task)
 
 		for subData := range subtaskChan {
-			logging.Get().Debug().Str("module", "detectImage").Int64("taskID", task.ID).Interface("subData", subData).
-				Msg("Detector get subData")
+			s.Log.Debug().Int64("taskID", task.ID).Interface("subData", subData).
+				Msg("get subData")
 			for i := range subData.SubtaskIds {
 				_ = s.UpdateDetectSubTask(ctx, subData.SubtaskIds[i], getStartUpdater())
 			}
@@ -154,8 +158,8 @@ func (s *Detector) DetectImage(ctx context.Context) {
 				for i := range subData.SubtaskIds {
 					_ = s.UpdateDetectSubTask(ctx, subData.SubtaskIds[i], getEndUpdater(err))
 				}
-				logging.Get().Err(err).Str("module", "detectImage").Uint64("ImageUniqueID", subData.ImageUniqueID).
-					Msg("Detector GetImageData")
+				s.Log.Err(err).Uint64("ImageUniqueID", subData.ImageUniqueID).
+					Msg("GetImageData")
 				continue
 			}
 			if len(allPolicy) == 0 {
@@ -163,8 +167,8 @@ func (s *Detector) DetectImage(ctx context.Context) {
 				allPolicy1, _, err := s.policySrv.SearchPolicy(ctx, param1)
 
 				if err != nil {
-					logging.Get().Err(err).Str("module", "detectImage").Uint64("ImageUniqueID", subData.ImageUniqueID).
-						Msg("Detector SearchPolicy")
+					s.Log.Err(err).Uint64("ImageUniqueID", subData.ImageUniqueID).
+						Msg("SearchPolicy")
 					continue
 				}
 				allPolicy = allPolicy1
@@ -186,7 +190,7 @@ func (s *Detector) DetectImage(ctx context.Context) {
 
 			briefs := make([]*imagesecModel.ImageDetectBrief, 0)
 
-			logging.Get().Debug().Int("policyCnt", len(policy)).Str("module", "detectImage").Msg("NeedDetectImage find policy")
+			s.Log.Debug().Int("policyCnt", len(policy)).Msg("NeedDetectImage find policy")
 
 			for i := range policy {
 				po := policy[i]
@@ -207,10 +211,9 @@ func (s *Detector) DetectImage(ctx context.Context) {
 				briefs = append(briefs, bre)
 			}
 
-			err2 := s.detectResultDal.CreateDetectBrief(ctx, imageData.Image.UniqueID, briefs)
-			if err2 != nil {
-				logging.Get().Err(err2).Str("module", "detectImage").Uint64("ImageUniqueID", subData.ImageUniqueID).
-					Msg("Detector CreateDetectBrief")
+			err = s.detectResultDal.CreateDetectBrief(ctx, imageData.Image.UniqueID, briefs)
+			if err != nil {
+				s.Log.Err(err).Uint64("ImageUniqueID", subData.ImageUniqueID).Msg("CreateDetectBrief")
 			}
 
 			for dt, res := range detectResults {
@@ -219,8 +222,8 @@ func (s *Detector) DetectImage(ctx context.Context) {
 					DetectType:    dt,
 					Data:          res,
 				}); err != nil {
-					logging.Get().Err(err).Str("module", "detectImage").Uint64("ImageUniqueID", subData.ImageUniqueID).
-						Msg("Detector CreateDetectResult")
+					s.Log.Err(err).Uint64("ImageUniqueID", subData.ImageUniqueID).
+						Msg("CreateDetectResult")
 					continue
 				}
 			}
@@ -238,9 +241,9 @@ func (s *Detector) DetectImage(ctx context.Context) {
 				_ = s.UpdateDetectSubTask(ctx, subID, getEndUpdater(nil))
 			}
 
-			logging.Get().Debug().Str("module", "detectImage").Int64("taskID", task.ID).
+			s.Log.Debug().Int64("taskID", task.ID).
 				Uint64("imageUniqueID", subData.ImageUniqueID).Str("imageName", imageData.Image.GetImageName()).
-				Msg("Detector finished detect image")
+				Msg("finished detect image")
 		}
 		// 更新的扫描任务,因为一个扫描的任务的检测任务最多只有一个子任务，所以这样写不会出错
 		_ = s.updateScanSubtask(ctx, task.ScanSubTaskID, imagesecModel.TaskStatusDetectFinished)
@@ -252,7 +255,7 @@ func (s *Detector) GenSubtaskChan(ctx context.Context, task *imagesecModel.Image
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("GenSubtaskChan")
+				s.Log.Error().Str("stack", string(debug.Stack())).Msg("GenSubtaskChan")
 			}
 		}()
 
@@ -266,13 +269,13 @@ func (s *Detector) GenSubtaskChan(ctx context.Context, task *imagesecModel.Image
 			Filter:     filter,
 		})
 		if err != nil {
-			logging.Get().Error().Int64("taskID", task.ID).Str("stack", string(debug.Stack())).
-				Msg("Detector SearchDetectSubtask")
+			s.Log.Err(err).Int64("taskID", task.ID).Str("stack", string(debug.Stack())).
+				Msg("SearchDetectSubtask")
 			return
 		}
 		if len(subtask) == 0 {
 			_ = s.UpdateTask(ctx, task.ID, getEndUpdater(nil))
-			logging.Get().Debug().Str("module", "detectImage").Int64("taskID", task.ID).Msg("Detector scan image subtask finish")
+			s.Log.Debug().Int64("taskID", task.ID).Msg("scan image subtask finish")
 			return
 		}
 		// 获取该镜像的所有任务
@@ -288,13 +291,13 @@ func (s *Detector) GenSubtaskChan(ctx context.Context, task *imagesecModel.Image
 				Filter:        filter,
 			})
 			if err != nil {
-				logging.Get().Error().Int64("taskID", task.ID).Str("stack", string(debug.Stack())).
-					Msg("Detector SearchDetectSubtask")
+				s.Log.Err(err).Int64("taskID", task.ID).Str("stack", string(debug.Stack())).
+					Msg("SearchDetectSubtask")
 				continue
 			}
 			if len(detectSubtask) == 0 {
-				logging.Get().Debug().Str("module", "detectImage").Int64("taskID", task.ID).
-					Msg("Detector scan image subtask finish")
+				s.Log.Debug().Int64("taskID", task.ID).
+					Msg("scan image subtask finish")
 				continue
 			}
 			subtaskIds := make([]int64, 0)
@@ -303,20 +306,20 @@ func (s *Detector) GenSubtaskChan(ctx context.Context, task *imagesecModel.Image
 				subtaskIds = append(subtaskIds, sb.ID)
 			}
 			if len(subtaskIds) == 0 {
-				logging.Get().Debug().Str("module", "detectImage").Int64("taskID", task.ID).
-					Msg("Detector scan image subtask finish")
+				s.Log.Debug().Int64("taskID", task.ID).
+					Msg("scan image subtask finish")
 				continue
 			}
 			data.SubtaskIds = subtaskIds
 
 			out <- data
 
-			logging.Get().Debug().Str("module", "detectImage").Int64("taskID", task.ID).
+			s.Log.Debug().Int64("taskID", task.ID).
 				Ints64("subtaskIds", subtaskIds).Uint64("ImageUniqueID", im).
-				Msg("Detector GenSubtaskChan get subtask")
+				Msg("GenSubtaskChan get subtask")
 		}
-		logging.Get().Info().Str("module", "detectImage").Int64("taskID", task.ID).
-			Int("subtaskCnt", len(subtask)).Msg("Detector GenSubtaskChan get subtask")
+		s.Log.Info().Int64("taskID", task.ID).
+			Int("subtaskCnt", len(subtask)).Msg("GenSubtaskChan get subtask")
 	}()
 
 	return out
@@ -327,7 +330,7 @@ func (s *Detector) GenTaskChan(ctx context.Context) chan *imagesecModel.ImageDet
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("Detector GenTaskChan")
+				s.Log.Error().Str("stack", string(debug.Stack())).Msg("GenTaskChan")
 			}
 		}()
 
@@ -356,7 +359,7 @@ func (s *Detector) GenTaskChan(ctx context.Context) chan *imagesecModel.ImageDet
 
 			if err != nil {
 				ticker.Reset(10 * time.Second)
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("Detector SearchDetectTask")
+				s.Log.Err(err).Msg("SearchDetectTask")
 				continue
 			}
 
@@ -365,8 +368,8 @@ func (s *Detector) GenTaskChan(ctx context.Context) chan *imagesecModel.ImageDet
 				continue
 			}
 
-			logging.Get().Info().Str("module", "detectImage").Int("taskCnt", len(runTasks)).
-				Msg("Detector SearchDetectTask")
+			s.Log.Info().Int("taskCnt", len(runTasks)).
+				Msg("SearchDetectTask")
 
 			for i := range runTasks {
 				out <- runTasks[i]
@@ -417,8 +420,8 @@ func (s *Detector) UpdateDetectSubTask(ctx context.Context, subtaskID int64, upd
 		Updater: updater,
 	})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "detectImage").Int64("subtaskID", subtaskID).
-			Msg("Detector UpdateDetectSubTask")
+		s.Log.Err(err).Int64("subtaskID", subtaskID).
+			Msg("UpdateDetectSubTask")
 		return err
 	}
 	return err
@@ -430,7 +433,7 @@ func (s *Detector) UpdateTask(ctx context.Context, taskID int64, updater map[str
 		Updater: updater,
 	})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "detectImage").Int64("taskID", taskID).Msg("Detector UpdateTask")
+		s.Log.Err(err).Int64("taskID", taskID).Msg("UpdateTask")
 
 		return err
 	}
@@ -445,7 +448,7 @@ func (s *Detector) UpdateDetectTaskFinished(ctx context.Context) error {
 	})
 
 	if err != nil {
-		logging.Get().Err(err).Str("module", "detectImage").Msg("UpdateDetectTaskFinished Detector SearchScanTask")
+		s.Log.Err(err).Msg("UpdateDetectTaskFinished Detector SearchScanTask")
 		return err
 	}
 
@@ -460,7 +463,7 @@ func (s *Detector) UpdateDetectTaskFinished(ctx context.Context) error {
 		// 检查所有 subtask 都已完成
 		group, err := s.detectTaskDal.GroupDetectSubtask(ctx, imagesecModel.SearchTaskParam{TaskID: task.ID})
 		if err != nil {
-			logging.Get().Err(err).Str("module", "detectImage").Msg("Detector GroupScanSubtask")
+			s.Log.Err(err).Msg("GroupScanSubtask")
 			return err
 		}
 
@@ -472,15 +475,15 @@ func (s *Detector) UpdateDetectTaskFinished(ctx context.Context) error {
 				ID:      task.ID,
 				Updater: updater,
 			}); err != nil {
-				logging.Get().Err(err).Str("module", "detectImage").Msg("Detector UpdateScanTask")
+				s.Log.Err(err).Msg("UpdateScanTask")
 				return err
 			}
-			logging.Get().Info().Str("module", "detectImage").Int64("taskID", task.ID).
-				Msg("Detector finished detect")
+			s.Log.Info().Int64("taskID", task.ID).
+				Msg("finished detect")
 			continue
 		}
 
-		logging.Get().Info().Str("module", "detectImage").Int64("taskID", task.ID).
+		s.Log.Info().Int64("taskID", task.ID).
 			Msg("UpdateDetectTaskFinished Detector not finished")
 	}
 	return nil
@@ -488,8 +491,8 @@ func (s *Detector) UpdateDetectTaskFinished(ctx context.Context) error {
 
 func (s *Detector) ContinueUpdateImage(ctx context.Context) {
 	for up := range s.updateImageChan {
-		logging.Get().Debug().Str("module", "detectImage").Uint64("imageUniqueID", up.ImageUniqueID).
-			Msg("Detector UpdateImage get a image")
+		s.Log.Debug().Uint64("imageUniqueID", up.ImageUniqueID).
+			Msg("UpdateImage get a image")
 
 		// 解决主从同步
 		// if time.Now().UnixMilli()-up.CreateAt < consts.DefaultSlaveDelay {
@@ -499,8 +502,8 @@ func (s *Detector) ContinueUpdateImage(ctx context.Context) {
 			ImageUniqueID: up.ImageUniqueID,
 		})
 		if err != nil {
-			logging.Get().Err(err).Str("module", "detectImage").Uint64("ImageUniqueID", up.ImageUniqueID).
-				Msg("Detector UpdateImage SearchDetectBrief")
+			s.Log.Err(err).Uint64("ImageUniqueID", up.ImageUniqueID).
+				Msg("UpdateImage SearchDetectBrief")
 			continue
 		}
 		image, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{
@@ -509,13 +512,13 @@ func (s *Detector) ContinueUpdateImage(ctx context.Context) {
 		})
 
 		if err != nil {
-			logging.Get().Err(err).Str("module", "detectImage").Uint64("ImageUniqueID", up.ImageUniqueID).
-				Msg("Detector UpdateImage SearchImage")
+			s.Log.Err(err).Uint64("ImageUniqueID", up.ImageUniqueID).
+				Msg("UpdateImage SearchImage")
 			continue
 		}
 		if len(image) == 0 {
-			logging.Get().Info().Str("module", "detectImage").Uint64("ImageUniqueID", up.ImageUniqueID).
-				Msg("Detector not find image")
+			s.Log.Info().Uint64("ImageUniqueID", up.ImageUniqueID).
+				Msg("not find image")
 			continue
 		}
 
@@ -532,16 +535,16 @@ func (s *Detector) ContinueUpdateImage(ctx context.Context) {
 		policyUniqueStr := Uint64ToString(policyUniqueID)
 
 		if image[0].Flag != flag || image[0].PolicyUniqueJson != policyUniqueStr {
-			logging.Get().Debug().Str("module", "detectImage").Uint64("imageUniqueID", up.ImageUniqueID).
-				Msg("Detector finished image changed and UpdateImage")
+			s.Log.Debug().Uint64("imageUniqueID", up.ImageUniqueID).
+				Msg("finished image changed and UpdateImage")
 
 			updater := map[string]interface{}{"flag": flag, "policy_unique_id": policyUniqueStr}
 			if err := s.imageDal.UpdateImage(ctx, imagesecModel.UpdateImageParam{
 				UniqueID: up.ImageUniqueID,
 				Updater:  updater,
 			}); err != nil {
-				logging.Get().Err(err).Str("module", "detectImage").Uint64("ImageUniqueID", up.ImageUniqueID).
-					Msg("Detector UpdateImage")
+				s.Log.Err(err).Uint64("ImageUniqueID", up.ImageUniqueID).
+					Msg("UpdateImage")
 				continue
 			}
 		}
@@ -550,7 +553,7 @@ func (s *Detector) ContinueUpdateImage(ctx context.Context) {
 
 func (s *Detector) AddDetectTaskEveryDay(ctx context.Context) error {
 	if !s.addDetectTaskEveryDay {
-		logging.Get().Info().Str("module", "detectImage").Msg("do not add detect task everyday")
+		s.Log.Info().Msg("do not add detect task everyday")
 		return nil
 	}
 	go func() {
@@ -564,9 +567,9 @@ func (s *Detector) AddDetectTaskEveryDay(ctx context.Context) error {
 					imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectPriorityCycle},
 					nil,
 				); err != nil {
-					logging.Get().Err(err).Str("module", "detectImage").Msg("AddDetectTaskEveryDay")
+					s.Log.Err(err).Msg("AddDetectTaskEveryDay")
 				}
-				logging.Get().Info().Str("module", "detectImage").Msg("AddDetectTaskEveryDay")
+				s.Log.Info().Msg("AddDetectTaskEveryDay")
 			}
 			ticker.Reset(time.Hour)
 		}
@@ -596,12 +599,12 @@ func (s *Detector) updateScanSubtask(ctx context.Context, scanSubtaskID int64, s
 		Updater: updater,
 		Where:   fmt.Sprintf("status < %d", imagesecModel.TaskStatusPause),
 	}); err != nil {
-		logging.Get().Err(err).Str("module", "detectImage").Int64("subtaskID", scanSubtaskID).Interface("updater", updater).
-			Msg("Detector detect image bug update scan subtask error")
+		s.Log.Err(err).Int64("subtaskID", scanSubtaskID).Interface("updater", updater).
+			Msg("detect image bug update scan subtask error")
 		return err
 	}
-	logging.Get().Info().Str("module", "detectImage").Int64("subtaskID", scanSubtaskID).Interface("statusStr", updater["status_str"]).
-		Msg("Detector detect image finished and update scan subtask")
+	s.Log.Info().Int64("subtaskID", scanSubtaskID).Interface("statusStr", updater["status_str"]).
+		Msg("detect image finished and update scan subtask")
 	return nil
 
 }

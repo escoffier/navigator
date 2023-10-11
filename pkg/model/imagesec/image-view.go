@@ -1077,9 +1077,10 @@ func getAction(pre string, n string) string {
 
 // 部署上线使用
 // 最新的要求，这里就展示策略的动作，和数据无关 (也就是策略设置的病毒阻断，即使没有病毒，也返回阻断)
+// 又增加了需求,未在仓库中的镜像，不展示策略动作
 func (iws *ImageWithCorrelateData2) ToSecurityIssueOverview2() SecurityOverview {
 	ans := SecurityOverview{}
-	if iws.DeployRecord == nil && util.ExistBit1(iws.DeployRecord.Flag, FlagImageDetectNotExitINReg) {
+	if iws.DeployRecord == nil || util.ExistBit1(iws.DeployRecord.Flag, FlagImageDetectNotExitINReg) {
 		return ans
 	}
 	// 未扫描就只有环境变量

@@ -5,10 +5,9 @@ import (
 	"fmt"
 	"regexp"
 
-	"gitlab.com/security-rd/go-pkg/logging"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -28,6 +27,7 @@ type ImageDetectTaskSrv struct {
 	taskDal         imagesecStore.DetectTaskDal
 	policyDal       imagesecStore.DetectPolicyDal
 	detectResultDal imagesecStore.ImageDetectResultDal
+	Log             *scannerUtils.LogEvent
 }
 
 type ImageService interface {
@@ -45,6 +45,10 @@ func NewImageDetectTaskSrv(
 		taskDal:         taskDal,
 		policyDal:       policyDal,
 		detectResultDal: detectResultDal,
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithSubModule("DetectTask"),
+			scannerUtils.WithModule(consts.ModuleDetect),
+		),
 	}
 	return srv
 }
@@ -66,7 +70,7 @@ func (s *ImageDetectTaskSrv) CreateImageDetectTask(
 	}
 
 	if err := s.taskDal.CreateDetectTask(ctx, task); err != nil {
-		logging.Get().Err(err).Str("module", "detectImage").Interface("task", task).Msg("CreateDetectTask")
+		s.Log.Err(err).Interface("task", task).Msg("CreateDetectTask")
 		return err
 	}
 
@@ -74,7 +78,7 @@ func (s *ImageDetectTaskSrv) CreateImageDetectTask(
 		_ = s.CreateDetectSubtask(ctx, task, imageSearchParam, policy)
 	}(task.ID)
 
-	logging.Get().Info().Str("module", "detectImage").Int64("taskID", task.ID).Msg("CreateDetectTask succeed")
+	s.Log.Info().Int64("taskID", task.ID).Msg("CreateDetectTask succeed")
 
 	return nil
 }
@@ -98,8 +102,7 @@ func (s *ImageDetectTaskSrv) deleteDetectSubtask(ctx context.Context, policyID i
 		param.StartID = startID
 		subtask, _, err := s.taskDal.SearchDetectSubtask(ctx, param)
 		if err != nil {
-			logging.Get().Err(err).Str("module", "detectImage").Interface("param", param).
-				Msg("DeleteDetectSubtask")
+			s.Log.Err(err).Interface("param", param).Msg("DeleteDetectSubtask")
 			continue
 		}
 		if len(subtask) == 0 {
@@ -113,14 +116,13 @@ func (s *ImageDetectTaskSrv) deleteDetectSubtask(ctx context.Context, policyID i
 		}
 
 		if err := s.taskDal.DeleteDetectSubtask(ctx, imagesecModel.SearchTaskParam{SubtaskIds: subtaskIds}); err != nil {
-			logging.Get().Err(err).Str("module", "detectImage").Ints64("subtaskIds", subtaskIds).
+			s.Log.Err(err).Ints64("subtaskIds", subtaskIds).
 				Msg("DeleteDetectSubtask")
 			continue
 		}
-		logging.Get().Info().Str("module", "detectImage").Ints64("subtaskIds", subtaskIds).
-			Msg("DeleteDetectSubtask")
+		s.Log.Info().Ints64("subtaskIds", subtaskIds).Msg("DeleteDetectSubtask")
 	}
-	logging.Get().Info().Str("module", "detectImage").Int64("taskID", param.TaskID).
+	s.Log.Info().Int64("taskID", param.TaskID).
 		Msg("DeleteDetectSubtask succeed")
 	return nil
 }
@@ -133,7 +135,7 @@ func (s *ImageDetectTaskSrv) deleteDetectResult(ctx context.Context, policyID in
 			PolicyID:   policyID,
 		})
 		if err != nil {
-			logging.Get().Err(err).Str("module", "detectImage").Int64("policyID", policyID).
+			s.Log.Err(err).Int64("policyID", policyID).
 				Str("DetectType", det[i]).Msg("deleteDetectResult")
 		}
 	}
@@ -145,7 +147,7 @@ func (s *ImageDetectTaskSrv) deleteDetectBrief(ctx context.Context, policyID int
 		PolicyID: policyID,
 	})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "detectImage").Int64("policyID", policyID).Msg("deleteDetectResult")
+		s.Log.Err(err).Int64("policyID", policyID).Msg("deleteDetectResult")
 		return err
 	}
 	return nil
@@ -166,7 +168,7 @@ func (s *ImageDetectTaskSrv) CreateDetectSubtask(
 			NotCount: true,
 		})
 		if err != nil {
-			logging.Get().Err(err).Str("module", "detectImage").Msg("CreateDetectSubtask SearchDetectPolicy")
+			s.Log.Err(err).Msg("CreateDetectSubtask SearchDetectPolicy")
 			return err
 		}
 		all = append(all, po...)
@@ -186,12 +188,12 @@ func (s *ImageDetectTaskSrv) CreateDetectSubtask(
 
 		images, _, err := s.imageSrv.ListImageWithScanInfo(ctx, imageSearchParam)
 		if err != nil {
-			logging.Get().Err(err).Str("module", "detectImage").Msg("CreateDetectSubtask SearchImage")
+			s.Log.Err(err).Msg("CreateDetectSubtask SearchImage")
 			break
 		}
 
 		if len(images) == 0 {
-			logging.Get().Info().Str("module", "detectImage").Msg("CreateDetectSubtask finished create subtask")
+			s.Log.Info().Msg("CreateDetectSubtask finished create subtask")
 			break
 		}
 		startId = images[len(images)-1].ID
@@ -218,11 +220,11 @@ func (s *ImageDetectTaskSrv) CreateDetectSubtask(
 
 		if len(subtasks) > 0 {
 			if err := s.taskDal.CreateDetectSubtask(ctx, subtasks); err != nil {
-				logging.Get().Err(err).Str("module", "detectImage").Msg("CreateDetectSubtask")
+				s.Log.Err(err).Msg("CreateDetectSubtask")
 				continue
 			}
 		}
-		logging.Get().Info().Str("module", "detectImage").Int64("taskID", task.ID).Int("subtaskCnt", len(subtasks)).Msg("CreateDetectSubtask")
+		s.Log.Info().Int64("taskID", task.ID).Int("subtaskCnt", len(subtasks)).Msg("CreateDetectSubtask")
 	}
 
 	updater := map[string]interface{}{
@@ -231,7 +233,7 @@ func (s *ImageDetectTaskSrv) CreateDetectSubtask(
 	}
 
 	if err := s.taskDal.UpdateDetectTask(ctx, imagesecModel.UpdateTaskParam{Updater: updater, ID: task.ID}); err != nil {
-		logging.Get().Err(err).Str("module", "detectImage").Int64("taskID", task.ID).Msg("CreateDetectSubtask UpdateDetectTask to TaskStatusSendFinished")
+		s.Log.Err(err).Int64("taskID", task.ID).Msg("CreateDetectSubtask UpdateDetectTask to TaskStatusSendFinished")
 		return err
 	}
 
@@ -263,7 +265,7 @@ func NeedDetectImage(im *imagesecModel.ImageBaseResponse, po *imagesecModel.Secu
 			}
 			com, err := regexp.Compile(reg)
 			if err != nil {
-				logging.Get().Err(err).Str("module", "detectImage").Msg("NeedDetectImage")
+				// 新建策略的时候会验证，这里就不记录日志了
 				continue
 			}
 			imageName := fmt.Sprintf("%s/%s:%s", im.RegistryUrl, im.FullRepoName, im.Tag)

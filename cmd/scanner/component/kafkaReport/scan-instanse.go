@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/segmentio/kafka-go"
-	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
@@ -22,6 +22,7 @@ type ScanInstanceReport struct {
 	ScanInstanceDal imagesecStore.ScanInstanceDal
 	mqReader        mq.Reader
 	MqWriter        mq.Writer
+	Log             *scannerUtils.LogEvent
 }
 
 func NewScanInstanceReport(
@@ -33,33 +34,37 @@ func NewScanInstanceReport(
 		ScanInstanceDal: ScanInstanceDal,
 		mqReader:        mqReader,
 		MqWriter:        mqWriter,
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithSubModule("ScanInstance"),
+			scannerUtils.WithModule(consts.ModuleKafkaReport),
+		),
 	}
 }
 
 func (s *ScanInstanceReport) ReceiveReport(ctx context.Context) error {
 
 	if !scannerUtils.MainCluster() {
-		logging.Get().Info().Str("module", "KafkaReport").Msg("ScanInstanceReport scanner in slave cluster,ignore handle kafka msg")
+		s.Log.Info().Msg("scanner in slave cluster,ignore handle kafka msg")
 		return nil
 	}
 
-	logging.Get().Info().Str("module", "KafkaReport").Msg("ScanInstanceReport scanner in main cluster,ready to handle kafka msg")
+	s.Log.Info().Msg("scanner in main cluster,ready to handle kafka msg")
 
 	ch := make(chan struct{})
 
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Stack().Msg("ScanInstanceReport")
+				s.Log.Error().Stack().Msg("ScanInstanceReport")
 			}
 		}()
 
 		if err := s.handleMsg(ch); err != nil {
-			logging.Get().Err(err).Str("module", "KafkaReport").Msg("ScanInstanceReport finished")
+			s.Log.Err(err).Msg("finished")
 		}
 	}()
 
-	logging.Get().Info().Str("module", "KafkaReport").Msg("ScanInstanceReport receive kafka started end")
+	s.Log.Info().Msg("receive kafka started end")
 
 	return nil
 }
@@ -70,17 +75,17 @@ func (s *ScanInstanceReport) ReceiveAssetReport(ctx context.Context, msg kafka.M
 	err := json.Unmarshal(msg.Value, &imageReport)
 
 	if err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Msg("ScanInstanceReport failed to unmarshal ScannerInstanceInfo msg")
+		s.Log.Err(err).Msg("failed to unmarshal ScannerInstanceInfo msg")
 		return err
 	}
 
-	logging.Get().Debug().Str("module", "KafkaReport").
+	s.Log.Debug().
 		Interface("imageReport", imageReport).
 		Msg("receive scan instance report")
 
 	_, err = s.ScanInstanceDal.CreateAndReplace(ctx, imageReport)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Msg("ScanInstanceReport CreateAndReplace")
+		s.Log.Err(err).Msg("CreateAndReplace")
 	}
 	return nil
 }
@@ -88,14 +93,14 @@ func (s *ScanInstanceReport) ReceiveAssetReport(ctx context.Context, msg kafka.M
 func (s *ScanInstanceReport) handleMsg(stopCh <-chan struct{}) error {
 	err := s.mqReader.Subscribe(model.ScanInstanceTopic, model.ScanInstanceGroup, s.ReceiveAssetReport)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Msg("ScanInstanceReport failed to sub message queue")
+		s.Log.Err(err).Msg("failed to sub message queue")
 		return err
 	}
-	logging.Get().Info().Str("module", "KafkaReport").Msg("ScanInstanceReport sub message queue ok")
+	s.Log.Info().Msg("sub message queue ok")
 	<-stopCh
-	logging.Get().Info().Str("module", "KafkaReport").Msg("ScanInstanceReport sub message queue end")
+	s.Log.Info().Msg("sub message queue end")
 
-	return fmt.Errorf("ScanInstanceReport quit message handler")
+	return fmt.Errorf("quit message handler")
 }
 
 func (s *ScanInstanceReport) ReportScanInstance(ctx context.Context) error {
@@ -103,7 +108,7 @@ func (s *ScanInstanceReport) ReportScanInstance(ctx context.Context) error {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Msg("ScanInstanceReport recover")
+				s.Log.Error().Msg("recover")
 			}
 		}()
 		ticker := time.NewTicker(time.Minute * 5)
@@ -112,7 +117,7 @@ func (s *ScanInstanceReport) ReportScanInstance(ctx context.Context) error {
 		for {
 			scannerVersion := os.Getenv("SOFT_VERSION")
 			if global.ScannerInstance == "" {
-				logging.Get().Info().Str("module", "KafkaReport").Msg("ScanInstanceReport global ScannerInstance is empty")
+				s.Log.Info().Msg("global ScannerInstance is empty")
 				continue
 			}
 			info := imagesecModel.ScannerInstanceInfo{
@@ -135,7 +140,7 @@ func (s *ScanInstanceReport) sendToKafka(ctx context.Context, report imagesecMod
 
 	bys, err := json.Marshal(report)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Msg("ScanInstanceReport Marshal")
+		s.Log.Err(err).Msg("Marshal")
 		return err
 	}
 	msg := kafka.Message{
@@ -145,9 +150,9 @@ func (s *ScanInstanceReport) sendToKafka(ctx context.Context, report imagesecMod
 	}
 
 	if err := s.MqWriter.Write(ctx, msg.Topic, msg); err != nil {
-		logging.Get().Err(err).Str("module", "KafkaReport").Msg("ScanInstanceReport SendToMq")
+		s.Log.Err(err).Msg("SendToMq")
 		return err
 	}
-	logging.Get().Info().Str("module", "KafkaReport").Msg("ScanInstanceReport send kafka")
+	s.Log.Info().Msg("send kafka")
 	return nil
 }

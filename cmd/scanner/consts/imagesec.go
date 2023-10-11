@@ -37,10 +37,11 @@ const (
 )
 
 const (
-	ModelImageMeta   = "imageMeta"
-	ModelImageScan   = "imagescan"
-	ModuleDeploy     = "deployImage"
-	LogModule        = "module"
-	LogSubModule     = "submodule"
-	ModelImageDetect = "imageDetect"
+	ModelImageMeta    = "imageMeta"
+	ModelImageScan    = "imagescan"
+	ModuleDeploy      = "deployImage"
+	ModuleDetect      = "detectImage"
+	ModuleKafkaReport = "kafkaReport"
+	LogModule         = "module"
+	LogSubModule      = "submodule"
 )
