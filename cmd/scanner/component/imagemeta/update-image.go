@@ -359,35 +359,9 @@ func (s *ImageUpdateSrv) updateOnlineImage(ctx context.Context) error {
 		return err
 	}
 	logging.Get().Info().Str("module", consts.ModelImageMeta).Int("uuidCnt", len(uuids)).
-		Msg("updateOnlineImage get redis uuid")
+		Msg("updateOnlineImage get uuid")
 
-	if len(s.OnlineUUID) == 0 {
-		var startID int64
-		filter := model.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiledByID().SetSortAsc()
-		param := imagesecModel.ImageDalParam{
-			OnlineFlag:   util.SetBit1(0, imagesecModel.FlagImageOnline),
-			NotNeedCount: true,
-			Fields:       []string{"id", "image_uuid", "flag"},
-			Filter:       filter,
-		}
-		for {
-			param.StartID = startID
-
-			image, _, err := s.imageDal.SearchImage(ctx, param)
-			if err != nil {
-				s.Log.Err(err).Msg("updateOnlineImage")
-				return err
-			}
-			if len(image) == 0 {
-				break
-			}
-			for i := range image {
-				s.OnlineUUID[image[i].ImageUUID] = struct{}{}
-			}
-			startID = image[len(image)-1].ID
-		}
-	}
-
+	// 程序开始时做一次全量检测
 	add, sub, nw := onlineUUID(s.OnlineUUID, uuids)
 	if len(add) == 0 && len(sub) == 0 {
 		s.Log.Info().Int("add", len(add)).Int("sub", len(sub)).

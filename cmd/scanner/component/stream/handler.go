@@ -87,7 +87,7 @@ func (vi *Handler) addScanTask(s rpcstream.Stream, reqID, msgID string, payload 
 
 	_ = vi.ScanSubtaskReceiver.ReceiveScanSubtask(context.Background(), subTask)
 
-	pong.ImageSecResp = &pb.ImageSecResp{Status: consts.StreamStatusOK, BizCode: consts.StreamStatusOK}
+	pong.ImageSecResp = &pb.ImageSecResp{BizCode: consts.StreamStatusStartScanTask}
 
 	go func() { vi.ImageSecRespChan <- pong }()
 
