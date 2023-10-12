@@ -396,6 +396,8 @@ func (s *Detector) GetImageData(ctx context.Context, imageUniqueID uint64) (*ima
 		ImageInReg:      true,
 		TrustedEnable:   true,
 		BaseImageEnable: true,
+		RegistryEnable:  true,
+		NodeInfoEnable:  true,
 	})
 	return data, err
 }

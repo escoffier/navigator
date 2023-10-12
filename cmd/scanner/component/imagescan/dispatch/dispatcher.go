@@ -254,11 +254,11 @@ func (s *TaskDispatcher) sendScanSubtask(ctx context.Context, req *pb.ImageSecRe
 	defer timeOutFunc()
 
 	rsp, err := s.streamClient.ScannerPushImageSecMsg(timeOutCxt, req)
-	if err != nil {
+	if err != nil || rsp.Status != consts.StreamStatusOK {
 		s.Log.Err(err).Interface("req", req).Msg("Dispatcher sendScanSubtask")
 		return err
 	}
-	if rsp.GetBizCode() != 0 {
+	if rsp.GetBizCode() != consts.StreamStatusStartScanTask {
 		err = fmt.Errorf("publish task response err code:%v", rsp.Status)
 		return err
 	}
