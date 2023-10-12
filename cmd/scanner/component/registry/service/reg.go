@@ -326,7 +326,7 @@ func (s *RegistrySrv) SendToScannerCheckHealth(ctx context.Context, reg imagesec
 		s.Log.Err(err).Interface("req", req).Msg("SendToScannerCheckHealth")
 		return err
 	}
-	switch rsp.Status {
+	switch rsp.GetBizCode() {
 	case consts.StreamStatusRegOK:
 		return nil
 	case consts.StreamStatusRegNotOK:

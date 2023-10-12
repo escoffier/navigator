@@ -185,6 +185,8 @@ func (s *ImageDetectTaskSrv) CreateDetectSubtask(
 	for {
 		imageSearchParam.StartID = startId
 		imageSearchParam.Filter = filter
+		assParam := imagesecModel.ImageAssociateParam{RegistryEnable: true, NodeInfoEnable: true}
+		imageSearchParam.AssociateParam = assParam
 
 		images, _, err := s.imageSrv.ListImageWithScanInfo(ctx, imageSearchParam)
 		if err != nil {

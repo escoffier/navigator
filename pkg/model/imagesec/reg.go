@@ -77,10 +77,12 @@ func (reg *Registry) WhetherToStartSync() bool {
 
 	now := time.Now().Unix()
 
+	// 防止长久未同步之后，就一直不同再同步任务了
 	if reg.LastSyncAt/1000+reg.SyncInterval*60 < now {
-		return false
+		return true
 	}
-	return true
+
+	return false
 }
 
 func (reg *Registry) TableName() string {

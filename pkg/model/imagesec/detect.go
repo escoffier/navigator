@@ -136,25 +136,6 @@ const (
 
 func (vi *PolicyDetect) GenPolicyDetect(flag uint64) {
 
-	// 白名单只对自已策略有效
-	// 所有策略的并集，如果一个策略检测出是风险，那么即使另一个策略加了白名单，也是风险的
-
-	// TODO 这一期 异常软件和异常开源协议分开算，下一期整合
-	if vi.Exception || vi.ExceptionPkgLicense {
-		// 讨厌的开源协议
-		if util.ExistBit1(flag, FlagDetectExceptionPkgLicense) {
-			// TODO 这一期 异常软件和异常开源协议分开算，下一期整合
-			// vi.Exception = true
-			vi.ExceptionPkgLicense = true
-		}
-		if util.ExistBit1(flag, FlagDetectException) {
-			vi.Exception = true
-		}
-		return
-	}
-	if vi.DeployAction == DeployActionBlock {
-		return
-	}
 	if util.ExistBit1(flag, FlagDetectException) {
 		vi.Exception = true
 	}
@@ -168,12 +149,6 @@ func (vi *PolicyDetect) GenPolicyDetect(flag uint64) {
 		// vi.Exception = true
 		vi.ExceptionPkgLicense = true
 	}
-	if util.ExistBit1(flag, FlagImageDeployBlock) {
-		vi.Exception = true
-	}
-	if util.ExistBit1(flag, FlagImageDeployAlarm) {
-		vi.DeployAction = DeployActionAlarm
-	}
 
 	if util.ExistBit1(flag, FlagDetectDeployActionBlock) {
 		vi.DeployAction = DeployActionBlock
@@ -182,13 +157,20 @@ func (vi *PolicyDetect) GenPolicyDetect(flag uint64) {
 		vi.DeployAction = DeployActionAlarm
 	}
 
-	// 白名单优先级最高
-	if vi.InWhite || util.ExistBit1(flag, FlagDetectInWhite) {
+	// 当前的白名单
+	if util.ExistBit1(flag, FlagDetectInWhite) {
 		vi.InWhite = true
 		vi.Exception = false
 		vi.PasswdEnv = false
 		vi.ExceptionPkgLicense = false
 		vi.DeployAction = DeployActionPass
+	}
+	// 白名单只对自已策略有效
+	// 所有策略的并集，如果一个策略检测出是风险，那么即使另一个策略加了白名单，也是风险的
+	// 如果检测到异常,把之前策略的白名单失效
+	if !util.ExistBit1(flag, FlagDetectInWhite) && (util.ExistBit1(flag, FlagDetectException) ||
+		util.ExistBit1(flag, FlagDetectExceptionPkgLicense)) {
+		vi.InWhite = false // 白名单只影响当前策略
 	}
 }
 
