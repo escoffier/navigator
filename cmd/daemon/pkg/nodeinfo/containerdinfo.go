@@ -467,7 +467,6 @@ func (d *ContainerdInfoManager) containerFromRaw(ctx context.Context, container 
 	} else {
 		imageId = image.Name()
 		imageName = image.Name()
-		imageName = buildImageWithTag(imageName, info.Labels, containerName)
 		imageCreated = image.Metadata().CreatedAt.Format(time.RFC3339Nano)
 		imageDigest = image.Target().Digest.String()
 		imageSize, err = image.Size(ctx)
@@ -498,7 +497,6 @@ func (d *ContainerdInfoManager) containerFromRaw(ctx context.Context, container 
 		NodeName:       d.hostName,
 		NodeIP:         d.hostIP,
 		ImageName:      imageName,
-		ImageUUID:      model.GetImageUUID(imageName, imageDigest),
 		ImageCreated:   imageCreated,
 		ImageSize:      imageSize,
 		ImageID:        imageId, // docker.io/library/nginx:latest
@@ -593,6 +591,9 @@ func (d *ContainerdInfoManager) processEvents(container *model.TensorRawContaine
 			}
 			container.Ports = utils.MergeContainerPorts(ports, container.Ports, container.IP)
 			container.VolumeMounts = utils.MergeVolumeMounts(volumeMounts, container.VolumeMounts)
+			//	找回 image tag：  因为containerd中, pod自定义标签 在容器运行时中没有
+			container.ImageName = buildImageWithTag(container.ImageName, pod.Labels, container.Name)
+			container.ImageUUID = model.GetImageUUID(container.ImageName, container.ImageDigest)
 		}
 	}
 	switch action {
