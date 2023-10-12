@@ -71,7 +71,7 @@ func (vi *DeployRecord) TableName() string {
 }
 
 type DeployIssue struct {
-	Target uint64 `json:"target"`
+	Target uint64 `json:"target,string"`
 	Action string `json:"action"`
 	Flag   uint64 `json:"flag,string"`
 }
@@ -95,6 +95,7 @@ func (vi *DeployRecord) Deserialize() {
 	_ = json.Unmarshal([]byte(vi.SensitiveJSON), &vi.SensitiveIssue)
 	_ = json.Unmarshal([]byte(vi.LicenseJSON), &vi.LicenseIssue)
 	_ = json.Unmarshal([]byte(vi.EnvJSON), &vi.EnvIssue)
+	_ = json.Unmarshal([]byte(vi.PkgJSON), &vi.PkgIssue)
 	_ = json.Unmarshal([]byte(vi.RiskPolicyJson), &vi.RiskPolicy)
 	_ = json.Unmarshal([]byte(vi.TotalPolicyJson), &vi.TotalPolicy)
 
