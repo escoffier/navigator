@@ -125,6 +125,7 @@ func (api *api) scanner() func(chi.Router) {
 
 		// 仓库镜像改
 		r.Post("/images/list", api.RedirectToScanner())
+		r.Post("/images/assets/image", api.RedirectToScanner())
 		r.Get("/images/overview", api.RedirectToScanner())
 		r.Get("/images/resource", api.RedirectToScanner())
 		r.Get("/images/related/image", api.RedirectToScanner())

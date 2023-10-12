@@ -23,6 +23,7 @@ func isReadRequest(r *http.Request) bool {
 		r.URL.Path == "/api/v2/containerSec/ATTCK/ruleTemplates/rules" ||
 		r.URL.Path == "/api/v2/platform/sherlock/hola/rules" ||
 		r.URL.Path == "/api/v2/containerSec/scanner/images/list" ||
+		r.URL.Path == "/api/v2/containerSec/scanner/images/assets/image" ||
 		r.URL.Path == "/api/v2/containerSec/scanner/deploy/record" ||
 		r.URL.Path == "/api/v2/containerSec/scanner/images/detail/riskInfo" ||
 		r.URL.Path == "/api/v2/platform/sherlock/palace/attck/matrix" ||

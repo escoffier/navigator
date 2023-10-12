@@ -262,8 +262,8 @@ type ImageDetectBrief struct {
 	ID             int64  `gorm:"primaryKey" json:"id"`
 	ImageUniqueID  uint64 `gorm:"column:image_unique_id" json:"imageUniqueID,string"`
 	PolicyID       int64  `gorm:"column:policy_id" json:"policyID"`
-	PolicyUniqueID uint64 `gorm:"column:policy_unique_id" json:"policyUniqueID"` // 主要是为了保存快照
-	Flag           uint64 `gorm:"column:flag" json:"flag"`
+	PolicyUniqueID uint64 `gorm:"column:policy_unique_id" json:"policyUniqueID,string"` // 主要是为了保存快照
+	Flag           uint64 `gorm:"column:flag" json:"flag,string"`                       // 检测结果
 	// 2.20之前全量保存了策略数据，2.20之后进行了优化，只是保存了SimplePolicy
 	PolicyJson   string          `gorm:"column:policy" json:"-"`
 	SimplePolicy *SimplePolicy   `gorm:"-" json:"simplePolicy"` // 数据库的结
@@ -317,7 +317,7 @@ func (vi *ImageDetectBrief) Check() error {
 }
 
 func (vi *ImageDetectBrief) Same(after *ImageDetectBrief) bool {
-	if vi.ImageUniqueID != after.ImageUniqueID || vi.PolicyID != after.PolicyID || vi.Flag != vi.Flag ||
+	if vi.ImageUniqueID != after.ImageUniqueID || vi.PolicyID != after.PolicyID || vi.Flag != after.Flag ||
 		vi.PolicyUniqueID != after.PolicyUniqueID {
 		return false
 	}

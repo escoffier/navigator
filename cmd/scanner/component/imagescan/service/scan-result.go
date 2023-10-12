@@ -88,12 +88,12 @@ func (s *ScanResultSrv) SearchPkg(ctx context.Context, param imagesecModel.ScanR
 		param.VulnName = vuln[0].Name
 	}
 
-	vuln, cnt, err := s.ScanResultDal.SearchPkg(ctx, param)
+	pkg, cnt, err := s.ScanResultDal.SearchPkg(ctx, param)
 	if err != nil {
 		logging.Get().Err(err).Str("module", "imagescan").Interface("param", param).Msg("SearchPkg")
 		return nil, 0, scani18.SearchPKG(err)
 	}
-	return vuln, cnt, nil
+	return pkg, cnt, nil
 }
 
 func (s *ScanResultSrv) SearchLicense(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.License, error) {

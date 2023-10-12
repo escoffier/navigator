@@ -44,11 +44,11 @@ type ImageSearchApiParam struct {
 	ClusterKey             []string `json:"clusterKey"`
 	Digests                []string `json:"digests"`
 	// 部署上线特有
-	DeployAction    []string `json:"deployAction"`
-	StartTime       int64    `json:"startTime"`
-	EndTime         int64    `json:"endTime"`
-	CheckRegDeleted string   `json:"checkRegDeleted"` // 检查镜像所属仓库是否删除
-
+	DeployAction    []string        `json:"deployAction"`
+	StartTime       int64           `json:"startTime"`
+	EndTime         int64           `json:"endTime"`
+	CheckRegDeleted string          `json:"checkRegDeleted"` // 检查镜像所属仓库是否删除
+	AssetImage      []ImageWithUuid `json:"assetImage"`      // 资产查镜像
 	// 以下几个查询关联镜像，单独的接口
 	WebshellMD5  string `json:"webshellMd5"`
 	MalwareMD5   string `json:"malwareMD5"`
@@ -265,6 +265,11 @@ func (sp *ImageSearchApiParam) GenSecurityIssueFlag() uint64 {
 }
 
 // 镜像属性
+type ImageWithUuid struct {
+	Name string `json:"name"`
+	UUID uint32 `json:"uuid"`
+}
+
 type ImageAttrResponse struct {
 	ImageType     string `json:"imageType"`    // 镜像类型,基础镜像："base",应用镜像："app"
 	HasFixedVuln  bool   `json:"hasFixedVuln"` // 是否包含可修复漏洞: 是:true,否：false
@@ -1381,7 +1386,7 @@ func (iws *ImageWithCorrelateData2) AddDeployDetect() {
 		return
 	}
 	for i := range iws.Pkg {
-		iws.Env[i].PolicyDetect.AddDeployDetect(iws.Env[i].UniqueID, iws.DeployRecord.EnvIssue)
+		iws.Pkg[i].PolicyDetect.AddDeployDetect(iws.Pkg[i].UniqueID, iws.DeployRecord.EnvIssue)
 	}
 
 	for i := range iws.Pkg {

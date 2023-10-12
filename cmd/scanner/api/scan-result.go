@@ -217,7 +217,7 @@ func (s *ScanResultAPI) SearchSoftware(ctx *gin.Context) {
 				UniqueID:         software[i].UniqueID,
 				SeverityOverview: make([]imagesecModel.SeverityGroup, 0),
 				Vulns:            make([]*imagesecModel.VulnView, 0),
-				License:          []string{software[i].License},
+				License:          software[i].License,
 				PolicyDetect:     software[i].PolicyDetect,
 			}
 			pkgMap[key] = vp
@@ -605,7 +605,7 @@ func (s *ScanResultAPI) GetImageVulnPkg(ctx *gin.Context) {
 			Filepath:         pkg.Filepath,
 			SeverityOverview: make([]imagesecModel.SeverityGroup, 0),
 			Vulns:            make([]*imagesecModel.VulnView, 0),
-			License:          []string{pkg.License},
+			License:          pkg.License,
 			PolicyDetect:     pkg.PolicyDetect,
 		}
 		pkgMap[vp.UniqueID] = vp

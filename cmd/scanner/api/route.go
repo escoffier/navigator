@@ -232,6 +232,7 @@ func WebAPI(router *gin.Engine,
 		v2.GET("/existenceCount", imageBaseApi.ExistenceCount)
 
 		v2.POST("/list", imageBaseApi.SearchImageWithScan)
+		v2.POST("/assets/image", imageBaseApi.SearchAssetsImage)
 		v2.GET("/overview", imageBaseApi.ImageOverview)
 		v2.GET("/resource", imageBaseApi.SearchResources)         // 镜像详情中关联容器
 		v2.GET("/related/image", imageBaseApi.SearchRelatedImage) // 关联镜像
