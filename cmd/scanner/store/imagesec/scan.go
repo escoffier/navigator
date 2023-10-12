@@ -802,7 +802,7 @@ func (dal *ScanResultDao) CreateVuln(ctx context.Context, param imagesecModel.Cr
 		}
 
 		if param.OnlineVuln {
-			vu = vu.GenOnlineVuln()
+			vu.OnlineVuln = true
 		}
 		data = append(data, vu)
 	}

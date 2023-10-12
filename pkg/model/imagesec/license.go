@@ -60,9 +60,6 @@ func (vi *License) Check() error {
 }
 
 func (vi *License) GenUniqueID() uint64 {
-	if vi.UniqueID > 0 {
-		return vi.UniqueID
-	}
 	key := fmt.Sprintf("%s-%s-%s", vi.Filename, vi.MD5, vi.Name)
 	uid := util.GenerateUUID64(key)
 	vi.UniqueID = uid
@@ -111,9 +108,6 @@ type LicenseToImage struct {
 }
 
 func (vi *LicenseToImage) GenUniqueID() uint64 {
-	if vi.UniqueID > 0 {
-		return vi.UniqueID
-	}
 	key := fmt.Sprintf("%d-%d-%s", vi.ImageUniqueID, vi.UniqueTarget, vi.LayerDigest)
 	uid := util.GenerateUUID64(key)
 	vi.UniqueID = uid
