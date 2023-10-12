@@ -16,7 +16,7 @@ func CheckImagePkg(ctx context.Context, data *imagesecModel.ImageWithCorrelateDa
 		return ans
 	}
 	pkgBlack := policy.Pkg.Black
-	blackPkgLicense := policy.License.Black
+	blackPkgLicense := policy.PkgLicense.Black
 
 	for i := range data.Pkg {
 		var flag uint64
