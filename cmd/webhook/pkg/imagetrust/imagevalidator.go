@@ -6,18 +6,19 @@ import (
 	"crypto/tls"
 	"encoding/json"
 	"errors"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+	"strings"
+
 	"github.com/avast/retry-go"
 	"gitlab.com/piccolo_su/vegeta/cmd/webhook/pkg/processors"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gopkg.in/yaml.v2"
-	"io"
 	corev1 "k8s.io/api/core/v1"
-	"net/http"
-	"net/url"
-	"os"
-	"strings"
 )
 
 const validatorConfigFile = "image-trust-validator.yaml"
@@ -58,7 +59,7 @@ type ValidatorConfig struct {
 	IgnoredNameSpaces []string `yaml:"ignored_name_spaces"`
 }
 
-func (v *Validator) Validate(ctx context.Context, digests *ImageDigest, params *processors.ValidatingParameters) error {
+func (v *Validator) Validate(ctx context.Context, digests *PodImageDigest, params *processors.ValidatingParameters) error {
 	validation := &ImageValidatorReq{
 		NotifyContext: model.NotifyContext{
 			PodUID:    "",
@@ -149,10 +150,9 @@ func (v *Validator) Validate(ctx context.Context, digests *ImageDigest, params *
 	return nil
 }
 
-func buildValidation(v *ImageValidatorReq, image string) {
+func buildValidation(v *ImageValidatorReq, image ImageDigest) {
 	var digest, imageTag string
-
-	digest = getDigest(image)
+	digest = getDigest(image.Digest)
 	if digest != "" {
 		imageMap, ok := GetImageDigestMap()
 		if ok {
@@ -160,7 +160,7 @@ func buildValidation(v *ImageValidatorReq, image string) {
 		}
 	}
 	if imageTag == "" {
-		imageTag = image
+		imageTag = image.Image
 	}
 	v.Images = append(v.Images, RejectOnlineMonitorImage{
 		Image:    imageTag,

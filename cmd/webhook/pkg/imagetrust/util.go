@@ -3,7 +3,7 @@ package imagetrust
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"time"
@@ -41,7 +41,7 @@ func checkRegistryUrl(ctx context.Context, image string) bool {
 		if resp.Body == nil {
 			return fmt.Errorf("resp body is empty")
 		}
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		if err != nil {
 			return err
 		}
