@@ -22,6 +22,9 @@ func CheckImageVuln(ctx context.Context, data *imagesecModel.ImageWithCorrelateD
 		var flag uint64
 		vu := vulns[i]
 
+		if policy.VulnDB.HasFixedVuln && vu.FixedVersion != "" {
+			flag = util.SetBit1(flag, imagesecModel.FlagDetectException)
+		}
 		if policy.VulnDB.IgnoreUnfixed && vu.FixedVersion == "" {
 			flag = util.SetBit1(flag, imagesecModel.FlagDetectInWhite)
 		}
