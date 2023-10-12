@@ -237,28 +237,6 @@ type Vuln struct {
 	UpdatedAt int64 `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
 }
 
-func (vi *Vuln) GenOnlineVuln() *Vuln {
-	vu := &Vuln{
-		OnlineVuln:         true,
-		UniqueID:           vi.UniqueID,
-		Name:               vi.Name,
-		CnnvdName:          vi.CnnvdName,
-		CnnvdFixSuggestion: vi.CnnvdFixSuggestion,
-		Class:              vi.Class,
-		Title:              vi.Title,
-		CnvdTitle:          vi.CnvdTitle,
-		PublishAt:          vi.PublishAt,
-		ModifyAt:           vi.ModifyAt,
-		Severity:           vi.Severity,
-		Language:           vi.Language,
-		Frame:              vi.Frame,
-		AttackPath:         vi.AttackPath,
-		Flag:               vi.Flag,
-	}
-	vu.CheckSum = vu.GenCheckSum()
-	return vu
-}
-
 type VulnToPkg struct {
 	ID          int64  `gorm:"primaryKey" json:"id"`
 	UniqueID    uint64 `gorm:"column:unique_id" json:"uniqueID,string"`
@@ -273,16 +251,13 @@ func (vi *VulnToPkg) TableName() string {
 }
 
 func (vi *VulnToPkg) GenUniqueID() uint64 {
-	if vi.UniqueID > 0 {
-		return vi.UniqueID
-	}
 	uid := util.GenerateUUID64(fmt.Sprintf("%s-%d", vi.VulnName, vi.PkgUniqueID))
 	vi.UniqueID = uid
 	return uid
 }
 
 func (vi *Vuln) Same(after *Vuln) bool {
-	if vi.UniqueID == after.UniqueID && vi.CheckSum == after.CheckSum && vi.Flag == after.Flag {
+	if vi.UniqueID == after.UniqueID && vi.CheckSum == after.CheckSum && vi.Flag == after.Flag && vi.Name == after.Name {
 		return true
 	}
 	return false
@@ -311,14 +286,6 @@ func (vi *Vuln) TableName() string {
 }
 
 func (vi *Vuln) GenUniqueID() uint64 {
-	if vi.UniqueID > 0 {
-		return vi.UniqueID
-	}
-	if vi.OnlineVuln {
-		uid := util.GenerateUUID64(vi.Name)
-		vi.UniqueID = uid
-		return uid
-	}
 	uid := util.GenerateUUID64(fmt.Sprintf(UniqueVulnFormat, vi.Name, vi.PkgUniqueID))
 	vi.UniqueID = uid
 	return uid

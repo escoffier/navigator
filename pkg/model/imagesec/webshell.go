@@ -277,9 +277,6 @@ func (vi *Webshell) TableName() string {
 }
 
 func (vi *WebshellToImage) GenUniqueID() uint64 {
-	if vi.UniqueID > 0 {
-		return vi.UniqueID
-	}
 	key := fmt.Sprintf("%d-%d-%s", vi.ImageUniqueID, vi.UniqueTarget, vi.LayerDigest)
 	uid := util.GenerateUUID64(key)
 	vi.UniqueID = uid
