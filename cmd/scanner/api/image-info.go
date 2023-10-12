@@ -267,6 +267,81 @@ func (s *ImageInfoAPI) SearchImageWithScan(ctx *gin.Context) {
 		response.WithStartIndex(body.Filter.Offset))
 }
 
+func (s *ImageInfoAPI) SearchAssetsImage(ctx *gin.Context) {
+
+	type ImageResponse struct {
+		Name  string `json:"name"`
+		UUID  uint32 `json:"uuid"`
+		Exit  bool   `json:"exit"`
+		Image *imagesecModel.ImageBaseResponse
+	}
+
+	body := &imagesecModel.ImageSearchApiParam{}
+
+	if err := ctx.BindJSON(&body); err != nil {
+		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, err))
+		return
+	}
+	ans := make([]*ImageResponse, 0)
+	if len(body.AssetImage) == 0 {
+		response.JSONOK(ctx, response.WithItems(ans))
+		return
+	}
+
+	uuid := make([]uint32, 0)
+	for i := range body.AssetImage {
+		uuid = append(uuid, body.AssetImage[i].UUID)
+	}
+
+	// 镜像列表需要这些数据
+	assParam := imagesecModel.ImageAssociateParam{
+		RegistryEnable:     true,
+		VulnEnable:         true,
+		NodeInfoEnable:     true,
+		SubtaskEnable:      true,
+		SimplePolicyEnable: true,
+	}
+	param := imagesecModel.ImageSearchApiParam{AssociateParam: assParam, UUIDs: uuid}
+
+	images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, param)
+	if err != nil {
+		response.JSONError(ctx, scani18.SearchImage(err))
+		return
+	}
+	for i := range images {
+		images[i].Suggests = nil
+		images[i].SecurityIssueView = nil
+	}
+
+	uuidMap := make(map[uint32]*ImageResponse)
+
+	for i := range body.AssetImage {
+		im := body.AssetImage[i]
+
+		uuidMap[im.UUID] = &ImageResponse{
+			Name: im.Name,
+			UUID: im.UUID,
+			Exit: false,
+		}
+	}
+	for i := range images {
+		im := images[i]
+		// 优先展示节点镜像
+		if uuidMap[im.UUID].Exit && uuidMap[im.UUID].Image != nil &&
+			uuidMap[im.UUID].Image.ImageFromType == imagesecModel.ImageFromNode {
+			continue
+		}
+
+		uuidMap[im.UUID].Exit = true
+		uuidMap[im.UUID].Image = im
+	}
+
+	for i := range uuidMap {
+		ans = append(ans, uuidMap[i])
+	}
+	response.JSONOK(ctx, response.WithItems(ans))
+}
+
 func (s *ImageInfoAPI) GetRegistryProject(ctx *gin.Context) {
 	regID := util.GetInt64FromQuery(ctx, "regID")
 	nodeID := util.GetInt64FromQuery(ctx, "nodeID")

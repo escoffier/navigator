@@ -58,10 +58,9 @@ type VulnPKG struct {
 	UniqueID         uint64                        `json:"uniqueID,string"`
 	SeverityOverview []imagesecModel.SeverityGroup `json:"severityOverview"`
 	Vulns            []*imagesecModel.VulnView     `json:"vulns"`
-	// fixme 第张帅
-	License      []string                   `json:"license"` // 软件的开源协议
-	SortScore    int64                      `json:"sortScore"`
-	PolicyDetect imagesecModel.PolicyDetect `json:"policyDetect"`
+	License          string                        `json:"license"` // 软件的开源协议
+	SortScore        int64                         `json:"sortScore"`
+	PolicyDetect     imagesecModel.PolicyDetect    `json:"policyDetect"`
 }
 
 type ImageRiskStatic struct {
