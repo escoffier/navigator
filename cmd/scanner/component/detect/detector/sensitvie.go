@@ -21,6 +21,10 @@ func CheckImageSensitive(ctx context.Context, data *imagesecModel.ImageWithCorre
 		return CheckImageSensitiveAllWhite(ctx, data, policy)
 	}
 
+	if policy.Sensitive.AllBlack {
+		return CheckImageSensitiveAllBlock(ctx, data, policy)
+	}
+
 	sess := data.Sensitive
 	white := policy.Sensitive.White
 	black := policy.Sensitive.Black
@@ -146,6 +150,16 @@ func CheckImageSensitiveAllBlock(ctx context.Context, data *imagesecModel.ImageW
 		ses := sess[i]
 		var flag uint64
 		flag = util.SetBit1(flag, imagesecModel.FlagDetectException)
+
+		if util.ExistBit1(flag, imagesecModel.FlagDetectException) && !util.ExistBit1(flag, imagesecModel.FlagDetectInWhite) {
+			switch policy.Sensitive.Action {
+			case imagesecModel.DeployActionBlock:
+				flag = util.SetBit1(flag, imagesecModel.FlagDetectDeployActionBlock)
+			case imagesecModel.DeployActionAlarm:
+				flag = util.SetBit1(flag, imagesecModel.FlagDetectDeployActionAlarm)
+			}
+		}
+
 		red := &imagesecModel.ImageDetectResult{
 			DetectType:    imagesecModel.DetectTypeSensRule,
 			Flag:          flag,
