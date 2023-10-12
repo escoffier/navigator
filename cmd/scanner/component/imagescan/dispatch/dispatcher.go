@@ -258,7 +258,7 @@ func (s *TaskDispatcher) sendScanSubtask(ctx context.Context, req *pb.ImageSecRe
 		s.Log.Err(err).Interface("req", req).Msg("Dispatcher sendScanSubtask")
 		return err
 	}
-	if rsp.Status != 0 {
+	if rsp.GetBizCode() != 0 {
 		err = fmt.Errorf("publish task response err code:%v", rsp.Status)
 		return err
 	}

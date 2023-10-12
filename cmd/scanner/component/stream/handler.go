@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 
-	"gitlab.com/security-rd/go-pkg/logging"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -78,17 +77,17 @@ func (vi *Handler) addScanTask(s rpcstream.Stream, reqID, msgID string, payload 
 	pong := RpcPong{Stream: s, RegID: reqID}
 
 	if err != nil {
-		pong.ImageSecResp = &pb.ImageSecResp{Status: consts.StreamStatusFailed, StatusMessage: err.Error()}
+		pong.ImageSecResp = &pb.ImageSecResp{BizCode: consts.StreamStatusFailed, BizMessage: err.Error()}
 
 		go func() { vi.ImageSecRespChan <- pong }()
 
-		logging.Get().Err(err).Str("module", "stream").Msg("failed to unmarshal payload to scan task")
+		vi.Log.Err(err).Msg("failed to unmarshal payload to scan task")
 		return err
 	}
 
 	_ = vi.ScanSubtaskReceiver.ReceiveScanSubtask(context.Background(), subTask)
 
-	pong.ImageSecResp = &pb.ImageSecResp{StatusMessage: "create subtasks ok", Status: consts.StreamStatusOK}
+	pong.ImageSecResp = &pb.ImageSecResp{Status: consts.StreamStatusOK, BizCode: consts.StreamStatusOK}
 
 	go func() { vi.ImageSecRespChan <- pong }()
 
@@ -113,10 +112,10 @@ func (vi *Handler) addSyncTask(s rpcstream.Stream, reqID, msgID string, payload 
 	pong := RpcPong{Stream: s, RegID: reqID}
 
 	if err != nil {
-		pong.ImageSecResp = &pb.ImageSecResp{Status: consts.StreamStatusRegNotOK, StatusMessage: err.Error()}
+		pong.ImageSecResp = &pb.ImageSecResp{BizCode: consts.StreamStatusRegNotOK, BizMessage: err.Error()}
 		go func() { vi.ImageSecRespChan <- pong }()
 
-		logging.Get().Err(err).Str("module", "stream").Msg("addSyncTask failed to unmarshal payload to scan task")
+		vi.Log.Err(err).Msg("addSyncTask failed to unmarshal payload to scan task")
 		return err
 	}
 	if subTask.SyncType != imagesecModel.CycleIncSync.String() {
@@ -134,11 +133,11 @@ func (vi *Handler) addSyncTask(s rpcstream.Stream, reqID, msgID string, payload 
 	status := vi.ImageSyncer.SyncImage(context.Background(), subTask)
 	switch status {
 	case imagesecModel.TaskStatusImageSyncFinishedStr:
-		pong.ImageSecResp = &pb.ImageSecResp{StatusMessage: status, Status: consts.StreamStatusSyncFinished}
+		pong.ImageSecResp = &pb.ImageSecResp{BizMessage: status, BizCode: consts.StreamStatusSyncFinished}
 	case imagesecModel.TaskStatusInprogressStr:
-		pong.ImageSecResp = &pb.ImageSecResp{StatusMessage: status, Status: consts.StreamStatusSyncProgress}
+		pong.ImageSecResp = &pb.ImageSecResp{BizMessage: status, BizCode: consts.StreamStatusSyncProgress}
 	default:
-		pong.ImageSecResp = &pb.ImageSecResp{StatusMessage: status, Status: consts.StreamStatusSyncFailed}
+		pong.ImageSecResp = &pb.ImageSecResp{BizMessage: status, BizCode: consts.StreamStatusSyncFailed}
 	}
 
 	go func() { vi.ImageSecRespChan <- pong }()
@@ -157,7 +156,7 @@ func (vi *Handler) SendResponse(ctx context.Context) {
 
 		for res := range vi.ImageSecRespChan {
 			if err := res.Stream.SendResponse(res.RegID, res.ImageSecResp); err != nil {
-				logging.Get().Err(err).Str("module", "stream").Msg("SendResponse")
+				vi.Log.Err(err).Msg("SendResponse")
 			}
 		}
 	}()
@@ -171,12 +170,11 @@ func (vi *Handler) checkReg(s rpcstream.Stream, reqID, msgID string, payload []b
 	pong := RpcPong{Stream: s, RegID: reqID}
 
 	if err != nil {
-
-		pong.ImageSecResp = &pb.ImageSecResp{Status: consts.StreamStatusOK, StatusMessage: err.Error()}
+		pong.ImageSecResp = &pb.ImageSecResp{BizCode: consts.StreamStatusRegNotOK, BizMessage: err.Error()}
 
 		go func() { vi.ImageSecRespChan <- pong }()
 
-		logging.Get().Err(err).Str("module", "stream").Str("payload", string(payload)).Msg("ValidateRegistry failed to unmarshal payload to reg")
+		vi.Log.Err(err).Str("payload", string(payload)).Msg("ValidateRegistry failed to unmarshal payload to reg")
 		return err
 	}
 	vi.Log.Info().
@@ -191,13 +189,13 @@ func (vi *Handler) checkReg(s rpcstream.Stream, reqID, msgID string, payload []b
 	err = vi.RegistryValidator.ValidateRegistry(context.Background(), reg)
 
 	if err != nil {
-		pong.ImageSecResp = &pb.ImageSecResp{Status: consts.StreamStatusRegNotOK, StatusMessage: err.Error()}
+		pong.ImageSecResp = &pb.ImageSecResp{BizCode: consts.StreamStatusRegNotOK, BizMessage: err.Error()}
 		go func() { vi.ImageSecRespChan <- pong }()
-		logging.Get().Err(err).Str("module", "stream").Interface("reg", reg).Msg("ValidateRegistry fail")
+		vi.Log.Err(err).Interface("reg", reg).Msg("ValidateRegistry fail")
 		return err
 	}
 
-	pong.ImageSecResp = &pb.ImageSecResp{Status: consts.StreamStatusRegOK, StatusMessage: imagesecModel.RegNormal}
+	pong.ImageSecResp = &pb.ImageSecResp{BizCode: consts.StreamStatusRegOK, BizMessage: imagesecModel.RegNormal}
 
 	go func() { vi.ImageSecRespChan <- pong }()
 

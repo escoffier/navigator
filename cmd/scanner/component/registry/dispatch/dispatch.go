@@ -124,7 +124,7 @@ func (s *RegDispatchSrv) sendRegSyncTask(ctx context.Context, task imagesecModel
 		return 0, err
 	}
 
-	return int64(rsp.Status), nil
+	return int64(rsp.GetBizCode()), nil
 }
 
 func (s *RegDispatchSrv) UpdateSyncTask(ctx context.Context) {
@@ -374,7 +374,8 @@ func (s *RegDispatchSrv) SendToScannerCheckHealth(ctx context.Context, reg image
 		s.Log.Err(err).Interface("req", req).Msg("SendToScannerCheckHealth")
 		return err
 	}
-	switch rsp.Status {
+
+	switch rsp.GetBizCode() {
 	case consts.StreamStatusRegOK:
 		if reg.Status == consts.RegistryNormal {
 			return nil
@@ -396,49 +397,3 @@ func (s *RegDispatchSrv) SendToScannerCheckHealth(ctx context.Context, reg image
 func (s *RegDispatchSrv) GenReqID(req *pb.ImageSecReq) string {
 	return fmt.Sprintf("%s-%s", req.ImageSecReqType.String(), uuid.New().String())
 }
-
-// func (s *RegDispatchSrv) DoSendSyncTaskRpc(ctx context.Context, req *pb.ImageSecReq) error {
-// 	timeOutCxt, timeOutFunc := context.WithTimeout(ctx, 10*time.Second)
-// 	defer timeOutFunc()
-//
-// 	for {
-// 		select {
-// 		case <-timeOutCxt.Done():
-// 			s.Log.Error().Str("Stack", string(debug.Stack())).Str("module", "RegistryImage").Interface("reg", req).Msg("send scan subtask to rpc")
-// 			return fmt.Errorf("time out")
-// 		case res := <-s.sendRpcTask(timeOutCxt, req):
-// 			return res
-// 		}
-// 	}
-// }
-//
-// func (s *RegDispatchSrv) sendSyncTask(ctx context.Context, req *pb.ImageSecReq) (int32, error) {
-// 	timeOutCxt, timeOutFunc := context.WithTimeout(ctx, 10*time.Second)
-//
-// 	defer timeOutFunc()
-// 	streamClient := imagesecStream.MustGetGrpcStream()
-// 	rsp, err := streamClient.ScannerPushImageSecMsg(timeOutCxt, req)
-// 	if err != nil {
-// 		s.Log.Err(err).Interface("req", req).Msg("Dispatcher sendScanSubtask")
-// 		return 0, err
-// 	}
-//
-// 	return rsp.Status, nil
-// }
-//
-
-//
-// func (s *RegDispatchSrv) sendRpcTask(ctx context.Context, req *pb.ImageSecReq) chan error {
-// 	out := make(chan error)
-// 	go func() {
-// 		defer func() {
-// 			if r := recover(); r != nil {
-// 				s.Log.Error().Str("Stack", string(debug.Stack())).Msg("ExecutorScanMalicious panic")
-// 			}
-// 		}()
-//
-// 		err := s.sendSyncTask(ctx, req)
-// 		out <- err
-// 	}()
-// 	return out
-// }

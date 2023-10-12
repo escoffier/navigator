@@ -40,11 +40,11 @@ func (s *RegSyncSrv) createFullSyncTask(ctx context.Context) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				s.Log.Error().Str("Stack", string(debug.Stack())).Msg(" panic recover")
+				s.Log.Error().Str("Stack", string(debug.Stack())).Msg("panic recover")
 			}
 		}()
 
-		ticker := time.NewTicker(time.Minute * 5)
+		ticker := time.NewTicker(time.Minute * 5) // 最小同步间隔是5分钟
 		defer ticker.Stop()
 		for {
 			<-ticker.C

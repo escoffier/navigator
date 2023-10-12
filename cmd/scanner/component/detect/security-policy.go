@@ -95,6 +95,7 @@ func (s *SecurityPolicySrv) CreatePolicy(ctx context.Context, data *imagesecMode
 
 func (s *SecurityPolicySrv) UpdatePolicy(ctx context.Context, param imagesecModel.UpdatePolicyParam) error {
 	allPolicy = nil
+
 	data := param.Policy
 	data.ID = param.ID
 	data.Serialize()
@@ -147,6 +148,7 @@ func (s *SecurityPolicySrv) UpdatePolicy(ctx context.Context, param imagesecMode
 			return
 		}
 		// 删除这个策略的子任务,对于扫描任务的检测任务已做特殊处理
+		// FIXME 如何处理的?
 		deleteParam := imagesecModel.SearchTaskParam{PolicyID: data.ID}
 
 		if err := s.imageDetectTaskSrv.DeleteDetectData(ctx, deleteParam); err != nil {
