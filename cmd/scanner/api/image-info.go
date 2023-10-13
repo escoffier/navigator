@@ -374,11 +374,12 @@ func (s *ImageInfoAPI) SearchImages(ctx *gin.Context) {
 	}
 	res := make([]imagesecModel.ImageBaseResponse, 0)
 
-	if imageKeyword == "" || len(param.UUIDs) == 0 {
+	if imageKeyword == "" && len(param.UUIDs) == 0 {
 		response.JSONOK(ctx, response.WithItems(res),
 			response.WithTotalItems(0),
 			response.WithItemsPerPage(filter.Limit),
 			response.WithStartIndex(filter.Offset))
+		return
 	}
 
 	images, cnt, err := s.ImageSrv.ListImageWithScanInfo(ctx, param)
