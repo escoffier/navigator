@@ -737,14 +737,14 @@ func (ac *Controller) syncPod(key string) error {
 		//static pod as tensor resource
 		if len(pod.OwnerReferences) == 0 || pod.OwnerReferences[0].Kind == "Node" {
 			res := pkgassets.NewResourceFromPodNoOwnerOrStaticPod(ac.clusterKey, pod)
-			return ac.sendToMainClusterManager(ctx, pkgassets.ActionAdd, pkgassets.TensorResources2Watch, res, nil)
+			ac.sendToMainClusterManager(ctx, pkgassets.ActionAdd, pkgassets.TensorResources2Watch, res, nil)
 		}
 
 		owner, _ := ac.getUpperOwnerOfPod(pod)
 		if owner == nil {
 			owner = &metav1.OwnerReference{
-				Kind: "NO_OWNER",
-				Name: "NO_OWNER",
+				Kind: "Pod",
+				Name: pod.Name,
 			}
 		}
 
