@@ -159,7 +159,7 @@ func (c *CRIOInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 			logging.Get().Err(err).Msg("crio ListContainers failed.")
 			continue
 		}
-		var existContainerIdList []string
+		var exitContainerIdList []string
 		newContainerMap := make(map[string]*runtimeapi.Container)
 		currentIdMap := make(map[string]struct{})
 		for _, container := range containers {
@@ -175,7 +175,7 @@ func (c *CRIOInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 			id := key.(string)
 			_, ok := currentIdMap[id]
 			if !ok {
-				existContainerIdList = append(existContainerIdList, id)
+				exitContainerIdList = append(exitContainerIdList, id)
 				c.runningContainerMap.Delete(key)
 			}
 			return true
@@ -185,7 +185,7 @@ func (c *CRIOInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 			logging.Get().Warn().Msg("mq is not ready or ExportRawContainer is false")
 			continue
 		}
-		logging.Get().Debug().Msgf("crio compare result: newContainer count:%d, existContainer count:%d", len(newContainerMap), len(existContainerIdList))
+		logging.Get().Debug().Msgf("crio compare result: newContainer count:%d, existContainer count:%d", len(newContainerMap), len(exitContainerIdList))
 		// add
 		for _, container := range newContainerMap {
 			detail, err := c.buildContainerDetail(container)
@@ -198,7 +198,7 @@ func (c *CRIOInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 			}
 			c.processEvents(detail, "create")
 		}
-		for _, id := range existContainerIdList {
+		for _, id := range exitContainerIdList {
 			contain := &model.TensorRawContainer{ContainerID: id}
 			c.processEvents(contain, "delete")
 		}
