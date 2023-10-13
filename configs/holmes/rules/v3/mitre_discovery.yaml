@@ -251,8 +251,6 @@
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository
   steps:
     - name: checkRegexMatch
-      params: [ '^(?:(?!->127\.0\.0\.1:).)*$' , trigger.payload.output_map.fd_name ]
-    - name: checkRegexMatch
       params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.proc_cmdline ]
   info:
     name:
@@ -276,8 +274,6 @@
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent_process=%proc.pname,container_id=%container.id,container_name=%container.name,image=%container.image.repository,image_tag=%container.image.tag
   steps:
-    - name: checkRegexMatch
-      params: [ '^(?:(?!->127\.0\.0\.1:).)*$' , trigger.payload.output_map.fd_name ]
     - name: checkRegexMatch
       params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.proc_cmdline ]
   info:
@@ -333,3 +329,97 @@
     priority: ALERT
     urgency: true
     tags: [ATT&CK, network, k8s, mitre_discovery, L2]
+
+# # #################特定场景规则############################
+# #nmap 192.168.3.20 -p 
+# - key: Container ports are scanned
+#   hid: disc_14
+#   condition: >
+#     container and inbound and fd.sport in (vulnerable_ports) and not tensorsec_namespace and k8s.pod.name contains "dvwa" 
+#   output: >
+#     connection=%fd.name,file=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+#   info:
+#     name:
+#       en: "Container ports are scanned"
+#       zh: "容器端口被扫描"
+#     desc:
+#       en: "There is a high probability that attackers use port scanning tools (such as nmap) to conduct reconnaissance and scan the target network, trying to discover vulnerabilities, exposed services or weaknesses in the network in order to prepare for subsequent attacks."
+#       zh: "大概率是攻击者使用端口扫描工具(如：nmap)进行侦察和扫描目标网络，尝试发现网络中的漏洞、暴露的服务或弱点，以便为后续攻击做准备。"
+#     suggestion:
+#       en: "Check whether the open port of k8s Service is a high-risk port and whether the port service has security risks"
+#       zh: "查看 k8s Service开放端口是否为高危险端口、端口服务是否有安全风险"
+#     rule_type: Discovery
+#     priority: ALERT
+#     urgency: false
+#     tags: [ATT&CK, network, mitre_discovery, L1]
+
+# #hydra -l root -P Desktop/PD/Brute/Top_Password/Top100.txt mysql://192.168.3.20:30134
+# - key: Container ports are being brute-forced
+#   hid: disc_15
+#   condition: >
+#     container and inbound and fd.sport in (database_ports) and not tensorsec_namespace and k8s.pod.name contains "dvwa" 
+#   output: >
+#     connection=%fd.name,file=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+#   steps:
+#     - name: checkRuleRecentCount
+#       params: [ 'Container ports are being brute-forced', 3s, 5, '["fd_sip", "fd_sport", "fd_cip"]', '[]', 1m ]
+#   info:
+#     name:
+#       en: "Container ports are being brute-forced"
+#       zh: "容器端口正在被暴力破解"
+#     desc:
+#       en: "Check whether the open port of k8s Service is a high-risk port such as a database, and detect whether there are weak passwords"
+#       zh: "大概率是攻击者使用口令爆破工具(如：hydra)进行弱口令侦察和扫描目标网络，尝试发现网络中的漏洞、暴露的服务或弱点，以便为后续攻击做准备。"
+#     suggestion:
+#       en: "Please confirm the specific behavior of the tool. Hackers may scan the intranet. It is recommended to use offset defense to limit the execution of the tool, and check whether the container has been invaded."
+#       zh: "查看 k8s Service开放端口是否为高危险端口如数据库，并检测是否有弱口令"
+#     rule_type: Discovery
+#     priority: ALERT
+#     urgency: false
+#     tags: [ATT&CK, network, mitre_discovery, L1]
+
+# # redis-cli -h 192.168.3.20 -p 31528
+# - key: External suspicious connection
+#   hid: disc_16
+#   condition: >
+#     container and inbound and fd.sport=6379 and not tensorsec_namespace and k8s.pod.name contains "dvwa" 
+#   output: >
+#     connection=%fd.name,file=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,user=%user.name,user_loginuid=%user.loginuid,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+#   info:
+#     name:
+#       en: "External suspicious connection"
+#       zh: "外部可疑连接"
+#     desc:
+#       en: "There is a high probability that the attacker has obtained the credentials and tried to log in to high-risk services such as redis-cli. Under normal circumstances, these ports are not open to the outside world."
+#       zh: "大概率是攻击者获取到凭证尝试登录，如：redis-cli等高危服务，一般情况下这些端口都不对外开放的。"
+#     suggestion:
+#       en: "Check whether the open port of k8s Service is a high-risk port such as a database, and detect whether there are weak passwords."
+#       zh: "查看 k8s Service开放端口是否为高危险端口如数据库，并检测是否有弱口令。"
+#     rule_type: Discovery
+#     priority: ALERT
+#     urgency: false
+#     tags: [ATT&CK, network, mitre_discovery, L1]
+
+# #CVE-2017-7529
+# - key: Nginx integer overflow vulnerability
+#   hid: disc_17
+#   condition: >
+#     container
+#     and evt.type = sendfile
+#     and not tensorsec_namespace and k8s.pod.name contains "ng"
+#   output: >
+#     connection=%fd.name,file=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,user=%user.name,user_loginuid=%user.loginuid,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+#   info:
+#     name:
+#       en: "Nginx integer overflow vulnerability"
+#       zh: "Nginx整数溢出漏洞"
+#     desc:
+#       en: "CVE-2017-7529 is an integer overflow vulnerability for Nginx. Generally, we believe that normal users will not actively perform CVE (known vulnerability) related attacks. There is a high probability that attackers will try to exploit it, including denial of service attacks and remote execution. Code, information leakage, abuse of system resources, and persistence intrusion."
+#       zh: "CVE-2017-7529是一种针对Nginx整数溢出漏洞 ，通常我们认为正常用户不会主动执行CVE（已知漏洞）相关的攻击行为，大概率是攻击者尝试利用它，包括拒绝服务攻击、远程执行代码、信息泄露、滥用系统资源和入侵持久性等目的。"
+#     suggestion:
+#       en: "Check whether the open port of k8s Service is the nginx service port, and check the nginx version to ensure that it is not within the 0.5.6 - 1.13.2 version."
+#       zh: "查看 k8s Service开放端口是否为nginx服务端口，并检查nginx版本确保不在0.5.6 - 1.13.2版本内。"
+#     rule_type: Discovery
+#     priority: ALERT
+#     urgency: false
+#     tags: [ATT&CK, network, mitre_discovery, L1]

@@ -222,6 +222,7 @@
     and not proc.cmdline = "runc:[1:CHILD] init"
     and not proc.cmdline contains "kube-bench "
     and not proc.cmdline contains "scanner "
+    and not proc.cmdline contains "systemd-tmpfile --create"
     and shell_family_procs
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,proc_name=%proc.name,container_id=%container.id,container_name=%container.name
@@ -735,6 +736,7 @@
     container 
     and syscall.type = ptrace
     and shell_parent_procs
+    and not proc.cmdline contains "strace"
     and not falco_sensitive_mount_containers
     and not user_sensitive_mount_containers
     and not tensorsec_namespace
@@ -779,5 +781,34 @@
       zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，黑客可能通过该行为绕过防御检测，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
     rule_type: Privilege_Escalation
     priority: ALERT
-    urgency: false
+    urgency: true
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, L3]
+
+- key: DirtyPipe (CVE-2022-0847) Read-only file overwrite privilege escalation escape
+  disable: true
+  hid: priv_34
+  condition: >
+    container and shell_parent_procs and evt.type = arch_prctl 
+    and not k8s.ns.name = "kube-system"
+    and not falco_sensitive_mount_containers
+    and not user_sensitive_mount_containers
+    and not tensorsec_namespace
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent=%proc.pname,file=%fd.name,program=%proc.name,gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4],container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  steps:
+    - name: checkRelatedExists
+      params: [ 'Read and write overwrite the passwd file', 2s, trigger.payload.output_map.proc_pid, payload.output_map.proc_ppid ]
+  info:
+    name:
+      en: "DirtyPipe (CVE-2022-0847) Read-only file overwrite privilege escalation escape"
+      zh: "DirtyPipe (CVE-2022-0847) 只读文件覆盖提权逃逸"
+    desc:
+      en: "CVE-2022-0847, also known as DirtyPipe, is a security vulnerability that allows attackers to exploit read-only files on Linux systems to perform file overwrite and privilege escalation escape. Generally, we believe that normal users will not actively execute CVE (known vulnerabilities) related attack tools or scripts. There is a high probability that attackers try to use the DirtyPipe vulnerability to overwrite files such as passwd. Their main goal is to escalate privileges and escape, that is, to enhance their Privilege levels on the infected system."
+      zh: "CVE-2022-0847，也被称为DirtyPipe，是一个安全漏洞，允许攻击者在Linux系统上利用只读文件进行文件覆盖提权逃逸。通常我们认为正常用户不会主动执行CVE（已知漏洞）相关的攻击工具或脚本，大概率是攻击者尝试利用DirtyPipe漏洞，对passwd等文件进行覆盖，其主要目标是提权逃逸，即提升其在受感染的系统上的权限级别。"
+    suggestion:
+      en: "Please use the process tree to determine whether the command is a normal behavior of a known process and whether it is executed by malware. Hackers may use this behavior to bypass defense detection. You can use an immune defense training application to limit user permissions for sensitive files and commands."
+      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，黑客可能通过该行为绕过防御检测，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+    rule_type: Privilege_Escalation
+    priority: ALERT
+    urgency: true
     tags: [ATT&CK, filesystem, mitre_privilege_escalation, L3]

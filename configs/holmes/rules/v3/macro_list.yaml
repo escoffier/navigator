@@ -2495,28 +2495,28 @@
     (fd.sport in (database_ports) or
     fd.sport in (vulnerable_ports))
 
-#related_rules
-- key: Contact remote server from container
-  hid: related_01
-  condition: >
-    evt.type in (connect,sendto,sendmsg)
-    and fd.name contains "->"
-    and fd.net != "127.0.0.0/8"
-    and not fd.sport in ("", 53)
-    and fd.name != "" and fd.name exists
-    and shell_family_procs
-    and not proc.name in (known_system_procs_network_activity_binaries)
-    and not proc.pname in (known_system_procs_network_activity_binaries)
-    and not (package_mgmt_procs or package_mgmt_ancestor_procs)
-    and not login_doing_dns_lookup
-    and not user_expected_system_procs_network_activity_conditions and container
-    and not tensorsec_namespace
-  output: >
-    pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_name=%proc.name,parent=%proc.pname,proc.aname=%proc.aname[0],proc.aname=%proc.aname[1],gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4]
-  info:
-    name:
-      en: "Contact remote server from container"
-    tags: [ATT&CK, filesystem, mitre_privilege_escalation, related]
+# #related_rules
+# - key: Contact remote server from container
+#   hid: related_01
+#   condition: >
+#     evt.type in (connect,sendto,sendmsg)
+#     and fd.name contains "->"
+#     and fd.net != "127.0.0.0/8"
+#     and not fd.sport in ("", 53)
+#     and fd.name != "" and fd.name exists
+#     and shell_family_procs
+#     and not proc.name in (known_system_procs_network_activity_binaries)
+#     and not proc.pname in (known_system_procs_network_activity_binaries)
+#     and not (package_mgmt_procs or package_mgmt_ancestor_procs)
+#     and not login_doing_dns_lookup
+#     and not user_expected_system_procs_network_activity_conditions and container
+#     and not tensorsec_namespace
+#   output: >
+#     pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_name=%proc.name,parent=%proc.pname,proc.aname=%proc.aname[0],proc.aname=%proc.aname[1],gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4]
+#   info:
+#     name:
+#       en: "Contact remote server from container"
+#     tags: [ATT&CK, filesystem, mitre_privilege_escalation, related]
 
 - key: Running vim in container
   hid: related_02
@@ -2605,6 +2605,7 @@
   condition: >
     spawned_process and evt.res!=ENOENT and
     container and not container_entrypoint and
+    k8s.ns.name != "kube-system" and
     shell_procs and not proc.cmdline contains "vimglob"
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.arg.exe=%evt.arg.exe,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3],aname[4]=%proc.aname[4],aname[5]=%proc.aname[5],aname[6]=%proc.aname[6],aname[7]=%proc.aname[7],proc_pgid=%proc.vpgid
@@ -2661,3 +2662,17 @@
     name:
       en: "Read /etc/passwd in binaries"
     tags: [ATT&CK, container, shell, related]
+
+- key: Read and write overwrite the passwd file
+  hid: related_12
+  condition: >
+    container and shell_parent_procs and open_read and fd.name=/etc/passwd
+    and not falco_sensitive_mount_containers
+    and not user_sensitive_mount_containers
+    and not tensorsec_namespace
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container.info=%container.info,process=%proc.name,parent=%proc.pname,terminal=%proc.tty,container_id=%container.id,container_name=%container.name,image=%container.image.repository,fd_name=%fd.name,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_vpgid=%proc.vpgid
+  info:
+    name:
+      en: "Read and write overwrite the passwd file"
+    tags: [ATT&CK, container, shell, mitre_execution, related]
