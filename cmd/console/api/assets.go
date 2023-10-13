@@ -4129,8 +4129,8 @@ func (api *api) addNamespaceLabel() http.HandlerFunc {
 			RespAndLog(w, ctx, NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("failed to decode json: %w", err)))
 			return
 		}
-		//校验 labelName 格式
-		matched, err := regexp.MatchString(`^[a-zA-Z0-9_.-]+$`, data.LabelName)
+		//校验 labelName 格式: https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
+		matched, err := regexp.MatchString(`^[a-zA-Z0-9_.-/]+$`, data.LabelName)
 		if err != nil || matched == false {
 			RespAndLog(w, ctx, NewAnErrorWithErrMsg(http.StatusBadRequest, errors.New(`标签名不合法，只能由英文字符，数字，和"-","_","." 组成`)))
 			return
