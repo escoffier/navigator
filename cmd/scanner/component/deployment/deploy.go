@@ -171,7 +171,6 @@ func (s *DeploySrv) CheckDeploy(ctx context.Context, param imagesecModel.DeployM
 			ImageUUID: param.ImageUUID,
 		}
 	}
-	// logging.Get().Debug().Str("module", "deployment").Interface("CorrelateData", res).Msg("GetImageDataForDeploy")
 
 	pos, _, err := s.detectPolicyDal.SearchDetectPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{PolicyType: imagesecModel.ConfigTypeDeploy})
 	if err != nil {

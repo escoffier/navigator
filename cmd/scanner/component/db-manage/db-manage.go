@@ -283,9 +283,10 @@ func (v *DBManage) UpdateMaliciousDB(ctx *gin.Context, header *multipart.FileHea
 				ImageSecReqType: reqType,
 				ImageSecDstType: pb.ImageSecDstType_SubScanner,
 			}
+			// 会 panic
 			key := strings.Split(needUp[k].KeyPath, "@")
 			secReq.ClusterKey = key[0]
-			secReq.NodeName = append(secReq.NodeName, key[1])
+			secReq.NodeName = key[1]
 			if strings.Contains(key[1], "scanner") {
 				secReq.ImageSecDstType = pb.ImageSecDstType_SubScanner
 			}
@@ -426,7 +427,7 @@ func (v *DBManage) UpdateVulnDB(ctx *gin.Context, header *multipart.FileHeader, 
 			}
 			key := strings.Split(needUp[k].KeyPath, "@")
 			secReq.ClusterKey = key[0]
-			secReq.NodeName = append(secReq.NodeName, key[1])
+			secReq.NodeName = key[1]
 			if strings.Contains(key[1], "scanner") {
 				secReq.ImageSecDstType = pb.ImageSecDstType_SubScanner
 			}

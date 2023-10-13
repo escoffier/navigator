@@ -949,6 +949,7 @@ func GetSearchVulnParamFromCtx(ctx *gin.Context) imagesecModel.ApiSearchVulnPara
 		NeedKernel:       util.GetStringSliceFromQuery(ctx, "kernelVuln"),
 		ClassType:        util.GetStringSliceFromQuery(ctx, "class"),
 		AttackPath:       util.GetStringSliceFromQuery(ctx, "attackPath"),
+		OnlineImageVuln:  util.GetKeywordFromQuery(ctx, "online"),
 		Filter:           model.GetFilter(ctx).SetDefault().SetMaxLimit(consts.DefaultPerPage),
 	}
 	keyword := util.GetKeywordFromQuery(ctx, "keyword")

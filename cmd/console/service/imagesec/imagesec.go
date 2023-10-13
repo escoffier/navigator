@@ -3,13 +3,15 @@ package imagesec
 import (
 	"context"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+
+	"gitlab.com/security-rd/go-pkg/logging"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
 	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 type StreamHandler struct {
@@ -17,46 +19,23 @@ type StreamHandler struct {
 }
 
 func (sh *StreamHandler) OnCreate(s rpcstream.Stream, reqID string, message protoreflect.ProtoMessage) {
-	msg := message.(*pb.ImageSecReq)
-	logging.Get().Info().Str("reqID", reqID).Str("msgID", msg.RequestID).Msg("received image sec stream msg")
+	req := message.(*pb.ImageSecReq)
+	msgID := req.MsgID
+	logging.Get().Info().
+		Str("reqID", reqID).
+		Str("req", regLogStr(req)).
+		Msg("recv image sec grpc msg")
 
-	var retCode int32
-	var rspErr error
-	forwardMsgFunc := func(req *pb.ImageSecReq) {
-		defer func() {
-			orgResp := &pb.ImageSecResp{}
-			if rspErr != nil {
-				orgResp.Status = retCode
-				orgResp.StatusMessage = rspErr.Error()
-			} else {
-				orgResp.Status = 0
-				orgResp.StatusMessage = "ok"
-			}
-			if err := s.SendResponse(reqID, orgResp); err != nil {
-				logging.Get().Err(err).Str("reqID", reqID).Str("msgID", req.RequestID).Msg("failed to send response to scanner")
-			} else {
-				logging.Get().Info().Str("reqID", reqID).Str("msgID", req.RequestID).Msg("send response to scanner ok")
-			}
-		}()
-
-		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(util.ImageSecGrpcTimeOut())*time.Second)
-		defer cancel()
-		resp, err := sh.ServerStream.PublishImageSecMsgByClusterKey(ctx, req.ClusterKey, req)
-		if err != nil {
-			rspErr = fmt.Errorf("failed to publish image sec msg:%v", err)
-			logging.Get().Err(err).Str("reqID", reqID).Str("msgID", req.RequestID).Msg("failed to publish image sec msg")
-			return
-		}
-		if resp.Status != 0 {
-			retCode = resp.Status
-			rspErr = fmt.Errorf("rsp status err.%v", resp.Status)
-			logging.Get().Error().Str("status", resp.StatusMessage).Str("reqID", reqID).Str("msgID", req.RequestID).Msg("recv image sec msg response status err")
-		} else {
-			logging.Get().Info().Str("reqID", reqID).Str("msgID", req.RequestID).Msg("publish image sec msg ok")
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(util.ImageSecGrpcTimeOut())*time.Second)
+	defer cancel()
+	resp, err := sh.ServerStream.PublishImageSecMsgByClusterKey(ctx, req.ClusterKey, req)
+	if err != nil {
+		resp = &pb.ImageSecResp{
+			StatusMessage: err.Error(),
+			Status:        1,
 		}
 	}
-
-	forwardMsgFunc(msg)
+	sh.ReturnRpcResponse(s, reqID, msgID, resp)
 }
 
 func (sh *StreamHandler) OnRead(s rpcstream.Stream, reqID string, message protoreflect.ProtoMessage) {
@@ -69,4 +48,41 @@ func (sh *StreamHandler) OnUpdate(s rpcstream.Stream, reqID string, message prot
 
 func (sh *StreamHandler) OnDelete(s rpcstream.Stream, reqID string, message protoreflect.ProtoMessage) {
 	logging.Get().Error().Str("reqID", reqID).Msg("not implement image sec msg onDelete")
+}
+
+func (sh *StreamHandler) ReturnRpcResponse(s rpcstream.Stream, reqID string, msgID string, resp *pb.ImageSecResp) {
+	if resp == nil {
+		resp = &pb.ImageSecResp{
+			StatusMessage: "response is nil",
+			Status:        1,
+		}
+	}
+	logging.Get().Info().Str("reqID", reqID).Str("msgID", msgID).Str("resp", respLogStr(resp)).
+		Msg("ReturnRpcResponse send imagesec response start")
+	if err := s.SendResponse(reqID, resp); err != nil {
+		logging.Get().Info().Str("reqID", reqID).Str("msgID", msgID).Str("resp", respLogStr(resp)).
+			Msg("ReturnRpcResponse failed to send imagesec response")
+		return
+	}
+
+	logging.Get().Info().Str("reqID", reqID).Str("msgID", msgID).Str("resp", respLogStr(resp)).
+		Msg("ReturnRpcResponse send imagesec response success")
+}
+
+func regLogStr(req *pb.ImageSecReq) string {
+	if req == nil {
+		return fmt.Sprintf("rpc req is nil")
+	}
+	str := fmt.Sprintf("ClusterKey=%s,MsgID=%s,ImageSecReqType=%d,NodeName=%s",
+		req.ClusterKey, req.MsgID, int32(req.ImageSecReqType), req.NodeName)
+	return str
+}
+
+func respLogStr(resp *pb.ImageSecResp) string {
+	if resp == nil {
+		return fmt.Sprintf("rpc resp is nil")
+	}
+	str := fmt.Sprintf("StatusMessage=%s,Status=%d,BizMessage=%s,BizCode=%d",
+		resp.StatusMessage, resp.Status, resp.BizMessage, resp.BizCode)
+	return str
 }

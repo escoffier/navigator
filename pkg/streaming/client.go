@@ -215,6 +215,7 @@ func (s *messageStream) PublishImageSecMsgToScanner(ctx context.Context, scanner
 	logging.Get().Info().Msgf("response: %s", r.String())
 	return r, nil
 }
+
 func (s *messageStream) ScannerPushImageSecMsg(ctx context.Context, imageSecReq *pb.ImageSecReq) (*pb.ImageSecResp, error) {
 	// used for scanner as grpc client.
 	// client only contain one stream with name defaultNodeKey
@@ -228,7 +229,7 @@ func (s *messageStream) ScannerPushImageSecMsg(ctx context.Context, imageSecReq 
 		logging.Get().Error().Msg("recv invalid rsp msg")
 		return nil, err
 	}
-	logging.Get().Debug().Str("rsp", r.String()).Msg("rcv image sec rsp end")
+	logging.Get().Debug().Str("rsp", r.String()).Msg("grpc rcv image sec rsp end")
 
 	return r, nil
 }

@@ -144,7 +144,7 @@ func (s *DispatchDBSrv) sendToSubScannerHelper(ctx context.Context, dbPath image
 		ImageSecDstType: pb.ImageSecDstType_SubScanner,
 		ImageSecDstPath: node.ClusterKey,
 		ClusterKey:      node.ClusterKey,
-		RequestID:       time.Now().String(),
+		MsgID:           time.Now().String(),
 		Payload:         fileContent,
 	}
 	resp, err := s.RpcClient.ScannerPushImageSecMsg(ctx, secReq)
@@ -171,9 +171,9 @@ func (s *DispatchDBSrv) sendToNodeHelper(ctx context.Context, dbPath imagesecMod
 
 	secReq := &pb.ImageSecReq{
 		ImageSecReqType: imageSecReqType,
-		NodeName:        []string{node.Hostname},
+		NodeName:        node.Hostname,
 		ClusterKey:      node.ClusterKey,
-		RequestID:       uuid.New().String(),
+		MsgID:           uuid.New().String(),
 		Payload:         fileContent,
 	}
 	resp, err := s.RpcClient.ScannerPushImageSecMsg(ctx, secReq)

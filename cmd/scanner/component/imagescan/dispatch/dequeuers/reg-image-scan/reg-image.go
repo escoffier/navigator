@@ -13,6 +13,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/types"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	global2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -30,6 +31,7 @@ type RegImageScanQueue struct {
 	sensitiveRuleDal          imagesecStore.SensitiveRuleDal
 	maxProgressTask           int64
 	maxProgressSubtaskPerNode int64
+	PodID                     string
 	Log                       *scannerUtils.LogEvent
 }
 
@@ -90,7 +92,7 @@ func (s *RegImageScanQueue) GenTaskChan(ctx context.Context) chan *imagesecModel
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
-				logging.Get().Error().Str("module", "imagescan").Str("Stack", string(debug.Stack())).Msg("RegImageScanQueue recover")
+				s.Log.Error().Str("Stack", string(debug.Stack())).Msg("RegImageScanQueue recover")
 			}
 		}()
 
@@ -145,7 +147,7 @@ func (s *RegImageScanQueue) GenSubtaskChan(ctx context.Context) chan imagesecTyp
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
-				logging.Get().Error().Stack().Msg("RegImageScanQueue recover")
+				s.Log.Error().Str("Stack", string(debug.Stack())).Msg("RegImageScanQueue recover")
 			}
 		}()
 		defer close(subtaskChan)
@@ -196,13 +198,18 @@ func (s *RegImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, task
 		s.Log.Debug().Str("ClusterName", no.ClusterName).
 			Msg("find instance")
 		// 查找当前节点在执行的所有子任务
-		_, sendSubtask, err := s.ScanTaskDal.SearchScanSubtask(ctx, imagesecModel.SearchTaskParam{
+		param := imagesecModel.SearchTaskParam{
 			NodeUniqueID: uint64(no.ID),
 			// 发送完成扫描过程中 Pod 重启，那就只能等超时失败了
 			ScanStatus:      []int64{imagesecModel.TaskStatusSendFinished},
 			IsSearchSubtask: true,
 			Filter:          model.EmptyFilter().SetLimit(1),
-		})
+		}
+		if s.PodID == "" {
+			param.ScanStatus = []int64{}
+		}
+
+		_, sendSubtask, err := s.ScanTaskDal.SearchScanSubtask(ctx, param)
 		if err != nil {
 			s.Log.Err(err).Int64("taskID", task.ID).
 				Msg("SearchScanSubtask")
@@ -224,6 +231,11 @@ func (s *RegImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, task
 			IsSearchSubtask: true,
 			// 这里一次不取更多，是因为前端更新 task 任务之后需要快速感知
 			Filter: model.EmptyFilter().SetSortAsc().SetSortFiled("status").SetLimit(s.maxProgressSubtaskPerNode - sendSubtask),
+		}
+
+		if s.PodID == "" {
+			subtaskParam.ScanStatus = append(subtaskParam.ScanStatus, imagesecModel.TaskStatusSendFinished)
+			s.PodID = global2.ScannerPodID
 		}
 
 		subtask, _, err := s.ScanTaskDal.SearchScanSubtask(ctx, subtaskParam)
@@ -260,7 +272,7 @@ func (s *RegImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, task
 			if imageDate.ScanInstance == nil {
 				e := fmt.Errorf("not get scan instance info:%d", subtask[j].ImageUniqueID)
 
-				logging.Get().Err(e).Uint64("ImageUniqueID", subtask[j].ImageUniqueID).Msg("not get instance info")
+				s.Log.Err(e).Uint64("ImageUniqueID", subtask[j].ImageUniqueID).Msg("not get instance info")
 
 				up := types.UpdateSubTask{
 					SubtaskID: subtask[j].ID,
@@ -439,7 +451,7 @@ func NewScanLibImageQueue(
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Msg("updateSubtask")
+				logging.Get().Error().Str("Stack", string(debug.Stack())).Msg("updateSubtask")
 			}
 		}()
 

@@ -173,9 +173,6 @@ func (vi *SecurityPolicy) Serialize() {
 	if vi.Updater == "" && vi.Creator != "" {
 		vi.Updater = vi.Creator
 	}
-	if vi.Updater != "" && vi.Creator == "" {
-		vi.Creator = vi.Updater
-	}
 	vi.Scope.Serialize()
 	bys1, _ := json.Marshal(vi.Scope)
 

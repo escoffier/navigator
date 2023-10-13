@@ -316,16 +316,18 @@ func (s *RegistrySrv) SendToScannerCheckHealth(ctx context.Context, reg imagesec
 	req := &pb.ImageSecReq{
 		ImageSecReqType: pb.ImageSecReqType_RegistryHealthyCheck,
 		ClusterKey:      clusterKey,
-		RequestID:       uuid.New().String(),
+		MsgID:           uuid.New().String(),
 		Payload:         data,
 	}
-	s.Log.Debug().Interface("reg", req).Msg("SendToScannerCheckHealth sendMsg")
+
+	s.Log.Info().Interface("reg", req).Msg("SendToScannerCheckHealth sendMsg")
 
 	rsp, err := streamClient.ScannerPushImageSecMsg(timeOutCxt, req)
 	if err != nil {
 		s.Log.Err(err).Interface("req", req).Msg("SendToScannerCheckHealth")
 		return err
 	}
+	s.Log.Info().Interface("rsp", rsp).Interface("req", req).Msg("SendToScannerCheckHealth")
 	switch rsp.GetBizCode() {
 	case consts.StreamStatusRegOK:
 		return nil

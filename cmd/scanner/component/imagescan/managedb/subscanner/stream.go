@@ -26,7 +26,7 @@ func NewSubScannerHandler(updateDBSrv types.UpdateDBService) *SubScannerHandler 
 func (vi *SubScannerHandler) OnCreate(s rpcstream.Stream, reqID string, msg protoreflect.ProtoMessage) {
 	req := msg.(*pb.ImageSecReq)
 	msgType := req.ImageSecReqType
-	msgID := req.RequestID
+	msgID := req.MsgID
 	logging.Get().Info().Str("module", "imagescan").Str("msgID", msgID).Int32("type", int32(msgType)).Msg("SubScannerHandler receive grpc msg")
 
 	switch req.ImageSecReqType {
