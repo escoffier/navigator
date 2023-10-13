@@ -163,8 +163,6 @@
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository
   steps:
     - name: checkRegexMatch
-      params: [ '^(?:(?!->127\.0\.0\.1:).)*$' , trigger.payload.output_map.fd_name ]
-    - name: checkRegexMatch
       params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.proc_cmdline ]
   info:
     name:
@@ -579,6 +577,3 @@
     priority: INFO
     urgency: false
     tags: [ATT&CK, exec, filesystem, mitre_execution, L3]
-
-
-    
