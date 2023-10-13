@@ -262,6 +262,7 @@ func (s *SecurityPolicySrv) SearchPolicy(ctx context.Context, param imagesecMode
 	user := make([]string, 0)
 	for i := range ans {
 		user = append(user, ans[i].Updater)
+		user = append(user, ans[i].Creator)
 		if (ans[i].Sensitive.AllBlack || ans[i].Sensitive.AllWhite) && ans[i].Sensitive.Enable {
 			rule, _, err := s.sensitiveRuleDal.SearchSensitiveRule(ctx, imagesecModel.SearchSensitiveRuleParam{})
 			if err != nil {

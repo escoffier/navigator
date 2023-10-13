@@ -25,7 +25,7 @@ type GrpcHandler struct {
 func (g *GrpcHandler) OnCreate(s rpcstream.Stream, reqID string, message protoreflect.ProtoMessage) {
 	req := message.(*pb.ImageSecReq)
 	msgType := req.ImageSecReqType
-	msgID := req.RequestID
+	msgID := req.MsgID
 	logging.Get().Info().
 		Str("reqID", reqID).
 		Str("msgID", msgID).

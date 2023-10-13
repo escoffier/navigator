@@ -33,7 +33,7 @@ func (vi *Handler) OnCreate(s rpcstream.Stream, reqID string, msg protoreflect.P
 	}
 
 	msgType := req.ImageSecReqType
-	msgID := req.RequestID
+	msgID := req.MsgID
 	logging.Get().Info().Str("msgID", msgID).Int32("type", int32(msgType)).Msg("receive grpc msg")
 
 	switch msgType {

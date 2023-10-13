@@ -63,7 +63,7 @@ func (s *Syncer) Start(_ context.Context) error {
 		req := &pb.ImageSecReq{
 			ImageSecReqType: pb.ImageSecReqType_RegistryHealthyCheck,
 			ClusterKey:      clusterKey,
-			RequestID:       reqId,
+			MsgID:           reqId,
 			// NodeName:        dstNodes,
 			Payload: data,
 		}

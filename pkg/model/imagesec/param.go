@@ -8,7 +8,6 @@ import (
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/pkg/i18"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -38,13 +37,7 @@ type UpdatePolicyParam struct {
 }
 
 func (vi *SearchSecurityPolicyParam) Check() error {
-	if len(vi.Ids) > 0 || vi.UniqueID > 0 || len(vi.UniqueIds) > 0 {
-		return nil
-	}
-
-	if vi.PolicyType == "" {
-		return i18.CreateI18BadReqErr("未获取到策略类型", "not get policy type")
-	}
+	// 容许查全部
 	return nil
 }
 

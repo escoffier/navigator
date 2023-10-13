@@ -547,7 +547,6 @@ func (s *ScanTaskSrv) TrigCreateScanTask(ctx context.Context, trigType string) e
 	if nodeImageAdd {
 		nodeParam := imagesecModel.ImageSearchApiParam{
 			ImageFromType: imagesecModel.ImageFromNode,
-			ClusterKey:    nodeConfig.ImageScanConfig.ScanCycle.ClusterKey,
 		}
 		nodeTaskInfo := imagesecModel.ImageScanTask{
 			ImageFromType: imagesecModel.ImageFromNode,

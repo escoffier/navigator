@@ -24,10 +24,6 @@ func NewVulnAPISrv(vulnSrv imagescanSrv.ScanResultService) *VulnAPISrv {
 
 func (vi *VulnAPISrv) SearchVuln(ctx *gin.Context) {
 	vulnParam := GetSearchVulnParamFromCtx(ctx)
-
-	// 默认只查在线镜像的漏洞
-	vulnParam.OnlineImageVuln = consts.TrueString
-
 	vulnParam.Filter = vulnParam.Filter.SetMaxLimit(consts.DefaultPerPage)
 
 	vuln, cnt, err := vi.VulnSrv.SearchVuln(ctx, vulnParam)

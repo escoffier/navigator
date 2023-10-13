@@ -40,9 +40,9 @@ func NewHandler(receiver ScanSubtaskReceiver, syncer ImageSyncer, registryValida
 func (vi *Handler) OnCreate(s rpcstream.Stream, reqID string, msg protoreflect.ProtoMessage) {
 	req := msg.(*pb.ImageSecReq)
 	msgType := req.ImageSecReqType
-	msgID := req.RequestID
+	msgID := req.MsgID
 
-	vi.Log.Info().Str("msgID", msgID).Str("type", GetRpcType(req.ImageSecReqType)).
+	vi.Log.Info().Str("regID", reqID).Str("msgID", msgID).Str("type", GetRpcType(req.ImageSecReqType)).
 		Msg("receive grpc msg")
 
 	switch msgType {

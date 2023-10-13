@@ -4,11 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"runtime/debug"
 	"time"
 
 	"github.com/google/uuid"
-
-	"gitlab.com/security-rd/go-pkg/logging"
 
 	nodeImageTask "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/dispatch/dequeuers/node-image-scan"
 	regImageTask "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/dispatch/dequeuers/reg-image-scan"
@@ -75,7 +74,6 @@ func (s *TaskDispatcher) PublishNodeImageSubtaskHelper(ctx context.Context, subT
 			Msg("Dispatcher get node image scan subtask")
 
 		clusterKey := subtask.NodeInfo.ClusterKey
-		dstNodes := []string{subtask.NodeInfo.HostName}
 
 		data, err := json.Marshal(subtask)
 		if err != nil {
@@ -94,15 +92,15 @@ func (s *TaskDispatcher) PublishNodeImageSubtaskHelper(ctx context.Context, subT
 		req := &pb.ImageSecReq{
 			ImageSecReqType: pb.ImageSecReqType_NodeImageScan,
 			ClusterKey:      clusterKey,
-			NodeName:        dstNodes,
+			NodeName:        subtask.NodeInfo.HostName,
 			Payload:         data,
 		}
-		req.RequestID = s.GenReqID(req)
+		req.MsgID = s.GenReqID(req)
 
 		s.Log.Info().Interface("reg", req).Msg("Dispatcher sendMsg")
 
 		if err := s.DoSendSubtaskRpc(ctx, req); err != nil {
-			s.Log.Err(err).Str("msgID", req.RequestID).Int64("taskID", subtask.TaskID).
+			s.Log.Err(err).Str("msgID", req.MsgID).Int64("taskID", subtask.TaskID).
 				Int64("subtaskID", subtask.SubTaskID).Interface("image", subtask.RegImageMeta).
 				Msg("Dispatcher failed to publish task by grpc stream")
 
@@ -115,7 +113,7 @@ func (s *TaskDispatcher) PublishNodeImageSubtaskHelper(ctx context.Context, subT
 		up := types.UpdateSubTask{SubtaskID: subtask.SubTaskID, Status: imagesecModel.TaskStatusSendFinished}
 		go func() { upChan <- up }()
 
-		s.Log.Info().Str("msgID", req.RequestID).Int64("taskID", subtask.TaskID).
+		s.Log.Info().Str("msgID", req.MsgID).Int64("taskID", subtask.TaskID).
 			Int64("subtaskID", subtask.SubTaskID).Msg("Dispatcher publish scan subtask succeed")
 	}
 }
@@ -153,12 +151,12 @@ func (s *TaskDispatcher) PublishRegImageSubtaskHelper(ctx context.Context, subTa
 			ClusterKey:      subtask.ScanInstance.ClusterKey,
 			Payload:         data,
 		}
-		req.RequestID = s.GenReqID(req)
+		req.MsgID = s.GenReqID(req)
 
 		s.Log.Debug().Interface("reg", req).Msg("Dispatcher sendMsg")
 
 		if err := s.DoSendSubtaskRpc(ctx, req); err != nil {
-			s.Log.Err(err).Str("msgID", req.RequestID).Int64("taskID", subtask.TaskID).
+			s.Log.Err(err).Str("msgID", req.MsgID).Int64("taskID", subtask.TaskID).
 				Int64("subtaskID", subtask.SubTaskID).Interface("image", subtask.RegImageMeta).
 				Msg("Dispatcher failed to publish task by grpc stream")
 
@@ -174,7 +172,7 @@ func (s *TaskDispatcher) PublishRegImageSubtaskHelper(ctx context.Context, subTa
 
 		go func() { upChan <- up }()
 
-		s.Log.Info().Str("msgID", req.RequestID).Int64("taskID", subtask.TaskID).
+		s.Log.Info().Str("msgID", req.MsgID).Int64("taskID", subtask.TaskID).
 			Int64("subtaskID", subtask.SubTaskID).Msg("Dispatcher publish scan subtask succeed")
 	}
 }
@@ -193,7 +191,7 @@ func (s *TaskDispatcher) PublishSubtask(ctx context.Context) error {
 	go func(dequeue types.ScanImageTaskDequeue) {
 		defer func() {
 			if err := recover(); err != nil {
-				logging.Get().Error().Stack().Msg("Dispatcher recover")
+				s.Log.Error().Stack().Str("Stack", string(debug.Stack())).Msg("Dispatcher recover")
 			}
 		}()
 		s.Log.Info().Str("scanTaskType", imagesecModel.ImageFromNode).Msg("Dispatcher start")
@@ -206,7 +204,7 @@ func (s *TaskDispatcher) PublishSubtask(ctx context.Context) error {
 	go func(dequeue types.ScanImageTaskDequeue) {
 		defer func() {
 			if err := recover(); err != nil {
-				logging.Get().Error().Stack().Msg("Dispatcher recover")
+				s.Log.Error().Stack().Str("Stack", string(debug.Stack())).Msg("Dispatcher recover")
 			}
 		}()
 		s.Log.Info().Str("scanTaskType", imagesecModel.ImageFromRegistry).Msg("Dispatcher start")
@@ -223,7 +221,7 @@ func (s *TaskDispatcher) sendRpcTask(ctx context.Context, req *pb.ImageSecReq) c
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Msg("ExecutorScanMalicious panic")
+				s.Log.Error().Stack().Str("Stack", string(debug.Stack())).Msg("ExecutorScanMalicious panic")
 			}
 		}()
 
@@ -240,7 +238,7 @@ func (s *TaskDispatcher) DoSendSubtaskRpc(ctx context.Context, req *pb.ImageSecR
 	for {
 		select {
 		case <-timeOutCxt.Done():
-			logging.Get().Error().Str("module", "imagescan").Interface("reg", req).Msg("send scan subtask to rpc")
+			s.Log.Error().Interface("reg", req).Msg("send scan subtask to rpc")
 			return fmt.Errorf("time out")
 		case res := <-s.sendRpcTask(timeOutCxt, req):
 			return res
@@ -254,14 +252,18 @@ func (s *TaskDispatcher) sendScanSubtask(ctx context.Context, req *pb.ImageSecRe
 	defer timeOutFunc()
 
 	rsp, err := s.streamClient.ScannerPushImageSecMsg(timeOutCxt, req)
-	if err != nil || rsp.Status != consts.StreamStatusOK {
+	if err != nil {
 		s.Log.Err(err).Interface("req", req).Msg("Dispatcher sendScanSubtask")
 		return err
 	}
-	if rsp.GetBizCode() != consts.StreamStatusStartScanTask {
-		err = fmt.Errorf("publish task response err code:%v", rsp.Status)
+	if rsp.Status != consts.StreamStatusOK {
+		s.Log.Error().Interface("req", req).Interface("resp", rsp).Msg("Dispatcher sendScanSubtask")
 		return err
 	}
+	// if rsp.GetBizCode() != consts.StreamStatusStartScanTask {
+	// 	err = fmt.Errorf("publish task response err code:%v", rsp.Status)
+	// 	return err
+	// }
 	return nil
 }
 

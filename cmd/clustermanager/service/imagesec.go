@@ -2,17 +2,16 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
-	"fmt"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
 	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 type ImageSecHandler struct {
@@ -20,106 +19,116 @@ type ImageSecHandler struct {
 	ClusterKey   string
 }
 
+// 回包
+func (i *ImageSecHandler) ReturnRpcResponse(s rpcstream.Stream, reqID string, msgID string, resp *pb.ImageSecResp) {
+	if resp == nil {
+		resp = &pb.ImageSecResp{
+			StatusMessage: "response is nil",
+			Status:        1,
+		}
+	}
+	logging.Get().Info().Str("reqID", reqID).Str("msgID", msgID).Str("resp", respLogStr(resp)).
+		Msg("ReturnRpcResponse send imagesec response start")
+	if err := s.SendResponse(reqID, resp); err != nil {
+		logging.Get().Info().Str("reqID", reqID).Str("msgID", msgID).Str("resp", respLogStr(resp)).
+			Msg("ReturnRpcResponse failed to send imagesec response")
+		return
+	}
+
+	logging.Get().Info().Str("reqID", reqID).Str("msgID", msgID).Str("resp", respLogStr(resp)).
+		Msg("ReturnRpcResponse send imagesec response success")
+}
+
+func regLogStr(req *pb.ImageSecReq) string {
+	if req == nil {
+		return fmt.Sprintf("rpc req is nil")
+	}
+	str := fmt.Sprintf("ClusterKey=%s,RquestID=%s,ImageSecReqType=%d,NodeName=%s",
+		req.ClusterKey, req.MsgID, int32(req.ImageSecReqType), req.NodeName)
+	return str
+}
+
+func respLogStr(resp *pb.ImageSecResp) string {
+	if resp == nil {
+		return fmt.Sprintf("rpc resp is nil")
+	}
+	str := fmt.Sprintf("StatusMessage=%s,RquestID=%d,BizMessage=%s,BizCode=%d",
+		resp.StatusMessage, resp.Status, resp.BizMessage, resp.BizCode)
+	return str
+}
+
 // OnCreate 统一处理cluster manager grpc client接收的所有镜像安全相关信息,只做转发。
 func (i *ImageSecHandler) OnCreate(s rpcstream.Stream, reqID string, message protoreflect.ProtoMessage) {
 	// parse pb msg
 	req := message.(*pb.ImageSecReq)
 	dstClusterKey := req.ClusterKey
-	msgID := req.RequestID
+	msgID := req.MsgID
 
 	logging.Get().Info().
 		Str("reqID", reqID).
-		Str("msgID", msgID).
-		Int32("msgType", int32(req.ImageSecReqType)).
-		Str("dstClusterKey", req.ClusterKey).
-		Str("curClusterKey", i.ClusterKey).
-		Int("nodesCnt", len(req.NodeName)).
-		Msg("recv image sec grpc msg")
-
-	rspAndLogFunc := func(status int32, statusMsg string, errNodes []string) {
-		orgRsp := pb.ImageSecResp{
-			StatusMessage: statusMsg,
-			Status:        status,
-			ErrNode:       errNodes,
-		}
-		err := s.SendResponse(reqID, &orgRsp)
-		if err != nil {
-			logging.Get().Err(err).Str("reqID", reqID).Str("msgID", msgID).Msg("failed to send image sec msg rsp")
-		}
-	}
-
+		Str("req", regLogStr(req)).
+		Msg("OnCreate recv image sec grpc msg")
 	// check msg dst
 	if dstClusterKey != i.ClusterKey {
 		logging.Get().Error().Str("reqID", reqID).Str("msgID", msgID).Msg("image sec msg dst cluster wrong")
-		rspAndLogFunc(1, "recv wrong msg", nil)
+		resp := &pb.ImageSecResp{
+			StatusMessage: "dst cluster wrong",
+			Status:        1,
+		}
+		i.ReturnRpcResponse(s, reqID, msgID, resp)
 		return
 	}
 
 	// publish func wrapper
-	publishFunc := func(nodeKey string, msgType pb.MessageType, req *pb.ImageSecReq) (int32, error) {
+	publishFunc := func(nodeKey string, msgType pb.MessageType, req *pb.ImageSecReq) (*pb.ImageSecResp, error) {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Duration(util.ImageSecGrpcTimeOut())*time.Second)
 		defer cancel()
-
 		resp, err := i.ServerStream.PublishImageSecMsgByNode(ctx, nodeKey, msgType, req)
-		if err != nil {
-			return 1, err
-		}
-		if resp.Status != 0 {
-			return resp.Status, fmt.Errorf("rsp err.%v", resp.StatusMessage)
-		}
-		return 0, nil
+		return resp, err
 	}
 
 	// forward msg to scanner
 	if i.shouldPublishToScanner(req) {
-		var err error
-		var ret int32
 		if req.ImageSecReqType == pb.ImageSecReqType_AviraDBUpdate ||
 			req.ImageSecReqType == pb.ImageSecReqType_ClamavDBUpdate ||
 			req.ImageSecReqType == pb.ImageSecReqType_TiDBUpdate {
-			ret, err = publishFunc(util.ScannerClusterManagerGrpcStreamKey(dstClusterKey), pb.MessageType_UPDATE, req)
-		} else {
-			ret, err = publishFunc(util.ScannerClusterManagerGrpcStreamKey(dstClusterKey), pb.MessageType_CREATE, req)
+			// 暂时不支持，前端已屏蔽这部分功能
+			logging.Get().Error().Int32("msgType", int32(req.ImageSecReqType)).Msg("Rpc msgType not support")
 		}
+
+		resp, err := publishFunc(util.ScannerClusterManagerGrpcStreamKey(dstClusterKey), pb.MessageType_CREATE, req)
 		if err != nil {
-			logging.Get().Err(err).
-				Str("reqID", reqID).
-				Str("msgID", msgID).
-				Int32("retCode", ret).
-				Msg("failed to publish image sec msg to scanner")
-			rspAndLogFunc(ret, err.Error(), nil)
-		} else {
-			logging.Get().Info().
-				Str("reqID", reqID).
-				Str("msgID", msgID).
-				Msg("publish image sec msg to scanner ok")
-			rspAndLogFunc(0, "ok", nil)
+			resp = &pb.ImageSecResp{
+				StatusMessage: err.Error(),
+				Status:        1,
+			}
 		}
+		i.ReturnRpcResponse(s, reqID, msgID, resp)
 		return
+
 	}
 
-	// publish msg to daemon
-	var retCode int32
-	var retErr error
-	errNodes := make([]string, 0)
-	if len(req.NodeName) > 0 {
-		for _, v := range req.NodeName {
-			streamNodeKey := fmt.Sprintf("%s-node-image", v)
-			ret, err := publishFunc(streamNodeKey, pb.MessageType_CREATE, req)
-			if err != nil {
-				retCode = ret
-				errNodes = append(errNodes, v)
-				retErr = multierror.Append(retErr, err)
-				logging.Get().Err(err).Str("node", v).Str("msgID", msgID).Msg("failed to push image sec msg to node")
-				continue
+	if i.shouldPublishToDemon(req) {
+		if req.NodeName == "" {
+			resp := &pb.ImageSecResp{
+				StatusMessage: "NodeClusterKey is empty",
+				Status:        1,
 			}
-			logging.Get().Info().Str("node", v).Str("msgID", msgID).Msg("push image sec msg to node ok")
+			i.ReturnRpcResponse(s, reqID, msgID, resp)
+			return
 		}
-	}
-	if retErr != nil {
-		rspAndLogFunc(retCode, retErr.Error(), errNodes)
-	} else {
-		rspAndLogFunc(0, "ok", nil)
+		// 不好的写法
+		streamNodeKey := fmt.Sprintf("%s-node-image", req.NodeName)
+		resp, err := publishFunc(streamNodeKey, pb.MessageType_CREATE, req)
+		if err != nil {
+			resp = &pb.ImageSecResp{
+				StatusMessage: err.Error(),
+				Status:        1,
+				ErrNode:       []string{req.NodeName},
+			}
+		}
+		i.ReturnRpcResponse(s, reqID, msgID, resp)
+		return
 	}
 }
 
@@ -127,6 +136,16 @@ func (i *ImageSecHandler) shouldPublishToScanner(req *pb.ImageSecReq) bool {
 	return req.ImageSecReqType == pb.ImageSecReqType_RegistryImageSync ||
 		req.ImageSecReqType == pb.ImageSecReqType_RegistryHealthyCheck ||
 		req.ImageSecReqType == pb.ImageSecReqType_RegistryImageScan
+}
+
+func (i *ImageSecHandler) shouldPublishToDemon(req *pb.ImageSecReq) bool {
+	// 暂时就只有这几种
+	if req.ImageSecReqType == pb.ImageSecReqType_NodeImageScan ||
+		req.ImageSecReqType == pb.ImageSecReqType_SyncConfig ||
+		req.ImageSecReqType == pb.ImageSecReqType_SyncResult {
+		return true
+	}
+	return false
 }
 
 func (i *ImageSecHandler) OnRead(s rpcstream.Stream, reqID string, message protoreflect.ProtoMessage) {

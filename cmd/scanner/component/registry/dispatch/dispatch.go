@@ -114,7 +114,7 @@ func (s *RegDispatchSrv) sendRegSyncTask(ctx context.Context, task imagesecModel
 		Payload:         data,
 	}
 
-	req.RequestID = s.GenReqID(req)
+	req.MsgID = s.GenReqID(req)
 
 	s.Log.Debug().Interface("reg", req).Msg("DispatchSyncTask sendMsg")
 
@@ -364,7 +364,7 @@ func (s *RegDispatchSrv) SendToScannerCheckHealth(ctx context.Context, reg image
 	req := &pb.ImageSecReq{
 		ImageSecReqType: pb.ImageSecReqType_RegistryHealthyCheck,
 		ClusterKey:      clusterKey,
-		RequestID:       uuid.New().String(),
+		MsgID:           uuid.New().String(),
 		Payload:         data,
 	}
 	s.Log.Debug().Interface("reg", req).Msg("SendToScannerCheckHealth sendMsg")

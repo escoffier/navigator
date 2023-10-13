@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"runtime/debug"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -84,41 +85,50 @@ func (s *ScanImageConfigSyncSrv) syncConfig(ctx context.Context) error {
 		s.Log.Err(err).Msg("ScanImageConfigSyncSrv failed to marshal node image config")
 		return err
 	}
-	_ = s.publishConfigByCluster(grpcClient, clusterNodes, msgData)
+	errs := make([]string, 0)
+	for k, ns := range clusterNodes {
+		for i := range ns {
+			err = s.publishConfigByCluster(grpcClient, k, ns[i], msgData)
+			if err != nil {
+				s.Log.Err(err).Str("nodeName", ns[i]).Msg("ScanImageConfigSyncSrv publish config failure")
+				errs = append(errs, ns[i])
+			}
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("not all node sync config:%s", strings.Join(errs, ","))
+	}
+
 	s.Log.Info().Int("clusterCnt", len(clusterNodes)).Msg("ScanImageConfigSyncSrv publish config to all cluster end")
 	return nil
 }
 
-func (s *ScanImageConfigSyncSrv) publishConfigByCluster(grpcClient rpcstream.MessageStream, clusterNodes map[string][]string, msgData []byte) error {
+func (s *ScanImageConfigSyncSrv) publishConfigByCluster(grpcClient rpcstream.MessageStream, clusterKey, nodeName string, msgData []byte) error {
 	var retErr error
-	for k, ns := range clusterNodes {
-		func() {
-			ctx, cancel := context.WithTimeout(context.Background(), time.Duration(util.ImageSecGrpcTimeOut())*time.Second)
-			defer cancel()
-			reqID := uuid.New().String()
-			req := &pb.ImageSecReq{
-				ImageSecReqType: pb.ImageSecReqType_SyncConfig,
-				ClusterKey:      k,
-				NodeName:        ns,
-				RequestID:       reqID,
-				Payload:         msgData,
-			}
-			rsp, err := grpcClient.ScannerPushImageSecMsg(ctx, req)
-			if err != nil {
-				retErr = multierror.Append(retErr, err)
-				s.Log.Err(err).Str("cluster", k).Msg("ScanImageConfigSyncSrv failed to publish config to cluster")
-				return
-			}
-			if rsp.Status != 0 {
-				retErr = multierror.Append(retErr, fmt.Errorf("rsp status err.%v", rsp.Status))
-				logging.Get().Error().Str("cluster", k).Int32("status", rsp.Status).
-					Msg("ScanImageConfigSyncSrv failed to publish config to cluster,status err")
-				return
-			}
-			s.Log.Info().Str("cluster", k).Msg("ScanImageConfigSyncSrv publish config to cluster ok")
-		}()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(util.ImageSecGrpcTimeOut())*time.Second)
+	defer cancel()
+	reqID := uuid.New().String()
+	req := &pb.ImageSecReq{
+		ImageSecReqType: pb.ImageSecReqType_SyncConfig,
+		ClusterKey:      clusterKey,
+		NodeName:        nodeName,
+		MsgID:           reqID,
+		Payload:         msgData,
 	}
-	return retErr
+	rsp, err := grpcClient.ScannerPushImageSecMsg(ctx, req)
+	if err != nil {
+		retErr = multierror.Append(retErr, err)
+		s.Log.Err(err).Str("cluster", clusterKey).Msg("ScanImageConfigSyncSrv failed to publish config to cluster")
+		return err
+	}
+	if rsp.Status != 0 {
+		retErr = multierror.Append(retErr, fmt.Errorf("rsp status err.%v", rsp.Status))
+		logging.Get().Error().Str("cluster", clusterKey).Int32("status", rsp.Status).
+			Msg("ScanImageConfigSyncSrv failed to publish config to cluster,status err")
+		return err
+	}
+	s.Log.Info().Str("cluster", clusterKey).Msg("ScanImageConfigSyncSrv publish config to cluster ok")
+	return err
 }
 
 func NewScannerConfigSyncSrv(configDal imagesecStore.ScanImageConfigDal, nodeInfoSrv types.NodeReportService) *ScanImageConfigSyncSrv {
