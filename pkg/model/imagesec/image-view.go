@@ -821,6 +821,9 @@ func (iws *ImageWithCorrelateData2) GenSafe() string {
 
 func (iws *ImageWithCorrelateData2) GenAction() string {
 	imageFlag := iws.Image.Flag
+	if util.ExistBit1(imageFlag, FlagImageDeployWhite) {
+		return DeployActionPass
+	}
 	if util.ExistBit1(imageFlag, FlagImageDeployBlock) {
 		return DeployActionBlock
 	}

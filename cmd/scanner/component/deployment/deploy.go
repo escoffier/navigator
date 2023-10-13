@@ -218,15 +218,6 @@ func (s *DeploySrv) CheckDeploy(ctx context.Context, param imagesecModel.DeployM
 		}
 	}
 
-	white, err := s.CheckWhite(ctx, param)
-	if err != nil {
-		s.Log.Err(err).Msg("CheckWhite")
-		return true
-	}
-	if err == nil && white {
-		record.Flag = util.SetBit1(record.Flag, imagesecModel.FlagImageDeployWhite)
-	}
-
 	// 镜像本身flag
 	preFlag, flag := res.CorrelateData.Image.Flag, record.Flag
 	flag = compareAndSetFlag(preFlag, flag, imagesecModel.FlagAppImage)
@@ -254,11 +245,20 @@ func (s *DeploySrv) CheckDeploy(ctx context.Context, param imagesecModel.DeployM
 			flag = util.SetBit1(flag, imagesecModel.FlagImageDeployBlock)
 		}
 	}
+	record = AddIssueDeployRecord(record, det)
+	white, err := s.CheckWhite(ctx, param)
+	if err != nil {
+		s.Log.Err(err).Msg("CheckWhite")
+		return true
+	}
+	if err == nil && white {
+		flag = util.SetBit1(flag, imagesecModel.FlagImageDeployWhite)
+		flag = util.SetBit1(flag, imagesecModel.FlagImageDeployPassed)
+		flag = util.SetBit0(flag, imagesecModel.FlagImageDeployBlock)
+		flag = util.SetBit0(flag, imagesecModel.FlagImageDeployAlarm)
+	}
 
 	act := GenAction(det, flag)
-
-	record = AddIssueDeployRecord(record, det)
-
 	record.Action = act
 	record.Flag = flag
 
