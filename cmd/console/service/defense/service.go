@@ -560,7 +560,7 @@ func (s *TensorDefenseService) GetBaitImageRepoInfo(ctx context.Context, imageNa
 
 func (s *TensorDefenseService) GetImageRepoInfo(ctx context.Context, registryID int) (*RegistryInfo, error) {
 
-	url := fmt.Sprintf("%s%s?id=%d", s.scannerURL, RegistryPath, registryID)
+	url := fmt.Sprintf("%s%s?id=%d&needPasswd=true", s.scannerURL, RegistryPath, registryID)
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
