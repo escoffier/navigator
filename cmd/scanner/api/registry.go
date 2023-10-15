@@ -245,6 +245,7 @@ func (s *RegistrySrv) SearchRegistry(ctx *gin.Context) {
 
 func (s *RegistrySrv) GetRegistry(ctx *gin.Context) {
 	id := util.GetInt64FromQuery(ctx, "id")
+	needPasswd := util.GetBoolStringFromQuery(ctx, "needPasswd")
 	regs, _, err := s.RegistrySrv.SearchRegistry(ctx, imagesec.SearchRegistryParam{RegIds: []int64{id}})
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -256,7 +257,9 @@ func (s *RegistrySrv) GetRegistry(ctx *gin.Context) {
 	}
 	reg := regs[0]
 	reg.FitHarborVersion()
-	reg.HidePassword()
+	if needPasswd != consts.TrueString {
+		reg.HidePassword()
+	}
 	response.JSONOK(ctx, response.WithItem(reg))
 }
 
