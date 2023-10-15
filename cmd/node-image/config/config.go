@@ -23,6 +23,7 @@ const (
 	defaultNodeImageConfigFile      = "node-image-config.json"
 	defaultSwitchDeepScan           = false // disabled deep scan by default
 	DeepScanTypesAvira              = "avira"
+	DeepScanTypesTws                = "tws"
 	DeepScanTypesClamAV             = "clamav"
 	defaultSlowMode                 = true
 )
@@ -95,7 +96,7 @@ func NewDefaultConfig() *Config {
 			RealTimeLog: false,
 		},
 		DeepScanConfig: DeepScanConfig{
-			Types: []string{"avira"},
+			Types: []string{"avira", "tws"},
 		},
 		IreneConfig: IreneConfig{
 			LogLevel:    "debug",

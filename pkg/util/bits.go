@@ -120,5 +120,12 @@ func CompareVersion(version1 string, version2 string) int {
 }
 
 func ThanVersion(version1 string, version2 string) bool {
+	if strings.Contains(version1, "latest") {
+		return true
+	}
+	if strings.Contains(version1, "testcn") {
+		return true
+	}
+
 	return CompareVersion(version1, version2) >= 0
 }

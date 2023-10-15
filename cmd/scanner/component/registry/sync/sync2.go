@@ -19,7 +19,7 @@ func (s *RegSyncSrv) createImageExtender(ctx context.Context, image warehouse.Im
 	configFile := GetConfigFile(image)
 	report := &imagesecTypes.NodeReport{
 		UUID:       util.GenerateUUIDHex(),
-		LibImages:  make([]imagesecTypes.ImageMeta, 0),
+		RegImages:  make([]imagesecTypes.ImageMeta, 0),
 		ReportedAt: time.Now().UnixMilli(),
 		RegInfo:    imagesecTypes.RegInfo{RegID: image.RegistryID, Url: image.RegistryUrl},
 	}
@@ -41,7 +41,7 @@ func (s *RegSyncSrv) createImageExtender(ctx context.Context, image warehouse.Im
 	}
 	s.Log.Debug().Interface("imageMeta", imageMeta).Msg("get a imageMeta")
 
-	report.LibImages = append(report.LibImages, *imageMeta)
+	report.RegImages = append(report.RegImages, *imageMeta)
 
 	bys, err := json.Marshal(report)
 	if err != nil {

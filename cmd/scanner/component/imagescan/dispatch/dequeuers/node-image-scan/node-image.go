@@ -150,17 +150,14 @@ func (s *NodeImageScanQueue) GenSubtaskChan(ctx context.Context) chan imagesecTy
 		taskChan := s.GenTaskChan(ctx)
 
 		for task := range taskChan {
-			s.Log.Info().Int64("taskID", task.ID).
-				Msg("get a scan task")
+			s.Log.Info().Int64("taskID", task.ID).Msg("get a scan task")
 			if err := s.UpdateTaskInprogress(ctx, task.ID); err != nil {
-				s.Log.Err(err).Int64("taskID", task.ID).
-					Msg("start task")
+				s.Log.Err(err).Int64("taskID", task.ID).Msg("start task")
 				continue
 			}
 
 			if err := s.SearchSubtaskAndSendToChan(ctx, task, subtaskChan); err != nil {
-				s.Log.Err(err).Interface("task", task).
-					Msg("SearchSubtaskAndSendToChan")
+				s.Log.Err(err).Interface("task", task).Msg("SearchSubtaskAndSendToChan")
 				continue
 			}
 
@@ -187,14 +184,12 @@ func (s *NodeImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, tas
 		param := imagesecModel.SearchTaskParam{
 			// 查找当前节点在执行的所有子任务
 			NodeUniqueID: no.UniqueID,
-			ScanStatus:   []int64{imagesecModel.TaskStatusSendFinished},
-			Filter:       model.EmptyFilter().SetLimit(1),
+			// 发送完成扫描过程中 Pod 重启，那就只能等超时失败了
+			// 不能持续发送，因为任务可能重启动，节点不能对任务去重
+			ScanStatus: []int64{imagesecModel.TaskStatusSendFinished},
+			Filter:     model.EmptyFilter().SetLimit(1),
 		}
 		_, sendSubtask, err := s.ScanTaskDal.SearchScanSubtask(ctx, param)
-
-		if s.PodID == "" {
-			param.ScanStatus = []int64{}
-		}
 
 		if err != nil {
 			s.Log.Err(err).Int64("taskID", task.ID).
