@@ -125,8 +125,7 @@ func (s *RegImageScanQueue) GenTaskChan(ctx context.Context) chan *imagesecModel
 					Msg("find inprogress scan task")
 				continue
 			}
-			s.Log.Info().Int64("taskCnt", cnt).
-				Msg("find registry image scan task")
+			s.Log.Info().Int64("taskCnt", cnt).Msg("find registry image scan task")
 
 			for i := range task {
 				out <- task[i]
@@ -155,18 +154,15 @@ func (s *RegImageScanQueue) GenSubtaskChan(ctx context.Context) chan imagesecTyp
 		taskChan := s.GenTaskChan(ctx)
 
 		for task := range taskChan {
-			s.Log.Info().Int64("taskID", task.ID).
-				Msg("get a scan task")
+			s.Log.Info().Int64("taskID", task.ID).Msg("get a scan task")
 
 			if err := s.UpdateTaskInprogress(ctx, task.ID); err != nil {
-				s.Log.Err(err).Int64("taskID", task.ID).
-					Msg("start task")
+				s.Log.Err(err).Int64("taskID", task.ID).Msg("start task")
 				continue
 			}
 
 			if err := s.SearchSubtaskAndSendToChan(ctx, task, subtaskChan); err != nil {
-				s.Log.Err(err).Interface("task", task).
-					Msg("SearchSubtaskAndSendToChan")
+				s.Log.Err(err).Interface("task", task).Msg("SearchSubtaskAndSendToChan")
 				continue
 			}
 		}
@@ -197,22 +193,19 @@ func (s *RegImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, task
 		no := instance[i]
 		s.Log.Debug().Str("ClusterName", no.ClusterName).
 			Msg("find instance")
-		// 查找当前节点在执行的所有子任务
+		// 查找当前扫描器在执行的所有子任务
 		param := imagesecModel.SearchTaskParam{
 			NodeUniqueID: uint64(no.ID),
 			// 发送完成扫描过程中 Pod 重启，那就只能等超时失败了
+			// 不能持续发送，因为任务可能重启动，扫描器不能对任务去重
 			ScanStatus:      []int64{imagesecModel.TaskStatusSendFinished},
 			IsSearchSubtask: true,
 			Filter:          model.EmptyFilter().SetLimit(1),
 		}
-		if s.PodID == "" {
-			param.ScanStatus = []int64{}
-		}
 
 		_, sendSubtask, err := s.ScanTaskDal.SearchScanSubtask(ctx, param)
 		if err != nil {
-			s.Log.Err(err).Int64("taskID", task.ID).
-				Msg("SearchScanSubtask")
+			s.Log.Err(err).Int64("taskID", task.ID).Msg("SearchScanSubtask")
 			return err
 		}
 		if sendSubtask >= s.maxProgressSubtaskPerNode {
@@ -433,7 +426,7 @@ func NewScanLibImageQueue(
 		maxProgressTask:           consts.MaxInprogressTask,
 		maxProgressSubtaskPerNode: consts.MaxInprogressSubtaskPerNode,
 		Log: scannerUtils.NewLogEvent(
-			scannerUtils.WithSubModule("NodeImageScanQueue"),
+			scannerUtils.WithSubModule("RegImageScanQueue"),
 			scannerUtils.WithModule(consts.ModelImageScan),
 		),
 	}

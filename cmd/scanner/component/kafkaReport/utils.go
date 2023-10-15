@@ -145,7 +145,7 @@ func GetRegImageInfo(data imagesecTypes.NodeReport) ([]*imagesecModel.Image,
 	images := make([]*imagesecModel.Image, 0)
 	envs := make(map[uint64][]*imagesecModel.ImageEnv)
 
-	for _, image := range data.LibImages {
+	for _, image := range data.RegImages {
 		im := &imagesecModel.Image{
 			ImageFromType: imagesecModel.ImageFromRegistry,
 			ImageID:       image.ImageId,

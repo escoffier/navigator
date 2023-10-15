@@ -189,7 +189,9 @@ func DataToImage(image model.ImageList) []*imagesecModel.Image {
 	if err := json.Unmarshal([]byte(image.OS), &osInfo); err == nil {
 		im.OS = osInfo
 	}
-	res = append(res, im)
+	if err := im.Check(); err == nil {
+		res = append(res, im)
+	}
 	return res
 }
 
@@ -255,7 +257,7 @@ func (s *ImageMigrate) Migrate(ctx context.Context, ver string) error {
 func ToNodeReport(image model.ImageList) imagesecType.NodeReport {
 
 	nr := imagesecType.NodeReport{
-		LibImages:       make([]imagesecType.ImageMeta, 0),
+		RegImages:       make([]imagesecType.ImageMeta, 0),
 		RegInfo:         imagesecType.RegInfo{RegID: image.RegistryID},
 		ReportedAt:      time.Now().UnixMilli(),
 		ReportDBVersion: imagesecType.ReportDBVersion{},
@@ -275,7 +277,7 @@ func ToNodeReport(image model.ImageList) imagesecType.NodeReport {
 	if image.ConfigFile != nil {
 		im.ENVS = image.ConfigFile.Config.Env
 	}
-	nr.LibImages = append(nr.LibImages, im)
+	nr.RegImages = append(nr.RegImages, im)
 
 	return nr
 }
@@ -283,7 +285,7 @@ func ToNodeReport(image model.ImageList) imagesecType.NodeReport {
 func GenImageUniqueID(data imagesecType.NodeReport) uint64 {
 	images := make([]*imagesecModel.Image, 0)
 
-	for _, image := range data.LibImages {
+	for _, image := range data.RegImages {
 		im := &imagesecModel.Image{
 			ImageFromType: imagesecModel.ImageFromRegistry,
 			RegID:         data.RegInfo.RegID,

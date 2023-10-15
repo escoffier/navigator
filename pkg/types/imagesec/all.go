@@ -38,7 +38,7 @@ type NodeReport struct {
 	UUID            string          `json:"uuid"`       // 每次上报的唯一id，用于和scanner对齐数据
 	NodeInfo        NodeInfo        `json:"nodeInfo"`   // 节点信息
 	NodeImages      []ImageMeta     `json:"nodeImages"` // 节点上所有的镜像
-	LibImages       []ImageMeta     `json:"libImages"`  // 仓库同步镜像镜像
+	RegImages       []ImageMeta     `json:"libImages"`  // 仓库同步镜像镜像
 	RegInfo         RegInfo         `json:"regInfo"`
 	ReportedAt      int64           `json:"reportedAt"` // 上报时间点
 	ReportDBVersion ReportDBVersion `json:"reportDBVersion"`
