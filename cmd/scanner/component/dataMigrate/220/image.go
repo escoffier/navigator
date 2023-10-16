@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -26,14 +27,15 @@ import (
 )
 
 type ImageMigrate struct {
-	MqWriter       mq.Writer
-	DataMigrateDal imagesecStore.DataMigrateDal
-	ScanIssueDal   imagesecStore.ScanIssueDal
-	ScanResultDal  imagesecStore.ScanResultDal
-	ImageService   migrateTypes.ImageService // 原来老表的逻辑
-	ImageDal       store.ImageDal
-	ImageMetaDal   imagesecStore.ImageMetaDal
-	PolicyDal      imagesecStore.DetectPolicyDal
+	MqWriter        mq.Writer
+	DataMigrateDal  imagesecStore.DataMigrateDal
+	ScanIssueDal    imagesecStore.ScanIssueDal
+	ScanResultDal   imagesecStore.ScanResultDal
+	PreImageService migrateTypes.ImageService // 原来老表的逻辑
+	ImageDal        store.ImageDal
+	ImageMetaDal    imagesecStore.ImageMetaDal
+	PolicyDal       imagesecStore.DetectPolicyDal
+	Log             *scannerUtils.LogEvent
 }
 
 var imageMigrate *ImageMigrate
@@ -83,14 +85,17 @@ func NewImageMate(
 ) *ImageMigrate {
 
 	s := &ImageMigrate{
-		MqWriter:       mqWriter,
-		DataMigrateDal: dataMigrateDal,
-		ScanIssueDal:   scanIssueDal,
-		ScanResultDal:  scanResultDal,
-		ImageService:   imageService,
-		ImageDal:       imageDal,
-		ImageMetaDal:   imageMetaDal,
-		PolicyDal:      policyDal,
+		MqWriter:        mqWriter,
+		DataMigrateDal:  dataMigrateDal,
+		ScanIssueDal:    scanIssueDal,
+		ScanResultDal:   scanResultDal,
+		PreImageService: imageService,
+		ImageDal:        imageDal,
+		ImageMetaDal:    imageMetaDal,
+		PolicyDal:       policyDal,
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithSubModule("2.20"),
+			scannerUtils.WithModule(consts.ModuleMigrate)),
 	}
 	return s
 }
@@ -102,11 +107,11 @@ func (s *ImageMigrate) MigrateImage(ctx context.Context, imageID int64, subtaskI
 		InIds:         []int64{imageID},
 	}, nil)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "migrate").Msg("MigrateImage")
+		s.Log.Err(err).Msg("MigrateImage")
 		return err
 	}
 	if len(images) == 0 {
-		logging.Get().Info().Str("module", "migrate").Int64("imageID", imageID).Msg("MigrateImage not find image")
+		s.Log.Info().Int64("imageID", imageID).Msg("MigrateImage not find image")
 		return err
 	}
 
@@ -115,17 +120,18 @@ func (s *ImageMigrate) MigrateImage(ctx context.Context, imageID int64, subtaskI
 	err = s.ImageMetaDal.CreateRegImage(ctx, imageMeta)
 
 	if err != nil {
-		logging.Get().Err(err).Str("module", "migrate").Int64("imageID", imageID).Msg("CreateRegImage failed")
+		s.Log.Err(err).Int64("imageID", imageID).Msg("CreateRegImage failed")
 		return err
 	}
 	nr := ToNodeReport(images[0])
 	if err := s.sendImageToKafka(ctx, nr); err != nil {
-		logging.Get().Err(err).Str("module", "migrate").Int64("imageID", imageID).Msg("MigrateImage sendImageToKafka")
+		s.Log.Err(err).Int64("imageID", imageID).Msg("MigrateImage sendImageToKafka")
 		return err
 	}
-	data, err := s.ImageService.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
+	data, err := s.PreImageService.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageFromType:   imagesecModel.ImageFromRegistry,
-		ImageId:         images[0].ID,
+		ImageId:         imageID,
+		ImageUniqueID:   images[0].UniqueImage,
 		VulnEnable:      true,
 		MalwareEnable:   true,
 		PkgEnable:       true,
@@ -133,7 +139,7 @@ func (s *ImageMigrate) MigrateImage(ctx context.Context, imageID int64, subtaskI
 		WebshellEnable:  true,
 	})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "migrate").Msg("GetImageCorrelateData failed")
+		s.Log.Err(err).Msg("GetImageCorrelateData failed")
 		return err
 	}
 
@@ -141,27 +147,28 @@ func (s *ImageMigrate) MigrateImage(ctx context.Context, imageID int64, subtaskI
 	pkgIssue := GetPkgToImage(data)
 
 	if err := s.ScanResultDal.CreatePkg(ctx, data.Pkg); err != nil {
-		logging.Get().Err(err).Str("module", "migrate").Int64("imageID", imageID).Msg("MigrateImage CreatePkg")
+		s.Log.Err(err).Int64("imageID", imageID).Msg("MigrateImage CreatePkg")
 	}
 
 	if err := s.ScanIssueDal.CreateVulnToImage(ctx, imagesecModel.CreateVulnToImageParam{
 		ImageUniqueID: data.Image.UniqueID,
 		Data:          vulnIssue,
 	}); err != nil {
-		logging.Get().Err(err).Str("module", "migrate").Int64("imageID", imageID).Msg("MigrateImage CreateVulnToImage")
+		s.Log.Err(err).Int64("imageID", imageID).Msg("MigrateImage CreateVulnToImage")
 	}
 
 	if err := s.ScanIssueDal.CreatePkgToImage(ctx, imagesecModel.CreatePkgToImageParam{
 		ImageUniqueID: data.Image.UniqueID,
 		Data:          pkgIssue,
 	}); err != nil {
-		logging.Get().Err(err).Str("module", "migrate").Msg("MigrateImage CreatePkgToImage")
+		s.Log.Err(err).Msg("MigrateImage CreatePkgToImage")
 	}
 
 	scanRes := ToScanResult(data, subtaskID)
 	scanRes.ImageUniqueID = data.Image.UniqueID
 	_ = s.sendScanResultToKafka(ctx, scanRes)
 
+	s.Log.Info().Int64("imageID", imageID).Str("imageName", data.Image.GetImageName()).Msg("MigrateImage success")
 	return nil
 }
 
@@ -197,7 +204,7 @@ func DataToImage(image model.ImageList) []*imagesecModel.Image {
 
 func (s *ImageMigrate) MigrateExitData(ctx context.Context, ver string) error {
 
-	logging.Get().Info().Str("module", "migrate").Msg("Migrate MigrateExitData start")
+	s.Log.Info().Msg("Migrate MigrateExitData start")
 
 	migrate, err := s.DataMigrateDal.SearchDataMigrate(ctx,
 		imagesecModel.SearchDataMigrateParam{SoftVersion: ver, Model: consts.DataMigrateModelImage})
@@ -226,13 +233,13 @@ func (s *ImageMigrate) MigrateExitData(ctx context.Context, ver string) error {
 			NotCount:      true,
 		}, filter)
 		if err != nil {
-			logging.Get().Err(err).Str("module", "migrate").Str("SOFT_VERSION", ver).Msg("Migrate")
+			s.Log.Err(err).Str("SOFT_VERSION", ver).Msg("Migrate")
 			return err
 		}
 		if len(images) == 0 {
 			updater := map[string]interface{}{"finished_at": time.Now().UnixMilli()}
 			_ = s.DataMigrateDal.UpdateDataMigrate(ctx, mi.ID, updater)
-			logging.Get().Err(err).Str("module", "migrate").Str("SOFT_VERSION", ver).Msg("Migrate finished")
+			s.Log.Err(err).Str("SOFT_VERSION", ver).Msg("Migrate finished")
 			break
 		}
 		cnt += len(images)
@@ -244,7 +251,7 @@ func (s *ImageMigrate) MigrateExitData(ctx context.Context, ver string) error {
 		updater := map[string]interface{}{"last": fmt.Sprintf("%d", lastID)}
 		_ = s.DataMigrateDal.UpdateDataMigrate(ctx, mi.ID, updater)
 	}
-	logging.Get().Info().Str("module", "migrate").Int("imageCnt", cnt).Msg("Migrate MigrateExitData end")
+	s.Log.Info().Int("imageCnt", cnt).Msg("Migrate MigrateExitData end")
 	return nil
 }
 
@@ -401,7 +408,7 @@ func (s *ImageMigrate) sendImageToKafka(ctx context.Context, report imagesecType
 
 	bys, err := json.Marshal(report)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "migrate").Msg("Marshal")
+		s.Log.Err(err).Msg("Marshal")
 		return err
 	}
 	msg := kafka.Message{
@@ -411,17 +418,17 @@ func (s *ImageMigrate) sendImageToKafka(ctx context.Context, report imagesecType
 	}
 
 	if err := s.MqWriter.Write(ctx, msg.Topic, msg); err != nil {
-		logging.Get().Err(err).Str("module", "migrate").Msg("SyncAllImage SendToMq")
+		s.Log.Err(err).Msg("SyncAllImage SendToMq")
 		return err
 	}
-	logging.Get().Info().Str("module", "migrate").Msg("send kafka image end")
+	s.Log.Info().Msg("send kafka image end")
 	return nil
 }
 
 func (s *ImageMigrate) sendScanResultToKafka(ctx context.Context, scanResult imagesecType.ScanResult) error {
 	sendData, err := json.Marshal(scanResult)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "migrate").Msg("failed to marshal scanResult")
+		s.Log.Err(err).Msg("failed to marshal scanResult")
 		return err
 	}
 	err = s.MqWriter.Write(context.Background(),
@@ -431,10 +438,10 @@ func (s *ImageMigrate) sendScanResultToKafka(ctx context.Context, scanResult ima
 			Value: sendData,
 		})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "migrate").Msg("failed to send result to kafka")
+		s.Log.Err(err).Msg("failed to send result to kafka")
 		return err
 	}
-	logging.Get().Info().Str("module", "migrate").Msg("send kafka scan result end")
+	s.Log.Info().Msg("send kafka scan result end")
 	return nil
 }
 
@@ -442,7 +449,7 @@ func (s *ImageMigrate) SyncImageMeta(ctx context.Context, ver string) error {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Msg("Migrate SyncImageMeta")
+				s.Log.Error().Str("Stack", string(debug.Stack())).Msg("Migrate SyncImageMeta")
 			}
 		}()
 
@@ -458,7 +465,7 @@ func (s *ImageMigrate) SyncImageMeta(ctx context.Context, ver string) error {
 }
 
 func (s *ImageMigrate) syncImageMeta(ctx context.Context) error {
-	logging.Get().Info().Str("module", "migrate").Msg("Migrate SyncImageMeta start")
+	s.Log.Info().Msg("Migrate SyncImageMeta start")
 
 	filter := model.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortDesc().SetSortFiled("updated_at")
 
@@ -469,7 +476,7 @@ func (s *ImageMigrate) syncImageMeta(ctx context.Context) error {
 	timeNowStr := time.Now().Format(layout)
 	lastTime, err := time.Parse(layout, timeNowStr)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "migrate").Msg("SyncImageMeta time Parse failed")
+		s.Log.Err(err).Msg("SyncImageMeta time Parse failed")
 		return err
 	}
 	ticker := time.NewTicker(time.Second * 1)
@@ -484,11 +491,11 @@ func (s *ImageMigrate) syncImageMeta(ctx context.Context) error {
 		}, filter)
 
 		if err != nil {
-			logging.Get().Err(err).Str("module", "migrate").Msg("SyncImageMeta failed")
+			s.Log.Err(err).Msg("SyncImageMeta failed")
 			return err
 		}
 		if len(images) == 0 {
-			logging.Get().Err(err).Str("module", "migrate").Msg("SyncImageMeta finished")
+			s.Log.Err(err).Msg("SyncImageMeta finished")
 			break
 		}
 		lastTime = images[len(images)-1].UpdatedAt
@@ -506,7 +513,7 @@ func (s *ImageMigrate) syncImageMeta(ctx context.Context) error {
 		}
 		cnt += len(images)
 		if err := s.ImageMetaDal.CreateRegImage(ctx, res); err != nil {
-			logging.Get().Err(err).Str("module", "migrate").Msg("Migrate SyncImageMeta CreateRegImage failed")
+			s.Log.Err(err).Msg("Migrate SyncImageMeta CreateRegImage failed")
 			continue
 		}
 		if flag {
@@ -514,6 +521,6 @@ func (s *ImageMigrate) syncImageMeta(ctx context.Context) error {
 		}
 	}
 
-	logging.Get().Info().Str("module", "migrate").Int("syncImageCnt", cnt).Msg("Migrate SyncImageMeta end")
+	s.Log.Info().Int("syncImageCnt", cnt).Msg("Migrate SyncImageMeta end")
 	return nil
 }

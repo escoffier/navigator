@@ -22,7 +22,7 @@ package openapi
 // )
 //
 // type ImageOpenAPISvc struct {
-// 	ImageSrv      imagesecSrv.ImageService
+// 	ImageSrv      imagesecSrv.PreImageService
 // 	ScannerSrv    component.ScannerSrv
 // 	RegistrySrv   service.RegistryService
 // 	ScanConfigSrv component.ScanConfigSrvInterface
@@ -32,7 +32,7 @@ package openapi
 // 	srv component.ScannerSrv,
 // 	registrySrv service.RegistryService,
 // 	scanConfigSrv component.ScanConfigSrvInterface,
-// 	imageSrv imagesecSrv.ImageService,
+// 	imageSrv imagesecSrv.PreImageService,
 // ) *ImageOpenAPISvc {
 // 	return &ImageOpenAPISvc{
 // 		ScannerSrv:    srv,
