@@ -115,6 +115,12 @@ func (m *ScanTaskManager) deepScanOption() string {
 				consts.ScanMalwareTypeAvira, m.GetSavServerAddr(), m.runtimeConfig.AviraConfig.ClientNum)
 			continue
 		}
+		if v == config.DeepScanTypesWebshell {
+			opts = opts + " --scan-webshell tws "
+			if len(m.runtimeConfig.WebshellConfig.IncludeTypes) > 0 {
+				opts = opts + fmt.Sprintf(" --webshell-types %s", strings.Join(m.runtimeConfig.WebshellConfig.IncludeTypes, ","))
+			}
+		}
 	}
 	return opts
 }
@@ -259,6 +265,9 @@ func (m *ScanTaskManager) syncResult(t imagesec.ScanSubTask) error {
 		scanResult.StatusStr = imagesecModel.TaskStatusFailedStr
 		scanResult.Msg = tmpRes.ExistMsg
 	}
+	scanResult.Webshells.Scanned = true
+	scanResult.Malwares.Scanned = true
+
 	logging.Get().Debug().
 		Int64("subTaskID", t.SubTaskID).
 		Int("aviraMalwareCnt", len(scanResult.Malwares.AviraScanResults)).

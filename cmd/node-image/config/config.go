@@ -23,7 +23,7 @@ const (
 	defaultNodeImageConfigFile      = "node-image-config.json"
 	defaultSwitchDeepScan           = false // disabled deep scan by default
 	DeepScanTypesAvira              = "avira"
-	DeepScanTypesTws                = "tws"
+	DeepScanTypesWebshell           = "tws"
 	DeepScanTypesClamAV             = "clamav"
 	defaultSlowMode                 = true
 )
@@ -49,6 +49,7 @@ type Config struct {
 	DeepScanConfig DeepScanConfig `mapstructure:"deep_scan"`
 	ReportConfig   ReportConfig   `mapstructure:"report"`
 	AviraConfig    AviraConfig    `mapstructure:"avira"`
+	WebshellConfig WebshellConfig `mapstructure:"webshell"`
 }
 
 type TaskConfig struct {
@@ -81,6 +82,10 @@ type ReportConfig struct {
 type AviraConfig struct {
 	ListenPort int64 `mapstructure:"listen_port"`
 	ClientNum  int64 `mapstructure:"client_num"`
+}
+
+type WebshellConfig struct {
+	IncludeTypes []string `mapstructure:"include_types"`
 }
 
 // NewDefaultConfig when vip.unmarshall(config_file),default value would be return for missing field
