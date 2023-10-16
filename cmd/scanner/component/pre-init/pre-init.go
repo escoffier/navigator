@@ -51,10 +51,8 @@ func (s *InitScanner) Init(ctx context.Context) error {
 	if err := s.createDefaultSensitiveRule(ctx); err != nil {
 		return err
 	}
-	// 2.10版本数据迁移
-	if err := s.createLicenseVer210DataMigrate(ctx); err != nil {
-		return err
-	}
+	// 2.20版本数据迁移
+	_ = s.createLicenseVer210DataMigrate(ctx)
 	// 已存在的策略快照
 	_ = s.createDetectPolicySnapshot(ctx)
 	return nil
@@ -316,6 +314,9 @@ func (s *InitScanner) createLicenseVer210DataMigrate(ctx context.Context) error 
 	}
 	if err := s.dataMigrateDal.CreateDataMigrate(ctx, data); err != nil {
 		logging.Get().Err(err).Str("SOFT_VERSION", ver).Msg("CreateDataMigrate")
+		if strings.Contains(err.Error(), consts.DuplicateKey) {
+			return nil
+		}
 		return err
 	}
 	return nil
