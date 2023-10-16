@@ -110,10 +110,8 @@ func (m *Mutator) Mutate(ctx context.Context, parameters *processors.MutatorPara
 	labelMap := make(map[string]string)
 	for index := range pod.Spec.Containers {
 		digestImage := m.buildDigestImage(ctx, parameters, &pod.Spec.Containers[index], kubeSecretNames)
-		if digestImage.Digest != "" {
-			imagTag := getImageTag(pod.Spec.Containers[index].Image)
-			labelMap[pod.Spec.Containers[index].Name] = imagTag
-		}
+		imagTag := getImageTag(pod.Spec.Containers[index].Image)
+		labelMap[pod.Spec.Containers[index].Name] = imagTag
 		digests.ContainerImages = append(digests.ContainerImages, digestImage)
 	}
 	patch := patchImageDigest(digests)
