@@ -326,10 +326,12 @@ func (d *DockerInfoManager) processEvents(ctx context.Context, container *model.
 				}
 
 			}
-
 			container.IP = pod.Status.PodIP
 			container.Ports = utils.MergeContainerPorts(ports, container.Ports, pod.Status.PodIP)
 			container.VolumeMounts = utils.MergeVolumeMounts(volumeMounts, container.VolumeMounts)
+			//	找回 image tag：   pod自定义标签 在容器运行时中没有
+			container.ImageName = buildImageWithTag(container.ImageName, pod.Labels, container.Name)
+			container.ImageUUID = model.GetImageUUID(container.ImageName, container.ImageDigest)
 		}()
 	}
 	logging.Get().Debug().Msgf("raw-container - process container [%s:%s:%d] event: %s",
@@ -414,11 +416,10 @@ func (d *DockerInfoManager) containerFromRaw(containerJson *types.ContainerJSON)
 	if err != nil {
 		return nil
 	}
-	containerName := strings.TrimPrefix(containerJson.Name, "/")
+	//containerName := strings.TrimPrefix(containerJson.Name, "/")
+	containerName := containerJson.Config.Labels["io.kubernetes.container.name"]
 	processes := getContainerProcessInfo(containerJson.State.Pid)
-	// imageName, imageCreated, imageSize := d.getImageInfo(containerJson.Image)
 	imageName, imageDigest, imageCreated, imageSize := d.getImageInfoV2(containerJson.Config.Image, containerJson.Image)
-	imageName = buildImageWithTag(imageName, containerJson.Config.Labels, containerName)
 	var user string
 	if containerJson.Config.User == "0" {
 		user = "root"
@@ -443,24 +444,24 @@ func (d *DockerInfoManager) containerFromRaw(containerJson *types.ContainerJSON)
 	}
 
 	return &model.TensorRawContainer{
-		Status:         getContainerStatus(containerJson.State.Status),
-		CreatedAt:      t,
-		UpdatedAt:      time.Now(),
-		ContainerID:    containerJson.ID,
-		IP:             containerJson.NetworkSettings.IPAddress,
-		IPV6:           containerJson.NetworkSettings.GlobalIPv6Address,
-		Gateway:        containerJson.NetworkSettings.Gateway,
-		Mac:            containerJson.NetworkSettings.MacAddress,
-		NetworkMode:    getNetworkMode(string(containerJson.HostConfig.NetworkMode)),
-		Name:           containerName,
-		PodName:        podName,
-		PodUid:         podUid,
-		Namespace:      containerJson.Config.Labels["io.kubernetes.pod.namespace"],
-		ClusterKey:     d.clusterKey,
-		NodeName:       d.hostName,
-		NodeIP:         d.hostIP,
-		ImageName:      imageName,
-		ImageUUID:      model.GetImageUUID(imageName, imageDigest),
+		Status:      getContainerStatus(containerJson.State.Status),
+		CreatedAt:   t,
+		UpdatedAt:   time.Now(),
+		ContainerID: containerJson.ID,
+		IP:          containerJson.NetworkSettings.IPAddress,
+		IPV6:        containerJson.NetworkSettings.GlobalIPv6Address,
+		Gateway:     containerJson.NetworkSettings.Gateway,
+		Mac:         containerJson.NetworkSettings.MacAddress,
+		NetworkMode: getNetworkMode(string(containerJson.HostConfig.NetworkMode)),
+		Name:        containerName,
+		PodName:     podName,
+		PodUid:      podUid,
+		Namespace:   containerJson.Config.Labels["io.kubernetes.pod.namespace"],
+		ClusterKey:  d.clusterKey,
+		NodeName:    d.hostName,
+		NodeIP:      d.hostIP,
+		ImageName:   imageName,
+		//ImageUUID:      model.GetImageUUID(imageName, imageDigest),
 		ImageCreated:   imageCreated,
 		ImageSize:      imageSize,
 		ImageID:        containerJson.Image,
@@ -495,13 +496,14 @@ func (d *DockerInfoManager) containerFromEvent(message events.Message) *model.Te
 		UpdatedAt:   time.Unix(message.Time, 0),
 		Status:      getContainerStatus(message.Status),
 		ContainerID: message.ID,
-		Name:        strings.TrimPrefix(message.Actor.Attributes["name"], "/"),
-		PodName:     podName,
-		PodUid:      podUid,
-		Namespace:   message.Actor.Attributes["io.kubernetes.pod.namespace"],
-		ClusterKey:  d.clusterKey,
-		NodeName:    d.hostName,
-		NodeIP:      d.hostIP,
+		//Name:        strings.TrimPrefix(message.Actor.Attributes["name"], "/"),
+		Name:       message.Actor.Attributes["io.kubernetes.container.name"],
+		PodName:    podName,
+		PodUid:     podUid,
+		Namespace:  message.Actor.Attributes["io.kubernetes.pod.namespace"],
+		ClusterKey: d.clusterKey,
+		NodeName:   d.hostName,
+		NodeIP:     d.hostIP,
 		// ImageName:   message.Actor.Attributes["image"],
 		K8sManaged: k8sManaged,
 	}
@@ -561,7 +563,6 @@ func (d *DockerInfoManager) updateContainerDetail(ctx context.Context, container
 	// container.ImageDigest = getImageDigest(containerJson.Config.Image)
 	// container.ImageName, container.ImageCreated, container.ImageSize = d.getImageInfo(container.ImageID)
 	container.ImageName, container.ImageDigest, container.ImageCreated, container.ImageSize = d.getImageInfoV2(containerJson.Config.Image, container.ImageID)
-	container.ImageUUID = model.GetImageUUID(container.ImageName, container.ImageDigest)
 	var user string
 	if containerJson.Config.User == "0" {
 		user = "root"
@@ -629,37 +630,29 @@ func (d *DockerInfoManager) getImageInfo(imageID string) (string, string, int64)
 }
 
 func (d *DockerInfoManager) getImageInfoV2(imageRef string, imageID string) (imageName string, imageDigest string, createTime string, size int64) {
-	i := strings.LastIndex(imageRef, "@")
-	if i != -1 && i < len(imageRef)-1 {
-		imageDigest = imageRef[i+1:]
-	} else {
-		count := strings.Count(imageRef, "/")
-		switch count {
-		case 0: //  tomcat
-			imageName = "library/" + imageRef
-		case 1: // library/tomcat:latest
-			imageName = imageRef
-		case 2:
-			imageName = strings.TrimPrefix(imageRef, "http://")
-			imageName = strings.TrimPrefix(imageName, "https://")
-		default:
-			imageName = imageRef
-		}
-	}
-
 	imageInspect, _, err := d.dockerCli.ImageInspectWithRaw(context.Background(), imageID)
 	if err != nil {
 		logging.Get().Err(err).Str("raw-container", "get image name").Msgf("failed to get image [%s] info: %w ", imageID, err)
 	}
-	if imageName == "" {
-		for i, rt := range imageInspect.RepoTags {
-			if i == 0 {
-				imageName = rt
-			} else {
-				imageName = fmt.Sprintf("%s, %s", imageName, rt)
-			}
-		}
+	i := strings.LastIndex(imageRef, "@") // 镜像仓库修改过tag
+	if i != -1 && i < len(imageRef)-1 {
+		imageDigest = imageRef[i+1:]
+		imageName = imageRef
+		return imageName, imageDigest, imageInspect.Created, imageInspect.Size
 	}
+	count := strings.Count(imageRef, "/")
+	switch count {
+	case 0: //  tomcat
+		imageName = "library/" + imageRef
+	case 1: // library/tomcat:latest
+		imageName = imageRef
+	case 2:
+		imageName = imageRef
+	default:
+		imageName = strings.TrimPrefix(imageRef, "http://")
+		imageName = strings.TrimPrefix(imageName, "https://")
+	}
+
 	if imageDigest == "" && len(imageInspect.RepoDigests) > 0 {
 		i := strings.LastIndex(imageInspect.RepoDigests[0], "@")
 		if i != -1 && i < len(imageInspect.RepoDigests[0])-1 {

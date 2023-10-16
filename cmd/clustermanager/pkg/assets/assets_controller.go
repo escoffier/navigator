@@ -741,7 +741,7 @@ func (ac *Controller) syncPod(key string) error {
 		}
 
 		owner, _ := ac.getUpperOwnerOfPod(pod)
-		if owner == nil {
+		if owner == nil || owner.Kind == "Node" {
 			owner = &metav1.OwnerReference{
 				Kind: "Pod",
 				Name: pod.Name,

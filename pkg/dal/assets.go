@@ -2775,7 +2775,7 @@ func GetFrameworks(ctx context.Context, rdb *gorm.DB) ([]*model.WebFrameScan, er
 }
 
 func CountContainer(ctx context.Context, rdb *gorm.DB, query *ResContainersQueryOption) (int64, error) {
-	pgCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	pgCtx, cancel := context.WithTimeout(ctx, 8*time.Second)
 	defer cancel()
 
 	var count int64
