@@ -46,6 +46,8 @@ const (
 	YamlResultSeverityMedium   = "MEDIUM"
 	YamlResultSeverityHigh     = "HIGH"
 	YamlResultSeverityCritical = "CRITICAL"
+
+	timeFormat = "2006-01-02 15:04:05"
 )
 
 type Resource struct {
@@ -414,26 +416,116 @@ func (YamlRecord) TableName() string {
 func FindYamlRecordsByConditions(ctx context.Context, db *gorm.DB, name, namespace, templateName, hackEqualTemplateName string, clusterKeys, kinds, statuses []string, startTime, endTime int64, options map[string]interface{}) ([]YamlRecord, error) {
 	records := make([]YamlRecord, 0)
 
-	db = makeWhereByConditions(ctx, db, name, namespace, templateName, hackEqualTemplateName, clusterKeys, kinds, statuses, startTime, endTime)
-	if order, ok := options["order"]; ok {
-		db = db.Order(order)
-	}
-	if offset, ok := options["offset"].(int); ok {
-		db = db.Offset(offset)
+	sql := makeWhereByConditions2(ctx, name, namespace, templateName, hackEqualTemplateName, clusterKeys, kinds, statuses, startTime, endTime)
+	sql = "SELECT s1.*" + sql
+	if order, ok := options["order"].(string); ok {
+		sql += " ORDER BY s1." + order
 	}
 	if limit, ok := options["limit"].(int); ok {
-		db = db.Limit(limit)
+		sql += fmt.Sprintf(" LIMIT %d", limit)
 	}
+	if offset, ok := options["offset"].(int); ok {
+		sql += fmt.Sprintf(" OFFSET %d", offset)
+	}
+	fmt.Println("select sql: ", sql)
+	err := db.Raw(sql).Scan(&records).Error
 
-	err := db.Find(&records).Error
 	return records, err
 }
 
 func CountYamlRecordsByConditions(ctx context.Context, db *gorm.DB, name, namespace, templateName, hackEqualTemplateName string, clusterKeys, kinds, statuses []string, startTime, endTime int64) (int64, error) {
 	count := int64(0)
-	db = makeWhereByConditions(ctx, db, name, namespace, templateName, hackEqualTemplateName, clusterKeys, kinds, statuses, startTime, endTime)
-	err := db.Count(&count).Error
+
+	sql := makeWhereByConditions2(ctx, name, namespace, templateName, hackEqualTemplateName, clusterKeys, kinds, statuses, startTime, endTime)
+	sql = "SELECT COUNT(DISTINCT s1.id)" + sql
+	fmt.Println("count sql: ", sql)
+	err := db.Raw(sql).Scan(&count).Error
+
 	return count, err
+}
+
+func makeWhereByConditions2(ctx context.Context, name, namespace, templateName, hackEqualTemplateName string, clusterKeys, kinds, statuses []string, startTime, endTime int64) string {
+	sql := " FROM ivan_iac_yaml_records s1 " +
+		"JOIN (" +
+		"    SELECT resource_cluster_key, resource_namespace, resource_kind, resource_name, MAX(id) as max_id" +
+		"    FROM ivan_iac_yaml_records" +
+		"    WHERE resource_online = 1" +
+		"    GROUP BY resource_cluster_key, resource_namespace, resource_kind, resource_name" +
+		") s2 ON s1.id = s2.max_id "
+
+	if name != "" {
+		sql += fmt.Sprintf(" AND s1.resource_name like '%s'", "%"+name+"%")
+	}
+	if namespace != "" {
+		sql += fmt.Sprintf(" AND s1.resource_namespace like '%s'", "%"+namespace+"%")
+	}
+	if templateName != "" {
+		if hackEqualTemplateName != "" {
+			sql += fmt.Sprintf(" AND (s1.template_name like '%s' OR s1.template_name = '%s')", "%"+templateName+"%", hackEqualTemplateName)
+		} else {
+			sql += fmt.Sprintf(" AND s1.template_name like '%s'", "%"+templateName+"%")
+		}
+	}
+	if len(clusterKeys) != 0 {
+		s := "("
+		for i := range clusterKeys {
+			s += "'" + clusterKeys[i] + "',"
+		}
+		s = s[:len(s)-1] + ")"
+		sql += fmt.Sprintf(" AND s1.resource_cluster_key in %s", s)
+	}
+	if len(kinds) != 0 {
+		s := "("
+		for i := range kinds {
+			s += "'" + kinds[i] + "',"
+		}
+		s = s[:len(s)-1] + ")"
+		sql += fmt.Sprintf(" AND s1.resource_kind in %s", s)
+	}
+	dbStatuses := ""
+	secureOrInThreat := 0
+	rateSymbol := ""
+	if len(statuses) != 0 {
+		for i := range statuses {
+			if statuses[i] == YamlRecordRateStatusUnknown {
+				dbStatuses = YamlRecordStatusInitial
+			}
+			if statuses[i] == YamlRecordRateStatusSecure {
+				secureOrInThreat += 1
+			}
+			if statuses[i] == YamlRecordRateStatusInThreat {
+				secureOrInThreat += 2
+			}
+		}
+	}
+	if secureOrInThreat == 3 { // secure && inThreat
+		rateSymbol = "<="
+	}
+	if secureOrInThreat == 2 { // inThreat
+		rateSymbol = "<"
+	}
+	if secureOrInThreat == 1 { // secure
+		rateSymbol = "="
+	}
+	if rateSymbol != "" {
+		if dbStatuses != "" {
+			sql += fmt.Sprintf(" AND (s1.success_rate %s 1 OR s1.status = '%s')", rateSymbol, dbStatuses)
+		} else {
+			sql += fmt.Sprintf(" AND (s1.success_rate %s 1 AND s1.status = '%s')", rateSymbol, YamlRecordStatusComplete)
+		}
+	} else {
+		if dbStatuses != "" {
+			sql += fmt.Sprintf(" AND s1.status = '%s'", dbStatuses)
+		}
+	}
+
+	if startTime != 0 {
+		sql += fmt.Sprintf(" AND s1.created_at >= '%s'", time.UnixMilli(startTime).Format(timeFormat))
+	}
+	if endTime != 0 {
+		sql += fmt.Sprintf(" AND s1.created_at <= '%s'", time.UnixMilli(endTime).Format(timeFormat))
+	}
+	return sql
 }
 
 func makeWhereByConditions(ctx context.Context, db *gorm.DB, name, namespace, templateName, hackEqualTemplateName string, clusterKeys, kinds, statuses []string, startTime, endTime int64) *gorm.DB {
