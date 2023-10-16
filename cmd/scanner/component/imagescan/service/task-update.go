@@ -239,13 +239,21 @@ func (s *ScanTaskSrv) UpdateSubtaskTimeout(ctx context.Context) error {
 		defer ticker.Stop()
 		for {
 			<-ticker.C
-			scannerConfig, err := s.scanConfigDal.GetScanImageConfig(ctx, imagesecModel.ConfigTypeNodeScanImage)
+			conf1, err := s.scanConfigDal.GetScanImageConfig(ctx, imagesecModel.ConfigTypeNodeScanImage)
 			if err != nil {
 				logging.Get().Err(err).Str("module", "imagescan").Msg("ContinueUpdateScanSubtask GetScanImageConfig")
 				ticker.Reset(time.Minute * 5)
 				continue
 			}
-			imageScanConfig := scannerConfig.ImageScanConfig
+			nodeScanConfig := conf1.ImageScanConfig
+
+			config2, err := s.scanConfigDal.GetScanImageConfig(ctx, imagesecModel.ConfigTypeRegScanImage)
+			if err != nil {
+				logging.Get().Err(err).Str("module", "imagescan").Msg("ContinueUpdateScanSubtask GetScanImageConfig")
+				ticker.Reset(time.Minute * 5)
+				continue
+			}
+			regScanConfig := config2.ImageScanConfig
 
 			updater := map[string]interface{}{
 				"status":      imagesecModel.TaskStatusFailed,
@@ -276,12 +284,25 @@ func (s *ScanTaskSrv) UpdateSubtaskTimeout(ctx context.Context) error {
 					ticker.Reset(time.Minute * 5)
 					continue
 				}
+				imageFromType := task.ImageFromType
 
 				for j := range subtask {
+					sub := subtask[j]
 					// 查询老集群的扫描情况,升级后删除这里代码即可
-					go func() { s.PreTaskUpdateChan <- subtask[j] }()
+					timeout := false
+					go func() { s.PreTaskUpdateChan <- sub }()
+					if sub.StartedAt <= 0 {
+						continue
+					}
+					su := (time.Now().UnixMilli() - subtask[j].StartedAt) / 1000 / 60
+					if imageFromType == imagesecModel.ImageFromNode && su > nodeScanConfig.ScanTimeout {
+						timeout = true
+					}
+					if imageFromType == imagesecModel.ImageFromRegistry && su > regScanConfig.ScanTimeout {
+						timeout = true
+					}
 
-					if subtask[j].StartedAt > 0 && (time.Now().UnixMilli()-subtask[j].StartedAt)/1000/60 > imageScanConfig.ScanTimeout {
+					if timeout {
 						timeoutSubtask++
 						if err := s.taskDal.UpdateScanSubtask(ctx, imagesecModel.UpdateTaskParam{
 							ID:      subtask[j].ID,
