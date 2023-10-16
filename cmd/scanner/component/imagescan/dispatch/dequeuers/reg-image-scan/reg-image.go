@@ -13,7 +13,6 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/types"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	global2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -31,7 +30,6 @@ type RegImageScanQueue struct {
 	sensitiveRuleDal          imagesecStore.SensitiveRuleDal
 	maxProgressTask           int64
 	maxProgressSubtaskPerNode int64
-	PodID                     string
 	Log                       *scannerUtils.LogEvent
 }
 
@@ -218,23 +216,16 @@ func (s *RegImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, task
 			TaskID:       task.ID,
 			NodeUniqueID: uint64(no.ID),
 			// TaskStatusInprogress 但是可能发送失败
-			// 对于执行中的子任务持续发送,防止子集群重启动
-			// 扫描器会做去重处理，对于正在扫描的任务会忽略
+			// 对于TaskStatusInprogress的子任务持续发送,防止子集群重启动
 			ScanStatus:      []int64{imagesecModel.TaskStatusPending, imagesecModel.TaskStatusInprogress},
 			IsSearchSubtask: true,
 			// 这里一次不取更多，是因为前端更新 task 任务之后需要快速感知
 			Filter: model.EmptyFilter().SetSortAsc().SetSortFiled("status").SetLimit(s.maxProgressSubtaskPerNode - sendSubtask),
 		}
 
-		if s.PodID == "" {
-			subtaskParam.ScanStatus = append(subtaskParam.ScanStatus, imagesecModel.TaskStatusSendFinished)
-			s.PodID = global2.ScannerPodID
-		}
-
 		subtask, _, err := s.ScanTaskDal.SearchScanSubtask(ctx, subtaskParam)
 		if err != nil {
-			s.Log.Err(err).Int64("taskID", task.ID).
-				Msg("SearchScanSubtask")
+			s.Log.Err(err).Int64("taskID", task.ID).Msg("SearchScanSubtask")
 			continue
 		}
 
@@ -284,7 +275,7 @@ func (s *RegImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, task
 			if !util.ThanVersion(imageDate.ToImageBaseResponse().ScanInsVer, consts.ScannerVersion220) {
 				up := types.UpdateSubTask{
 					SubtaskID: subtask[j].ID,
-					Status:    imagesecModel.TaskStatusInprogress,
+					Status:    imagesecModel.TaskStatusSendFinished,
 					CreatedAt: time.Now().Unix(),
 				}
 

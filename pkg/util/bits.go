@@ -126,6 +126,10 @@ func ThanVersion(version1 string, version2 string) bool {
 	if strings.Contains(version1, "testcn") {
 		return true
 	}
+	// 1.19之前的版本，数据库中没有保存这个值
+	if version1 == "" {
+		return false
+	}
 
 	return CompareVersion(version1, version2) >= 0
 }

@@ -132,7 +132,7 @@ func (s *ImageInfoMetaSrv) addEnvData(ctx context.Context,
 		param.ScanResultSearchParam.UniqueIds = ans.DeployRecord.Env
 	}
 
-	if param.EnvEnable && (param.ImageUniqueID > 0 || len(param.ScanResultSearchParam.UniqueIds) > 0) {
+	if param.EnvEnable && (param.ScanResultSearchParam.ImageUniqueID > 0 || len(param.ScanResultSearchParam.UniqueIds) > 0) {
 		env, cnt, err := s.scanResultDal.SearchImageEnv(ctx, param.ScanResultSearchParam)
 		if err != nil {
 			s.Log.Err(err).Str("imageName", ans.Image.GetImageName()).
@@ -152,7 +152,7 @@ func (s *ImageInfoMetaSrv) addSensitiveData(ctx context.Context,
 		param.ScanResultSearchParam.UniqueIds = ans.DeployRecord.Sensitive
 	}
 
-	if param.SensitiveEnable && (param.ImageUniqueID > 0 || len(param.ScanResultSearchParam.UniqueIds) > 0) {
+	if param.SensitiveEnable && (param.ScanResultSearchParam.ImageUniqueID > 0 || len(param.ScanResultSearchParam.UniqueIds) > 0) {
 		sensitive, cnt, err := s.scanResultDal.SearchSensitive(ctx, param.ScanResultSearchParam)
 		if err != nil {
 			s.Log.Err(err).Str("imageName", ans.Image.GetImageName()).
@@ -173,7 +173,7 @@ func (s *ImageInfoMetaSrv) addPkgData(ctx context.Context,
 		param.ScanResultSearchParam.UniqueIds = ans.DeployRecord.Pkg
 	}
 
-	if param.PkgEnable && (param.ImageUniqueID > 0 || len(param.ScanResultSearchParam.UniqueIds) > 0) {
+	if param.PkgEnable && (param.ScanResultSearchParam.ImageUniqueID > 0 || len(param.ScanResultSearchParam.UniqueIds) > 0) {
 		pkg, cnt, err := s.scanResultDal.SearchPkg(ctx, param.ScanResultSearchParam)
 		if err != nil {
 			s.Log.Err(err).Int64("ImageID", imageID).Str("imageName", ans.Image.GetImageName()).
@@ -194,7 +194,7 @@ func (s *ImageInfoMetaSrv) addLicenseData(ctx context.Context,
 		param.ScanResultSearchParam.UniqueIds = ans.DeployRecord.License
 	}
 
-	if param.LicenseEnable && (param.ImageUniqueID > 0 || len(param.ScanResultSearchParam.UniqueIds) > 0) {
+	if param.LicenseEnable && (param.ScanResultSearchParam.ImageUniqueID > 0 || len(param.ScanResultSearchParam.UniqueIds) > 0) {
 		license, cnt, err := s.scanResultDal.SearchLicense(ctx, param.ScanResultSearchParam)
 		if err != nil {
 			s.Log.Err(err).Int64("imageID", imageID).Str("imageName", ans.Image.GetImageName()).
@@ -215,7 +215,7 @@ func (s *ImageInfoMetaSrv) addMalwareData(ctx context.Context,
 		param.ScanResultSearchParam.UniqueIds = ans.DeployRecord.Malware
 	}
 
-	if param.MalwareEnable && (param.ImageUniqueID > 0 || len(param.ScanResultSearchParam.UniqueIds) > 0) {
+	if param.MalwareEnable && (param.ScanResultSearchParam.ImageUniqueID > 0 || len(param.ScanResultSearchParam.UniqueIds) > 0) {
 		virus, cnt, err := s.scanResultDal.SearchMalware(ctx, param.ScanResultSearchParam)
 		if err != nil {
 			s.Log.Err(err).Int64("ImageID", imageID).Str("imageName", ans.Image.GetImageName()).
@@ -237,7 +237,7 @@ func (s *ImageInfoMetaSrv) addWebshellData(ctx context.Context,
 		param.ScanResultSearchParam.UniqueIds = ans.DeployRecord.Webshell
 	}
 
-	if param.WebshellEnable && (param.ImageUniqueID > 0 || len(param.ScanResultSearchParam.UniqueIds) > 0) {
+	if param.WebshellEnable && (param.ScanResultSearchParam.ImageUniqueID > 0 || len(param.ScanResultSearchParam.UniqueIds) > 0) {
 		webshell, webshellCnt, err := s.scanResultDal.SearchWebshell(ctx, param.ScanResultSearchParam)
 		if err != nil {
 			s.Log.Err(err).Int64("imageID", imageID).
@@ -262,7 +262,7 @@ func (s *ImageInfoMetaSrv) addVulnData(ctx context.Context,
 		param.SearchVulnParam.VulnUniqueIds = ans.DeployRecord.Vuln
 	}
 
-	if param.VulnEnable && (param.ImageUniqueID > 0 || len(param.ScanResultSearchParam.UniqueIds) > 0) {
+	if param.VulnEnable && (param.SearchVulnParam.ImageUniqueID > 0 || len(param.SearchVulnParam.VulnUniqueIds) > 0) {
 
 		vuln, cnt, err := s.scanResultDal.SearchVuln(ctx, param.SearchVulnParam.ToDaoSearchVulnParam())
 		if err != nil {

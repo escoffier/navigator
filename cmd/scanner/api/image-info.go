@@ -368,9 +368,10 @@ func (s *ImageInfoAPI) SearchImages(ctx *gin.Context) {
 
 	filter := model.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit)
 	param := imagesecModel.ImageSearchApiParam{
-		ImageKeyword: imageKeyword,
-		UUIDs:        uuids,
-		Filter:       filter,
+		ImageFromType: imagesecModel.ImageFromRegistry,
+		ImageKeyword:  imageKeyword,
+		UUIDs:         uuids,
+		Filter:        filter,
 	}
 	res := make([]imagesecModel.ImageBaseResponse, 0)
 

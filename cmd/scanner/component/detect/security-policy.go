@@ -97,6 +97,9 @@ func (s *SecurityPolicySrv) UpdatePolicy(ctx context.Context, param imagesecMode
 	allPolicy = nil
 
 	data := param.Policy
+	if data.Updater == "" {
+		return i18.CreateI18BadReqErr("未获取到更新人", "not get updater")
+	}
 	data.ID = param.ID
 	data.Serialize()
 
@@ -129,8 +132,10 @@ func (s *SecurityPolicySrv) UpdatePolicy(ctx context.Context, param imagesecMode
 
 	// 写快照
 	if param.CreateSnapshot {
+		data.Creator = policy[0].Creator
 		data.CreatedAt = time.Now().UnixMilli()
 		data.UpdatedAt = time.Now().UnixMilli()
+
 		if err := s.policyDal.CreateDetectPolicySnapshot(ctx, &data); err != nil {
 			s.Log.Err(err).Interface("data", data).Int64("policyID", param.ID).
 				Msg("UpdateDetectPolicy CreateDetectPolicySnapshot")

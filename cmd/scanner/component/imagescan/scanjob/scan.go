@@ -169,10 +169,6 @@ func (s *RegImageScan) ScanAndSend(ctx context.Context, subtask imagesecTypes.Sc
 		Str("image", subtask.RegImageMeta.ImageName()).
 		Msg("scanResult scan registry image end")
 
-	logging.Get().Info().Str("module", "imagescan").Str("executor", "send kafka").Int64("subtaskID", subtask.SubTaskID).Msg("scan end")
-
-	logging.Get().Info().Str("module", "imagescan").Str("executor", "delete layer").Int64("subtaskID", subtask.SubTaskID).Msg("scan start")
-
 	logging.Get().Info().Str("module", "imagescan").Str("executor", "delete layer").Int64("subtaskID", subtask.SubTaskID).Msg("scan end")
 
 	return nil
