@@ -224,7 +224,7 @@ func syncOnlineResources() {
 					Name:       r.Name,
 				})
 				if err != nil {
-					logging.Get().Error().Err(err).Msg("getYamlFromK8s fails")
+					logging.Get().Error().Err(err).Interface("resource", r).Msg("getYamlFromK8s fails")
 					err = iacModel.UpdateYamlRecord(ctx, db, map[string]interface{}{
 						"resource_cluster_key": r.ClusterKey,
 						"resource_namespace":   r.Namespace,
@@ -775,20 +775,7 @@ func handleKubeResourcesChange(ctx context.Context, message kafka.Message) error
 	if kafkaData.Action == pkgassets.ActionAdd && time.Now().Sub(resourceCreationTimestamp) > time.Minute {
 		return nil
 	}
-	// 资源同步到records中
-	_, err = iacModel.FirstOrCreateRecord(ctx, db, iacModel.YamlRecord{
-		ResourceClusterKey: kafkaData.ClusterKey,
-		ResourceNamespace:  resourceNamespace,
-		ResourceKind:       resourceKind,
-		ResourceName:       resourceName,
-		ResourceGeneration: resourceGeneration,
-		Status:             iacModel.YamlRecordStatusInitial,
-		CreatedAt:          time.Now(),
-		UpdatedAt:          time.Now(),
-	})
-	if err != nil {
-		logging.Get().Error().Err(err).Interface("resource", resourceM).Msg("FirstOrCreateRecord fails")
-	}
+
 	// ivan_iac_yaml_results
 	timeOutCtx, cancel := context.WithTimeout(ctx, time.Second)
 	defer cancel()
@@ -809,6 +796,21 @@ func handleKubeResourcesChange(ctx context.Context, message kafka.Message) error
 	if err != nil {
 		logging.Get().Error().Err(err).Msg("CreateYamlResult fails")
 		return err
+	}
+	// 资源同步到records中
+	_, err = iacModel.FirstOrCreateRecord(ctx, db, iacModel.YamlRecord{
+		ResultID:           result.ID,
+		ResourceClusterKey: kafkaData.ClusterKey,
+		ResourceNamespace:  resourceNamespace,
+		ResourceKind:       resourceKind,
+		ResourceName:       resourceName,
+		ResourceGeneration: resourceGeneration,
+		Status:             iacModel.YamlRecordStatusInitial,
+		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
+	})
+	if err != nil {
+		logging.Get().Error().Err(err).Interface("resource", resourceM).Msg("FirstOrCreateRecord fails")
 	}
 
 	// 未开启不执行扫描
