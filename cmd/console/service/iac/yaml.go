@@ -2,12 +2,12 @@ package iac
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"github.com/robfig/cron/v3"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gorm.io/gorm"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	sigYaml "sigs.k8s.io/yaml"
@@ -128,14 +128,26 @@ func SyncResources() error {
 				logging.Get().Error().Err(err).Msg("clusterManager.GetClient fails")
 				continue
 			}
-			yamlData, _, err := GetYamlFromK8s(ctx, clientSet, iacModel.Resource{
+			yamlData, generation, err := GetYamlFromK8s(ctx, clientSet, iacModel.Resource{
 				ClusterKey: resources[i].ClusterKey,
 				Namespace:  resources[i].Namespace,
 				Kind:       resources[i].Kind,
 				Name:       resources[i].Name,
 			})
 			if err != nil {
-				logging.Get().Error().Err(err).Msg("getYamlFromK8s fails")
+				logging.Get().Error().Err(err).Interface("resource", resources[i]).Msg("getYamlFromK8s fails")
+				err = iacModel.UpdateYamlRecord(ctx, db, map[string]interface{}{
+					"resource_cluster_key": resources[i].ClusterKey,
+					"resource_namespace":   resources[i].Namespace,
+					"resource_kind":        resources[i].Kind,
+					"resource_name":        resources[i].Name,
+					"resource_online":      1,
+				}, map[string]interface{}{
+					"resource_online": 0,
+				})
+				if err != nil {
+					logging.Get().Error().Err(err).Interface("resource", resources[i]).Msg("UpdateYamlRecord fails")
+				}
 				continue
 			}
 
@@ -144,7 +156,7 @@ func SyncResources() error {
 				ResourceNamespace:  resources[i].Namespace,
 				ResourceKind:       resources[i].Kind,
 				ResourceName:       resources[i].Name,
-				ResourceGeneration: resources[i].Generation,
+				ResourceGeneration: generation,
 				Duration:           -1,
 				Status:             iacModel.YamlResultStatusInitial,
 				Result:             "",
@@ -162,7 +174,7 @@ func SyncResources() error {
 				ResourceNamespace:  resources[i].Namespace,
 				ResourceKind:       resources[i].Kind,
 				ResourceName:       resources[i].Name,
-				ResourceGeneration: resources[i].Generation,
+				ResourceGeneration: generation,
 				Status:             iacModel.YamlRecordStatusInitial,
 				SuccessRate:        -1,
 				CreatedAt:          time.Now(),
@@ -189,7 +201,7 @@ func syncOnlineResources() {
 			return err
 		}
 		offset, limit := 0, 100
-		totalResources := make([]*model.TensorResource, 0)
+		totalResources := make([]iacModel.Resource, 0)
 		for offset < int(total) {
 			timeOutCtx, c := context.WithTimeout(ctx, time.Second)
 			resources, _, err := resSvc.GetResourceWithRedis(timeOutCtx, dal.ResourcesQuery(), offset, limit)
@@ -199,7 +211,41 @@ func syncOnlineResources() {
 				return err
 			}
 			for _, r := range resources {
-				totalResources = append(totalResources, r.TensorResource)
+				clientSet, ok := clusterManager.GetClient(r.ClusterKey)
+				if !ok {
+					err = fmt.Errorf("clientset of cluster: %s not available", r.ClusterKey)
+					logging.Get().Error().Err(err).Msg("clusterManager.GetClient fails")
+					continue
+				}
+				_, generation, err := GetYamlFromK8s(ctx, clientSet, iacModel.Resource{
+					ClusterKey: r.ClusterKey,
+					Namespace:  r.Namespace,
+					Kind:       r.Kind,
+					Name:       r.Name,
+				})
+				if err != nil {
+					logging.Get().Error().Err(err).Msg("getYamlFromK8s fails")
+					err = iacModel.UpdateYamlRecord(ctx, db, map[string]interface{}{
+						"resource_cluster_key": r.ClusterKey,
+						"resource_namespace":   r.Namespace,
+						"resource_kind":        r.Kind,
+						"resource_name":        r.Name,
+						"resource_online":      1,
+					}, map[string]interface{}{
+						"resource_online": 0,
+					})
+					if err != nil {
+						logging.Get().Error().Err(err).Interface("resource", r).Msg("UpdateYamlRecord fails")
+					}
+					continue
+				}
+				totalResources = append(totalResources, iacModel.Resource{
+					ClusterKey: r.ClusterKey,
+					Namespace:  r.Namespace,
+					Kind:       r.Kind,
+					Name:       r.Name,
+					Generation: generation,
+				})
 			}
 			offset += limit
 			c()
@@ -227,7 +273,7 @@ func syncOnlineResources() {
 				logging.Get().Error().Err(err).
 					Str("resource_cluster_key", totalResources[i].ClusterKey).
 					Str("resource_namespace", totalResources[i].Namespace).
-					Str("resource_namespace", totalResources[i].Kind).
+					Str("resource_kind", totalResources[i].Kind).
 					Str("resource_name", totalResources[i].Name).
 					Int64("resource_generation", totalResources[i].Generation).
 					Msg("FindYamlRecords fails")
@@ -540,6 +586,18 @@ func handlePeriodScan(ctx context.Context) error {
 				})
 				if err != nil {
 					logging.Get().Error().Err(err).Msg("GetYamlFromK8s fails")
+					err = iacModel.UpdateYamlRecord(ctx, db, map[string]interface{}{
+						"resource_cluster_key": resources[i].ClusterKey,
+						"resource_namespace":   resources[i].Namespace,
+						"resource_kind":        resources[i].Kind,
+						"resource_name":        resources[i].Name,
+						"resource_online":      1,
+					}, map[string]interface{}{
+						"resource_online": 0,
+					})
+					if err != nil {
+						logging.Get().Error().Err(err).Interface("resource", resources[i]).Msg("UpdateYamlRecord fails")
+					}
 					continue
 				}
 			}
@@ -926,11 +984,17 @@ func GetYamlFromK8s(ctx context.Context, clientSet *pkgassets.Clientset, resourc
 	case string(pkgassets.KindCronJob):
 		cronJob, err := clientSet.Clientset.BatchV1beta1().CronJobs(resource.Namespace).Get(ctx, resource.Name, metav1.GetOptions{})
 		if err != nil {
-			logging.Get().Error().Err(err).Msg("clientSet get cronJob fails")
-			return nil, generation, err
+			cronJob2, err2 := clientSet.Clientset.BatchV1().CronJobs(resource.Namespace).Get(ctx, resource.Name, metav1.GetOptions{})
+			if err2 != nil {
+				logging.Get().Error().Err(err).Msg("clientSet get cronJob fails")
+				return nil, generation, err
+			}
+			generation = cronJob2.Generation
+			object = cronJob2
+		} else {
+			generation = cronJob.Generation
+			object = cronJob
 		}
-		generation = cronJob.Generation
-		object = cronJob
 	case string(pkgassets.KindReplicationController):
 		replicationController, err := clientSet.Clientset.CoreV1().ReplicationControllers(resource.Namespace).Get(ctx, resource.Name, metav1.GetOptions{})
 		if err != nil {
@@ -947,6 +1011,9 @@ func GetYamlFromK8s(ctx context.Context, clientSet *pkgassets.Clientset, resourc
 		}
 		generation = pod.Generation
 		object = pod
+	default:
+		logging.Get().Error().Interface("resource", resource).Msg("invalid resource kind")
+		return nil, 0, errors.New("invalid resource kind")
 	}
 
 	bYaml, err := sigYaml.Marshal(pkgassets.PureObject(object))

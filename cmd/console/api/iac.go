@@ -278,7 +278,19 @@ func addRecordsAndSendJob(api *api, taskTotal int64, task iacModel.YamlTask, f f
 			}
 			yamlData, resourceGeneration, err := iac.GetYamlFromK8s(ctx, clientSet, resources[i])
 			if err != nil {
-				logging.Get().Error().Err(err).Msg("getYamlFromK8s fails")
+				logging.Get().Error().Err(err).Interface("resource", resources[i]).Msg("getYamlFromK8s fails")
+				err = iacModel.UpdateYamlRecord(ctx, api.rdb.Get(), map[string]interface{}{
+					"resource_cluster_key": resources[i].ClusterKey,
+					"resource_namespace":   resources[i].Namespace,
+					"resource_kind":        resources[i].Kind,
+					"resource_name":        resources[i].Name,
+					"resource_online":      1,
+				}, map[string]interface{}{
+					"resource_online": 0,
+				})
+				if err != nil {
+					logging.Get().Error().Err(err).Interface("resource", resources[i]).Msg("UpdateYamlRecord fails")
+				}
 				continue
 			}
 

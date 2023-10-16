@@ -99,6 +99,15 @@ func PureObject(object interface{}) interface{} {
 		o.ObjectMeta.SetAnnotations(annotations)
 		o.Status = v1beta1.CronJobStatus{}
 		object = o
+	case *batchv1.CronJob:
+		o.APIVersion = ResourceKindApiVersion[KindCronJob]
+		o.Kind = string(KindCronJob)
+		o.ObjectMeta.SetManagedFields(nil)
+		annotations := o.ObjectMeta.GetAnnotations()
+		delete(annotations, key1)
+		o.ObjectMeta.SetAnnotations(annotations)
+		o.Status = batchv1.CronJobStatus{}
+		object = o
 	case *corev1.Pod:
 		o.APIVersion = ResourceKindApiVersion[KindPodNoOwner]
 		o.Kind = string(KindPodNoOwner)
