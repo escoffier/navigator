@@ -34,6 +34,7 @@ func (s *ScanTaskSrv) AdaptCreateSubtask(ctx context.Context, images []*imagesec
 		logging.Get().Debug().Str("module", "imagescan").Msg("AdaptPreSubtask create task and subtask")
 
 		task := &model.Task{
+			ID:              sub.ID,
 			RegistryID:      image.RegistryID,
 			ScopeType:       consts.FullScan,
 			Trigger:         consts.ManualTrigger,
@@ -43,10 +44,6 @@ func (s *ScanTaskSrv) AdaptCreateSubtask(ctx context.Context, images []*imagesec
 			ScannerInstance: image.ScanInstance,
 		}
 
-		su := &model.SubTask{
-			ID:      sub.ID,
-			ImageID: image.ID,
-		}
 		iml := &model.ImageList{
 			ID:            image.ID,
 			FullRepoName:  image.FullRepoName,
@@ -58,6 +55,15 @@ func (s *ScanTaskSrv) AdaptCreateSubtask(ctx context.Context, images []*imagesec
 			LastPushTime:  time.Now(),
 			Status:        consts.ImageStatusImageAdapt,
 		}
+		su := &model.SubTask{
+			ID:           sub.ID,
+			ImageID:      image.ID,
+			Status:       consts.ImageScanPending,
+			RegID:        task.RegistryID,
+			FullRepoName: iml.FullRepoName,
+			Tag:          iml.Tags,
+			Library:      iml.Library,
+		}
 
 		iml.UniqueImage = iml.GenUniqueImage()
 
@@ -68,13 +74,13 @@ func (s *ScanTaskSrv) AdaptCreateSubtask(ctx context.Context, images []*imagesec
 			continue
 		}
 
+		_ = s.preTaskDal.DeleteScanTask(ctx, sub.ID)
 		if err := s.preTaskDal.CreateScanTask(ctx, task); err != nil {
 			logging.Get().Err(err).Str("module", "imagescan").Str("imageName", image.GetImageName()).
 				Int64("subtaskID", sub.ID).Msg("AdaptPreSubtask create pre ScanTask")
 			continue
 		}
-		su.TaskID = task.ID
-		_ = s.preTaskDal.DeleteScanSubtask(ctx, su.ID)
+		_ = s.preTaskDal.DeleteScanSubtask(ctx, sub.ID)
 		if err := s.preTaskDal.CreateScanSubtask(ctx, su); err != nil {
 			logging.Get().Err(err).Str("module", "imagescan").Str("imageName", image.GetImageName()).
 				Int64("subtaskID", sub.ID).Msg("AdaptPreSubtask Create pre ScanSubtask")

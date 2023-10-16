@@ -5,9 +5,8 @@ import (
 	"os"
 	"time"
 
-	"gitlab.com/security-rd/go-pkg/logging"
-
 	ver220 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/dataMigrate/220"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 )
 
@@ -17,23 +16,27 @@ type Migrator interface {
 
 type MigratorSrv struct {
 	Migrator []Migrator
+	Log      *scannerUtils.LogEvent
 }
 
 func NewMigratorSrv() *MigratorSrv {
 	s := &MigratorSrv{Migrator: make([]Migrator, 0)}
 	ver210M, err := ver220.GetImageMigrate()
 	if err != nil {
-		logging.Get().Err(err).Str("module", "migrate").Msg("GetImageMigrate ver210")
+		s.Log.Err(err).Msg("GetImageMigrate ver210")
 	} else {
 		s.Migrator = append(s.Migrator, ver210M)
 	}
+	s.Log = scannerUtils.NewLogEvent(
+		scannerUtils.WithSubModule("Migrator"),
+		scannerUtils.WithModule(consts.ModuleMigrate))
 
 	return s
 }
 
 func (s *MigratorSrv) Start(ctx context.Context) error {
 	if !scannerUtils.MainCluster() {
-		logging.Get().Info().Str("module", "migrate").Msg("not in main cluster do not do data migrate")
+		s.Log.Info().Msg("not in main cluster do not do data migrate")
 		return nil
 	}
 
@@ -47,7 +50,7 @@ func (s *MigratorSrv) Start(ctx context.Context) error {
 			<-ticker.C
 			for i := range s.Migrator {
 				if err := s.Migrator[i].Migrate(ctx, ver); err != nil {
-					logging.Get().Err(err).Str("module", "migrate").Str("SOFT_VERSION", ver).Msg("Migrate")
+					s.Log.Err(err).Str("SOFT_VERSION", ver).Msg("Migrate")
 					errs = append(errs, err)
 				}
 			}

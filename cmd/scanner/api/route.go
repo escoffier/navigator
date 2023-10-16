@@ -260,7 +260,7 @@ func WebAPI(router *gin.Engine,
 		v2.POST("/detail/riskInfo", scanResultApi.GetImageRiskInfo)
 		v2.GET("/detail/layers", scanResultApi.GetImageLayer)
 		v2.GET("/vulns/vuln/detail", scanResultApi.GetVulnDetail)
-		v2.GET("/vulns/vuln/list", apiVulnSrv.SearchVuln)
+		v2.GET("/vulns/vuln/list", apiVulnSrv.SearchVuln) // 查询没有使用，下个版本删除
 
 		v2.GET("/webshell/detail", scanResultApi.GetWebshellDetail)
 		v2.GET("/webshell/content", scanResultApi.GetWebshellContent)

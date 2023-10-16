@@ -41,6 +41,7 @@ const (
 	ModelImageScan      = "scanImage"
 	ModuleDeploy        = "deployImage"
 	ModuleDetect        = "detectImage"
+	ModuleMigrate       = "migrate"
 	ModuleKafkaReport   = "kafkaReport"
 	ModuleRpcStream     = "rpcStream"
 	ModuleRegistryImage = "registryImage"

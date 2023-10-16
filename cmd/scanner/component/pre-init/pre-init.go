@@ -307,7 +307,7 @@ func (s *InitScanner) createDefaultSensitiveRule(ctx context.Context) error {
 func (s *InitScanner) createLicenseVer210DataMigrate(ctx context.Context) error {
 
 	ver := os.Getenv("SOFT_VERSION")
-	if !strings.HasPrefix(ver, "2.10") {
+	if !strings.HasPrefix(ver, consts.ScannerVersion220) {
 		return nil
 	}
 	data := &imagesecModel.DataMigrate{
