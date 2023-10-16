@@ -837,7 +837,7 @@ func buildImageWithTag(imageName string, labels map[string]string, containerName
 	if !strings.Contains(imageName, "@") {
 		return imageName
 	}
-	logging.Get().Info().Msgf("buildImageWithTag: find imageName:%s,containerName:%s")
+	logging.Get().Info().Msgf("buildImageWithTag: find imageName:%s,containerName:%s", imageName, containerName)
 	if len(labels) == 0 {
 		logging.Get().Warn().Msgf("buildImageWithTag: label is empty ,can't find imageLabel")
 		return imageName
