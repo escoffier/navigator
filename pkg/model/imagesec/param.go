@@ -561,8 +561,9 @@ type SearchVulnDalParam struct {
 	VulnNames         []string
 	Fields            []string
 	OmitFields        []string
-	PkgUniqueID       uint64 // 软件ID
-	VulnUniqueID      uint64 // 漏洞ID
+	PkgUniqueID       uint64   // 软件ID
+	PkgUniqueIds      []uint64 // 软件ID
+	VulnUniqueID      uint64   // 漏洞ID
 	ImageID           int64
 	ImageUniqueID     uint64  // 镜像ID
 	ImageLayerDigest  string  // 镜像层级

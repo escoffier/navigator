@@ -207,6 +207,7 @@ func (s *ImageInfoMetaSrv) GetImageCorrelateData(ctx context.Context,
 	errs = append(errs, s.addImageRiskPolicyData(ctx, &param, ans))
 	errs = append(errs, s.addSimplePolicyData(ctx, &param, ans))
 	errs = append(errs, s.addDetectResultData(ctx, &param, ans))
+	errs = append(errs, s.addPkgAllVulnData(ctx, &param, ans))
 
 	for i := range errs {
 		if errs[i] != nil {

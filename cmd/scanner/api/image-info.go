@@ -276,7 +276,7 @@ func (s *ImageInfoAPI) SearchAssetsImage(ctx *gin.Context) {
 		Image *imagesecModel.ImageBaseResponse
 	}
 
-	body := &imagesecModel.ImageSearchApiParam{}
+	body := imagesecModel.ImageSearchApiParam{}
 
 	if err := ctx.BindJSON(&body); err != nil {
 		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, err))
@@ -293,6 +293,12 @@ func (s *ImageInfoAPI) SearchAssetsImage(ctx *gin.Context) {
 		uuid = append(uuid, body.AssetImage[i].UUID)
 	}
 
+	_, cnt1, err := s.ImageSrv.ListImageWithScanInfo(ctx, imagesecModel.ImageSearchApiParam{UUIDs: uuid})
+	if err != nil {
+		response.JSONError(ctx, scani18.SearchImage(err))
+		return
+	}
+
 	// 镜像列表需要这些数据
 	assParam := imagesecModel.ImageAssociateParam{
 		RegistryEnable:     true,
@@ -301,39 +307,51 @@ func (s *ImageInfoAPI) SearchAssetsImage(ctx *gin.Context) {
 		SubtaskEnable:      true,
 		SimplePolicyEnable: true,
 	}
-	param := imagesecModel.ImageSearchApiParam{AssociateParam: assParam, UUIDs: uuid}
+	body.UUIDs = uuid
+	body.AssociateParam = assParam
 
-	images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, param)
+	images2, cnt2, err := s.ImageSrv.ListImageWithScanInfo(ctx, body)
 	if err != nil {
 		response.JSONError(ctx, scani18.SearchImage(err))
 		return
 	}
-	for i := range images {
-		images[i].Suggests = nil
-		images[i].SecurityIssueView = nil
-	}
 
 	uuidMap := make(map[uint32]*ImageResponse)
+	uuidMap2 := make(map[uint32]string)
 
 	for i := range body.AssetImage {
 		im := body.AssetImage[i]
-
 		uuidMap[im.UUID] = &ImageResponse{
 			Name: im.Name,
 			UUID: im.UUID,
 			Exit: false,
 		}
+		uuidMap2[im.UUID] = im.Name
 	}
-	for i := range images {
-		im := images[i]
+	for i := range images2 {
+		images2[i].Suggests = nil
+		images2[i].SecurityIssueView = nil
+	}
+	// 说明有搜索条件，只展示存在于仓库中的镜像
+	if cnt1 != cnt2 {
+		uuidMap = make(map[uint32]*ImageResponse)
+	}
+
+	for i := range images2 {
+		im := images2[i]
 		// 优先展示节点镜像
 		if uuidMap[im.UUID].Exit && uuidMap[im.UUID].Image != nil &&
 			uuidMap[im.UUID].Image.ImageFromType == imagesecModel.ImageFromNode {
 			continue
 		}
-
 		uuidMap[im.UUID].Exit = true
+		uuidMap[im.UUID].Name = uuidMap2[im.UUID]
+		uuidMap[im.UUID].UUID = im.UUID
 		uuidMap[im.UUID].Image = im
+	}
+
+	for i := range uuidMap {
+		ans = append(ans, uuidMap[i])
 	}
 
 	for i := range uuidMap {
