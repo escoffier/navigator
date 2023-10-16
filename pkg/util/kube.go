@@ -29,6 +29,9 @@ func GetOwnerOfPod(pod *corev1.Pod) (name string, kind string) {
 				// heuristically set cron job api version to v1beta1 as it cannot be derived from pod metadata.
 				// Cronjob is not GA yet and latest version is v1beta1: https://github.com/kubernetes/enhancements/pull/978
 			}
+		} else {
+			ownerKind = owner.Kind
+			ownerName = owner.Name
 		}
 	} else {
 		ownerKind = "Pod"
