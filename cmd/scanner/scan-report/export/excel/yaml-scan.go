@@ -183,25 +183,39 @@ func (y *YamlScanExportExcel) export(ctx context.Context, task model.ExportTenso
 				hackEqualTemplateName = iac.DefaultTemplateName
 			}
 		}
-		clusterKey, ok := filterM["cluster_key"].(string)
-		clusterKeys := strings.Split(clusterKey, ",")
-		if !ok {
-			clusterKey = ""
-			clusterKeys = []string{}
+		clusterKeys := make([]string, 0)
+		clusterKey, ok := filterM["cluster_key"].([]interface{})
+		if ok {
+			for i := range clusterKey {
+				sCK, ok := clusterKey[i].(string)
+				if ok {
+					clusterKeys = append(clusterKeys, sCK)
+				}
+			}
 		}
 
-		kind, ok := filterM["kind"].(string)
-		kinds := strings.Split(kind, ",")
-		if !ok {
-			kind = ""
-			kinds = []string{}
+		kinds := make([]string, 0)
+		kind, ok := filterM["kind"].([]interface{})
+		if ok {
+			for i := range kind {
+				sk, ok := kind[i].(string)
+				if ok {
+					kinds = append(kinds, sk)
+				}
+			}
 		}
-		status, ok := filterM["status"].(string)
-		statuses := strings.Split(status, ",")
-		if !ok {
-			status = ""
-			statuses = []string{}
+
+		statuses := make([]string, 0)
+		status, ok := filterM["status"].([]interface{})
+		if ok {
+			for i := range status {
+				ss, ok := status[i].(string)
+				if ok {
+					statuses = append(statuses, ss)
+				}
+			}
 		}
+
 		startTime, ok := filterM["start_time"].(int64)
 		if !ok {
 			startTime = 0

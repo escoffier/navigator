@@ -487,7 +487,7 @@ func makeWhereByConditions(ctx context.Context, db *gorm.DB, name, namespace, te
 		if dbStatuses != "" {
 			db = db.Where(fmt.Sprintf("success_rate %s 1 OR status = ?", rateSymbol), dbStatuses)
 		} else {
-			db = db.Where(fmt.Sprintf("success_rate %s 1", rateSymbol))
+			db = db.Where(fmt.Sprintf("success_rate %s 1 AND status = ?", rateSymbol), YamlRecordStatusComplete)
 		}
 	} else {
 		if dbStatuses != "" {
