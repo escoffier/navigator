@@ -342,7 +342,10 @@ func (s *ScanResultReportSrv) CreatePkgVuln(ctx context.Context, data imagesecTy
 				Class:      res.Class,
 			}
 			pkg.Serialize()
-
+			if err := pkg.Check(); err != nil {
+				s.Log.Err(err).Interface("pkg", pkg).Msg("PkgCheck")
+				continue
+			}
 			pkgMap[pkg.UniqueID] = pkg
 			pkgs = append(pkgs, pkg)
 			p2i := &imagesecModel.PkgToImage{
@@ -372,8 +375,12 @@ func (s *ScanResultReportSrv) CreatePkgVuln(ctx context.Context, data imagesecTy
 				Class:      string(res.Class),
 			}
 
+			pkg.Serialize()
+			if err := pkg.Check(); err != nil {
+				s.Log.Err(err).Interface("pkg", pkg).Msg("PkgCheck")
+				continue
+			}
 			pkg.UniqueID = pkg.GenUniqueID()
-
 			pkgMap[pkg.UniqueID] = pkg
 			pkgs = append(pkgs, pkg)
 			p2i := &imagesecModel.PkgToImage{

@@ -97,7 +97,8 @@ func (s *ScanTaskSrv) UpdatePreSubtask(ctx context.Context) error {
 
 		for sub := range s.PreTaskUpdateChan {
 			subtaskID := sub.ID
-			if sub.ScanInsVer == "" || util.ThanVersion(sub.ScanInsVer, consts.ScannerVersion220) {
+			// sub.ScanInsVer == "" 表示1.19之前的版本
+			if util.ThanVersion(sub.ScanInsVer, consts.ScannerVersion220) {
 				continue
 			}
 

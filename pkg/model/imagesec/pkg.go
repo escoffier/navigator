@@ -61,11 +61,19 @@ func (vi *Pkg) TableName() string {
 	return "ivan_scan_image_pkg"
 }
 
+func (vi *Pkg) GenCheckSum() uint64 {
+	id, cre, up, po := vi.ID, vi.CreatedAt, vi.UpdatedAt, vi.PolicyDetect
+	vi.ID, vi.CreatedAt, vi.UpdatedAt, vi.PolicyDetect = 0, 0, 0, PolicyDetect{}
+	bys, _ := json.Marshal(vi)
+	che := util.GenerateUUID64(string(bys))
+	vi.ID, vi.CreatedAt, vi.UpdatedAt, vi.PolicyDetect = id, cre, up, po
+	return che
+}
+
 func (vi *Pkg) Same(after *Pkg) bool {
-	if vi.License != after.License || vi.DependsOnJSON != after.DependsOnJSON {
-		return false
-	}
-	return true
+	pre := vi.GenCheckSum()
+	af := after.GenCheckSum()
+	return pre == af
 }
 
 func (vi *Pkg) Deserialize() {

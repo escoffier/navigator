@@ -429,6 +429,9 @@ func (vi *SecurityPolicy) Check() error {
 	if vi.Creator == "" && vi.Updater == "" {
 		return i18.CreateI18BadReqErr("未获取到创建人或更新人", "not get creator or updater")
 	}
+	if vi.Creator != "" && vi.Updater == "" {
+		vi.Updater = vi.Creator
+	}
 
 	if len([]rune(vi.Comment)) > 150 {
 		return i18.CreateI18BadReqErr("备注限定150个字符", "comment more than 150")
