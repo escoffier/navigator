@@ -37,14 +37,16 @@ func (pr *PodResInfo) GetPod(namespace, name string) (*Resource, bool) {
 }
 
 func (pr *PodResInfo) OnAdd(pod *corev1.Pod) {
+	var owner *Resource = &Resource{}
+	key, _ := cache.MetaNamespaceKeyFunc(pod)
+	owner.Name, owner.Kind = util.GetOwnerOfPod(pod)
+	pr.data.Store(key, owner)
+
 	if pod.Status.PodIP == "" {
 		logging.Get().Debug().Str("raw-container", "add pod event").Msg("skip pod before ip address not yet allocated")
 		return
 	}
-	key, _ := cache.MetaNamespaceKeyFunc(pod)
-	var owner *Resource = &Resource{}
-	owner.Name, owner.Kind = util.GetOwnerOfPod(pod)
-	pr.data.Store(key, owner)
+
 	logging.Get().Debug().Msgf("raw-container - add pod: %s/%s owner: %s/%s", pod.Namespace, pod.Name, owner.Kind, owner.Name)
 
 	var volumeMounts []model.Mounts
@@ -76,6 +78,9 @@ func (pr *PodResInfo) OnDelete(pod *corev1.Pod) {
 func (pr *PodResInfo) OnUpdate(oldPod, newPod *corev1.Pod) {
 	var owner Resource
 	owner.Name, owner.Kind = util.GetOwnerOfPod(newPod)
+	key, _ := cache.MetaNamespaceKeyFunc(newPod)
+	pr.data.Store(key, owner)
+
 	logging.Get().Debug().Msgf("raw-container - update pod: %s/%s owner: %s/%s", newPod.Namespace, newPod.Name, owner.Kind, owner.Name)
 	for _, status := range newPod.Status.ContainerStatuses {
 		if status.State.Terminated != nil {
@@ -93,6 +98,7 @@ func (pr *PodResInfo) OnUpdate(oldPod, newPod *corev1.Pod) {
 			}})
 		}
 	}
+
 	if newPod.Status.PodIP == "" {
 		logging.Get().Debug().Str("raw-container", "update pod event").Msg("skip pod before ip address not yet allocated")
 		return
