@@ -967,6 +967,9 @@ func (dal *ScanResultDao) SearchVuln(ctx context.Context, param imagesecModel.Se
 	if param.PkgUniqueID > 0 {
 		db = db.Where("pkg_unique_id = ?", param.PkgUniqueID)
 	}
+	if len(param.PkgUniqueIds) > 0 {
+		db = db.Where("pkg_unique_id IN ?", param.PkgUniqueIds)
+	}
 
 	if param.PkgKeyword != "" {
 		db = db.Where("pkg_name LIKE ? OR pkg_version LIKE ? ",

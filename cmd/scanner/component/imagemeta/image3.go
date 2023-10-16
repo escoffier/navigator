@@ -54,20 +54,6 @@ func (s *ImageInfoMetaSrv) addDeployMeta(ctx context.Context,
 		return nil
 	}
 
-	param.NodeInfoEnable = false
-	param.RegistryEnable = false
-	param.ScanInstanceEnable = false
-	param.SubtaskEnable = false
-	param.DetectResultEnable = false
-	param.ContainerEnable = false
-
-	param.ScanResultSearchParam.ImageUniqueID = 0
-	param.ScanResultSearchParam.ImageID = 0
-	param.SearchVulnParam.ImageID = 0
-	param.SearchVulnParam.ImageUniqueID = 0
-
-	param.ImageUniqueID = 0
-
 	if err := s.addDeployImageMeta(ctx, param, ans); err != nil {
 		return err
 	}
@@ -268,6 +254,39 @@ func (s *ImageInfoMetaSrv) addVulnData(ctx context.Context,
 		if err != nil {
 			s.Log.Err(err).Int64("ImageID", imageID).Str("imageName", ans.Image.GetImageName()).
 				Msg("ImageWithCorrelateData SearchVuln")
+			return err
+		}
+		vulns := make([]*imagesecModel.VulnView, len(vuln))
+		for i := range vuln {
+			vulns[i] = vuln[i].GenVulnView()
+		}
+
+		ans.Vuln = vulns
+		ans.VulnCnt = cnt
+	}
+	return nil
+}
+
+// 一定要先查软件包
+func (s *ImageInfoMetaSrv) addPkgAllVulnData(ctx context.Context,
+	param *imagesecModel.ImageAssociateParam, ans *imagesecModel.ImageWithCorrelateData2) error {
+	imageID := ans.Image.ID
+
+	if ans.DeployRecord != nil {
+		param.SearchVulnParam.VulnUniqueIds = ans.DeployRecord.Vuln
+	}
+	pkgUniqueIds := make([]uint64, 0)
+	for i := range ans.Pkg {
+		pkgUniqueIds = append(pkgUniqueIds, ans.Pkg[i].UniqueID)
+	}
+
+	if param.AllPkgVuln && len(pkgUniqueIds) > 0 {
+		vuln, cnt, err := s.scanResultDal.SearchVuln(ctx, imagesecModel.SearchVulnDalParam{
+			PkgUniqueIds: pkgUniqueIds,
+		})
+		if err != nil {
+			s.Log.Err(err).Int64("ImageID", imageID).Str("imageName", ans.Image.GetImageName()).
+				Msg("ImageWithCorrelateData addPkgAllVulnData")
 			return err
 		}
 		vulns := make([]*imagesecModel.VulnView, len(vuln))

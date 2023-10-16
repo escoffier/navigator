@@ -296,6 +296,7 @@ type ImageAssociateParam struct {
 	BaseImageEnable       bool
 	AppImageEnable        bool
 	CheckDownloadable     bool
+	AllPkgVuln            bool                  // 获取软件包对应的所有漏洞
 	TrustedEnable         bool                  // 查可digest 是否是可信
 	ImageInReg            bool                  // 查看节点镜像及部署上线的镜像是否在仓库中
 	NodeInfoEnable        bool                  // 查询节点镜像的节点信息
@@ -408,9 +409,6 @@ func (vi *ImageAssociateParam) Check() error {
 }
 
 func (vi *ImageAssociateParam) Deserialize() {
-	if vi.ImageId > 0 {
-		vi.ImageUniqueID = 0
-	}
 	vi.ScanResultSearchParam.ImageID = vi.ImageId
 	vi.ScanResultSearchParam.ImageUniqueID = vi.ImageUniqueID
 	vi.SearchVulnParam.ImageID = vi.ImageId
@@ -418,6 +416,23 @@ func (vi *ImageAssociateParam) Deserialize() {
 	vi.ScanResultSearchParam.Keyword = strings.ToLower(vi.ScanResultSearchParam.Keyword)
 	vi.ScanResultSearchParam.ImageFromType = vi.ImageFromType
 	vi.SearchVulnParam.ImageFromType = vi.ImageFromType
+
+	if vi.DeployRecordID > 0 && vi.ImageFromType == ImageFromDeploy {
+		vi.NodeInfoEnable = false
+		vi.RegistryEnable = false
+		vi.ScanInstanceEnable = false
+		vi.SubtaskEnable = false
+		vi.DetectResultEnable = false
+		vi.ContainerEnable = false
+		vi.AllPkgVuln = true // 查的是软件下的所有漏洞
+
+		vi.ScanResultSearchParam.ImageUniqueID = 0
+		vi.ScanResultSearchParam.ImageID = 0
+		vi.SearchVulnParam.ImageID = 0
+		vi.SearchVulnParam.ImageUniqueID = 0
+		vi.ImageUniqueID = 0
+		vi.ImageId = 0
+	}
 }
 
 type CreateScanTaskInfo struct {
@@ -1313,6 +1328,10 @@ func (iws *ImageWithCorrelateData2) ToImageBaseResponse() ImageBaseResponse {
 	// 把容器名加上
 	for i := range iws.Container {
 		baseResponse.ContainerName = append(baseResponse.ContainerName, iws.Container[i].TensorRawContainer.Name)
+	}
+
+	if strings.HasPrefix(baseResponse.FullRepoName, "/") {
+		baseResponse.FullRepoName = strings.Replace(baseResponse.FullRepoName, "/", "", 1)
 	}
 
 	baseResponse.FullNull()
