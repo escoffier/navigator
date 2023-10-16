@@ -250,6 +250,9 @@ func (m *ScanTaskManager) syncResult(t imagesec.ScanSubTask) error {
 	scanResult := m.transformResult(&tmpRes)
 	scanResult.TaskID = t.TaskID
 	scanResult.SubTaskID = t.SubTaskID
+	// 后续优化
+	scanResult.Malwares.Scanned = true
+	scanResult.Webshells.Scanned = true
 	if tmpRes.ExitCode == 0 {
 		scanResult.StatusStr = imagesecModel.TaskStatusScanFinishedStr
 	} else {
