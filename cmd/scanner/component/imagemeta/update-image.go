@@ -319,17 +319,20 @@ func (s *ImageUpdateSrv) updateTrustedImage(ctx context.Context) error {
 }
 
 // 清理镜像
+// 暂时只支持节点镜像
 func (s *ImageUpdateSrv) deleteOverdueImage(ctx context.Context) error {
-	config, err := s.configDal.GetScanImageConfig(ctx, imagesecModel.ConfigTypeNodeScanImage)
+	nodeConfig, err := s.configDal.GetScanImageConfig(ctx, imagesecModel.ConfigTypeNodeScanImage)
 	if err != nil {
 		s.Log.Err(err).Msg("deleteOverdueImage GetScanImageConfig")
 		return err
 	}
 
-	sub := time.Now().UnixMilli() - config.ImageScanConfig.ClearInterval*consts.MillisecondPerDay // 数据库:milliseconds
+	sub := time.Now().UnixMilli() - nodeConfig.ImageScanConfig.ClearInterval*consts.MillisecondPerDay // 数据库:milliseconds
 
-	images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{LessHeartbeat: sub,
-		Fields: []string{"id", "unique_id"}})
+	images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{
+		LessHeartbeat: sub,
+		ImageFromType: imagesecModel.ImageFromNode,
+		Fields:        []string{"id", "unique_id"}})
 	if err != nil {
 		s.Log.Err(err).Msg("deleteOverdueImage SearchImage")
 		return err
