@@ -548,7 +548,7 @@ const (
 	VulnCvssKeyC  = "C"
 	VulnCvssKeyA  = "A"
 	VulnCvssKeyPR = "PR"
-	VulnCvssKeyS  = "Stream"
+	VulnCvssKeyS  = "S"
 	VulnCvssKeyI  = "I"
 
 	VulnCvssKeyAVViewZH = "攻击位置难易"
