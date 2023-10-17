@@ -370,7 +370,6 @@ func (c *CRIOInfoManager) buildContainerDetail(container *runtimeapi.Container) 
 		logging.Get().Error().Msg("TryGetNetworkSettings failed,err:" + err.Error())
 		networkSettings = &NetworkSettings{}
 	}
-	imageName := containerStatus.Image.Image
 	reslult := model.TensorRawContainer{
 		CreatedAt:   create,
 		UpdatedAt:   time.Now(),
@@ -388,7 +387,7 @@ func (c *CRIOInfoManager) buildContainerDetail(container *runtimeapi.Container) 
 		ClusterKey:     c.clusterKey,
 		NodeName:       c.hostName,
 		NodeIP:         c.hostIP,
-		ImageName:      imageName,
+		ImageName:      containerStatus.Image.Image,
 		ImageID:        containerStatus.ImageRef,
 		ImageDigest:    digest,
 		ImageSize:      int64(imageStatus.Size()),
@@ -451,7 +450,7 @@ func (c *CRIOInfoManager) processEvents(container *model.TensorRawContainer, act
 			container.Ports = utils.MergeContainerPorts(ports, container.Ports, container.IP)
 			container.VolumeMounts = utils.MergeVolumeMounts(volumeMounts, container.VolumeMounts)
 			//	找回 image tag：  因为crio中, pod自定义标签 在容器运行时中没有
-			container.ImageName = buildImageWithTag(container.ImageID, pod.Labels, container.Name)
+			container.ImageName = buildImageWithTag(container.ImageName, pod.Labels, container.Name)
 			container.ImageUUID = model.GetImageUUID(container.ImageName, container.ImageDigest)
 		}
 	}

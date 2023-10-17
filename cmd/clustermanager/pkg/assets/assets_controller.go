@@ -336,9 +336,9 @@ func (ac *Controller) addDeployment(obj interface{}) {
 func (ac *Controller) updateDeployment(oldObj, newObject interface{}) {
 	oldD := oldObj.(*appsv1.Deployment)
 	newD := newObject.(*appsv1.Deployment)
-	logging.Get().Debug().Msgf("update deployment %s", oldD.Name)
 
 	if newD.Generation != oldD.Generation {
+		logging.Get().Debug().Msgf("update deployment %s", oldD.Name)
 		ac.enqueue(newD, pkgassets.ActionUpdate)
 	}
 }
@@ -358,9 +358,8 @@ func (ac *Controller) addDaemonSet(obj interface{}) {
 func (ac *Controller) updateDaemonSet(oldObj, newObject interface{}) {
 	oldD := oldObj.(*appsv1.DaemonSet)
 	newD := newObject.(*appsv1.DaemonSet)
-	logging.Get().Debug().Msgf("update daemonset %s", oldD.Name)
-
 	if newD.Generation != oldD.Generation {
+		logging.Get().Debug().Msgf("update daemonset %s", oldD.Name)
 		ac.enqueue(newD, pkgassets.ActionUpdate)
 	}
 }
@@ -383,12 +382,11 @@ func (ac *Controller) addReplicaSet(obj interface{}) {
 func (ac *Controller) updateReplicaSet(oldObj, newObject interface{}) {
 	oldD := oldObj.(*appsv1.ReplicaSet)
 	newD := newObject.(*appsv1.ReplicaSet)
-	logging.Get().Debug().Msgf("update replica set %s", oldD.Name)
 	if newD.OwnerReferences != nil && len(newD.OwnerReferences) != 0 { // 表示该replicaSet为其他资源(如deployment)派生
 		return
 	}
-
 	if newD.Generation != oldD.Generation {
+		logging.Get().Debug().Msgf("update replica set %s", oldD.Name)
 		ac.enqueue(newD, pkgassets.ActionUpdate)
 	}
 }
@@ -504,8 +502,8 @@ func (ac *Controller) addStatefulSet(obj interface{}) {
 func (ac *Controller) updateStatefulSet(oldObj, newObject interface{}) {
 	oldR := oldObj.(*appsv1.StatefulSet)
 	newR := newObject.(*appsv1.StatefulSet)
-	logging.Get().Debug().Msgf("update StatefulSet %s", oldR.Name)
 	if newR.Generation != oldR.Generation {
+		logging.Get().Debug().Msgf("update StatefulSet %s", oldR.Name)
 		ac.enqueue(newR, pkgassets.ActionUpdate)
 	}
 }
@@ -577,8 +575,8 @@ func (ac *Controller) addReplicationController(obj interface{}) {
 func (ac *Controller) updateReplicationController(oldObj, newObject interface{}) {
 	oldR := oldObj.(*corev1.ReplicationController)
 	newR := newObject.(*corev1.ReplicationController)
-	logging.Get().Debug().Msgf("update ReplicationController %s", oldR.Name)
 	if newR.Generation != oldR.Generation {
+		logging.Get().Debug().Msgf("update ReplicationController %s", oldR.Name)
 		ac.enqueue(newR, pkgassets.ActionUpdate)
 	}
 }

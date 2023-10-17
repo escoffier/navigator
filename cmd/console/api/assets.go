@@ -2569,10 +2569,6 @@ func (api *api) getRawContainer() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
-		// 不展示podName
-		if contain != nil && contain.ResourceKind == "Pod" {
-			contain.PodName = "-"
-		}
 		response.Ok(w, func(ev *response.HTTPEnvelope) {
 			data, err := json.Marshal(contain)
 			if err != nil {

@@ -176,6 +176,7 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 			return err
 		}
 
+		logging.Get().Debug().Msgf("proceses tensorresources: namespace:%s,kind:%s,name:%s", res.Namespace, res.Kind, res.Name)
 		if res.Namespace == "" {
 			logging.Get().Warn().Msgf("action: %v empty keyname: %+v", event.Action, res)
 		}
