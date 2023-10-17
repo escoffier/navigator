@@ -24,6 +24,7 @@ type JobPullImage struct {
 }
 
 // 这还是原来的代码，这代码
+// 这代码必须要重写，不然根本没有办法维护
 func (p *JobPullImage) Run(ctx context.Context) (Artifact, error) {
 	logging.Get().Debug().Str("module", "imagescan").Msg("pull image start")
 
@@ -41,14 +42,21 @@ func (p *JobPullImage) Run(ctx context.Context) (Artifact, error) {
 	}
 
 	manifestTmp, err := client.GetManifest(p.config.Username, p.config.Password, p.config.URL, p.config.RepoName, p.config.Tag, true)
+	if err != nil {
+		logging.Get().Err(err).Str("module", "imagescan").Msg("GetManifest")
+		return nil, err
+	}
+	logging.Get().Info().Str("manifestTmp", string(manifestTmp)).Msg("GetManifest")
+
 	manifesv2 := schema2.DeserializedManifest{}
 	manifesv1 := schema1.SignedManifest{}
+
 	errV2 := manifesv2.UnmarshalJSON([]byte(manifestTmp))
 	errV1 := manifesv1.UnmarshalJSON([]byte(manifestTmp))
 	if errV2 != nil && errV1 != nil {
 		return nil, fmt.Errorf("get manifest v1 and v2 error :%v,%v", errV1, errV2)
 	}
-	if errV1 != nil || errV2 != nil {
+	if err != nil || errV2 != nil {
 		// 说明是用的v1版本的manifest
 		logging.Get().Err(err).Str("module", "imagescan").Msg("docker client GetManifest")
 		logging.Get().Info().Str("module", "imagescan").Msg("try docker pull to GetManifest")
