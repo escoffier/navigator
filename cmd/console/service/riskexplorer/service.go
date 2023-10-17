@@ -80,9 +80,7 @@ var (
 	}
 
 	riskTypes = map[string]RiskTypeDesc{
-		KeyImageVulns.Key:    KeyImageVulns,
-		KeyImageViruses.Key:  KeyImageViruses,
-		KeyImageWebshell.Key: KeyImageWebshell,
+		KeyImageVulns.Key: KeyImageVulns,
 	}
 )
 
