@@ -286,8 +286,11 @@ func (s *ImageInfoMetaSrv) GetImageOverView(ctx context.Context) (*imagesecModel
 
 func (s *ImageInfoMetaSrv) TopRiskImage(ctx context.Context) ([]*imagesecModel.ImageBaseResponse, error) {
 	if s.RiskImageTop5.Exit() {
+
 		ans := s.RiskImageTop5.Get()
-		return ans, nil
+		if len(ans) >= 5 {
+			return ans, nil
+		}
 	}
 	images, _, err := s.ListImageWithScanInfo(ctx, imagesecModel.ImageSearchApiParam{
 		OnlineStr: []string{consts.TrueString},

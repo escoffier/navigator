@@ -260,7 +260,8 @@ func (s *ScanResultReportSrv) GetImageInfo(ctx context.Context, taskID, subtaskI
 		return empty, fmt.Errorf("not find image:%d", subtask[0].ImageUniqueID)
 	}
 	s.Log.Info().Int64("imageID", image[0].ID).Msg("GetImageInfo")
-	return *(image[0]), nil
+	im := image[0]
+	return *im, nil
 }
 
 func (s *ScanResultReportSrv) UpdateSubtaskScanFinished(ctx context.Context, data imagesecTypes.ScanResult) error {
@@ -519,6 +520,7 @@ func (s *ScanResultReportSrv) CreateSensitive(ctx context.Context, data imagesec
 		return err
 	}
 	correlate.Sensitive = res
+	correlate.SensitiveCnt = int64(len(res))
 	s.Log.Info().Int("sentCnt", len(res)).Uint64("imageUniqueID", imageUniqueID).Msg("CreateSensitive")
 	return nil
 }
@@ -663,11 +665,11 @@ func (s *ScanResultReportSrv) ContinueCreateDetectTask(ctx context.Context) erro
 
 func (s *ScanResultReportSrv) CreateMalware(ctx context.Context, data imagesecTypes.ScanResult, imageUniqueID uint64,
 	correlate *imagesecModel.ImageWithCorrelateData2) error {
-	if !data.Malwares.Scanned {
-		s.Log.Info().Uint64("imageUniqueID", data.ImageUniqueID).
-			Msg("malware not scanned")
-		return nil
-	}
+	// if !data.Malwares.Scanned {
+	// 	s.Log.Info().Uint64("imageUniqueID", data.ImageUniqueID).
+	// 		Msg("malware not scanned")
+	// 	return nil
+	// }
 
 	res := make([]*imagesecModel.Malware, 0)
 	issue := make([]*imagesecModel.MalwareToImage, 0)
@@ -753,17 +755,18 @@ func (s *ScanResultReportSrv) CreateMalware(ctx context.Context, data imagesecTy
 		return err
 	}
 	correlate.Malware = res
+	correlate.MalwareCnt = int64(len(res))
 	s.Log.Info().Int("malwareCnt", len(res)).Uint64("imageUniqueID", imageUniqueID).Msg("CreateMalware")
 	return nil
 }
 
 func (s *ScanResultReportSrv) CreateWebshell(ctx context.Context, data imagesecTypes.ScanResult, imageUniqueID uint64,
 	correlate *imagesecModel.ImageWithCorrelateData2) error {
-	if !data.Webshells.Scanned {
-		s.Log.Info().Uint64("imageUniqueID", data.ImageUniqueID).
-			Msg("webshell not scanned")
-		return nil
-	}
+	// if !data.Webshells.Scanned {
+	// 	s.Log.Info().Uint64("imageUniqueID", data.ImageUniqueID).
+	// 		Msg("webshell not scanned")
+	// 	return nil
+	// }
 
 	res1 := make([]*imagesecModel.Webshell, 0)
 	res2 := make([]*imagesecModel.WebshellView, 0)
@@ -814,6 +817,7 @@ func (s *ScanResultReportSrv) CreateWebshell(ctx context.Context, data imagesecT
 		return err
 	}
 	correlate.Webshell = res2
+	correlate.WebshellCnt = int64(len(res2))
 
 	s.Log.Info().Int("webshellCnt", len(res1)).Uint64("imageUniqueID", imageUniqueID).
 		Msg("CreateWebshell")
@@ -840,6 +844,7 @@ func (s *ScanResultReportSrv) CreateLicense(ctx context.Context, data imagesecTy
 	}
 
 	correlate.License = res1
+	correlate.LicenseCnt = int64(len(res1))
 
 	if err := s.scanResultDal.CreateLicense(ctx, res1); err != nil {
 		s.Log.Err(err).Uint64("ImageUniqueID", imageUniqueID).
@@ -990,7 +995,7 @@ func (s *ScanResultReportSrv) AddDetailVuln(ctx context.Context, vuln *imagesecM
 
 func (s *ScanResultReportSrv) SetRiskScore(ctx context.Context, correlate *imagesecModel.ImageWithCorrelateData2) error {
 	score := correlate.GetRiskScore()
-	key := fmt.Sprintf("riskexp-image-vulns-%s", correlate.Image.GetImageName())
+	key := fmt.Sprintf("riskexp-image-vulns-%s", correlate.Image.GetDockerPullImageName())
 	re := model.ImageSeverityScore{RiskScore: score}
 	bys, err := json.Marshal(re)
 	if err != nil {
