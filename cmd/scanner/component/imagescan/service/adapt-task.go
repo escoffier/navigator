@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"gitlab.com/security-rd/go-pkg/logging"
-
 	ver210 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/dataMigrate/220"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -19,7 +17,7 @@ func (s *ScanTaskSrv) AdaptCreateSubtask(ctx context.Context, images []*imagesec
 	subtask []*imagesecModel.ImageScanSubTask) error {
 
 	if len(images) != len(subtask) {
-		logging.Get().Error().Msg("AdaptPreSubtask image not equal subtask")
+		s.Log.Error().Msg("AdaptPreSubtask image not equal subtask")
 		return fmt.Errorf("image not equal subtask")
 	}
 	adaptCnt := 0
@@ -31,7 +29,7 @@ func (s *ScanTaskSrv) AdaptCreateSubtask(ctx context.Context, images []*imagesec
 		}
 		adaptCnt++
 
-		logging.Get().Debug().Str("module", "imagescan").Msg("AdaptPreSubtask create task and subtask")
+		s.Log.Debug().Msg("AdaptPreSubtask create task and subtask")
 
 		task := &model.Task{
 			ID:              sub.ID,
@@ -69,26 +67,26 @@ func (s *ScanTaskSrv) AdaptCreateSubtask(ctx context.Context, images []*imagesec
 
 		_ = s.preImageDal.DeletePreImage(ctx, iml)
 		if err := s.preImageDal.CreatePreImage(ctx, iml); err != nil {
-			logging.Get().Err(err).Str("module", "imagescan").Str("imageName", image.GetImageName()).
+			s.Log.Err(err).Str("imageName", image.GetImageName()).
 				Int64("subtaskID", sub.ID).Msg("AdaptPreSubtask CreatePreImage")
 			continue
 		}
 
 		_ = s.preTaskDal.DeleteScanTask(ctx, sub.ID)
 		if err := s.preTaskDal.CreateScanTask(ctx, task); err != nil {
-			logging.Get().Err(err).Str("module", "imagescan").Str("imageName", image.GetImageName()).
+			s.Log.Err(err).Str("imageName", image.GetImageName()).
 				Int64("subtaskID", sub.ID).Msg("AdaptPreSubtask create pre ScanTask")
 			continue
 		}
 		_ = s.preTaskDal.DeleteScanSubtask(ctx, sub.ID)
 		if err := s.preTaskDal.CreateScanSubtask(ctx, su); err != nil {
-			logging.Get().Err(err).Str("module", "imagescan").Str("imageName", image.GetImageName()).
+			s.Log.Err(err).Str("imageName", image.GetImageName()).
 				Int64("subtaskID", sub.ID).Msg("AdaptPreSubtask Create pre ScanSubtask")
 			continue
 		}
 	}
 
-	logging.Get().Info().Str("module", "imagescan").Int("preSubtaskCnt", adaptCnt).Msg("AdaptPreSubtask task and subtask finished")
+	s.Log.Info().Int("preSubtaskCnt", adaptCnt).Msg("AdaptPreSubtask task and subtask finished")
 	return nil
 }
 
@@ -97,7 +95,7 @@ func (s *ScanTaskSrv) UpdatePreSubtask(ctx context.Context) error {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Msg("UpdatePreSubtask recover panic")
+				s.Log.Error().Msg("UpdatePreSubtask recover panic")
 			}
 		}()
 
@@ -110,15 +108,15 @@ func (s *ScanTaskSrv) UpdatePreSubtask(ctx context.Context) error {
 
 			subtask, err := s.preTaskDal.SearchScanSubtask(ctx, imagesecModel.SearchTaskParam{SubtaskID: subtaskID})
 			if err != nil {
-				logging.Get().Err(err).Str("module", "imagescan").Msg("AdaptPreSubtask UpdatePreSubtask SearchScanSubtask")
+				s.Log.Err(err).Msg("AdaptPreSubtask UpdatePreSubtask SearchScanSubtask")
 				continue
 			}
 			if len(subtask) == 0 {
-				logging.Get().Info().Str("module", "imagescan").Int64("subtaskID", subtaskID).Msg("AdaptPreSubtask not find subtask")
+				s.Log.Info().Int64("subtaskID", subtaskID).Msg("AdaptPreSubtask not find subtask")
 				continue
 			}
 
-			logging.Get().Debug().Str("module", "imagescan").Int64("taskID", sub.TaskID).Int64("subtaskID", sub.ID).
+			s.Log.Debug().Int64("taskID", sub.TaskID).Int64("subtaskID", sub.ID).
 				Str("ImageName", sub.ImageName).Msg("AdaptPreSubtask find scan result")
 
 			su := subtask[0]
@@ -135,7 +133,7 @@ func (s *ScanTaskSrv) UpdatePreSubtask(ctx context.Context) error {
 
 func (s *ScanTaskSrv) updateSuccess(ctx context.Context, sub *model.SubTask) error {
 
-	logging.Get().Info().Str("module", "imagescan").Int64("taskID", sub.TaskID).Int64("subtaskID", sub.ID).
+	s.Log.Info().Int64("taskID", sub.TaskID).Int64("subtaskID", sub.ID).
 		Str("ImageName", sub.FullRepoName+":"+sub.Tag).Msg("AdaptPreSubtask task scan success")
 
 	updater := map[string]interface{}{
@@ -148,21 +146,21 @@ func (s *ScanTaskSrv) updateSuccess(ctx context.Context, sub *model.SubTask) err
 		Updater: updater,
 		Where:   fmt.Sprintf("status < %d", imagesecModel.TaskStatusPause),
 	}); err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Msg("AdaptPreSubtask UpdatePreSubtask UpdateScanSubtask")
+		s.Log.Err(err).Msg("AdaptPreSubtask UpdatePreSubtask UpdateScanSubtask")
 		return err
 	}
 
 	v210, err := ver210.GetImageMigrate()
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Msg("AdaptPreSubtask UpdatePreSubtask not GetImageMigrate")
+		s.Log.Err(err).Msg("AdaptPreSubtask UpdatePreSubtask not GetImageMigrate")
 		return err
 	}
 	if err := v210.MigrateImage(ctx, sub.ImageID, sub.ID); err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Msg("AdaptPreSubtask UpdatePreSubtask  MigrateImage")
+		s.Log.Err(err).Msg("AdaptPreSubtask UpdatePreSubtask  MigrateImage")
 		return err
 	}
 
-	logging.Get().Info().Str("module", "imagescan").Int64("taskID", sub.TaskID).Int64("subtaskID", sub.ID).
+	s.Log.Info().Int64("taskID", sub.TaskID).Int64("subtaskID", sub.ID).
 		Str("ImageName", sub.FullRepoName+":"+sub.Tag).Msg("AdaptPreSubtask task scan success and send data to kafka")
 
 	return nil
@@ -170,7 +168,7 @@ func (s *ScanTaskSrv) updateSuccess(ctx context.Context, sub *model.SubTask) err
 
 func (s *ScanTaskSrv) updateFailed(ctx context.Context, sub *model.SubTask) error {
 
-	logging.Get().Info().Str("module", "imagescan").Int64("taskID", sub.TaskID).Int64("subtaskID", sub.ID).
+	s.Log.Info().Int64("taskID", sub.TaskID).Int64("subtaskID", sub.ID).
 		Str("ImageName", sub.FullRepoName+":"+sub.Tag).Msg("AdaptPreSubtask task scan failed")
 
 	updater := map[string]interface{}{
@@ -185,11 +183,11 @@ func (s *ScanTaskSrv) updateFailed(ctx context.Context, sub *model.SubTask) erro
 		Updater: updater,
 		Where:   fmt.Sprintf("status < %d", imagesecModel.TaskStatusPause),
 	}); err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Msg("UpdatePreSubtask UpdateScanSubtask")
+		s.Log.Err(err).Msg("UpdatePreSubtask UpdateScanSubtask")
 		return err
 	}
 
-	logging.Get().Info().Str("module", "imagescan").Int64("taskID", sub.TaskID).Int64("subtaskID", sub.ID).
+	s.Log.Info().Int64("taskID", sub.TaskID).Int64("subtaskID", sub.ID).
 		Str("ImageName", sub.FullRepoName+":"+sub.Tag).Msg("AdaptPreSubtask task scan failed and update subtask status")
 	return nil
 }

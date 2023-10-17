@@ -7,8 +7,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"gitlab.com/security-rd/go-pkg/logging"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
@@ -26,12 +24,10 @@ func ZipFile(wb ZipFileMate) ([]byte, error) {
 
 	content, err := os.ReadFile(filename)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Str("file", filename).Msg("GetWebshellFile read file")
 		return nil, err
 	}
 	b := new(bytes.Buffer)
 	zw := zip.NewWriter(b)
-	logging.Get().Info().Str("module", "imagescan").Str("filename", wb.Filename).Str("md5", wb.MD5).Msg("get file")
 
 	hdr := zip.FileHeader{Name: wb.Filename}
 	w, err := zw.CreateHeader(&hdr)
