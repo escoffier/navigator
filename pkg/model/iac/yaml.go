@@ -427,7 +427,6 @@ func FindYamlRecordsByConditions(ctx context.Context, db *gorm.DB, name, namespa
 	if offset, ok := options["offset"].(int); ok {
 		sql += fmt.Sprintf(" OFFSET %d", offset)
 	}
-	fmt.Println("select sql: ", sql)
 	err := db.Raw(sql).Scan(&records).Error
 
 	return records, err
@@ -438,7 +437,6 @@ func CountYamlRecordsByConditions(ctx context.Context, db *gorm.DB, name, namesp
 
 	sql := makeWhereByConditions2(ctx, name, namespace, templateName, hackEqualTemplateName, clusterKeys, kinds, statuses, startTime, endTime)
 	sql = "SELECT COUNT(DISTINCT s1.id)" + sql
-	fmt.Println("count sql: ", sql)
 	err := db.Raw(sql).Scan(&count).Error
 
 	return count, err
