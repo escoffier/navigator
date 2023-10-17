@@ -348,7 +348,7 @@ func (im *ImageManager) GetRecordPkgs(ctx context.Context, limit int64, offset i
 	}
 	for i := range all {
 		al := all[i]
-		split := strings.Split(al.UniquePkg, ":")
+		split := strings.Split(al.UniquePkg, "|")
 		if len(split) != 2 || split[0] == "" || split[1] == "" {
 			continue
 		}
