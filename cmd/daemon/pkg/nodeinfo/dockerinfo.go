@@ -634,12 +634,24 @@ func (d *DockerInfoManager) getImageInfoV2(imageRef string, imageID string) (ima
 	if err != nil {
 		logging.Get().Err(err).Str("raw-container", "get image name").Msgf("failed to get image [%s] info: %w ", imageID, err)
 	}
-	i := strings.LastIndex(imageRef, "@") // 镜像仓库修改过tag
+	defer func() {
+		logging.Get().Debug().Msgf("getImageInfoV2: imageRef:%s, return imageName:%s", imageRef, imageName)
+	}()
+
+	i := strings.LastIndex(imageRef, "@") // 镜像仓库修改过tag  name@sha256:xxxx
 	if i != -1 && i < len(imageRef)-1 {
 		imageDigest = imageRef[i+1:]
 		imageName = imageRef
 		return imageName, imageDigest, imageInspect.Created, imageInspect.Size
 	}
+	if strings.HasPrefix(imageRef, "sha256") && len(imageInspect.RepoTags) > 0 {
+		//sha256:xxx
+		imageName = imageInspect.RepoTags[0]
+		imageDigest = imageRef
+		return imageName, imageDigest, imageInspect.Created, imageInspect.Size
+	}
+
+	// name
 	count := strings.Count(imageRef, "/")
 	switch count {
 	case 0: //  tomcat
