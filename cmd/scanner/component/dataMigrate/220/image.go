@@ -114,15 +114,14 @@ func (s *ImageMigrate) MigrateImage(ctx context.Context, imageID int64, subtaskI
 	if len(registry) == 0 {
 		return nil
 	}
-	retIds := make([]int64, 0)
+	regs := make(map[int64]imagesecModel.Registry)
 	for i := range registry {
-		retIds = append(retIds, registry[i].ID)
+		regs[registry[i].ID] = registry[i]
 	}
 	images, _, err := s.ImageDal.SearchImage(ctx, imagesecModel.SearchImageParam{
 		ImageFromType: imagesecModel.ImageFromRegistry,
 		NotCount:      true,
 		InIds:         []int64{imageID},
-		RegIds:        retIds,
 	}, nil)
 	if err != nil {
 		s.Log.Err(err).Msg("MigrateImage")
@@ -132,6 +131,14 @@ func (s *ImageMigrate) MigrateImage(ctx context.Context, imageID int64, subtaskI
 		s.Log.Info().Int64("imageID", imageID).Msg("MigrateImage not find image")
 		return err
 	}
+	im := images[0]
+
+	reg, ok := regs[im.RegistryID]
+	if !ok {
+		return nil
+	}
+
+	im.Library = reg.Url
 
 	imageMeta := DataToImage(images[0])
 
@@ -511,9 +518,11 @@ func (s *ImageMigrate) syncImageMeta(ctx context.Context) error {
 		if len(registry) == 0 {
 			continue
 		}
+		regs := make(map[int64]imagesecModel.Registry)
 		retIds := make([]int64, 0)
 		for i := range registry {
 			retIds = append(retIds, registry[i].ID)
+			regs[registry[i].ID] = registry[i]
 		}
 
 		images, _, err := s.ImageDal.SearchImage(ctx, imagesecModel.SearchImageParam{
@@ -538,6 +547,11 @@ func (s *ImageMigrate) syncImageMeta(ctx context.Context) error {
 		res := make([]*imagesecModel.Image, 0)
 
 		for _, image := range images {
+			reg, ok := regs[image.RegistryID]
+			if !ok {
+				continue
+			}
+			image.Library = reg.Url
 			if image.UpdatedAt.Before(thirtyAgo) {
 				flag = true
 				break

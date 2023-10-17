@@ -207,6 +207,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 		configDal,
 		scanTaskSrv,
 		detectTaskSrv,
+		registryDal,
 	)
 
 	scanInstanceReport := imagesecReport.NewScanInstanceReport(scanInstanceDal, mqReader, mqWriter)
