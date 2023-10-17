@@ -414,15 +414,19 @@ func (s *ImageInfoMetaSrv) addTrustedData(ctx context.Context,
 			Str("imageName", ans.Image.GetImageName()).Msg("ImageWithCorrelateData addTrustedData")
 		return err
 	}
-	if ans.TrustedDigest == nil {
-		ans.TrustedDigest = make([]string, 0)
-	}
+	trustedDigest := make([]string, 0)
 	for i := range trustedImage {
 		if trustedImage[i].IsTrusted <= 0 {
 			continue
 		}
-		ans.TrustedDigest = append(ans.TrustedDigest, trustedImage[i].Digest)
+		trustedDigest = append(trustedDigest, trustedImage[i].Digest)
 	}
+	ans.TrustedImage = append(ans.TrustedImage, imagesecModel.TrustedImage{
+		Trusted:      len(trustedDigest) > 0,
+		Digest:       image.Digest,
+		UniqueID:     image.UniqueID,
+		PolicyDetect: imagesecModel.PolicyDetect{},
+	})
 
 	return nil
 }
@@ -443,15 +447,20 @@ func (s *ImageInfoMetaSrv) addImageInRegData(ctx context.Context,
 			Str("imageName", ans.Image.GetImageName()).Msg("ImageWithCorrelateData addImageInRegData")
 		return err
 	}
-	if ans.RegIds == nil {
-		ans.RegIds = make([]int64, 0)
-	}
+	regIds := make([]int64, 0)
+
 	for i := range images {
 		im := images[i]
 		if im.ImageUUID == ans.Image.ImageUUID && im.ImageFromType == imagesecModel.ImageFromRegistry && im.RegID > 0 {
-			ans.RegIds = append(ans.RegIds, im.RegID)
+			regIds = append(regIds, im.RegID)
 		}
 	}
+
+	ans.ImageInReg = append(ans.ImageInReg, imagesecModel.ImageInReg{
+		RegIds:       regIds,
+		UniqueID:     ans.Image.UniqueID,
+		PolicyDetect: imagesecModel.PolicyDetect{},
+	})
 
 	return nil
 }
@@ -588,7 +597,7 @@ func (s *ImageInfoMetaSrv) addDetectResultData(ctx context.Context,
 			dt := detectTypes[id]
 			result, err := s.detectResultDal.SearchDetectResult(ctx, imagesecModel.SearchDetectResultParam{
 				ImageUniqueID: imageUniqueID,
-				PolicyIds:     param.ScanResultSearchParam.SecurityPolicyIds,
+				PolicyIds:     param.DetectParam.SecurityPolicyIds,
 				DetectType:    dt,
 			})
 			if err != nil {
@@ -671,6 +680,17 @@ func (s *ImageInfoMetaSrv) addRegistryData(ctx context.Context,
 			ans.Registry = &(registry[0])
 		}
 	}
+	return nil
+}
+
+func (s *ImageInfoMetaSrv) addRootBootData(ctx context.Context,
+	param *imagesecModel.ImageAssociateParam, ans *imagesecModel.ImageWithCorrelateData2) error {
+	ans.RootBoot = append(ans.RootBoot, imagesecModel.RootBoot{
+		IsRoot:   ans.Image.BootRoot(),
+		User:     ans.Image.User,
+		UniqueID: ans.Image.UniqueID,
+	})
+
 	return nil
 }
 

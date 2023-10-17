@@ -335,6 +335,8 @@ func (vi *ImageAssociateParam) GetDetectTypes() []string {
 		ans = append(ans, DetectTypePkgRule)
 	}
 	ans = append(ans, DetectTypeRootRule)
+	ans = append(ans, DetectTypeTrustedImageRule)
+	ans = append(ans, DetectTypeExistInRegRule)
 	return ans
 }
 
@@ -475,16 +477,19 @@ type ImageWithCorrelateData2 struct {
 	Container         []*RawContainer
 	ScanSubTask       []*ImageScanSubTask
 	SubTaskCnt        int64
+	RootBoot          []RootBoot
+	TrustedImage      []TrustedImage
+	ImageInReg        []ImageInReg
 	Registry          *Registry
 	NodeInfo          *NodeInfo
-	TrustedDigest     []string
-	ScanInstance      *ScannerInstanceInfo
-	RegIds            []int64
-	RiskPolicy        []SecurityPolicy                // 镜像的风险来源
-	TotalPolicy       []SecurityPolicy                // 已使用的安全策略
-	DetectResult      map[string][]*ImageDetectResult // 检测结果
-	DeployRecord      *DeployRecord                   // 阻断结果
-	DeployInWhite     bool                            // 是否在白名单中
+	// TrustedDigest     []string
+	ScanInstance *ScannerInstanceInfo
+	// RegIds            []int64
+	RiskPolicy    []SecurityPolicy                // 镜像的风险来源
+	TotalPolicy   []SecurityPolicy                // 已使用的安全策略
+	DetectResult  map[string][]*ImageDetectResult // 检测结果
+	DeployRecord  *DeployRecord                   // 阻断结果
+	DeployInWhite bool                            // 是否在白名单中
 }
 
 func GetDetectBriefFlag(detectResult map[string][]*ImageDetectResult) uint64 {
@@ -1172,11 +1177,13 @@ func (iws *ImageWithCorrelateData2) ToSecurityIssueStatistic() SecurityStatistic
 	if iws.Image.BootRoot() {
 		sv.Total.ExceptionBoot = 1
 	}
-	if len(iws.TrustedDigest) == 0 {
+	if len(iws.TrustedImage) == 0 || (len(iws.TrustedImage) > 0 && !iws.TrustedImage[0].Trusted) {
 		sv.Total.Untrusted = 1
 	}
-	if len(iws.RegIds) == 0 && iws.Image.ImageFromType != ImageFromRegistry {
-		sv.Total.NotInRegistry = 1
+	if iws.Image.ImageFromType != ImageFromRegistry {
+		if len(iws.ImageInReg) == 0 || (len(iws.ImageInReg) > 0 && len(iws.ImageInReg[0].RegIds) == 0) {
+			sv.Total.NotInRegistry = 1
+		}
 	}
 
 	risk := SecurityIssueStatic{}
@@ -1218,17 +1225,22 @@ func (iws *ImageWithCorrelateData2) ToSecurityIssueStatistic() SecurityStatistic
 			risk.Webshell++
 		}
 	}
-	// 单个镜像和所选的策略相关,所以不能直接使用镜像的 flag
-	for i := range iws.RiskPolicy {
-		if iws.RiskPolicy[i].RootBoot.Enable && iws.Image.BootRoot() {
+	for i := range iws.RootBoot {
+		if iws.RootBoot[i].IsRoot && iws.RootBoot[i].PolicyDetect.Exception {
 			risk.ExceptionBoot = 1
 		}
-
-		if iws.RiskPolicy[i].TrustImage.Enable && len(iws.TrustedDigest) == 0 {
-			risk.Untrusted = 1
+	}
+	for i := range iws.ImageInReg {
+		if iws.Image.ImageFromType == ImageFromRegistry {
+			continue
 		}
-		if iws.RiskPolicy[i].ExistInReg.Enable && len(iws.RegIds) == 0 && iws.Image.ImageFromType == ImageFromNode {
+		if len(iws.ImageInReg[i].RegIds) == 0 && iws.ImageInReg[i].PolicyDetect.Exception {
 			risk.NotInRegistry = 1
+		}
+	}
+	for i := range iws.TrustedImage {
+		if !iws.TrustedImage[i].Trusted && iws.TrustedImage[i].PolicyDetect.Exception {
+			risk.Untrusted = 1
 		}
 	}
 
@@ -1400,6 +1412,12 @@ func (iws *ImageWithCorrelateData2) AddDetectResult() {
 	for i := range iws.License {
 		iws.License[i].PolicyDetect.AddPolicyDetect(iws.License[i].UniqueID, iws.DetectResult[DetectTypeLicenseRule])
 	}
+	for i := range iws.RootBoot {
+		iws.RootBoot[i].PolicyDetect.AddPolicyDetect(iws.RootBoot[i].UniqueID, iws.DetectResult[DetectTypeRootRule])
+	}
+	for i := range iws.TrustedImage {
+		iws.TrustedImage[i].PolicyDetect.AddPolicyDetect(iws.TrustedImage[i].UniqueID, iws.DetectResult[DetectTypeTrustedImageRule])
+	}
 }
 
 // 部署上线检测
@@ -1433,6 +1451,12 @@ func (iws *ImageWithCorrelateData2) AddDeployDetect() {
 
 	for i := range iws.Env {
 		iws.Env[i].PolicyDetect.AddDeployDetect(iws.Env[i].UniqueID, iws.DeployRecord.EnvIssue)
+	}
+	for i := range iws.RootBoot {
+		iws.RootBoot[i].PolicyDetect.AddDeployDetect(iws.RootBoot[i].UniqueID, iws.DeployRecord.RootBootIssue)
+	}
+	for i := range iws.TrustedImage {
+		iws.TrustedImage[i].PolicyDetect.AddDeployDetect(iws.TrustedImage[i].UniqueID, iws.DeployRecord.TrustedImageIssue)
 	}
 }
 

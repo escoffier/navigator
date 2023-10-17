@@ -16,7 +16,7 @@ func CheckExistInReg(ctx context.Context, data *imagesecModel.ImageWithCorrelate
 		return ans
 	}
 
-	if len(data.RegIds) == 0 {
+	if len(data.ImageInReg) == 0 || len(data.ImageInReg[0].RegIds) == 0 {
 		red := &imagesecModel.ImageDetectResult{
 			DetectType:    imagesecModel.DetectTypeExistInRegRule,
 			Flag:          util.SetBit1(0, imagesecModel.FlagDetectException),

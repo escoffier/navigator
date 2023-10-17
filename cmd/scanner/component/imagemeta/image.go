@@ -169,8 +169,9 @@ func (s *ImageInfoMetaSrv) GetImageCorrelateData(ctx context.Context,
 		AppImages:         make([]*imagesecModel.ImageBaseResponse, 0),
 		Container:         make([]*imagesecModel.RawContainer, 0),
 		ScanSubTask:       make([]*imagesecModel.ImageScanSubTask, 0),
-		TrustedDigest:     make([]string, 0),
-		RegIds:            make([]int64, 0),
+		TrustedImage:      make([]imagesecModel.TrustedImage, 0),
+		ImageInReg:        make([]imagesecModel.ImageInReg, 0),
+		RootBoot:          make([]imagesecModel.RootBoot, 0),
 		RiskPolicy:        make([]imagesecModel.SecurityPolicy, 0),
 		TotalPolicy:       make([]imagesecModel.SecurityPolicy, 0),
 		DetectResult:      make(map[string][]*imagesecModel.ImageDetectResult),
@@ -208,6 +209,7 @@ func (s *ImageInfoMetaSrv) GetImageCorrelateData(ctx context.Context,
 	errs = append(errs, s.addSimplePolicyData(ctx, &param, ans))
 	errs = append(errs, s.addDetectResultData(ctx, &param, ans))
 	errs = append(errs, s.addPkgAllVulnData(ctx, &param, ans))
+	errs = append(errs, s.addRootBootData(ctx, &param, ans))
 
 	for i := range errs {
 		if errs[i] != nil {
