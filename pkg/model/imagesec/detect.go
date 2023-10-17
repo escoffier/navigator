@@ -135,6 +135,17 @@ const (
 )
 
 func (vi *PolicyDetect) GenPolicyDetect(flag uint64) {
+	if vi.Exception || vi.ExceptionPkgLicense {
+		if util.ExistBit1(flag, FlagDetectExceptionPkgLicense) {
+			// TODO 这一期 异常软件和异常开源协议分开算，下一期整合
+			// vi.Exception = true
+			vi.ExceptionPkgLicense = true
+		}
+		if util.ExistBit1(flag, FlagDetectException) {
+			vi.Exception = true
+		}
+		return
+	}
 
 	if util.ExistBit1(flag, FlagDetectException) {
 		vi.Exception = true
