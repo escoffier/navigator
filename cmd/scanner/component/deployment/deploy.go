@@ -7,6 +7,8 @@ import (
 	"strings"
 	"time"
 
+	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/deployment/detector"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/detect"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
@@ -223,11 +225,11 @@ func (s *DeploySrv) CheckDeploy(ctx context.Context, param imagesecModel.DeployM
 	flag = compareAndSetFlag(preFlag, flag, imagesecModel.FlagAppImage)
 	flag = compareAndSetFlag(preFlag, flag, imagesecModel.FlagBaseImage)
 	flag = compareAndSetFlag(preFlag, flag, imagesecModel.FlagImageNotMaintained)
-	flag = compareAndSetFlag(preFlag, flag, imagesecModel.FlagImageHasUnknownVun)
-	flag = compareAndSetFlag(preFlag, flag, imagesecModel.FlagImageHasLowVuln)
-	flag = compareAndSetFlag(preFlag, flag, imagesecModel.FlagImageHasMediumVuln)
-	flag = compareAndSetFlag(preFlag, flag, imagesecModel.FlagImageHasHighVuln)
-	flag = compareAndSetFlag(preFlag, flag, imagesecModel.FlagImageHasCriticalVuln)
+	// flag = compareAndSetFlag(preFlag, flag, imagesecModel.FlagImageHasUnknownVun)
+	// flag = compareAndSetFlag(preFlag, flag, imagesecModel.FlagImageHasLowVuln)
+	// flag = compareAndSetFlag(preFlag, flag, imagesecModel.FlagImageHasMediumVuln)
+	// flag = compareAndSetFlag(preFlag, flag, imagesecModel.FlagImageHasHighVuln)
+	// flag = compareAndSetFlag(preFlag, flag, imagesecModel.FlagImageHasCriticalVuln)
 
 	// 阻断问题列表flag(和镜像列表 flag 类似) 主要用于筛选
 	flag = detect.GenImageIssueFlag(det, flag)
@@ -245,7 +247,58 @@ func (s *DeploySrv) CheckDeploy(ctx context.Context, param imagesecModel.DeployM
 			flag = util.SetBit1(flag, imagesecModel.FlagImageDeployBlock)
 		}
 	}
+
+	vulnCheck := det[imagesecModel.DetectTypeVulnRule]
+
+	// 漏洞统计(后续应该提取出方法)
+	// 部署上线应该统计命中的漏洞，而不是镜像本身的漏洞
+	vulnStatic := make(map[int64]bool)
+	fixed := false
+	for i := range res.CorrelateData.Vuln {
+		vu := res.CorrelateData.Vuln[i]
+		if vulnCheck == nil {
+			continue
+		}
+		_, ok := vulnCheck[vu.UniqueID]
+		if !ok {
+			continue
+		}
+
+		if vu.Class == report.ClassOSPkg && vu.FixedVersion != "" && !vu.KernelVuln {
+			fixed = true
+		}
+
+		si := vu.SeverityInt
+		switch si {
+		case imagesecModel.SeverityCriticalInt:
+			vulnStatic[imagesecModel.FlagImageHasCriticalVuln] = true
+		case imagesecModel.SeverityHighInt:
+			vulnStatic[imagesecModel.FlagImageHasHighVuln] = true
+		case imagesecModel.SeverityMediumInt:
+			vulnStatic[imagesecModel.FlagImageHasMediumVuln] = true
+		case imagesecModel.SeverityLowInt:
+			vulnStatic[imagesecModel.FlagImageHasLowVuln] = true
+		case imagesecModel.SeverityUnknownInt:
+			vulnStatic[imagesecModel.FlagImageHasUnknownVun] = true
+		}
+	}
+
+	if fixed {
+		flag = util.SetBit1(flag, imagesecModel.FlagHasFixedVuln)
+	} else {
+		flag = util.SetBit0(flag, imagesecModel.FlagHasFixedVuln)
+	}
+
+	for i := imagesecModel.FlagImageHasUnknownVun; i <= imagesecModel.FlagImageHasCriticalVuln; i++ {
+		if vulnStatic[int64(i)] {
+			flag = util.SetBit1(flag, uint64(i))
+		} else {
+			flag = util.SetBit0(flag, uint64(i))
+		}
+	}
+
 	record = AddIssueDeployRecord(record, det)
+
 	white, err := s.CheckWhite(ctx, param)
 	if err != nil {
 		s.Log.Err(err).Msg("CheckWhite")
