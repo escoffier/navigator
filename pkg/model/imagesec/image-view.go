@@ -1000,9 +1000,10 @@ func (iws *ImageWithCorrelateData2) GetSecurityIssue() []SecurityIssueLabel {
 }
 
 func (iws *ImageWithCorrelateData2) GetRiskScore() int64 {
+
 	riskScore := 100 - (CalculateVulnScore(iws.Vuln) +
-		CalculateSensitiveScore(iws.SensitiveCnt) +
-		util.MinInt64(CalculateWebshellScore(iws.WebshellCnt)+CalculateMalwareScore(iws.MalwareCnt),
+		CalculateSensitiveScore(int64(len(iws.Sensitive))) +
+		util.MinInt64(CalculateWebshellScore(int64(len(iws.Webshell)))+CalculateMalwareScore(int64(len(iws.Malware))),
 			model.MaxWebshellAndVirusScore))
 
 	// 又改啦，没有扫描过的100分

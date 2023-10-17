@@ -110,6 +110,7 @@ func (vi *Image) GetImageName() string {
 	if vi.Host != "" && !strings.Contains(vi.Host, DockerHost) {
 		imageName = vi.Host + "/" + imageName
 	}
+
 	return imageName
 }
 
