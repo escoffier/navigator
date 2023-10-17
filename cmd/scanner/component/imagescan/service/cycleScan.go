@@ -4,8 +4,6 @@ import (
 	"context"
 	"time"
 
-	"gitlab.com/security-rd/go-pkg/logging"
-
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
@@ -14,7 +12,7 @@ func (s *ScanTaskSrv) CreateCycleScanTaskByConfig(ctx context.Context) error {
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
-				logging.Get().Error().Msg("CreateCycleScanTaskByConfig recover")
+				s.Log.Error().Msg("CreateCycleScanTaskByConfig recover")
 			}
 		}()
 
@@ -24,17 +22,17 @@ func (s *ScanTaskSrv) CreateCycleScanTaskByConfig(ctx context.Context) error {
 			<-ticker.C
 			config, err := s.scanConfigDal.GetScanImageConfig(ctx, imagesecModel.ConfigTypeNodeScanImage)
 			if err != nil {
-				logging.Get().Err(err).Str("module", "imagescan").Str("configType", imagesecModel.ConfigTypeNodeScanImage).
+				s.Log.Err(err).Str("configType", imagesecModel.ConfigTypeNodeScanImage).
 					Msg("CreateCycleScanTaskByConfig GetScanImageConfig")
 				continue
 			}
 
 			add := config.ImageScanConfig.IsTimeToAddTask(imagesecModel.ScanCycleCheckInternal)
-			logging.Get().Debug().Str("module", "imagescan").Bool("addScanTask", add).Msg("CreateCycleScanTaskByConfig")
+			s.Log.Debug().Bool("addScanTask", add).Msg("CreateCycleScanTaskByConfig")
 			if !add {
 				continue
 			}
-			logging.Get().Info().Str("module", "imagescan").Bool("addScanTask", add).Msg("CreateCycleScanTaskByConfig")
+			s.Log.Info().Bool("addScanTask", add).Msg("CreateCycleScanTaskByConfig")
 			param := imagesecModel.ImageSearchApiParam{
 				ImageFromType: imagesecModel.ImageFromNode,
 				ClusterKey:    config.ImageScanConfig.ScanCycle.ClusterKey,
@@ -44,17 +42,17 @@ func (s *ScanTaskSrv) CreateCycleScanTaskByConfig(ctx context.Context) error {
 				ScanType:      imagesecModel.CycleTrigger,
 			}
 			if err := s.CreateImageScanTask(ctx, param, taskInfo); err != nil {
-				logging.Get().Err(err).Str("module", "imagescan").Msg("CreateCycleScanTaskByConfig CreateImageScanTask")
+				s.Log.Err(err).Msg("CreateCycleScanTaskByConfig CreateImageScanTask")
 				continue
 			}
-			logging.Get().Info().Str("module", "imagescan").Str("scanType", imagesecModel.CycleTrigger).Msg("CreateCycleScanTaskByConfig CreateImageScanTask succeed")
+			s.Log.Info().Str("scanType", imagesecModel.CycleTrigger).Msg("CreateCycleScanTaskByConfig CreateImageScanTask succeed")
 		}
 	}()
 
 	go func() {
 		defer func() {
 			if err := recover(); err != nil {
-				logging.Get().Error().Msg("CreateCycleScanTaskByConfig recover")
+				s.Log.Error().Msg("CreateCycleScanTaskByConfig recover")
 			}
 		}()
 
@@ -64,17 +62,17 @@ func (s *ScanTaskSrv) CreateCycleScanTaskByConfig(ctx context.Context) error {
 			<-ticker.C
 			config, err := s.scanConfigDal.GetScanImageConfig(ctx, imagesecModel.ConfigTypeRegScanImage)
 			if err != nil {
-				logging.Get().Err(err).Str("module", "imagescan").Str("configType", imagesecModel.ConfigTypeRegScanImage).
+				s.Log.Err(err).Str("configType", imagesecModel.ConfigTypeRegScanImage).
 					Msg("CreateCycleScanTaskByConfig GetScanImageConfig")
 				continue
 			}
 
 			add := config.ImageScanConfig.IsTimeToAddTask(imagesecModel.ScanCycleCheckInternal)
-			logging.Get().Debug().Str("module", "imagescan").Bool("addScanTask", add).Msg("CreateCycleScanTaskByConfig")
+			s.Log.Debug().Bool("addScanTask", add).Msg("CreateCycleScanTaskByConfig")
 			if !add {
 				continue
 			}
-			logging.Get().Info().Str("module", "imagescan").Bool("addScanTask", add).Msg("CreateCycleScanTaskByConfig")
+			s.Log.Info().Bool("addScanTask", add).Msg("CreateCycleScanTaskByConfig")
 			param := imagesecModel.ImageSearchApiParam{
 				ImageFromType: imagesecModel.ImageFromRegistry,
 				RegIds:        config.ImageScanConfig.ScanCycle.RegIds,
@@ -84,10 +82,10 @@ func (s *ScanTaskSrv) CreateCycleScanTaskByConfig(ctx context.Context) error {
 				ScanType:      imagesecModel.CycleTrigger,
 			}
 			if err := s.CreateImageScanTask(ctx, param, taskInfo); err != nil {
-				logging.Get().Err(err).Str("module", "imagescan").Msg("CreateCycleScanTaskByConfig CreateImageScanTask")
+				s.Log.Err(err).Msg("CreateCycleScanTaskByConfig CreateImageScanTask")
 				continue
 			}
-			logging.Get().Info().Str("module", "imagescan").Str("scanType", imagesecModel.CycleTrigger).Msg("CreateCycleScanTaskByConfig CreateImageScanTask succeed")
+			s.Log.Info().Str("scanType", imagesecModel.CycleTrigger).Msg("CreateCycleScanTaskByConfig CreateImageScanTask succeed")
 		}
 	}()
 

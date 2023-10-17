@@ -3,11 +3,10 @@ package service
 import (
 	"context"
 
-	"gitlab.com/security-rd/go-pkg/logging"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/types"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
 )
@@ -24,6 +23,7 @@ type DBManagerSrv struct {
 	NodeInfoDal     imagesecStore.NodeInfoDal
 	ScanInstanceDal imagesecStore.ScanInstanceDal
 	RpcClient       rpcstream.MessageStream
+	Log             *scannerUtils.LogEvent
 }
 
 func NewDBManagerSrv(
@@ -39,6 +39,9 @@ func NewDBManagerSrv(
 		ScanDbMetaDal:   scanDbMetaDal,
 		NodeInfoDal:     nodeInfoDal,
 		ScanInstanceDal: scanInstanceDal,
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithSubModule("DBManagerSrv"),
+			scannerUtils.WithModule(consts.ModelImageScan)),
 	}
 	return srv
 }
@@ -58,12 +61,12 @@ func (s *DBManagerSrv) UpdateDB(ctx context.Context, param imagesecModel.UpdateD
 	}
 
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Str("dbType", param.DbType).Msg("update db")
+		s.Log.Err(err).Str("dbType", param.DbType).Msg("update db")
 		return err
 	}
 
 	if err := s.ScanDbMetaDal.CreateScanDbMeta(ctx, dbMeta); err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Str("dbType", param.DbType).Msg("update db")
+		s.Log.Err(err).Str("dbType", param.DbType).Msg("update db")
 		return err
 	}
 

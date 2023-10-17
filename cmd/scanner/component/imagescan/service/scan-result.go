@@ -8,12 +8,11 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gitlab.com/security-rd/go-pkg/logging"
-
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -38,6 +37,7 @@ type ScanResultSrv struct {
 	ScanResultDal imagesecStore.ScanResultDal
 	vulnOverview  *VulnOverView
 	imageCacheDal imagesecStore.ImageCacheDal
+	Log           *scannerUtils.LogEvent
 }
 
 var scanResultSrv *ScanResultSrv
@@ -49,7 +49,13 @@ func NewScanResultSrv(
 	if scanResultSrv != nil {
 		return scanResultSrv
 	}
-	s := &ScanResultSrv{ScanResultDal: scanResultDal, imageCacheDal: imageCacheDal}
+	s := &ScanResultSrv{
+		ScanResultDal: scanResultDal,
+		imageCacheDal: imageCacheDal,
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithSubModule("ScanResultSrv"),
+			scannerUtils.WithModule(consts.ModelImageScan)),
+	}
 	s.vulnOverview = NewVulnOverView()
 
 	s.vulnOverviewHelper(context.Background())
@@ -64,7 +70,7 @@ func (s *ScanResultSrv) SearchVuln(ctx context.Context, param imagesecModel.ApiS
 
 	vuln, cnt, err := s.ScanResultDal.SearchVuln(ctx, dalParam)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Interface("param", param).Msg("SearchVuln")
+		s.Log.Err(err).Interface("param", param).Msg("SearchVuln")
 		return nil, 0, scani18.SearchVuln(err)
 	}
 	vulns := make([]*imagesecModel.VulnView, len(vuln))
@@ -79,7 +85,7 @@ func (s *ScanResultSrv) SearchPkg(ctx context.Context, param imagesecModel.ScanR
 	if param.VulnUniqueID > 0 {
 		vuln, _, err := s.ScanResultDal.SearchVuln(ctx, imagesecModel.SearchVulnDalParam{VulnUniqueID: param.VulnUniqueID})
 		if err != nil {
-			logging.Get().Err(err).Str("module", "imagescan").Interface("param", param).Msg("SearchVuln")
+			s.Log.Err(err).Interface("param", param).Msg("SearchVuln")
 			return nil, 0, scani18.SearchPKG(err)
 		}
 		if len(vuln) == 0 {
@@ -90,7 +96,7 @@ func (s *ScanResultSrv) SearchPkg(ctx context.Context, param imagesecModel.ScanR
 
 	pkg, cnt, err := s.ScanResultDal.SearchPkg(ctx, param)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Interface("param", param).Msg("SearchPkg")
+		s.Log.Err(err).Interface("param", param).Msg("SearchPkg")
 		return nil, 0, scani18.SearchPKG(err)
 	}
 	return pkg, cnt, nil
@@ -99,7 +105,7 @@ func (s *ScanResultSrv) SearchPkg(ctx context.Context, param imagesecModel.ScanR
 func (s *ScanResultSrv) SearchLicense(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.License, error) {
 	data, _, err := s.ScanResultDal.SearchLicense(ctx, param)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Interface("param", param).Msg("SearchVuln")
+		s.Log.Err(err).Interface("param", param).Msg("SearchVuln")
 		return nil, scani18.GetLicenseInfo(err)
 	}
 	if len(data) == 0 {
@@ -111,7 +117,7 @@ func (s *ScanResultSrv) SearchLicense(ctx context.Context, param imagesecModel.S
 func (s *ScanResultSrv) SearchMalware(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.Malware, error) {
 	data, _, err := s.ScanResultDal.SearchMalware(ctx, param)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Interface("param", param).Msg("SearchVuln")
+		s.Log.Err(err).Interface("param", param).Msg("SearchVuln")
 		return nil, scani18.GetMalwareInfo(err)
 	}
 	if len(data) == 0 {
@@ -123,7 +129,7 @@ func (s *ScanResultSrv) SearchMalware(ctx context.Context, param imagesecModel.S
 func (s *ScanResultSrv) SearchSensitive(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.SensitiveFile, error) {
 	data, _, err := s.ScanResultDal.SearchSensitive(ctx, param)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Interface("param", param).Msg("SearchVuln")
+		s.Log.Err(err).Interface("param", param).Msg("SearchVuln")
 		return nil, scani18.GetLicenseInfo(err)
 	}
 	if len(data) == 0 {
@@ -136,7 +142,7 @@ func (s *ScanResultSrv) SearchWebshell(ctx context.Context, param imagesecModel.
 	[]*imagesecModel.WebshellView, int64, error) {
 	webshell, cnt, err := s.ScanResultDal.SearchWebshell(ctx, param)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Uint64("uniqueID", param.UniqueIds[0]).Msg("SearchWebshell")
+		s.Log.Err(err).Uint64("uniqueID", param.UniqueIds[0]).Msg("SearchWebshell")
 		return nil, 0, err
 	}
 	ans := make([]*imagesecModel.WebshellView, 0)
@@ -155,7 +161,7 @@ func (s *ScanResultSrv) GetWebshellContent(ctx context.Context, param imagesecMo
 
 	webshell, _, err := s.ScanResultDal.SearchWebshell(ctx, imagesecModel.ScanResultSearchParam{UniqueIds: param.UniqueIds})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Uint64("uniqueID", param.UniqueIds[0]).Msg("SearchWebshell")
+		s.Log.Err(err).Uint64("uniqueID", param.UniqueIds[0]).Msg("SearchWebshell")
 		return nil, err
 	}
 	if len(webshell) == 0 {
@@ -166,12 +172,12 @@ func (s *ScanResultSrv) GetWebshellContent(ctx context.Context, param imagesecMo
 	filename := filepath.Join(global.ScannerOpts.PvcPath, consts.WebshellFileDir, ws.MD5)
 
 	if !util.FileExists(filename) {
-		logging.Get().Error().Str("filename", filename).Msg("file has cleaned")
+		s.Log.Error().Str("filename", filename).Msg("file has cleaned")
 		return nil, fmt.Errorf("file has cleaned")
 	}
 	content, err := os.ReadFile(filename)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Str("file", filename).Msg("GetWebshellFile read file")
+		s.Log.Err(err).Str("file", filename).Msg("GetWebshellFile read file")
 		return nil, err
 	}
 	data := bytes.Split(content, []byte{'\n'})
@@ -208,7 +214,7 @@ func (s *ScanResultSrv) GetWebshellFile(ctx context.Context, param imagesecModel
 
 	webshell, _, err := s.ScanResultDal.SearchWebshell(ctx, imagesecModel.ScanResultSearchParam{UniqueIds: param.UniqueIds})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Uint64("uniqueID", param.UniqueIds[0]).Msg("SearchWebshell")
+		s.Log.Err(err).Uint64("uniqueID", param.UniqueIds[0]).Msg("SearchWebshell")
 		return nil, nil, err
 	}
 	if len(webshell) == 0 {
@@ -219,13 +225,13 @@ func (s *ScanResultSrv) GetWebshellFile(ctx context.Context, param imagesecModel
 	filename := filepath.Join(global.ScannerOpts.PvcPath, consts.WebshellFileDir, ws.MD5)
 
 	if !util.FileExists(filename) {
-		logging.Get().Error().Str("filename", filename).Msg("file has cleaned")
+		s.Log.Error().Str("filename", filename).Msg("file has cleaned")
 		return nil, nil, fmt.Errorf("file has cleaned")
 	}
 	// 这里不直接返回是因为：windows会报木马病毒，然后自动删除
 	data, err := ZipFile(ZipFileMate{MD5: ws.MD5, Filename: ws.Filename})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Str("file", filename).Msg("GetWebshellFile read file")
+		s.Log.Err(err).Str("file", filename).Msg("GetWebshellFile read file")
 		return nil, nil, err
 	}
 	return data, ws, nil
@@ -239,7 +245,7 @@ func (s *ScanResultSrv) GetSensitiveFile(ctx context.Context, param imagesecMode
 
 	res, _, err := s.ScanResultDal.SearchSensitive(ctx, imagesecModel.ScanResultSearchParam{UniqueIds: param.UniqueIds})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Uint64("uniqueID", param.UniqueIds[0]).Msg("GetSensitiveFile")
+		s.Log.Err(err).Uint64("uniqueID", param.UniqueIds[0]).Msg("GetSensitiveFile")
 		return nil, nil, err
 	}
 	if len(res) == 0 {
@@ -252,13 +258,13 @@ func (s *ScanResultSrv) GetSensitiveFile(ctx context.Context, param imagesecMode
 	filename := filepath.Join(global.ScannerOpts.PvcPath, consts.WebshellFileDir, ws.MD5)
 
 	if !util.FileExists(filename) {
-		logging.Get().Error().Str("filename", filename).Msg("GetSensitiveFile file has cleaned")
+		s.Log.Error().Str("filename", filename).Msg("GetSensitiveFile file has cleaned")
 		return nil, nil, scani18.NotGetFile(nil)
 	}
 	// 这里不直接返回是因为：windows会报木马病毒，然后自动删除
 	data, err := ZipFile(ZipFileMate{MD5: ws.MD5, Filename: ws.Filename})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Str("file", filename).Msg("GetSensitiveFile read file")
+		s.Log.Err(err).Str("file", filename).Msg("GetSensitiveFile read file")
 		return nil, nil, scani18.NotGetFile(err)
 	}
 	return data, ws, nil
@@ -272,7 +278,7 @@ func (s *ScanResultSrv) GetMalwareFile(ctx context.Context, param imagesecModel.
 
 	webshell, _, err := s.ScanResultDal.SearchMalware(ctx, imagesecModel.ScanResultSearchParam{UniqueIds: param.UniqueIds})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Uint64("uniqueID", param.UniqueIds[0]).Msg("GetMalwareFile")
+		s.Log.Err(err).Uint64("uniqueID", param.UniqueIds[0]).Msg("GetMalwareFile")
 		return nil, nil, err
 	}
 	if len(webshell) == 0 {
@@ -287,13 +293,13 @@ func (s *ScanResultSrv) GetMalwareFile(ctx context.Context, param imagesecModel.
 	filename := filepath.Join(global.ScannerOpts.PvcPath, consts.WebshellFileDir, ws.Hash)
 
 	if !util.FileExists(filename) {
-		logging.Get().Error().Str("filename", filename).Msg("GetMalwareFile file has cleaned")
+		s.Log.Error().Str("filename", filename).Msg("GetMalwareFile file has cleaned")
 		return nil, nil, scani18.NotGetFile(nil)
 	}
 	// 这里不直接返回是因为：windows会报木马病毒，然后自动删除
 	data, err := ZipFile(ZipFileMate{MD5: ws.Hash, Filename: ws.Filename})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Str("file", filename).Msg("GetMalwareFile read file")
+		s.Log.Err(err).Str("file", filename).Msg("GetMalwareFile read file")
 		return nil, ws, scani18.NotGetFile(err)
 	}
 	return data, ws, nil
@@ -307,7 +313,7 @@ func (s *ScanResultSrv) GetLicenseFile(ctx context.Context, param imagesecModel.
 
 	webshell, _, err := s.ScanResultDal.SearchLicense(ctx, imagesecModel.ScanResultSearchParam{UniqueIds: param.UniqueIds})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Uint64("uniqueID", param.UniqueIds[0]).Msg("GetLicenseFile")
+		s.Log.Err(err).Uint64("uniqueID", param.UniqueIds[0]).Msg("GetLicenseFile")
 		return nil, nil, err
 	}
 	if len(webshell) == 0 {
@@ -320,13 +326,13 @@ func (s *ScanResultSrv) GetLicenseFile(ctx context.Context, param imagesecModel.
 	filename := filepath.Join(global.ScannerOpts.PvcPath, consts.WebshellFileDir, ws.MD5)
 
 	if !util.FileExists(filename) {
-		logging.Get().Error().Str("filename", filename).Msg("GetLicenseFile file has cleaned")
+		s.Log.Error().Str("filename", filename).Msg("GetLicenseFile file has cleaned")
 		return nil, nil, scani18.NotGetFile(nil)
 	}
 	// 这里不直接返回是因为：windows会报木马病毒，然后自动删除
 	data, err := ZipFile(ZipFileMate{MD5: ws.MD5, Filename: ws.Filename})
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Str("file", filename).Msg("GetLicenseFile read file")
+		s.Log.Err(err).Str("file", filename).Msg("GetLicenseFile read file")
 		return nil, ws, scani18.NotGetFile(err)
 	}
 	return data, ws, nil
