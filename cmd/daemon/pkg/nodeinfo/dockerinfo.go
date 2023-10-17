@@ -629,6 +629,18 @@ func (d *DockerInfoManager) getImageInfo(imageID string) (string, string, int64)
 	return names, imageInspect.Created, imageInspect.Size
 }
 
+/*
+imageRef:
+ 	1:docker.io/library/nginx:latest
+    2： library/nginx:latest
+    3:  nginx:latest
+    4： nginx
+    5: sha256:：xxxx
+    6：docker.io/library/nginx@sha256xxxx
+    7：library/nginx@sha256xxxx
+    8：nginx@sha256xxxx
+*/
+
 func (d *DockerInfoManager) getImageInfoV2(imageRef string, imageID string) (imageName string, imageDigest string, createTime string, size int64) {
 	imageInspect, _, err := d.dockerCli.ImageInspectWithRaw(context.Background(), imageID)
 	if err != nil {
@@ -641,27 +653,26 @@ func (d *DockerInfoManager) getImageInfoV2(imageRef string, imageID string) (ima
 	i := strings.LastIndex(imageRef, "@") // 镜像仓库修改过tag  name@sha256:xxxx
 	if i != -1 && i < len(imageRef)-1 {
 		imageDigest = imageRef[i+1:]
-		imageName = imageRef
-		return imageName, imageDigest, imageInspect.Created, imageInspect.Size
-	}
-	if strings.HasPrefix(imageRef, "sha256") && len(imageInspect.RepoTags) > 0 {
+		if len(imageInspect.RepoTags) > 0 {
+			imageName = imageInspect.RepoTags[0]
+		}
+	} else if strings.HasPrefix(imageRef, "sha256") && len(imageInspect.RepoTags) > 0 {
 		//sha256:xxx
 		imageName = imageInspect.RepoTags[0]
 		imageDigest = imageRef
-		return imageName, imageDigest, imageInspect.Created, imageInspect.Size
+	}
+	if imageName == "" {
+		imageName = imageRef
 	}
 
 	// name
-	count := strings.Count(imageRef, "/")
+	count := strings.Count(imageName, "/")
 	switch count {
 	case 0: //  tomcat
-		imageName = "library/" + imageRef
-	case 1: // library/tomcat:latest
-		imageName = imageRef
-	case 2:
-		imageName = imageRef
+		imageName = "library/" + imageName
+	case 1, 2: // library/tomcat:latest
 	default:
-		imageName = strings.TrimPrefix(imageRef, "http://")
+		imageName = strings.TrimPrefix(imageName, "http://")
 		imageName = strings.TrimPrefix(imageName, "https://")
 	}
 
