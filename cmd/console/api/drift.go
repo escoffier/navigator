@@ -26,6 +26,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/request"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -571,8 +572,8 @@ func (api *api) driftCreateGlobalWhitelist() http.HandlerFunc {
 			return
 		}
 		tmpWhitelist := model.DriftGlobalWhitelistItem{Path: strings.Trim(whitelistItem.Path, " "),
-			Creator:   whitelistItem.Creator,
-			Updater:   whitelistItem.Creator,
+			Creator:   request.GetAccountFromContext(r.Context()),
+			Updater:   request.GetAccountFromContext(r.Context()),
 			CreatedAt: nowTimestamp,
 			UpdatedAt: nowTimestamp,
 			ExpireAt:  whitelistItem.ExpireAt,
@@ -615,6 +616,8 @@ func (api *api) driftUpdateGlobalWhitelist() http.HandlerFunc {
 					fmt.Errorf("failed to decode json: %w", err)))
 			return
 		}
+		whitelistItemUpdate.Updater = request.GetAccountFromContext(r.Context())
+
 		if !isPath(whitelistItemUpdate.Path) {
 			apperror.RespAndLog(w, ctx,
 				apperror.NewMalformedRequestError(http.StatusBadRequest,
@@ -921,7 +924,7 @@ func (api *api) driftCreatePolicy() http.HandlerFunc {
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
-		tmpPolicy := model.DriftPolicy{Enable: policy.Enable, Mode: policy.Mode, Creator: policy.Creator, ClusterKey: policy.ClusterKey,
+		tmpPolicy := model.DriftPolicy{Enable: policy.Enable, Mode: policy.Mode, Creator: request.GetAccountFromContext(r.Context()), ClusterKey: policy.ClusterKey,
 			Namespace: policy.Namespace, Resource: policy.Resource, ResourceKind: policy.ResourceKind}
 		tmpPolicy.ResourceUUID = util.GenerateUUID(policy.ClusterKey, policy.Namespace, policy.ResourceKind, policy.Resource)
 		id, err := driSvc.CreatePolicy(ctx, tmpPolicy)
@@ -987,10 +990,11 @@ func (api *api) driftCreateBatchPolicy() http.HandlerFunc {
 		if err != nil {
 			logging.GetLogger().Warn().Msg("GetAllPolicies error")
 		}
+		creator := request.GetAccountFromContext(r.Context())
 
 		var insertItems []model.DriftPolicy
 		for _, item := range policyItems {
-			tmpPolicy := model.DriftPolicy{Enable: item.Enable, Mode: item.Mode, Creator: item.Creator, ClusterKey: item.ClusterKey,
+			tmpPolicy := model.DriftPolicy{Enable: item.Enable, Mode: item.Mode, Creator: creator, ClusterKey: item.ClusterKey,
 				Namespace: item.Namespace, Resource: item.Resource, ResourceKind: item.ResourceKind}
 			tmpPolicy.ResourceUUID = util.GenerateUUID(item.ClusterKey, item.Namespace, item.ResourceKind, item.Resource)
 			if len(existPolicies) > 0 {
@@ -1076,6 +1080,8 @@ func (api *api) driftUpdatePolicy() http.HandlerFunc {
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
+		policyUpdate.Updater = request.GetAccountFromContext(r.Context())
+
 		policy, err := driSvc.UpdatePolicy(ctx, policyUpdate)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("UpdatePolicy error")
@@ -1116,6 +1122,11 @@ func (api *api) driftUpdateBatchPolicy() http.HandlerFunc {
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
+		updater := request.GetAccountFromContext(r.Context())
+		for i := range reqData.Data {
+			reqData.Data[i].Updater = updater
+		}
+
 		_, errs := driSvc.UpdatePolicies(ctx, reqData.Data)
 		if len(errs) > 0 {
 			retErrs := make([]apperror.Suberror, 0)
