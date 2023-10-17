@@ -138,7 +138,6 @@ func (dal *ImageMetaDao) CreateRegImage(ctx context.Context, images2 []*imagesec
 	uniqueIds := make([]uint64, 0)
 	for i := range images2 {
 		if err := images2[i].Check(); err != nil {
-			// logging.Get().Err(err).Str("module", "imageMeta").Interface("image", images2[i]).Msg("CreateRegImage")
 			continue
 		}
 		images = append(images, images2[i])
