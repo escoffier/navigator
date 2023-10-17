@@ -81,7 +81,11 @@ func (jip *JobsInProgress) CheckOver(job YamlJob) (bool, int, int64) {
 	defer jobsInProgress.lock.Unlock()
 	detail, ok := jobsInProgress.jobs[job.TaskID]
 	if ok {
-		return detail.Todo == detail.Count, detail.Success, detail.StartedAt
+		if detail.Todo == detail.Count {
+			delete(jobsInProgress.jobs, job.TaskID)
+			return true, detail.Success, detail.StartedAt
+		}
+		return false, detail.Success, detail.StartedAt
 	} else {
 		logging.Get().Error().Int("task id", job.TaskID).Msgf("check job not exist")
 		return false, 0, 0

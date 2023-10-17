@@ -190,7 +190,8 @@ func SyncResources() error {
 }
 
 func syncOnlineResources() {
-	f := func() error {
+	// 定期把新的资源同步进来
+	fSyncLatestResources := func() error {
 		logging.Get().Debug().Msg("syncOnlineResources...")
 		ctx := context.Background()
 		timeOutCtx, cancel := context.WithTimeout(ctx, time.Second)
@@ -296,6 +297,45 @@ func syncOnlineResources() {
 		return nil
 	}
 
+	// 由于console重启等其他原因，会导致正在扫描的任务被中断，会有一些异常的状态，这里加一个兜底的恢复逻辑
+	fFixWaitings := func() {
+		logging.Get().Debug().Msg("fFixWaitings...")
+		jobsInProgress.lock.Lock()
+		defer jobsInProgress.lock.Unlock()
+		ctx := context.Background()
+		// 没有正在处理的任务
+		if len(jobsInProgress.jobs) == 0 {
+			waitingRecords, err := iacModel.FindYamlRecords(ctx, db, map[string]interface{}{"status": iacModel.YamlRecordStatusWaiting}, map[string]interface{}{})
+			if err != nil {
+				logging.Get().Error().Err(err).Msg("FindYamlRecords fails")
+				return
+			}
+			if len(waitingRecords) != 0 {
+				for i := range waitingRecords {
+					lastRecord := iacModel.YamlRecord{}
+					err = db.WithContext(ctx).Where("resource_cluster_key = ? AND resource_namespace = ? AND resource_kind = ? AND resource_name = ? AND id != ? AND status != ?",
+						waitingRecords[i].ResourceClusterKey, waitingRecords[i].ResourceNamespace, waitingRecords[i].ResourceKind, waitingRecords[i].ResourceName,
+						waitingRecords[i].ID, iacModel.YamlRecordStatusWaiting,
+					).Last(&lastRecord).Error
+					if err != nil {
+						logging.Get().Error().Err(err).Interface("resource", waitingRecords[i]).Msg("FindYamlRecords fails")
+						continue
+					}
+					err = iacModel.UpdateYamlRecord(ctx, db, map[string]interface{}{"id": lastRecord.ID}, map[string]interface{}{"resource_online": 1})
+					if err != nil {
+						logging.Get().Error().Err(err).Int("id", lastRecord.ID).Msg("UpdateYamlRecord fails")
+						continue
+					}
+					err = db.WithContext(ctx).Where("id = ?", waitingRecords[i].ID).Delete(&iacModel.YamlRecord{}).Error
+					if err != nil {
+						logging.Get().Error().Err(err).Int("id", waitingRecords[i].ID).Msg("delete YamlRecord fails")
+						continue
+					}
+				}
+			}
+		}
+	}
+
 	go func() {
 		//// 启动时先同步一次
 		//err := f()
@@ -308,10 +348,11 @@ func syncOnlineResources() {
 		for {
 			select {
 			case <-tick.C:
-				err := f()
+				err := fSyncLatestResources()
 				if err != nil {
 					logging.Get().Error().Err(err).Msg("syncOnlineResources fails")
 				}
+				fFixWaitings()
 			}
 		}
 	}()
