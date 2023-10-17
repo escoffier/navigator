@@ -8,9 +8,9 @@ import (
 	"github.com/go-redis/redis/v8"
 	json "github.com/json-iterator/go"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 type ImageVulnsReporter struct {
@@ -42,6 +42,7 @@ func (ir *ImageVulnsReporter) LoadImageRiskLevels(ctx context.Context, images []
 	for riskTypeKey, riskType := range riskTypes {
 		for _, image := range images {
 			rkey := getRedisKey(riskTypeKey, image)
+			logging.Get().Info().Msgf("rkey: %s", rkey)
 			cmds = append(cmds, cmdInfo{
 				cmd:      pipe.Get(ctx, rkey),
 				image:    image,
@@ -52,7 +53,7 @@ func (ir *ImageVulnsReporter) LoadImageRiskLevels(ctx context.Context, images []
 
 	_, err := pipe.Exec(ctx)
 	if err != nil && err != redis.Nil {
-		logging.GetLogger().WithContext(ctx).Errorf(err, "failed to get redis. ")
+		logging.Get().WithContext(ctx).Errorf(err, "failed to get redis. ")
 		return nil, err
 	}
 	for _, cmd := range cmds {
@@ -60,16 +61,16 @@ func (ir *ImageVulnsReporter) LoadImageRiskLevels(ctx context.Context, images []
 		if err == redis.Nil {
 			continue
 		} else if err != nil {
-			logging.GetLogger().WithContext(ctx).Errorf(err, "failed to get. ")
+			logging.Get().WithContext(ctx).Errorf(err, "failed to get. ")
 			continue
 		}
 		var isum model.ImageSeverityScore
 		err = json.Unmarshal([]byte(res), &isum)
 		if err != nil {
-			logging.GetLogger().WithContext(ctx).Errorf(err, "failed to get. ")
+			logging.Get().WithContext(ctx).Errorf(err, "failed to get. ")
 			continue
 		}
-		logging.GetLogger().Info().Interface("data", isum).Msg("UpdateRiskCacheEntry")
+		logging.Get().Debug().Interface("data", isum).Msgf("UpdateRiskCacheEntry %s/%v", cmd.image, cmd.cmd.Args())
 		isumRes := getSeverityFrom(isum)
 		isumm, ok := imageSums[cmd.image]
 		if !ok {
@@ -115,9 +116,10 @@ func (ir *ImageVulnsReporter) LoadSummary(ctx context.Context, assetsSummary []*
 		images = append(images, imageID)
 	}
 
+	logging.Get().Debug().Msgf("images: %v", images)
 	imageSumm, lerr := ir.LoadImageRiskLevels(ctx, images)
 	if lerr != nil {
-		logging.GetLogger().WithContext(ctx).Errorf(lerr, "load image risk levels error")
+		logging.Get().WithContext(ctx).Errorf(lerr, "load image risk levels error")
 		return nil, lerr
 	}
 	return ImageVulnsSummary{
