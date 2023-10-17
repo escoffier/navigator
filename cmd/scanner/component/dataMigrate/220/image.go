@@ -29,6 +29,7 @@ import (
 type ImageMigrate struct {
 	MqWriter        mq.Writer
 	DataMigrateDal  imagesecStore.DataMigrateDal
+	RegDal          imagesecStore.RegistryDal
 	ScanIssueDal    imagesecStore.ScanIssueDal
 	ScanResultDal   imagesecStore.ScanResultDal
 	PreImageService migrateTypes.ImageService // 原来老表的逻辑
@@ -58,11 +59,13 @@ func GetImageMigrate() (*ImageMigrate, error) {
 	scanIssueDal := imagesecStore.NewScanIssueDao(rdbInstance)
 	imageMetaDal := imagesecStore.NewImageMetaDao(rdbInstance)
 	policyDal := imagesecStore.NewDetectPolicyDao(rdbInstance)
+	regDal := imagesecStore.NewRegistryDao(rdbInstance)
 	preLib := imagemeta.NewPreLibImageSrv()
 
 	imageMigrate = NewImageMate(
 		mqWriter,
 		dataMigrateDal,
+		regDal,
 		scanResultDal,
 		preLib,
 		imageDal,
@@ -76,6 +79,7 @@ func GetImageMigrate() (*ImageMigrate, error) {
 func NewImageMate(
 	mqWriter mq.Writer,
 	dataMigrateDal imagesecStore.DataMigrateDal,
+	regDal imagesecStore.RegistryDal,
 	scanResultDal imagesecStore.ScanResultDal,
 	imageService migrateTypes.ImageService, // 原来老表的逻辑
 	imageDal store.ImageDal,
@@ -87,6 +91,7 @@ func NewImageMate(
 	s := &ImageMigrate{
 		MqWriter:        mqWriter,
 		DataMigrateDal:  dataMigrateDal,
+		RegDal:          regDal,
 		ScanIssueDal:    scanIssueDal,
 		ScanResultDal:   scanResultDal,
 		PreImageService: imageService,
@@ -101,10 +106,23 @@ func NewImageMate(
 }
 
 func (s *ImageMigrate) MigrateImage(ctx context.Context, imageID int64, subtaskID int64) error {
+	registry, _, err := s.RegDal.SearchRegistry(ctx, imagesecModel.SearchRegistryParam{Deleted: consts.FalseString})
+	if err != nil {
+		s.Log.Err(err).Msg("MigrateImage")
+		return err
+	}
+	if len(registry) == 0 {
+		return nil
+	}
+	retIds := make([]int64, 0)
+	for i := range registry {
+		retIds = append(retIds, registry[i].ID)
+	}
 	images, _, err := s.ImageDal.SearchImage(ctx, imagesecModel.SearchImageParam{
 		ImageFromType: imagesecModel.ImageFromRegistry,
 		NotCount:      true,
 		InIds:         []int64{imageID},
+		RegIds:        retIds,
 	}, nil)
 	if err != nil {
 		s.Log.Err(err).Msg("MigrateImage")
@@ -178,7 +196,7 @@ func DataToImage(image model.ImageList) []*imagesecModel.Image {
 	im := &imagesecModel.Image{
 		ImageFromType: imagesecModel.ImageFromRegistry,
 		Host:          image.Library,
-		Repo:          image.RepoName,
+		Repo:          image.FullRepoName,
 		Tag:           image.Tags,
 		ImageName:     image.GetImageName(),
 		Digest:        image.Digest,
@@ -484,10 +502,25 @@ func (s *ImageMigrate) syncImageMeta(ctx context.Context) error {
 	cnt := 0
 	for {
 		<-ticker.C
+
+		registry, _, err := s.RegDal.SearchRegistry(ctx, imagesecModel.SearchRegistryParam{Deleted: consts.FalseString})
+		if err != nil {
+			s.Log.Err(err).Msg("MigrateImage")
+			continue
+		}
+		if len(registry) == 0 {
+			continue
+		}
+		retIds := make([]int64, 0)
+		for i := range registry {
+			retIds = append(retIds, registry[i].ID)
+		}
+
 		images, _, err := s.ImageDal.SearchImage(ctx, imagesecModel.SearchImageParam{
 			ImageFromType: imagesecModel.ImageFromRegistry,
 			StartTime:     lastTime,
 			NotCount:      true,
+			RegIds:        retIds,
 		}, filter)
 
 		if err != nil {
