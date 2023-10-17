@@ -29,7 +29,17 @@ func (dal *ResourceDao) SearchResources(ctx context.Context, param imagesec.Sear
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	db := dal.db.Get().WithContext(ctx).Table(new(model.TensorRawContainer).TableName())
-
+	// pkg/assets/types.go
+	/*
+		Running = iota
+			Created
+			Restarting
+			Removing
+			Paused
+			Exited
+			Dead
+	*/
+	db = db.Where("status <= ? ", 4)
 	if param.ImageUUID > 0 {
 		db = db.Where("image_uuid = ?", param.ImageUUID)
 	}
