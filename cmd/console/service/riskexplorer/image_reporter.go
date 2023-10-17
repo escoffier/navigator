@@ -41,7 +41,12 @@ func (ir *ImageVulnsReporter) LoadImageRiskLevels(ctx context.Context, images []
 	pipe := ir.redisCli.Pipeline()
 	for riskTypeKey, riskType := range riskTypes {
 		for _, image := range images {
-			rkey := getRedisKey(riskTypeKey, image)
+			fullImage := image
+			_, tag := getRepositoryAndTagFromImage(image)
+			if tag == "" {
+				fullImage = image + ":latest"
+			}
+			rkey := getRedisKey(riskTypeKey, fullImage)
 			logging.Get().Info().Msgf("rkey: %s", rkey)
 			cmds = append(cmds, cmdInfo{
 				cmd:      pipe.Get(ctx, rkey),
