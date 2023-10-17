@@ -45,6 +45,26 @@ type Image struct {
 	UpdatedAt        int64                 `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
 }
 
+type RootBoot struct {
+	User         string       `json:"user"`
+	IsRoot       bool         `json:"isRoot"`
+	UniqueID     uint64       `json:"uniqueID,string"`
+	PolicyDetect PolicyDetect `json:"policyDetect"` // 对各个策略的检测结果
+}
+
+type TrustedImage struct {
+	Trusted      bool         `json:"trusted"` // 是否可信
+	Digest       string       `json:"digest"`
+	UniqueID     uint64       `json:"uniqueID,string"`
+	PolicyDetect PolicyDetect `json:"policyDetect"` // 对各个策略的检测结果
+}
+
+type ImageInReg struct {
+	RegIds       []int64      `json:"regID"` // 是否可信
+	UniqueID     uint64       `json:"uniqueID,string"`
+	PolicyDetect PolicyDetect `json:"policyDetect"` // 对各个策略的检测结果
+}
+
 const (
 	DockerHost = "index.docker.io"
 )

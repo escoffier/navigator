@@ -14,7 +14,7 @@ func CheckTrustedImage(ctx context.Context, data *imagesecModel.ImageWithCorrela
 	if policy == nil || data == nil || data.Image.ID <= 0 || !policy.Enable || !policy.TrustImage.Enable {
 		return ans
 	}
-	if len(data.TrustedDigest) == 0 {
+	if len(data.TrustedImage) == 0 || !data.TrustedImage[0].Trusted {
 		var flag uint64
 		flag = util.SetBit1(flag, imagesecModel.FlagDetectException)
 

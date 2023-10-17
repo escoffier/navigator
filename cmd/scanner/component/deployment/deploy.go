@@ -407,6 +407,7 @@ func AddIssueDeployRecord(record imagesecModel.DeployRecord, det map[string]map[
 				})
 			}
 		}
+
 	}
 	return record
 }

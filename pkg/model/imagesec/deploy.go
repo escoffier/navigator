@@ -118,6 +118,7 @@ func (vi *DeployRecord) Serialize() {
 	vi.EnvIssue = DeduplicateDeployIssue(vi.EnvIssue)
 	vi.BaseImageIssue = DeduplicateDeployIssue(vi.BaseImageIssue)
 	vi.TrustedImageIssue = DeduplicateDeployIssue(vi.TrustedImageIssue)
+	vi.RootBootIssue = DeduplicateDeployIssue(vi.RootBootIssue)
 
 	vi.VulnJSON = vi.MarshalDeployIssue(vi.VulnIssue)
 	vi.MalwareJSON = vi.MarshalDeployIssue(vi.MalwareIssue)
@@ -128,6 +129,7 @@ func (vi *DeployRecord) Serialize() {
 	vi.EnvJSON = vi.MarshalDeployIssue(vi.EnvIssue)
 	vi.BaseImageJSON = vi.MarshalDeployIssue(vi.BaseImageIssue)
 	vi.TrustedImageJSON = vi.MarshalDeployIssue(vi.TrustedImageIssue)
+	vi.RootBootJSON = vi.MarshalDeployIssue(vi.RootBootIssue)
 
 	policyUniqueID := make([]string, 0)
 
