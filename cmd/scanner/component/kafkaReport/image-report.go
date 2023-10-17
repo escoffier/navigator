@@ -32,6 +32,7 @@ type ImageReport struct {
 	detectTaskSrv detect.ImageDetectTaskService
 	NodeImageQ    *ImageQueue
 	RegImageQ     *ImageQueue
+	RegDal        imagesecStore.RegistryDal
 	Log           *scannerUtils.LogEvent
 }
 
@@ -45,6 +46,7 @@ func NewImageReport(
 	configDal imagesecStore.ScanImageConfigDal,
 	scanTaskSrv service.ScanTaskService,
 	detectTaskSrv detect.ImageDetectTaskService,
+	regDal imagesecStore.RegistryDal,
 ) *ImageReport {
 	if imageReport != nil {
 		return imageReport
@@ -57,6 +59,7 @@ func NewImageReport(
 		configDal:     configDal,
 		scanTaskSrv:   scanTaskSrv,
 		detectTaskSrv: detectTaskSrv,
+		RegDal:        regDal,
 		NodeImageQ:    NewImageQueue(consts.SyncScanTaskCheckInterval),
 		RegImageQ:     NewImageQueue(consts.SyncScanTaskCheckInterval),
 		Log: scannerUtils.NewLogEvent(
@@ -233,9 +236,26 @@ func (s *ImageReport) RegImage(ctx context.Context, imageReport imagesecTypes.No
 	for i := range pre {
 		exit[pre[i].UniqueID] = true
 	}
+	registry, _, err := s.RegDal.SearchRegistry(ctx, imagesecModel.SearchRegistryParam{Deleted: consts.FalseString})
+	if err != nil {
+		s.Log.Err(err).Msg("MigrateImage")
+		return err
+	}
+	if len(registry) == 0 {
+		return nil
+	}
+	regs := make(map[int64]imagesecModel.Registry)
+	for i := range registry {
+		regs[registry[i].ID] = registry[i]
+	}
 
 	addImage := make([]*imagesecModel.Image, 0)
 	for i := range images {
+		reg, ok := regs[images[i].RegID]
+		if !ok {
+			continue
+		}
+		images[i].Host = reg.Url
 		if _, ok := exit[images[i].UniqueID]; !ok {
 			go func(im *imagesecModel.Image) { updateChan.AddRegImageChan <- im }(images[i])
 			addImage = append(addImage, images[i])
