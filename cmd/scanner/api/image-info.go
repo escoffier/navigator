@@ -293,7 +293,10 @@ func (s *ImageInfoAPI) SearchAssetsImage(ctx *gin.Context) {
 		uuid = append(uuid, body.AssetImage[i].UUID)
 	}
 
-	_, cnt1, err := s.ImageSrv.ListImageWithScanInfo(ctx, imagesecModel.ImageSearchApiParam{UUIDs: uuid})
+	_, cnt1, err := s.ImageSrv.ListImageWithScanInfo(ctx, imagesecModel.ImageSearchApiParam{
+		UUIDs:  uuid,
+		Filter: model.EmptyFilter().SetLimit(1)},
+	)
 	if err != nil {
 		response.JSONError(ctx, scani18.SearchImage(err))
 		return
@@ -354,9 +357,6 @@ func (s *ImageInfoAPI) SearchAssetsImage(ctx *gin.Context) {
 		ans = append(ans, uuidMap[i])
 	}
 
-	for i := range uuidMap {
-		ans = append(ans, uuidMap[i])
-	}
 	response.JSONOK(ctx, response.WithItems(ans))
 }
 
