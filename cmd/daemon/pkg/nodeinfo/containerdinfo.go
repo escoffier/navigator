@@ -463,7 +463,8 @@ func (d *ContainerdInfoManager) containerFromRaw(ctx context.Context, container 
 	)
 	image, err := container.Image(ctx)
 	if err != nil {
-		logging.Get().Error().Str("contaienrId", container.ID()).Msgf("get image failed,err:%v", err)
+		logging.Get().Error().Str("contaienrId", container.ID()).Msgf("get image failed,err:%v,info.Image:%s", err, info.Image)
+		//return nil, errors.New(fmt.Sprintf("containerId:%s get image failed,err:%v", container.ID(), err))
 	} else {
 		imageId = image.Name()
 		imageName = image.Name()
@@ -591,6 +592,18 @@ func (d *ContainerdInfoManager) processEvents(container *model.TensorRawContaine
 			}
 			container.Ports = utils.MergeContainerPorts(ports, container.Ports, container.IP)
 			container.VolumeMounts = utils.MergeVolumeMounts(volumeMounts, container.VolumeMounts)
+			if container.ImageName == "" {
+				for _, con := range pod.Status.ContainerStatuses {
+					if strings.Contains(con.ContainerID, container.ContainerID) {
+						container.ImageName = con.Image
+						split := strings.Split(con.ImageID, "@")
+						if len(split) == 2 {
+							container.ImageDigest = split[1]
+						}
+					}
+				}
+				logging.Get().Warn().Msgf("try find image from pod.containerId:%s imageName:%s,imageDigest:%s.", container.ContainerID, container.ImageName, container.ImageDigest)
+			}
 			//	找回 image tag：  因为containerd中, pod自定义标签 在容器运行时中没有
 			container.ImageName = buildImageWithTag(container.ImageName, pod.Labels, container.Name)
 			container.ImageUUID = model.GetImageUUID(container.ImageName, container.ImageDigest)
