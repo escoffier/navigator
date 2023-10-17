@@ -369,6 +369,9 @@ func (s *ScanResultAPI) SecurityIssueOverview(ctx *gin.Context) {
 			ImageUniqueID:     param.ImageUniqueID,
 		},
 	}
+	if len(param.SecurityPolicyIds) == 0 {
+		assParam.RiskPolicyEnable = false
+	}
 
 	data, err := s.ImageSrv.GetImageCorrelateData(ctx, assParam)
 	if err != nil {
@@ -411,6 +414,9 @@ func (s *ScanResultAPI) ImageIssueStatistic(ctx *gin.Context) {
 			ImageID:           param.ImageID,
 			ImageUniqueID:     param.ImageUniqueID,
 		},
+	}
+	if len(param.SecurityPolicyIds) == 0 {
+		assParam.RiskPolicyEnable = false
 	}
 
 	data, err := s.ImageSrv.GetImageCorrelateData(ctx, assParam)
