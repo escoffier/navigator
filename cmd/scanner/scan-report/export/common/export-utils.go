@@ -380,7 +380,7 @@ func GenImageBaseInfoMeta(lang string) types.ExcelMeta {
 			"版本",
 			"大小",
 			"OS 版本",
-			"入库时间",
+			"同步时间",
 			"是否为基础镜像",
 			"修复建议",
 		},

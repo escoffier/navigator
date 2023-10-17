@@ -374,7 +374,7 @@ func (im *ImageManager) GetRecordPkgs(ctx context.Context, limit int64, offset i
 		}
 	}
 
-	vulnSerMap := make(map[uint64]string)
+	vulnSerMap := make(map[uint64]*scanner_ci.CiVulns)
 	if len(vulnU) > 0 {
 		vulns, _, _, err := im.dal.SearchVuln(ctx, scanner_ci.SearchVulnParm{UniqueVulns: vulnU}, nil)
 		if err != nil {
@@ -382,14 +382,20 @@ func (im *ImageManager) GetRecordPkgs(ctx context.Context, limit int64, offset i
 			return nil, 0, err
 		}
 		for i := range vulns {
-			vulnSerMap[vulns[i].UniqueVuln] = vulns[i].Severity
+			vulnSerMap[vulns[i].UniqueVuln] = vulns[i]
 		}
 	}
 	for i := range res {
 		for j := range res[i].UniqueVuln {
 			un := res[i].UniqueVuln[j]
-			serv := vulnSerMap[un]
-			switch strings.ToUpper(serv) {
+			vul := vulnSerMap[un]
+			key := fmt.Sprintf(consts.UniqueVulnFamat, vul.Name, res[i].PkgName, res[i].PkgVersion)
+			uid := util.GenerateUUID64(key)
+			if uid != un {
+				continue
+			}
+
+			switch strings.ToUpper(vul.Severity) {
 			case "CRITICAL":
 				res[i].Histogram.NumCritical++
 			case "HIGH":
