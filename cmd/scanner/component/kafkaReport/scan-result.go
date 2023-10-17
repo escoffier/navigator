@@ -931,7 +931,7 @@ func (s *ScanResultReportSrv) ReceiveMsg(stopCh <-chan struct{}) error {
 	err := s.mqReader.Subscribe(model.NodeImageScanResultTopic, model.NodeImageScanResultGroup, s.ReceiveImageScanResult)
 	if err != nil {
 		s.Log.Err(err).Msg("failed to sub message queue")
-		return err
+		return nil
 	}
 	s.Log.Info().Msg("sub message queue ok")
 	<-stopCh
