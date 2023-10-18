@@ -8,6 +8,7 @@
     and not falco_privileged_containers
     and not user_privileged_containers
     and not tensorsec_namespace
+    and not k8s.ns.name = "kube-system"
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container.info=%container.info,image=%container.image.repository,image_tag=%container.image.tag,container_id=%container.id,container_name=%container.name
   info:
@@ -146,6 +147,7 @@
     urgency: true
     tags: [ATT&CK, users, container, mitre_privilege_escalation, L4]
 
+#debugfs -w debugfs_priv
 - key: Escape to access rule by debugfs
   hid: priv_07
   condition: >
@@ -652,12 +654,10 @@
 - key: Execute commands through the docker api
   hid: priv_29
   condition: >
-    evt.type in (sendto, sendmsg, connect) and fd.sport = 2375 and shell_parent_procs
+    evt.type in (sendto, sendmsg, connect) and fd.sport = 2375 and shell_parent_procs and not fd.name contains "->127.0.0.1" and not fd.name contains "->0.0.0.0:" and not fd.name contains "->::1"
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name
   steps:
-    - name: checkRegexMatch
-      params: [ '^(?:(?!->127\.0\.0\.1:).)*$' , trigger.payload.output_map.fd_name ]
     - name: checkRegexMatch
       params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.proc_cmdline ]
   info:
@@ -792,7 +792,6 @@
     and not k8s.ns.name = "kube-system"
     and not falco_sensitive_mount_containers
     and not user_sensitive_mount_containers
-    and not tensorsec_namespace
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent=%proc.pname,file=%fd.name,program=%proc.name,gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4],container_id=%container.id,container_name=%container.name,image=%container.image.repository
   steps:

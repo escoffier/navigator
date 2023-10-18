@@ -2297,7 +2297,7 @@
   condition: (fd.sport in (miner_ports) and fd.sip.name in (miner_domains))
 
 - macro: net_miner_pool
-  condition: (evt.type in (sendto, sendmsg, connect) and evt.dir=< and (fd.net != "127.0.0.0/8" and not fd.snet in (rfc_1918_addresses)) and ((minerpool_http) or (minerpool_https) or (minerpool_other)))
+  condition: (evt.type in (sendto, sendmsg, connect) and evt.dir=< and (fd.net != "127.0.0.0/8" and not fd.sip="::1" and not fd.snet in (rfc_1918_addresses)) and ((minerpool_http) or (minerpool_https) or (minerpool_other)))
 
 - macro: trusted_images_query_miner_domain_dns
   condition: (container.image.repository in (docker.io/falcosecurity/falco, falcosecurity/falco))
@@ -2607,6 +2607,8 @@
     container and not container_entrypoint and
     k8s.ns.name != "kube-system" and
     shell_procs and not proc.cmdline contains "vimglob"
+    and not k8s.pod.name contains "-holmes-"
+    and not k8s.ns.name = "kube-system"
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.arg.exe=%evt.arg.exe,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3],aname[4]=%proc.aname[4],aname[5]=%proc.aname[5],aname[6]=%proc.aname[6],aname[7]=%proc.aname[7],proc_pgid=%proc.vpgid
   info:
@@ -2656,6 +2658,7 @@
     and not user_read_sensitive_file_containers
     and not runc_writing_passwd
     and not tensorsec_namespace
+    and not k8s.ns.name = "kube-system"
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name,evt.args=%evt.args,fd.name=%fd.name,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3]
   info:

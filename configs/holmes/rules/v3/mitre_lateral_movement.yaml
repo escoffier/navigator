@@ -163,12 +163,10 @@
 - key: Try ssh connection in container
   hid: move_07
   condition: >
-    (inbound_outbound) and allowed_ssh_hosts and container and shell_parent_procs
+    (inbound_outbound) and allowed_ssh_hosts and container and shell_parent_procs and not fd.name contains "->127.0.0.1" and not fd.name contains "->0.0.0.0:" and not fd.name contains "->::1"
   output: >
     connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name
   steps:
-    - name: checkRegexMatch
-      params: [ '^(?:(?!->127\.0\.0\.1:).)*$' , trigger.payload.output_map.fd_name ]
     - name: checkRegexMatch
       params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.proc_cmdline ]
   info:
@@ -189,12 +187,10 @@
 - key: Try ssh connection in host
   hid: move_08
   condition: >
-    (inbound_outbound) and allowed_ssh_hosts and not container and not proc.cmdline = "sshd -D" and shell_parent_procs
+    (inbound_outbound) and allowed_ssh_hosts and not container and not proc.cmdline = "sshd -D" and shell_parent_procs and not fd.name contains "->127.0.0.1" and not fd.name contains "->0.0.0.0:" and not fd.name contains "->::1"
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,user=%user.name,user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository
   steps:
-    - name: checkRegexMatch
-      params: [ '^(?:(?!->127\.0\.0\.1:).)*$' , trigger.payload.output_map.fd_name ]
     - name: checkRegexMatch
       params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.proc_cmdline ]
   info:
