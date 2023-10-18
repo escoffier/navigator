@@ -386,12 +386,6 @@ func (ec *EngineStreamHandler) engineReloads(ctx context.Context) error {
 			logging.Get().Error().Err(err).Msg("UserRule2Falco converts fails")
 			return err
 		}
-		if debugMode {
-			// DEBUG start
-			logging.Get().Info().Uints16("version", header.Version[:]).Msg("DEBUG updated mozart rules")
-			ec.saveToDir(decodedUserData, 888888)
-			// DEBUG end
-		}
 		encodedFalcoData, err := holmes.ToThrBytes(decodedFalcoData, header.Version)
 		if err != nil {
 			logging.Get().Error().Err(err).Msg("ToThrBytes encode fails")
@@ -402,12 +396,6 @@ func (ec *EngineStreamHandler) engineReloads(ctx context.Context) error {
 			sversion = rulesInfo.LatestDataVersion
 		} else {
 			return err
-		}
-		if debugMode {
-			// DEBUG start
-			logging.Get().Info().Uints16("version", header.Version[:]).Msg("DEBUG updated falco rules")
-			ec.saveToDir(decodedFalcoData, 9999999)
-			// DEBUG end
 		}
 
 	} else {
@@ -423,6 +411,18 @@ func (ec *EngineStreamHandler) engineReloads(ctx context.Context) error {
 			rulesConfig: configsArr,
 			version:     rulesInfo.LatestSettingVersion,
 		}
+	}
+
+	if debugMode {
+		// DEBUG start
+		logging.Get().Info().Uints16("version", header.Version[:]).Msg("DEBUG updated falco rules")
+		manager.RulesHandle(
+			manager.GetStaticRuleTHRFilePath(ec.config.RulesDirPath, strconv.FormatInt(rulesInfo.LatestDataVersion, 10)),
+			manager.GetStaticRuleTHRFilePath(ec.config.RulesDirPath, "999999"),
+			sconfigs.rulesConfig,
+			myNamespace,
+		)
+		// DEBUG end
 	}
 
 	reloadReq.StaticVersion = strconv.FormatInt(sversion, 10)

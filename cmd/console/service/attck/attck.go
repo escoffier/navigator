@@ -1115,7 +1115,7 @@ func (h *ATTCKHandler) UpdateConfig(ctx context.Context, username string, data [
 		}
 		// 新增规则一律关闭
 		for name, newRule := range rules {
-			if _, ok := vRules.items[newRule.name]; !ok {
+			if _, ok := vRules.items[newRule.name]; !ok && newRule.category == model.RuleCategoryATTCK {
 				newClosedRules = append(newClosedRules, newRule.name)
 				rules[name].disabled = true
 			}

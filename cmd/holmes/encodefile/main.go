@@ -230,6 +230,7 @@ func main() {
 	finalBytes = append(finalBytes, '\n')
 	finalBytes = append(finalBytes, cconfigBytes...)
 
+	printYamlWithLineNo(finalBytes)
 	thrBytes, err := holmes.ToThrBytes(finalBytes, versionNum)
 	if err != nil {
 		printYamlWithLineNo(finalBytes)
