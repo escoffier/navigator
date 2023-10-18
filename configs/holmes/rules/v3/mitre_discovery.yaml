@@ -79,7 +79,7 @@
     open_read and container and
     fd.name startswith "/proc/" and fd.name contains "pid_max" and evt.arg.flags = O_RDONLY and
     shell_parent_procs and
-    not (k8s.pod.name contains "holmes" or k8s.pod.name contains "calico" or k8s.pod.name contains "node-exporter" or k8s.pod.name contains "console" or k8s.pod.name contains "51c1c6" or k8s.pod.name contains "prometheus")
+    not (k8s.pod.name contains "holmes" or k8s.pod.name contains "calico" or k8s.pod.name contains "node-exporter" or k8s.pod.name contains "console" or k8s.pod.name contains "51c1c6" or k8s.pod.name contains "prometheus" or k8s.ns.name = "kube-system")
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container.info=%container.info,shell=%proc.name,parent=%proc.pname,terminal=%proc.tty,container_id=%container.id,container_name=%container.name,image=%container.image.repository
   info:
@@ -306,11 +306,13 @@
     and not user_expected_system_procs_network_activity_conditions and container
     and not tensorsec_namespace
     and not proc.cmdline contains "redis-cli -h"
+    and not k8s.ns.name = "kube-system"
+    and not fd.name contains "->127.0.0.1"
+    and not fd.name contains "->0.0.0.0:"
+    and not fd.name contains "->::1" 
   output: >
     pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_name=%proc.name,parent=%proc.pname,proc.aname[0]=%proc.aname[0],proc.aname[1]=%proc.aname[1],gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4]
   steps:
-    - name: checkRegexMatch
-      params: [ '^(?:(?!->127\.0\.0\.1:).)*$' , trigger.payload.output_map.fd_name ]
     - name: checkRegexMatch
       params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.proc_cmdline ]
     - name: checkRuleRecentCount
