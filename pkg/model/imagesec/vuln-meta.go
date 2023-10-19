@@ -205,7 +205,7 @@ func init() {
 			"H": "高",
 		}
 		//  权限范围扩大
-		vulnVectorAttrWithZHView["Stream"] = map[string]string{
+		vulnVectorAttrWithZHView["S"] = map[string]string{
 			"C": "扩大",
 			"U": "不变",
 		}
@@ -217,14 +217,14 @@ func init() {
 		}
 
 		defaultAttr = map[string]string{
-			"AV":     "A", // 攻击位置难易
-			"UI":     "R", // 是否自动化触发
-			"AC":     "N", // 攻击复杂度
-			"C":      "N", // 信息泄露风险
-			"A":      "N", // 信息/系统篡改风险
-			"PR":     "N", // 所需权限级别
-			"Stream": "U", // 权限范围扩大
-			"I":      "N", // 触发dos风险
+			"AV": "A", // 攻击位置难易
+			"UI": "R", // 是否自动化触发
+			"AC": "N", // 攻击复杂度
+			"C":  "N", // 信息泄露风险
+			"A":  "N", // 信息/系统篡改风险
+			"PR": "N", // 所需权限级别
+			"S":  "U", // 权限范围扩大
+			"I":  "N", // 触发dos风险
 		}
 
 		vulnPosAttr = make(map[string]map[string]string, 0)
@@ -259,7 +259,7 @@ func init() {
 			"H": "100%",
 		}
 		//  权限范围扩大
-		vulnPosAttr["Stream"] = map[string]string{
+		vulnPosAttr["S"] = map[string]string{
 			"C": "100%",
 			"U": "0%",
 		}
@@ -309,7 +309,7 @@ func init() {
 			"H": CVSSFlagAH,
 		}
 		//  权限范围扩大
-		vulnVectorFlag["Stream"] = map[string]uint64{
+		vulnVectorFlag["S"] = map[string]uint64{
 			"C": CVSSFlagSC,
 			"U": CVSSFlagSU,
 		}
