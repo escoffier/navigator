@@ -173,7 +173,7 @@ func init() {
 			"H": "高",
 		}
 		//  权限范围扩大
-		vulnAttr["Stream"] = map[string]string{
+		vulnAttr["S"] = map[string]string{
 			"C": "扩大",
 			"U": "不变",
 		}
@@ -192,14 +192,14 @@ func init() {
 		}
 
 		defaultAttr = map[string]string{
-			"AV":     "相邻网络访问", // 攻击位置难易
-			"UI":     "非自动",    // 是否自动化触发
-			"AC":     "无",      // 所需权限级别
-			"C":      "无",      // 信息泄露风险
-			"A":      "无",      // 信息/系统篡改风险
-			"I":      "无",      // 造成 DoS 风险
-			"PR":     "无",      // 所需权限级别
-			"Stream": "不变",     // 权限范围扩大
+			"AV": "相邻网络访问", // 攻击位置难易
+			"UI": "非自动",    // 是否自动化触发
+			"AC": "无",      // 所需权限级别
+			"C":  "无",      // 信息泄露风险
+			"A":  "无",      // 信息/系统篡改风险
+			"I":  "无",      // 造成 DoS 风险
+			"PR": "无",      // 所需权限级别
+			"S":  "不变",     // 权限范围扩大
 		}
 
 		vulnPosAttr = make(map[string]map[string]string, 0)
@@ -233,7 +233,7 @@ func init() {
 			"H": "100%",
 		}
 		//  权限范围扩大
-		vulnPosAttr["Stream"] = map[string]string{
+		vulnPosAttr["S"] = map[string]string{
 			"C": "100%",
 			"U": "0%",
 		}

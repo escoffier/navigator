@@ -480,7 +480,7 @@ func (im *ImageManager) TransCvss3ToPercent(cvss string) map[string]string {
 		"H": "100%",
 	}
 	//  权限范围扩大
-	VulnAttr["Stream"] = map[string]string{
+	VulnAttr["S"] = map[string]string{
 		"C": "100%",
 		"U": "0%",
 	}
