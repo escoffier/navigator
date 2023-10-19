@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"net/http"
 	"net/url"
 	"os"
@@ -324,9 +325,6 @@ func getImageTag(image string) string {
 	if strings.Contains(image, "@sha256") {
 		return ""
 	}
-	s := strings.SplitN(image, ":", 2)
-	if s == nil || len(s) == 1 {
-		return "latest"
-	}
-	return s[1]
+	_, _, tag := util.ParseImage(image)
+	return tag
 }
