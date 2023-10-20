@@ -35,7 +35,7 @@ func TestNewClamavSrv(t *testing.T) {
 		return
 	}
 	for i := 0; i < 5; i++ {
-		file2, err := srv.ScanFile(context.Background(), "/root/app/kafka_2.13-3.5.0/bin/windows/kafka-metadata-quorum.bat")
+		file2, err := srv.ScanFile(context.Background(), srv.Client, "/root/app/kafka_2.13-3.5.0/bin/windows/kafka-metadata-quorum.bat")
 		if err != nil {
 			logging.Get().Err(err).Str("module", "imagescan").Msg("ScanFile")
 			return

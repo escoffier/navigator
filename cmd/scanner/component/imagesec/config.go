@@ -3,8 +3,6 @@ package imagesec
 import (
 	"context"
 
-	"gitlab.com/security-rd/go-pkg/logging"
-
 	imagescanSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/service"
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -32,6 +30,7 @@ type SensitiveRuleSrv struct {
 	sensitiveRuleDal imagesecStore.SensitiveRuleDal
 	scannerConfigSrv ScanImageConfigService
 	ZhRule           map[string]string
+	Log              *scannerUtils.LogEvent
 }
 
 func NewSensitiveRuleSrv(
@@ -42,6 +41,9 @@ func NewSensitiveRuleSrv(
 		sensitiveRuleDal: sensitiveRuleDal,
 		scannerConfigSrv: scannerConfigSrv,
 		ZhRule:           make(map[string]string),
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithSubModule("SensitiveRuleSrv"),
+			scannerUtils.WithModule(consts.ModuleImagesecSrv)),
 	}
 
 	file, err := scannerUtils.GetSensitiveRuleFromFile(consts.DefaultSensitiveRuleZHPath)
@@ -59,13 +61,13 @@ func (s *SensitiveRuleSrv) CreateSensitiveRule(ctx context.Context, data *images
 	}
 	err := s.sensitiveRuleDal.CreateSensitiveRule(ctx, data)
 	if err != nil {
-		logging.Get().Err(err).Interface("data", data).Msg("CreateSensitiveRule")
+		s.Log.Err(err).Interface("data", data).Msg("CreateSensitiveRule")
 		return scani18.CreateSensitiveRule(err)
 	}
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Msg("CreateSensitiveRule create scan task")
+				s.Log.Error().Msg("CreateSensitiveRule create scan task")
 			}
 		}()
 		_ = s.CreateScanTask(ctx)
@@ -77,7 +79,7 @@ func (s *SensitiveRuleSrv) CreateSensitiveRule(ctx context.Context, data *images
 func (s *SensitiveRuleSrv) SearchSensitiveRule(ctx context.Context, param imagesecModel.SearchSensitiveRuleParam) ([]*imagesecModel.SensitiveRule, int64, error) {
 	data, cnt, err := s.sensitiveRuleDal.SearchSensitiveRule(ctx, param)
 	if err != nil {
-		logging.Get().Err(err).Msg("SearchSensitiveRule")
+		s.Log.Err(err).Msg("SearchSensitiveRule")
 		return nil, 0, scani18.SearchSensitiveRule(err)
 	}
 	la, ok := ctx.Value(imagesecModel.AcceptLanguage).(string)
@@ -94,14 +96,14 @@ func (s *SensitiveRuleSrv) SearchSensitiveRule(ctx context.Context, param images
 func (s *SensitiveRuleSrv) UpdateSensitiveRule(ctx context.Context, id int64, updater map[string]interface{}) error {
 	err := s.sensitiveRuleDal.UpdateSensitiveRule(ctx, id, updater)
 	if err != nil {
-		logging.Get().Err(err).Int64("id", id).Interface("updater", updater).Msg("UpdateSensitiveRule")
+		s.Log.Err(err).Int64("id", id).Interface("updater", updater).Msg("UpdateSensitiveRule")
 		return scani18.UpdateSensitiveRule(err)
 	}
 
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Msg("CreateSensitiveRule create scan task")
+				s.Log.Error().Msg("CreateSensitiveRule create scan task")
 			}
 		}()
 		_ = s.CreateScanTask(ctx)
@@ -113,13 +115,13 @@ func (s *SensitiveRuleSrv) UpdateSensitiveRule(ctx context.Context, id int64, up
 func (s *SensitiveRuleSrv) DeleteSensitiveRule(ctx context.Context, id int64) error {
 	err := s.sensitiveRuleDal.DeleteSensitiveRule(ctx, id)
 	if err != nil {
-		logging.Get().Err(err).Int64("id", id).Msg("DeleteSensitiveRule")
+		s.Log.Err(err).Int64("id", id).Msg("DeleteSensitiveRule")
 		return scani18.DeleteSensitiveRule(err)
 	}
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Msg("CreateSensitiveRule create scan task")
+				s.Log.Error().Msg("CreateSensitiveRule create scan task")
 			}
 		}()
 		_ = s.CreateScanTask(ctx)
@@ -131,7 +133,7 @@ func (s *SensitiveRuleSrv) DeleteSensitiveRule(ctx context.Context, id int64) er
 func (s *SensitiveRuleSrv) CreateScanTask(ctx context.Context) error {
 	scan := imagescanSrv.MustGetScanTaskSrv()
 	if err := scan.TrigCreateScanTask(ctx, imagesecModel.SensitiveUpdateTrigger); err != nil {
-		logging.Get().Err(err).Str("configType", imagesecModel.ConfigTypeNodeScanImage).Msg("CreateSensitiveRule CreateImageScanTask")
+		s.Log.Err(err).Str("configType", imagesecModel.ConfigTypeNodeScanImage).Msg("CreateSensitiveRule CreateImageScanTask")
 		return err
 	}
 	return nil
@@ -139,11 +141,12 @@ func (s *SensitiveRuleSrv) CreateScanTask(ctx context.Context) error {
 
 type ScanImageConfigSrv struct {
 	configDal imagesecStore.ScanImageConfigDal
+	Log       *scannerUtils.LogEvent
 }
 
 func (s *ScanImageConfigSrv) CreateScanImageConfig(ctx context.Context, data *imagesecModel.ScanImageConfig) error {
 	if err := s.configDal.CreateScanImageConfig(ctx, data); err != nil {
-		logging.Get().Err(err).Interface("data", data).Msg("CreateScanImageConfig")
+		s.Log.Err(err).Interface("data", data).Msg("CreateScanImageConfig")
 		return scani18.CreateScanImageConfig(err)
 	}
 	return nil
@@ -153,7 +156,7 @@ func (s *ScanImageConfigSrv) GetScanImageConfig(ctx context.Context, configType 
 	data, err := s.configDal.GetScanImageConfig(ctx, configType)
 
 	if err != nil {
-		logging.Get().Err(err).Str("configType", configType).Msg("GetScanImageConfig")
+		s.Log.Err(err).Str("configType", configType).Msg("GetScanImageConfig")
 		return nil, scani18.GetScanImageConfig(err)
 	}
 	return data, nil
@@ -161,7 +164,7 @@ func (s *ScanImageConfigSrv) GetScanImageConfig(ctx context.Context, configType 
 
 func (s *ScanImageConfigSrv) UpdateScanImageConfig(ctx context.Context, id int64, data *imagesecModel.ScanImageConfig) error {
 	if err := s.configDal.UpdateScanImageConfig(ctx, id, data); err != nil {
-		logging.Get().Err(err).Interface("data", data).Msg("UpdateScanImageConfig")
+		s.Log.Err(err).Interface("data", data).Msg("UpdateScanImageConfig")
 		return scani18.UpdateScanImageConfig(err)
 	}
 	return nil
@@ -224,7 +227,12 @@ func (s *ScanImageConfigSrv) GetConstView(ctx context.Context, constType string)
 }
 
 func NewScannerConfigSrv(configDal imagesecStore.ScanImageConfigDal) *ScanImageConfigSrv {
-	return &ScanImageConfigSrv{configDal: configDal}
+	return &ScanImageConfigSrv{
+		configDal: configDal,
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithSubModule("ScanImageConfigSrv"),
+			scannerUtils.WithModule(consts.ModuleImagesecSrv)),
+	}
 }
 
 func GetOpenSources(lang string) map[string]string {

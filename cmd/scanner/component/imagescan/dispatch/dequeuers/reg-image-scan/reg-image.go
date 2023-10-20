@@ -418,7 +418,7 @@ func NewScanLibImageQueue(
 		maxProgressSubtaskPerNode: consts.MaxInprogressSubtaskPerNode,
 		Log: scannerUtils.NewLogEvent(
 			scannerUtils.WithSubModule("RegImageScanQueue"),
-			scannerUtils.WithModule(consts.ModelImageScan),
+			scannerUtils.WithModule(consts.ModuleImageScan),
 		),
 	}
 

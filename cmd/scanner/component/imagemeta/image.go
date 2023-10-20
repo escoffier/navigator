@@ -80,7 +80,7 @@ func NewImageMetaSrv(
 
 		Log: scannerUtils.NewLogEvent(
 			scannerUtils.WithSubModule("MetaInfo"),
-			scannerUtils.WithModule(consts.ModelImageMeta),
+			scannerUtils.WithModule(consts.ModuleImageMeta),
 		),
 	}
 	return &srv
@@ -293,8 +293,9 @@ func (s *ImageInfoMetaSrv) TopRiskImage(ctx context.Context) ([]*imagesecModel.I
 		}
 	}
 	images, _, err := s.ListImageWithScanInfo(ctx, imagesecModel.ImageSearchApiParam{
-		OnlineStr: []string{consts.TrueString},
-		SafeAttr:  []string{imagesecModel.ImageUnsafeString},
+		OnlineStr:  []string{consts.TrueString},
+		SafeAttr:   []string{imagesecModel.ImageUnsafeString},
+		VulnStatic: []string{imagesecModel.SeverityCritical, imagesecModel.SeverityHigh},
 		AssociateParam: imagesecModel.ImageAssociateParam{
 			VulnEnable:         true,
 			MalwareEnable:      true,

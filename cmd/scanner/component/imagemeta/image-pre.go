@@ -38,7 +38,7 @@ func NewPreLibImageSrv() *PreRegImageSrv {
 		scanResultDal: scanResultDal,
 		Log: scannerUtils.NewLogEvent(
 			scannerUtils.WithSubModule("PreRegImage"),
-			scannerUtils.WithModule(consts.ModelImageMeta),
+			scannerUtils.WithModule(consts.ModuleImageMeta),
 		),
 	}
 }

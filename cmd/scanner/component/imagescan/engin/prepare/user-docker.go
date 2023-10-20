@@ -1,33 +1,49 @@
 package prepare
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os/exec"
 	"strings"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
-func getInspectInfo(url, username, password, image string) (*InspectInfo, error) {
+type DockerPull struct {
+	Log *scannerUtils.LogEvent
+}
 
-	if err := login(url, username, password); err != nil {
-		logging.GetLogger().Err(err).Msg("scan-image docker pull login")
+func NewDockerPull() *DockerPull {
+	s := &DockerPull{
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithModule(consts.ModuleImageScan),
+			scannerUtils.WithSubModule("DockerPull"),
+		)}
+	return s
+}
+
+func (s *DockerPull) getInspectInfo(ctx context.Context, reg imagesecModel.Registry, im imagesecModel.Image) (*InspectInfo, error) {
+
+	if err := s.login(ctx, reg.Url, reg.Username, reg.PasswordString); err != nil {
+		s.Log.Err(err).Msg("scan-image docker pull login")
+		return nil, err
+	}
+	image := im.GetDockerPullImageName()
+	if err := s.pullImage(ctx, image); err != nil {
+		s.Log.Err(err).Msg("scan-image docker pull pullImage")
 		return nil, err
 	}
 
-	if err := pullImage(image); err != nil {
-		logging.GetLogger().Err(err).Msg("scan-image docker pull pullImage")
-		return nil, err
-	}
-
-	info, err := inspectImage(image)
+	info, err := s.inspectImage(ctx, image)
 	if err != nil {
-		logging.GetLogger().Err(err).Msg("scan-image docker pull inspectImage")
+		s.Log.Err(err).Msg("scan-image docker pull inspectImage")
 		return nil, err
 	}
-	logging.GetLogger().Info().
+	s.Log.Info().
 		Int("Layers", len(info.RootFS.Layers)).
 		Str("Digest", info.Digest).
 		Int("Env", len(info.Config.Env)).
@@ -35,39 +51,39 @@ func getInspectInfo(url, username, password, image string) (*InspectInfo, error)
 		Str("ImageDigest", image).
 		Msg("scan-image docker pull get inspect")
 
-	// defer func() { _ = rmImage(image) }()
+	defer func() { _ = s.rmImage(ctx, image) }()
 
 	return info, nil
 }
 
-func pullImage(image string) error {
+func (s *DockerPull) pullImage(ctx context.Context, image string) error {
 
 	osCmd := exec.Command("docker", "pull", image)
 	err := osCmd.Run()
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("scan-image docker pull :%s", image)
+		s.Log.Err(err).Msgf("scan-image docker pull :%s", image)
 		return err
 	}
-	logging.GetLogger().Info().Msgf("scan-image docker pull successful :%s", image)
+	s.Log.Info().Msgf("scan-image docker pull successful :%s", image)
 	return nil
 }
 
-func inspectImage(image string) (*InspectInfo, error) {
+func (s *DockerPull) inspectImage(ctx context.Context, image string) (*InspectInfo, error) {
 	osCmd := exec.Command("docker", "inspect", image)
 	stdout, err := osCmd.CombinedOutput()
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("scan-image docker StdoutPipe:%v ", osCmd.Args)
+		s.Log.Err(err).Msgf("scan-image docker StdoutPipe:%v ", osCmd.Args)
 		return nil, err
 	}
 
 	info := make([]InspectInfo, 0)
 	if err := json.Unmarshal(stdout, &info); err != nil {
-		logging.GetLogger().Err(err).Msg("scan-image Unmarshal InspectInfo ")
+		s.Log.Err(err).Msg("scan-image Unmarshal InspectInfo ")
 		return nil, err
 	}
 
 	if len(info) == 0 {
-		logging.GetLogger().Info().Msg("scan-image docker-pull not get manifest")
+		s.Log.Info().Msg("scan-image docker-pull not get manifest")
 		return nil, fmt.Errorf("docker-pull not get manifest")
 	}
 
@@ -80,28 +96,28 @@ type InspectInfo struct {
 	Config model.Config `json:"Config"`
 }
 
-func login(url, username, password string) error {
+func (s *DockerPull) login(ctx context.Context, url, username, password string) error {
 	osCmd := exec.Command("docker", "login", "-u", username, "-p", password, getLib(url))
-	logging.GetLogger().Info().Msgf("scan-image login success %v", osCmd.Args)
+	s.Log.Info().Msgf("scan-image login success %v", osCmd.Args)
 
 	err := osCmd.Run()
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("scan-image login failed:%v", osCmd.Args)
+		s.Log.Err(err).Msgf("scan-image login failed:%v", osCmd.Args)
 		return err
 	}
-	logging.GetLogger().Info().Msg("scan-image login successful")
+	s.Log.Info().Msg("scan-image login successful")
 	return nil
 }
 
-func rmImage(imageName string) error {
+func (s *DockerPull) rmImage(ctx context.Context, imageName string) error {
 	osCmd := exec.Command("docker", "rmi", imageName)
 
 	err := osCmd.Run()
 	if err != nil {
-		logging.GetLogger().Err(err).Msgf("scan-image docker delete image：%s:%v", imageName, osCmd.Args)
+		s.Log.Err(err).Msgf("scan-image docker delete image：%s:%v", imageName, osCmd.Args)
 		return err
 	}
-	logging.GetLogger().Info().Msgf("scan-image docker delete image：%s", imageName)
+	s.Log.Info().Msgf("scan-image docker delete image：%s", imageName)
 
 	return nil
 }

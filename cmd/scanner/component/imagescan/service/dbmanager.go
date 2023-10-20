@@ -41,7 +41,7 @@ func NewDBManagerSrv(
 		ScanInstanceDal: scanInstanceDal,
 		Log: scannerUtils.NewLogEvent(
 			scannerUtils.WithSubModule("DBManagerSrv"),
-			scannerUtils.WithModule(consts.ModelImageScan)),
+			scannerUtils.WithModule(consts.ModuleImageScan)),
 	}
 	return srv
 }

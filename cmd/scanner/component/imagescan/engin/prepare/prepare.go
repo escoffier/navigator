@@ -38,7 +38,7 @@ func NewPrepareImageScan() *ScanPrepare {
 		ImageDataDirName: "data",
 		Log: scannerUtils.NewLogEvent(
 			scannerUtils.WithSubModule("ScanPrepare"),
-			scannerUtils.WithModule(consts.ModelImageScan),
+			scannerUtils.WithModule(consts.ModuleImageScan),
 		),
 	}
 	// 新建目录
