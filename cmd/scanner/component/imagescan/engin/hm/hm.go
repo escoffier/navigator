@@ -67,7 +67,7 @@ func NewScanHM() (*ScanHM, error) {
 		BinCnt:      consts.DefaultHmEnginCnt,
 		Log: scannerUtils.NewLogEvent(
 			scannerUtils.WithSubModule("ScanHM"),
-			scannerUtils.WithModule(consts.ModelImageScan),
+			scannerUtils.WithModule(consts.ModuleImageScan),
 		),
 	}
 	cnt, err := strconv.Atoi(os.Getenv("HM_ENGIN_CNT"))
@@ -105,7 +105,7 @@ func (s *ScanHM) createHmBack(ctx context.Context, n int) error {
 			CsvFilename: fmt.Sprintf("%s/%s", str, "result.csv"),
 			Log: scannerUtils.NewLogEvent(
 				scannerUtils.WithSubModule("ScanHM"),
-				scannerUtils.WithModule(consts.ModelImageScan),
+				scannerUtils.WithModule(consts.ModuleImageScan),
 			),
 		}
 		s.EnginBack = append(s.EnginBack, en)

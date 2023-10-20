@@ -54,7 +54,7 @@ func NewImageScanTaskDispatcher(
 		scanImageConfigDal: scanImageConfigDal,
 		Log: scannerUtils.NewLogEvent(
 			scannerUtils.WithSubModule("ScanTaskDispatcher"),
-			scannerUtils.WithModule(consts.ModelImageScan),
+			scannerUtils.WithModule(consts.ModuleImageScan),
 		),
 	}
 }

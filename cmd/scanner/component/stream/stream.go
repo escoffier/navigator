@@ -105,7 +105,7 @@ func (vi *RpcStream) connectToConsole() error {
 			break
 		}
 
-		logging.Get().Warn().Str("errMsg", err.Error()).Msg("failed to connect console grpc server,will try again")
+		vi.Log.Info().Str("errMsg", err.Error()).Msg("failed to connect console grpc server,will try again")
 		time.Sleep(time.Second * 5)
 	}
 
@@ -137,7 +137,7 @@ func (vi *RpcStream) connectToClusterManager() error {
 			break
 		}
 		time.Sleep(time.Second * 5)
-		logging.Get().Warn().Str("errMsg", err.Error()).Msg("failed to connect cluster manager grpc server,will try again")
+		vi.Log.Info().Str("errMsg", err.Error()).Msg("failed to connect cluster manager grpc server,will try again")
 	}
 	vi.Log.Info().Msg("scanner grpc client connect cluster manager end")
 	return nil

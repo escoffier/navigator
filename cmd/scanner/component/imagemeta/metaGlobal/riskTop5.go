@@ -73,6 +73,10 @@ func (vi *RiskImageTop5) Add(ims ...*imagesecModel.ImageBaseResponse) {
 		if im.Digest == "" {
 			return
 		}
+		if im.VulnStatic.Critical == 0 && im.VulnStatic.High == 0 {
+			return
+		}
+
 		if vi.Top5RiskImageMap[im.Digest] {
 			return
 		}

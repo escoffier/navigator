@@ -12,7 +12,6 @@ import (
 	"scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 
 	"github.com/segmentio/kafka-go"
-	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
 
 	migrateTypes "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/dataMigrate/types"
@@ -48,8 +47,8 @@ func GetImageMigrate() (*ImageMigrate, error) {
 
 	mqWriter, err := mq.GetClientFactory().Writer(context.Background())
 	if err != nil {
-		logging.Get().Err(err).Str("module", "migrate").Msg("failed to create mq reader")
-		return nil, err
+		err1 := fmt.Errorf("failed to create mq reader:%s", err.Error())
+		return nil, err1
 	}
 	rdbInstance := store.GetRDBInstance()
 	scanResultDal := imagesecStore.NewScanResultDao(rdbInstance)

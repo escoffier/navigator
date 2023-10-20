@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"gitlab.com/security-rd/go-pkg/databases"
-	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
@@ -24,11 +23,12 @@ type InitScanner struct {
 	sensitiveRuleDal imagesecStore.SensitiveRuleDal
 	dataMigrateDal   imagesecStore.DataMigrateDal
 	scanResultDal    imagesecStore.ScanResultDal
+	Log              *scannerUtils.LogEvent
 }
 
 func (s *InitScanner) Init(ctx context.Context) error {
 	if !scannerUtils.MainCluster() {
-		logging.Get().Info().Msg("not in main cluster")
+		s.Log.Info().Msg("not in main cluster")
 		return nil
 	}
 	// 节点镜像默认扫描配置
@@ -62,7 +62,7 @@ func (s *InitScanner) createNodeImageScanConfig(ctx context.Context) error {
 
 	_, err := s.imageConfigDal.GetScanImageConfig(ctx, imagesecModel.ConfigTypeNodeScanImage)
 	if err == nil {
-		logging.Get().Info().Str("configType", imagesecModel.ConfigTypeNodeScanImage).Msg("GetScanImageConfig")
+		s.Log.Info().Str("configType", imagesecModel.ConfigTypeNodeScanImage).Msg("GetScanImageConfig")
 		return nil
 	}
 
@@ -91,7 +91,7 @@ func (s *InitScanner) createNodeImageScanConfig(ctx context.Context) error {
 	}
 
 	if err := s.imageConfigDal.CreateScanImageConfig(ctx, &nodeConfig); err != nil {
-		logging.Get().Err(err).Str("configType", imagesecModel.ConfigTypeNodeScanImage).Msg("GetScanImageConfig")
+		s.Log.Err(err).Str("configType", imagesecModel.ConfigTypeNodeScanImage).Msg("GetScanImageConfig")
 		return err
 	}
 	return nil
@@ -101,7 +101,7 @@ func (s *InitScanner) createRegImageScanConfig(ctx context.Context) error {
 
 	_, err := s.imageConfigDal.GetScanImageConfig(ctx, imagesecModel.ConfigTypeRegScanImage)
 	if err == nil {
-		logging.Get().Info().Str("configType", imagesecModel.ConfigTypeRegScanImage).Msg("GetScanImageConfig")
+		s.Log.Info().Str("configType", imagesecModel.ConfigTypeRegScanImage).Msg("GetScanImageConfig")
 		return nil
 	}
 
@@ -131,7 +131,7 @@ func (s *InitScanner) createRegImageScanConfig(ctx context.Context) error {
 	}
 
 	if err := s.imageConfigDal.CreateScanImageConfig(ctx, &nodeConfig); err != nil {
-		logging.Get().Err(err).Str("configType", imagesecModel.ConfigTypeRegScanImage).Msg("GetScanImageConfig")
+		s.Log.Err(err).Str("configType", imagesecModel.ConfigTypeRegScanImage).Msg("GetScanImageConfig")
 		return err
 	}
 	return nil
@@ -180,18 +180,18 @@ func (s *InitScanner) createNodeDefaultDetectPolicy(ctx context.Context) error {
 		Deleted:    consts.FalseString,
 	})
 	if err != nil {
-		logging.Get().Err(err).Msg("SearchDetectPolicy")
+		s.Log.Err(err).Msg("SearchDetectPolicy")
 		return err
 	}
 
 	if len(policies) > 0 {
 
-		logging.Get().Err(err).Msg("SearchDetectPolicy has default detect policy")
+		s.Log.Err(err).Msg("SearchDetectPolicy has default detect policy")
 		return nil
 	}
 
 	if err := s.detectPolicyDal.CreateDetectPolicy(ctx, detectConfig); err != nil {
-		logging.Get().Err(err).Msg("CreateDetectPolicy")
+		s.Log.Err(err).Msg("CreateDetectPolicy")
 		return err
 	}
 
@@ -241,16 +241,16 @@ func (s *InitScanner) createRegDefaultDetectPolicy(ctx context.Context) error {
 		Deleted:    consts.FalseString,
 	})
 	if err != nil {
-		logging.Get().Err(err).Msg("SearchDetectPolicy")
+		s.Log.Err(err).Msg("SearchDetectPolicy")
 		return err
 	}
 	if len(policies) > 0 {
-		logging.Get().Err(err).Msg("SearchDetectPolicy has default detect policy")
+		s.Log.Err(err).Msg("SearchDetectPolicy has default detect policy")
 		return nil
 	}
 
 	if err := s.detectPolicyDal.CreateDetectPolicy(ctx, detectConfig); err != nil {
-		logging.Get().Err(err).Msg("CreateDetectPolicy")
+		s.Log.Err(err).Msg("CreateDetectPolicy")
 		return err
 	}
 
@@ -261,7 +261,7 @@ func (s *InitScanner) createDefaultSensitiveRule(ctx context.Context) error {
 
 	preData, err := scannerUtils.GetSensitiveRuleFromFile(consts.DefaultSensitiveRuleENPath)
 	if err != nil {
-		logging.Get().Err(err).Msg("InitScanner createDefaultSensitiveRule")
+		s.Log.Err(err).Msg("InitScanner createDefaultSensitiveRule")
 		return err
 	}
 
@@ -294,7 +294,7 @@ func (s *InitScanner) createDefaultSensitiveRule(ctx context.Context) error {
 			if strings.Contains(err.Error(), consts.DuplicateKey) {
 				continue
 			}
-			logging.Get().Err(err).Interface("data", data).Msg("InitScanner createDefaultSensitiveRule")
+			s.Log.Err(err).Interface("data", data).Msg("InitScanner createDefaultSensitiveRule")
 		}
 	}
 
@@ -313,7 +313,7 @@ func (s *InitScanner) createLicenseVer210DataMigrate(ctx context.Context) error 
 		Model:       consts.DataMigrateModelImage,
 	}
 	if err := s.dataMigrateDal.CreateDataMigrate(ctx, data); err != nil {
-		logging.Get().Err(err).Str("SOFT_VERSION", ver).Msg("CreateDataMigrate")
+		s.Log.Err(err).Str("SOFT_VERSION", ver).Msg("CreateDataMigrate")
 		if strings.Contains(err.Error(), consts.DuplicateKey) {
 			return nil
 		}
@@ -327,7 +327,7 @@ func (s *InitScanner) createDetectPolicySnapshot(ctx context.Context) error {
 		Filed: []string{"id", "unique_id"},
 	})
 	if err != nil {
-		logging.Get().Err(err).Msg("MigratePolicy SearchDetectPolicy")
+		s.Log.Err(err).Msg("MigratePolicy SearchDetectPolicy")
 		return err
 	}
 
@@ -335,7 +335,7 @@ func (s *InitScanner) createDetectPolicySnapshot(ctx context.Context) error {
 		Filed: []string{"id", "unique_id"},
 	})
 	if err != nil {
-		logging.Get().Err(err).Msg("MigratePolicy SearchDetectPolicy")
+		s.Log.Err(err).Msg("MigratePolicy SearchDetectPolicy")
 		return err
 	}
 	exit := make(map[uint64]bool)
@@ -351,7 +351,7 @@ func (s *InitScanner) createDetectPolicySnapshot(ctx context.Context) error {
 			UniqueID: policy1[i].UniqueID,
 		})
 		if err != nil {
-			logging.Get().Err(err).Msg("MigratePolicy SearchDetectPolicy")
+			s.Log.Err(err).Msg("MigratePolicy SearchDetectPolicy")
 			return err
 		}
 		if len(pol) == 0 {
@@ -362,7 +362,7 @@ func (s *InitScanner) createDetectPolicySnapshot(ctx context.Context) error {
 
 		if err := s.detectPolicyDal.CreateDetectPolicySnapshot(ctx, po); err != nil {
 			if !strings.Contains(err.Error(), consts.DuplicateKey) {
-				logging.Get().Err(err).Msg("MigratePolicy CreateDetectPolicySnapshot")
+				s.Log.Err(err).Msg("MigratePolicy CreateDetectPolicySnapshot")
 				continue
 			}
 		}
@@ -383,5 +383,7 @@ func NewInitScanner(db *databases.RDBInstance) *InitScanner {
 		sensitiveRuleDal: sensitiveRuleDal,
 		dataMigrateDal:   dataMigrateDal,
 		scanResultDal:    scanResultDal,
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithModule(consts.ModulePreInit)),
 	}
 }

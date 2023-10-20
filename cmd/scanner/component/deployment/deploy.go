@@ -225,16 +225,11 @@ func (s *DeploySrv) CheckDeploy(ctx context.Context, param imagesecModel.DeployM
 	flag = compareAndSetFlag(preFlag, flag, imagesecModel.FlagAppImage)
 	flag = compareAndSetFlag(preFlag, flag, imagesecModel.FlagBaseImage)
 	flag = compareAndSetFlag(preFlag, flag, imagesecModel.FlagImageNotMaintained)
-	// flag = compareAndSetFlag(preFlag, flag, imagesecModel.FlagImageHasUnknownVun)
-	// flag = compareAndSetFlag(preFlag, flag, imagesecModel.FlagImageHasLowVuln)
-	// flag = compareAndSetFlag(preFlag, flag, imagesecModel.FlagImageHasMediumVuln)
-	// flag = compareAndSetFlag(preFlag, flag, imagesecModel.FlagImageHasHighVuln)
-	// flag = compareAndSetFlag(preFlag, flag, imagesecModel.FlagImageHasCriticalVuln)
 
 	// 阻断问题列表flag(和镜像列表 flag 类似) 主要用于筛选
 	flag = detect.GenImageIssueFlag(det, flag)
 
-	// 如果是未扫描和不在仓库中
+	// 未扫描及不在仓库中
 	for i := range record.TotalPolicy {
 		po := record.TotalPolicy[i]
 		if util.ExistBit1(po.Flag, imagesecModel.FlagImageDetectNotExitINReg) {
@@ -250,12 +245,45 @@ func (s *DeploySrv) CheckDeploy(ctx context.Context, param imagesecModel.DeployM
 
 	vulnCheck := det[imagesecModel.DetectTypeVulnRule]
 
-	// 漏洞统计(后续应该提取出方法)
+	flag = StatisticsVuln(res.CorrelateData.Vuln, vulnCheck, flag)
+
+	record = AddIssueDeployRecord(record, det)
+
+	white, err := s.CheckWhite(ctx, param)
+	if err != nil {
+		s.Log.Err(err).Msg("CheckWhite")
+		return true
+	}
+	if err == nil && white {
+		flag = util.SetBit1(flag, imagesecModel.FlagImageDeployWhite)
+		flag = util.SetBit1(flag, imagesecModel.FlagImageDeployPassed)
+		flag = util.SetBit0(flag, imagesecModel.FlagImageDeployBlock)
+		flag = util.SetBit0(flag, imagesecModel.FlagImageDeployAlarm)
+	}
+
+	act := GenAction(det, flag)
+	record.Action = act
+	record.Flag = flag
+
+	if err := s.CreateDeployRecord(ctx, &record); err != nil {
+		s.Log.Err(err).Msg("CheckDeploy CreateDeployRecord")
+	}
+
+	s.Log.Info().Interface("param", param).Str("action", act).
+		Msg("CheckDeploy end")
+
+	return record.Action != imagesecModel.DeployActionBlock
+}
+
+func StatisticsVuln(vulns []*imagesecModel.VulnView, vulnCheck map[uint64]*imagesecModel.ImageDetectResult, flag uint64) uint64 {
+
+	// vulnCheck := det[imagesecModel.DetectTypeVulnRule]
+
 	// 部署上线应该统计命中的漏洞，而不是镜像本身的漏洞
 	vulnStatic := make(map[int64]bool)
 	fixed := false
-	for i := range res.CorrelateData.Vuln {
-		vu := res.CorrelateData.Vuln[i]
+	for i := range vulns {
+		vu := vulns[i]
 		if vulnCheck == nil {
 			continue
 		}
@@ -296,33 +324,7 @@ func (s *DeploySrv) CheckDeploy(ctx context.Context, param imagesecModel.DeployM
 			flag = util.SetBit0(flag, uint64(i))
 		}
 	}
-
-	record = AddIssueDeployRecord(record, det)
-
-	white, err := s.CheckWhite(ctx, param)
-	if err != nil {
-		s.Log.Err(err).Msg("CheckWhite")
-		return true
-	}
-	if err == nil && white {
-		flag = util.SetBit1(flag, imagesecModel.FlagImageDeployWhite)
-		flag = util.SetBit1(flag, imagesecModel.FlagImageDeployPassed)
-		flag = util.SetBit0(flag, imagesecModel.FlagImageDeployBlock)
-		flag = util.SetBit0(flag, imagesecModel.FlagImageDeployAlarm)
-	}
-
-	act := GenAction(det, flag)
-	record.Action = act
-	record.Flag = flag
-
-	if err := s.CreateDeployRecord(ctx, &record); err != nil {
-		s.Log.Err(err).Msg("CheckDeploy CreateDeployRecord")
-	}
-
-	s.Log.Info().Interface("param", param).Str("action", act).
-		Msg("CheckDeploy end")
-
-	return record.Action != imagesecModel.DeployActionBlock
+	return flag
 }
 
 func AddIssueDeployRecord(record imagesecModel.DeployRecord, det map[string]map[uint64]*imagesecModel.ImageDetectResult) imagesecModel.DeployRecord {
@@ -407,7 +409,6 @@ func AddIssueDeployRecord(record imagesecModel.DeployRecord, det map[string]map[
 				})
 			}
 		}
-
 	}
 	return record
 }

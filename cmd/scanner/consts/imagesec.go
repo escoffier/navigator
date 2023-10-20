@@ -37,8 +37,10 @@ const (
 )
 
 const (
-	ModelImageMeta      = "imageMeta"
-	ModelImageScan      = "scanImage"
+	ModuleImageMeta     = "imageMeta"
+	ModuleImagesecSrv   = "imagesecSrv"
+	ModulePreInit       = "preInit"
+	ModuleImageScan     = "scanImage"
 	ModuleDeploy        = "deployImage"
 	ModuleDetect        = "detectImage"
 	ModuleMigrate       = "migrate"

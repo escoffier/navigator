@@ -90,7 +90,7 @@ func NewSavServer() (*AviraSrv, error) {
 		ClientPollCnt:    20,     // FIXME 后期应该做成可配置的
 		Log: scannerUtils.NewLogEvent(
 			scannerUtils.WithSubModule("AviraSrv"),
-			scannerUtils.WithModule(consts.ModelImageScan),
+			scannerUtils.WithModule(consts.ModuleImageScan),
 		),
 	}
 	srv.ClientPoll = make([]*AviraClient, 0)
@@ -299,7 +299,7 @@ func (s *AviraSrv) Task(ctx context.Context, cli *avira.SavClient, filename stri
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("module", "imagescan").Str("Stack", string(debug.Stack())).Msg("AviraSrv panic")
+				s.Log.Error().Str("Stack", string(debug.Stack())).Msg("AviraSrv panic")
 			}
 		}()
 

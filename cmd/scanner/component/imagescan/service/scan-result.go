@@ -54,7 +54,7 @@ func NewScanResultSrv(
 		imageCacheDal: imageCacheDal,
 		Log: scannerUtils.NewLogEvent(
 			scannerUtils.WithSubModule("ScanResultSrv"),
-			scannerUtils.WithModule(consts.ModelImageScan)),
+			scannerUtils.WithModule(consts.ModuleImageScan)),
 	}
 	s.vulnOverview = NewVulnOverView()
 

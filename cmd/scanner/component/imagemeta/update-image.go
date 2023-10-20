@@ -5,8 +5,6 @@ import (
 	"os"
 	"time"
 
-	"gitlab.com/security-rd/go-pkg/logging"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/detect"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta/metaGlobal"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -74,7 +72,7 @@ func NewImageUpdateSrv(
 		OnlineUUID:      make(map[uint32]struct{}),
 		Log: scannerUtils.NewLogEvent(
 			scannerUtils.WithSubModule("ImageUpdate"),
-			scannerUtils.WithModule(consts.ModelImageMeta),
+			scannerUtils.WithModule(consts.ModuleImageMeta),
 		),
 	}
 	return &srv
@@ -361,8 +359,7 @@ func (s *ImageUpdateSrv) updateOnlineImage(ctx context.Context) error {
 		s.Log.Err(err).Msg("updateOnlineImage")
 		return err
 	}
-	logging.Get().Info().Str("module", consts.ModelImageMeta).Int("uuidCnt", len(uuids)).
-		Msg("updateOnlineImage get uuid")
+	s.Log.Info().Int("uuidCnt", len(uuids)).Msg("updateOnlineImage get uuid")
 
 	// 程序开始时做一次全量检测
 	add, sub, nw := onlineUUID(s.OnlineUUID, uuids)
@@ -504,14 +501,13 @@ func (s *ImageUpdateSrv) updateImageInReg(ctx context.Context) error {
 				imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectUpdateNodeImageInReg},
 				nil,
 			); err != nil {
-				logging.Get().Err(err).Msg("updateImageInReg CreateDetectTask")
+				s.Log.Err(err).Msg("updateImageInReg CreateDetectTask")
 				return
 			}
 
 			s.Log.Info().Str("digest", im.Digest).
 				Msg("updateImageInReg create detect task update node image in registry")
 		}
-
 	}()
 
 	return nil

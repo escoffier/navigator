@@ -47,7 +47,7 @@ func MustGetScanTaskSrv() *ScanTaskSrv {
 	for {
 		if scanTaskSing == nil {
 			time.Sleep(time.Second * 10)
-			logging.Get().Info().Str("module", consts.ModelImageScan).Msg("not get ScanTaskSrv")
+			logging.Get().Info().Str("module", consts.ModuleImageScan).Msg("not get ScanTaskSrv")
 		}
 		return scanTaskSing
 	}
@@ -80,7 +80,7 @@ func NewScanTaskSrv(
 		PreTaskUpdateChan: make(chan *imagesecModel.ImageScanSubTask),
 		Log: scannerUtils.NewLogEvent(
 			scannerUtils.WithSubModule("ScanTaskSrv"),
-			scannerUtils.WithModule(consts.ModelImageScan)),
+			scannerUtils.WithModule(consts.ModuleImageScan)),
 	}
 
 	scanTaskSing = s

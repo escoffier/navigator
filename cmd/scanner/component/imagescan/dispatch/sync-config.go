@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/go-multierror"
-	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/types"
 	imagesecStream "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/stream"
@@ -37,7 +36,7 @@ func (s *ScanImageConfigSyncSrv) SyncConfig(ctx context.Context) error {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Msgf("panic: %v.stack:%s", r, debug.Stack())
+				s.Log.Error().Msgf("panic: %v.stack:%s", r, debug.Stack())
 			}
 		}()
 
@@ -123,7 +122,7 @@ func (s *ScanImageConfigSyncSrv) publishConfigByCluster(grpcClient rpcstream.Mes
 	}
 	if rsp.Status != 0 {
 		retErr = multierror.Append(retErr, fmt.Errorf("rsp status err.%v", rsp.Status))
-		logging.Get().Error().Str("cluster", clusterKey).Int32("status", rsp.Status).
+		s.Log.Error().Str("cluster", clusterKey).Int32("status", rsp.Status).
 			Msg("ScanImageConfigSyncSrv failed to publish config to cluster,status err")
 		return err
 	}
@@ -135,7 +134,7 @@ func NewScannerConfigSyncSrv(configDal imagesecStore.ScanImageConfigDal, nodeInf
 	sr := &ScanImageConfigSyncSrv{configDal: configDal, nodeInfoSrv: nodeInfoSrv,
 		Log: scannerUtils.NewLogEvent(
 			scannerUtils.WithSubModule("ConfigSync"),
-			scannerUtils.WithModule(consts.ModelImageScan),
+			scannerUtils.WithModule(consts.ModuleImageScan),
 		),
 	}
 	return sr
