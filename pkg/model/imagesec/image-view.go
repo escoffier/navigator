@@ -1368,8 +1368,8 @@ func (iws *ImageWithCorrelateData2) CheckSafeByPolicy() string {
 	return ImageSafeString
 }
 
-func (iws *ImageWithCorrelateData2) StaticVuln() ImageVulnSeverityStatic {
-	im := ImageVulnSeverityStatic{}
+func (iws *ImageWithCorrelateData2) StaticVuln() VulnSeverityStatic {
+	im := VulnSeverityStatic{}
 	vulns := iws.Vuln
 	for i := range vulns {
 		switch vulns[i].SeverityInt {
@@ -1468,51 +1468,51 @@ type ImageOS struct {
 }
 
 type ImageBaseResponse struct {
-	ID                int64                   `json:"id"`
-	ImageFromType     string                  `json:"imageFromType"`
-	UniqueID          uint64                  `json:"uniqueID,string"`
-	ImageUniqueID     uint64                  `json:"imageUniqueID,string"`
-	ImageID           int64                   `json:"imageID"`
-	Digest            string                  `json:"digest"`
-	Online            bool                    `json:"online"`            // 在线 "true",离线："false"
-	SecurityIssue     []SecurityIssueLabel    `json:"securityIssue"`     // 安全问题
-	SecurityIssueView []string                `json:"securityIssueView"` // 安全问题
-	ImageAttr         ImageAttrResponse       `json:"imageAttr"`         // 镜像属性
-	ImageAttrView     []string                `json:"imageAttrView"`     // 镜像属性
-	UUID              uint32                  `json:"uuid"`              // 镜像uuid
-	FullRepoName      string                  `json:"fullRepoName"`
-	Tag               string                  `json:"tag"`
-	Size              string                  `json:"size"`
-	Os                ImageOS                 `json:"os"`
-	Flag              uint64                  `json:"flag,string"`
-	LastSyncAt        int64                   `json:"lastSyncAt"` // 上次同步时间(单位：毫秒)
-	BootUser          string                  `json:"bootUser"`   // 启动用户
-	RiskScore         int64                   `json:"riskScore"`
-	Suggests          []ImageSuggest          `json:"suggests"`
-	ScanStatus        string                  `json:"scanStatus"`
-	LastScanAt        int64                   `json:"lastScanAt"` // 扫描完成时间戳(单位毫秒)
-	RegistryID        int64                   `json:"registryId"`
-	RegistryName      string                  `json:"registryName"`
-	RegistryUrl       string                  `json:"registryUrl"`
-	Project           string                  `json:"project"`
-	NodeHostname      string                  `json:"nodeHostname"`
-	ClusterName       string                  `json:"nodeClusterName"` // json tag 不一致，是因为前端要使用数据
-	ClusterKey        string                  `json:"nodeClusterKey"`
-	NodeUniqueID      uint64                  `json:"nodeUniqueID,string"`
-	ScanInstanceID    int64                   `json:"scanInstanceID"`
-	ScanInstance      string                  `json:"scanInstance"`
-	ScanInsVer        string                  `json:"scanInsVer"`
-	VulnStatic        ImageVulnSeverityStatic `json:"vulnStatic"`
-	RiskPolicy        []SimplePolicy          `json:"riskPolicy"`    // 镜像的风险来源
-	TotalPolicy       []SimplePolicy          `json:"totalPolicy"`   // 已使用的安全策略
-	Safe              string                  `json:"safe"`          // 镜像安全状态
-	Action            string                  `json:"action"`        // 部署上线的状态
-	PullCount         int64                   `json:"pullCount"`     // 镜像下载次数
-	BuildAt           int64                   `json:"buildAt"`       // 镜像的创建时间
-	ContainerName     []string                `json:"containerName"` // 容器列表
-	White             bool                    `json:"white"`         // 部署上线是否是白名单通过
-	InWhite           bool                    `json:"inWhite"`       // 部署上线是否已在白名单中
-	CreatedAt         int64                   `json:"createdAt"`
+	ID                int64                `json:"id"`
+	ImageFromType     string               `json:"imageFromType"`
+	UniqueID          uint64               `json:"uniqueID,string"`
+	ImageUniqueID     uint64               `json:"imageUniqueID,string"`
+	ImageID           int64                `json:"imageID"`
+	Digest            string               `json:"digest"`
+	Online            bool                 `json:"online"`            // 在线 "true",离线："false"
+	SecurityIssue     []SecurityIssueLabel `json:"securityIssue"`     // 安全问题
+	SecurityIssueView []string             `json:"securityIssueView"` // 安全问题
+	ImageAttr         ImageAttrResponse    `json:"imageAttr"`         // 镜像属性
+	ImageAttrView     []string             `json:"imageAttrView"`     // 镜像属性
+	UUID              uint32               `json:"uuid"`              // 镜像uuid
+	FullRepoName      string               `json:"fullRepoName"`
+	Tag               string               `json:"tag"`
+	Size              string               `json:"size"`
+	Os                ImageOS              `json:"os"`
+	Flag              uint64               `json:"flag,string"`
+	LastSyncAt        int64                `json:"lastSyncAt"` // 上次同步时间(单位：毫秒)
+	BootUser          string               `json:"bootUser"`   // 启动用户
+	RiskScore         int64                `json:"riskScore"`
+	Suggests          []ImageSuggest       `json:"suggests"`
+	ScanStatus        string               `json:"scanStatus"`
+	LastScanAt        int64                `json:"lastScanAt"` // 扫描完成时间戳(单位毫秒)
+	RegistryID        int64                `json:"registryId"`
+	RegistryName      string               `json:"registryName"`
+	RegistryUrl       string               `json:"registryUrl"`
+	Project           string               `json:"project"`
+	NodeHostname      string               `json:"nodeHostname"`
+	ClusterName       string               `json:"nodeClusterName"` // json tag 不一致，是因为前端要使用数据
+	ClusterKey        string               `json:"nodeClusterKey"`
+	NodeUniqueID      uint64               `json:"nodeUniqueID,string"`
+	ScanInstanceID    int64                `json:"scanInstanceID"`
+	ScanInstance      string               `json:"scanInstance"`
+	ScanInsVer        string               `json:"scanInsVer"`
+	VulnStatic        VulnSeverityStatic   `json:"vulnStatic"`
+	RiskPolicy        []SimplePolicy       `json:"riskPolicy"`    // 镜像的风险来源
+	TotalPolicy       []SimplePolicy       `json:"totalPolicy"`   // 已使用的安全策略
+	Safe              string               `json:"safe"`          // 镜像安全状态
+	Action            string               `json:"action"`        // 部署上线的状态
+	PullCount         int64                `json:"pullCount"`     // 镜像下载次数
+	BuildAt           int64                `json:"buildAt"`       // 镜像的创建时间
+	ContainerName     []string             `json:"containerName"` // 容器列表
+	White             bool                 `json:"white"`         // 部署上线是否是白名单通过
+	InWhite           bool                 `json:"inWhite"`       // 部署上线是否已在白名单中
+	CreatedAt         int64                `json:"createdAt"`
 }
 
 func (vi *ImageBaseResponse) RegNameView() string {
@@ -1655,7 +1655,7 @@ func (vi *ImageBaseResponse) GetSecurityIssueViewView(lang string) []string {
 	return ans
 }
 
-type ImageVulnSeverityStatic struct {
+type VulnSeverityStatic struct {
 	Critical int64 `json:"critical"`
 	High     int64 `json:"high"`
 	Medium   int64 `json:"medium"`

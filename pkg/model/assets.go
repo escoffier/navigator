@@ -668,6 +668,9 @@ type TensorRawContainer struct {
 	Ports          PortSlice        `json:"ports" gorm:"column:ports"`
 	User           string           `json:"user" gorm:"column:user"`
 	ImageUUID      uint32           `json:"imageUUID" gorm:"column:image_uuid"`
+	FullName       string           `json:"fullName" gorm:"column:full_name"`
+	Labels         MapType          `json:"labels" gorm:"column:labels"`
+	LastStopTime   time.Time        `json:"lastStopTime" gorm:"column:last_stop_time"`
 }
 
 func (rc TensorRawContainer) TableName() string {

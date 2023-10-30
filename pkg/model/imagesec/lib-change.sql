@@ -1,6 +1,5 @@
 truncate table ivan_scanner_sync_tasks;
 truncate table ivan_image_detect_task;
-truncate table ivan_image_detect_subtask;
 
 
 alter table ivan_image_detect_task

@@ -296,7 +296,7 @@ func (api *api) scannerOpenApi() func(router chi.Router) {
 		// r.Delete("/*", api.ForwardScannerOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Get("/images/list", api.ForwardScannerOpenApi())
+			Get("/images/assets/image", api.ForwardScannerOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Post("/images/list", api.ForwardScannerOpenApi())

@@ -112,9 +112,9 @@ func (cb *RawContainerCallBack) doOnRawContainerEvent(ctx context.Context, e con
 	case assets.ActionDelete:
 		var deleteErr error
 		if useRedis {
-			deleteErr = dal.DeleteRawContainerWithRedis(tctx, cb.parent.rdb.Get(), cb.parent.mustGetRedisSearchClient("rawContainer"), e.container.ClusterKey, e.container.ContainerID)
+			deleteErr = dal.DeleteRawContainerWithRedis(tctx, cb.parent.rdb.Get(), cb.parent.mustGetRedisSearchClient("rawContainer"), e.container.ClusterKey, e.container.ContainerID, e.container.LastStopTime)
 		} else {
-			deleteErr = dal.DeleteRawContainer(tctx, cb.parent.rdb.Get(), e.container.ClusterKey, e.container.ContainerID)
+			deleteErr = dal.DeleteRawContainer(tctx, cb.parent.rdb.Get(), e.container.ClusterKey, e.container.ContainerID, e.container.LastStopTime)
 		}
 		if deleteErr != nil {
 			logging.Get().Err(deleteErr).Msg("delete raw container rel in rdb error,containerId:" + e.container.ContainerID)
