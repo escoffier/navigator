@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -622,6 +623,92 @@ func (s *ImageInfoAPI) SearchResources(ctx *gin.Context) {
 		response.WithStartIndex(param.Filter.Offset))
 }
 
+func (s *ImageInfoAPI) SearchResources2(ctx *gin.Context) {
+	imageName := util.GetKeywordFromQuery(ctx, "imageName")
+	imageDigest := util.GetKeywordFromQuery(ctx, "imageDigest")
+
+	im := imagesecModel.Image{ImageName: imageName, Digest: imageDigest}
+	uuid := im.GenUUID()
+
+	imageParam := imagesecModel.ImageSearchApiParam{
+		UUIDs:         []uint32{uuid},
+		ImageFromType: imagesecModel.ImageFromRegistry,
+	}
+
+	images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, imageParam)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	var last *imagesecModel.ImageWithCorrelateData2
+	for i := range images {
+		data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
+			VulnEnable:      true,
+			ContainerEnable: true,
+			RegistryEnable:  true,
+			ImageFromType:   imagesecModel.ImageFromRegistry,
+			ImageUniqueID:   images[i].UniqueID,
+			SubtaskEnable:   true,
+		})
+		if err != nil {
+			continue
+		}
+		base := data.ToImageBaseResponse()
+		if data.VulnCnt > 0 {
+			last = data
+			continue
+		}
+		if base.LastScanAt > 0 {
+			last = data
+			continue
+		}
+		last = data
+	}
+	res := make([]ImageAssets, 0)
+	if last == nil {
+		response.JSONOK(ctx, response.WithItems(res))
+		return
+	}
+	last.ImageBaseResponse = last.ToImageBaseResponse()
+	for j := range last.Container {
+		rr := last.Container[j]
+		ss := ImageAssets{
+			Args:              rr.TensorRawContainer.Cmd,
+			ClusterName:       rr.ClusterName,
+			ContainerFullName: rr.TensorRawContainer.FullName,
+			ContainerHashID:   rr.TensorRawContainer.ContainerID,
+			ContainerName:     rr.TensorRawContainer.Name,
+			ContainerRunState: conStatus(rr.TensorRawContainer.Status),
+			ContainerType:     []string{"k8s"},
+			NodeHostname:      rr.TensorRawContainer.NodeName,
+			NodeIP:            rr.TensorRawContainer.IP,
+			PodName:           rr.TensorRawContainer.PodName,
+			PodNamespace:      rr.TensorRawContainer.Namespace,
+			Labels:            rr.TensorRawContainer.Labels,
+			PodStartAt:        rr.TensorRawContainer.CreatedAt.UnixMilli(),
+			PodStopAt:         rr.TensorRawContainer.LastStopTime.UnixMilli(),
+			ImageHasVuln:      last.VulnCnt > 0,
+			ImageHost:         last.ImageBaseResponse.RegistryUrl,
+			ImageRepo:         last.ImageBaseResponse.FullRepoName,
+			ImageDigest:       imageDigest,
+			ImageTag:          last.Image.Tag,
+		}
+		if len(ss.Args) == 0 {
+			ss.Args = rr.TensorRawContainer.Arguments
+		}
+
+		// last stop time 默认值和 创建时间一致
+		// 监听的start事件， 容器肯定是已经创建了的， 如果last stop time 比创建时间大， 说明 stop time 是真实的停止时间
+		if ss.PodStartAt-ss.PodStopAt <= 0 {
+			ss.PodStopAt = 0
+		}
+
+		res = append(res, ss)
+	}
+
+	response.JSONOK(ctx, response.WithItems(res))
+}
+
 func (s *ImageInfoAPI) GetImageByVuln(ctx *gin.Context) {
 
 	// 资产那边使用，暂时保留
@@ -632,7 +719,6 @@ func (s *ImageInfoAPI) GetImageByVuln(ctx *gin.Context) {
 		Digest       string `json:"digest"`
 		ImageId      int64  `json:"id"`
 	}
-
 	vulnName := ctx.Query("vulnName")
 	pkgName := ctx.Query("pkgName")
 	pkgVersion := ctx.Query("pkgVersion")
@@ -668,4 +754,41 @@ func (s *ImageInfoAPI) GetImageByVuln(ctx *gin.Context) {
 		response.WithItemsPerPage(filter.Limit),
 		response.WithStartIndex(filter.Offset))
 
+}
+
+func mapToString(mm map[string]string) string {
+	if len(mm) == 0 {
+		return ""
+	}
+	bys, err := json.Marshal(mm)
+	if err != nil {
+		return ""
+	}
+	if string(bys) == "null" {
+		return ""
+	}
+	return string(bys)
+}
+
+func conStatus(sta int32) int64 {
+	const (
+		Running = iota
+		Created
+		Restarting
+		Removing
+		Paused
+		Exited
+		Dead
+		All
+	)
+	switch sta {
+	case Exited, Dead:
+		return 1 // 已停止
+	case Paused:
+		return 2 // 已暂停
+	case Removing:
+		return 3 // 已删除
+	default:
+		return 0 // 远行中
+	}
 }

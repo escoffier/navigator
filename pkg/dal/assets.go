@@ -125,6 +125,9 @@ var (
 		"mac",
 		"network_mode",
 		"storage_type",
+		"last_stop_time",
+		"full_name",
+		"labels",
 	}
 	OnDupUpdatedColsForRawCtnFramework = []string{
 		"updated_at",
@@ -3775,6 +3778,10 @@ func upsertRawContainersWithTx(tx *gorm.DB, container *assets.TensorRawContainer
 		svcList, frameworkList = getModelFromRawContainer(container)
 	}
 	rawContainer := container.TensorRawContainer
+	if rawContainer.LastStopTime.IsZero() {
+		rawContainer.LastStopTime = rawContainer.CreatedAt
+	}
+	logging.GetLogger().Debug().Msgf("upsertRawContainersWithTx: lastStopTime:%v", rawContainer.LastStopTime)
 	err := tx.Model(&model.TensorRawContainer{}).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
 		DoUpdates: clause.AssignmentColumns(OnDupUpdatedColsForRawContainer),
@@ -5937,12 +5944,12 @@ func GetExposeHostDetail(ctx context.Context, rdb *gorm.DB, id int64) (*ExposeHo
 	return detail, nil
 }
 
-func DeleteRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, clusterKey, id string) error {
+func DeleteRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, clusterKey, id string, stopTime time.Time) error {
 	rCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
 	defer cancel()
 
 	return rdb.WithContext(rCtx).Transaction(func(tx *gorm.DB) error {
-		err := deleteRawContainerWithTx(tx, clusterKey, id)
+		err := deleteRawContainerWithTx(tx, clusterKey, id, stopTime)
 
 		if err != nil {
 			return err
@@ -5955,20 +5962,21 @@ func DeleteRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient 
 	})
 }
 
-func DeleteRawContainer(ctx context.Context, rdb *gorm.DB, clusterKey, id string) error {
+func DeleteRawContainer(ctx context.Context, rdb *gorm.DB, clusterKey, id string, stopTime time.Time) error {
 	rCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
 	defer cancel()
 
 	return rdb.WithContext(rCtx).Transaction(func(tx *gorm.DB) error {
-		return deleteRawContainerWithTx(tx, clusterKey, id)
+		return deleteRawContainerWithTx(tx, clusterKey, id, stopTime)
 	})
 
 }
 
-func deleteRawContainerWithTx(tx *gorm.DB, clusterKey, id string) error {
+func deleteRawContainerWithTx(tx *gorm.DB, clusterKey, id string, stopTime time.Time) error {
 	err := tx.Model(&model.TensorRawContainer{}).Where("cluster_key = ? and id = ?", clusterKey, id).Updates(map[string]interface{}{
-		"status":     assets.Exited,
-		"updated_at": time.Now(),
+		"status":         assets.Exited,
+		"last_stop_time": stopTime,
+		"updated_at":     time.Now(),
 	}).Error
 	if err != nil {
 		return err

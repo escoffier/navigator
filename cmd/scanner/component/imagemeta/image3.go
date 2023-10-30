@@ -330,8 +330,6 @@ func (s *ImageInfoMetaSrv) addContainerData(ctx context.Context,
 	if param.ContainerEnable && ans.Image.UniqueID > 0 {
 		conParam := imagesecModel.SearchResourceParam{
 			ImageUUID: ans.Image.ImageUUID,
-			// 镜像关联数据，只会查 name
-			Fields: []string{"image_uuid", "status", "name"},
 		}
 
 		raw, _, err := s.resourceDal.SearchResources(ctx, conParam)

@@ -179,8 +179,9 @@ func (d *ContainerdInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 	filters := []string{
-		`topic=="/tasks/start"`,
-		`topic=="/tasks/delete"`,
+		fmt.Sprintf(`topic=="%s"`, runtime.TaskStartEventTopic),
+		fmt.Sprintf(`topic=="%s"`, runtime.TaskDeleteEventTopic),
+		fmt.Sprintf(`topic=="%s"`, runtime.TaskExitEventTopic),
 	}
 
 	msg, errs := d.containerdCli.Subscribe(ctx, filters...)
@@ -210,6 +211,10 @@ func (d *ContainerdInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 					containerId = t.ContainerID
 					pid = t.Pid
 					action = "delete"
+				case *events.TaskExit:
+					containerId = t.ContainerID
+					pid = t.Pid
+					action = "exit"
 				default:
 					logging.Get().Error().Msgf("containerd ignore event, namespace:%s,topic:%s,event:%s", m.Namespace, m.Topic, m.Event.GetTypeUrl())
 					return
@@ -220,7 +225,7 @@ func (d *ContainerdInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 					nsCtx := namespaces.WithNamespace(currentCtx, m.Namespace)
 					if ExportRawContainer {
 						contain := &model.TensorRawContainer{Namespace: m.Namespace, ContainerID: containerId, ClusterKey: d.clusterKey, Pid: int(pid)}
-						if m.Topic != runtime.TaskDeleteEventTopic {
+						if m.Topic == runtime.TaskStartEventTopic {
 							c, err := d.containerdCli.LoadContainer(nsCtx, containerId)
 							if err != nil {
 								logging.Get().Error().Msgf("get container in containerd failed .%v", err)
@@ -241,6 +246,8 @@ func (d *ContainerdInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 							if contain == nil {
 								return
 							}
+						} else if m.Topic == runtime.TaskExitEventTopic || m.Topic == runtime.TaskDeleteEventTopic {
+							contain.LastStopTime = m.Timestamp
 						}
 						d.processEvents(contain, action)
 					}
@@ -481,22 +488,24 @@ func (d *ContainerdInfoManager) containerFromRaw(ctx context.Context, container 
 		networkSettings = &NetworkSettings{}
 	}
 	tensorRawContainer := &model.TensorRawContainer{
-		Status:      d.getContainerStatus(t.Status),
-		CreatedAt:   info.CreatedAt,
-		UpdatedAt:   time.Now(),
-		ContainerID: container.ID(),
-		IP:          networkSettings.IPAddress,
-		IPV6:        networkSettings.GlobalIPv6Address,
-		// Gateway:        networkSettings.Gateway,
+		Status:         d.getContainerStatus(t.Status),
+		CreatedAt:      info.CreatedAt,
+		LastStopTime:   t.ExitedAt,
+		UpdatedAt:      time.Now(),
+		ContainerID:    container.ID(),
+		IP:             networkSettings.IPAddress,
+		IPV6:           networkSettings.GlobalIPv6Address,
 		Mac:            networkSettings.MacAddress,
 		NetworkMode:    networkModel,
 		Name:           containerName,
+		FullName:       containerName,
 		PodName:        podName,
 		PodUid:         info.Labels["io.kubernetes.pod.uid"],
 		Namespace:      info.Labels["io.kubernetes.pod.namespace"],
 		ClusterKey:     d.clusterKey,
 		NodeName:       d.hostName,
 		NodeIP:         d.hostIP,
+		Labels:         info.Labels,
 		ImageName:      imageName,
 		ImageCreated:   imageCreated,
 		ImageSize:      imageSize,
@@ -555,7 +564,7 @@ func (d *ContainerdInfoManager) getContainerStatus(state task.Status) int32 {
 
 func (d *ContainerdInfoManager) processEvents(container *model.TensorRawContainer, action string) {
 	logging.Get().Info().Msgf("containerd processEvents containerId:%s,podName:%s,action:%s", container.ContainerID, container.PodName, action)
-	if container.K8sManaged && container.ResourceName == "" && !isDeleteEvent(action) {
+	if container.K8sManaged && container.ResourceName == "" && !d.isDeleteEvent(action) {
 		resName, resKind, err := d.store.GetPodOwner(container.Namespace, container.PodName)
 		if err != nil {
 			logging.Get().Warn().Err(err).Msg("containerd get pod owner err")
@@ -618,7 +627,7 @@ func (d *ContainerdInfoManager) processEvents(container *model.TensorRawContaine
 		for _, handler := range d.handlers {
 			handler.OnUpdate(nil, container)
 		}
-	case "stop", "kill", "delete":
+	case "exit", "delete":
 		for _, handler := range d.handlers {
 			handler.OnDelete(container)
 		}
@@ -866,4 +875,11 @@ func buildImageWithTag(imageName string, labels map[string]string, containerName
 		return split[0] + ":" + ima
 	}
 	return imageName
+}
+
+func (d *ContainerdInfoManager) isDeleteEvent(action string) bool {
+	if action == "exit" || action == "delete" {
+		return true
+	}
+	return false
 }

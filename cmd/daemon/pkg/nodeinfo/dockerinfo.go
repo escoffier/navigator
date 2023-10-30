@@ -170,7 +170,7 @@ func (d *DockerInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 		// filters.Arg("event", "restart"),
 		// filters.Arg("event", "rename"),
 		// filters.Arg("event", "resize"),
-		// filters.Arg("event", "stop"),
+		filters.Arg("event", "stop"),
 		filters.Arg("event", "destroy"),
 		filters.Arg("type", "container"),
 	)
@@ -199,6 +199,8 @@ func (d *DockerInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 						container := d.containerFromEvent(m)
 						if m.Action != "stop" && m.Action != "destroy" {
 							container = d.updateContainerDetail(ctx, container)
+						} else {
+							container.LastStopTime = time.Unix(m.Time, 0)
 						}
 						d.processEvents(ctx, container, m.Action)
 					}
@@ -409,14 +411,9 @@ func (d *DockerInfoManager) containerFromRaw(containerJson *types.ContainerJSON)
 	}
 	podUid := containerJson.Config.Labels["io.kubernetes.pod.uid"]
 
-	var err error
-	t := time.Now()
-
-	t, err = time.Parse(time.RFC3339Nano, containerJson.Created)
-	if err != nil {
-		return nil
-	}
-	//containerName := strings.TrimPrefix(containerJson.Name, "/")
+	createdAt, _ := time.Parse(time.RFC3339Nano, containerJson.Created)
+	finishedAt, _ := time.Parse(time.RFC3339Nano, containerJson.State.FinishedAt)
+	containerFullName := strings.TrimPrefix(containerJson.Name, "/")
 	containerName := containerJson.Config.Labels["io.kubernetes.container.name"]
 	processes := getContainerProcessInfo(containerJson.State.Pid)
 	imageName, imageDigest, imageCreated, imageSize := d.getImageInfoV2(containerJson.Config.Image, containerJson.Image)
@@ -444,24 +441,26 @@ func (d *DockerInfoManager) containerFromRaw(containerJson *types.ContainerJSON)
 	}
 
 	return &model.TensorRawContainer{
-		Status:      getContainerStatus(containerJson.State.Status),
-		CreatedAt:   t,
-		UpdatedAt:   time.Now(),
-		ContainerID: containerJson.ID,
-		IP:          containerJson.NetworkSettings.IPAddress,
-		IPV6:        containerJson.NetworkSettings.GlobalIPv6Address,
-		Gateway:     containerJson.NetworkSettings.Gateway,
-		Mac:         containerJson.NetworkSettings.MacAddress,
-		NetworkMode: getNetworkMode(string(containerJson.HostConfig.NetworkMode)),
-		Name:        containerName,
-		PodName:     podName,
-		PodUid:      podUid,
-		Namespace:   containerJson.Config.Labels["io.kubernetes.pod.namespace"],
-		ClusterKey:  d.clusterKey,
-		NodeName:    d.hostName,
-		NodeIP:      d.hostIP,
-		ImageName:   imageName,
-		//ImageUUID:      model.GetImageUUID(imageName, imageDigest),
+		Status:         getContainerStatus(containerJson.State.Status),
+		CreatedAt:      createdAt,
+		UpdatedAt:      time.Now(),
+		LastStopTime:   finishedAt,
+		ContainerID:    containerJson.ID,
+		IP:             containerJson.NetworkSettings.IPAddress,
+		IPV6:           containerJson.NetworkSettings.GlobalIPv6Address,
+		Gateway:        containerJson.NetworkSettings.Gateway,
+		Mac:            containerJson.NetworkSettings.MacAddress,
+		NetworkMode:    getNetworkMode(string(containerJson.HostConfig.NetworkMode)),
+		Name:           containerName,
+		FullName:       containerFullName,
+		Labels:         containerJson.Config.Labels,
+		PodName:        podName,
+		PodUid:         podUid,
+		Namespace:      containerJson.Config.Labels["io.kubernetes.pod.namespace"],
+		ClusterKey:     d.clusterKey,
+		NodeName:       d.hostName,
+		NodeIP:         d.hostIP,
+		ImageName:      imageName,
 		ImageCreated:   imageCreated,
 		ImageSize:      imageSize,
 		ImageID:        containerJson.Image,
@@ -496,16 +495,15 @@ func (d *DockerInfoManager) containerFromEvent(message events.Message) *model.Te
 		UpdatedAt:   time.Unix(message.Time, 0),
 		Status:      getContainerStatus(message.Status),
 		ContainerID: message.ID,
-		//Name:        strings.TrimPrefix(message.Actor.Attributes["name"], "/"),
-		Name:       message.Actor.Attributes["io.kubernetes.container.name"],
-		PodName:    podName,
-		PodUid:     podUid,
-		Namespace:  message.Actor.Attributes["io.kubernetes.pod.namespace"],
-		ClusterKey: d.clusterKey,
-		NodeName:   d.hostName,
-		NodeIP:     d.hostIP,
-		// ImageName:   message.Actor.Attributes["image"],
-		K8sManaged: k8sManaged,
+		FullName:    strings.TrimPrefix(message.Actor.Attributes["name"], "/"),
+		Name:        message.Actor.Attributes["io.kubernetes.container.name"],
+		PodName:     podName,
+		PodUid:      podUid,
+		Namespace:   message.Actor.Attributes["io.kubernetes.pod.namespace"],
+		ClusterKey:  d.clusterKey,
+		NodeName:    d.hostName,
+		NodeIP:      d.hostIP,
+		K8sManaged:  k8sManaged,
 	}
 }
 
@@ -555,13 +553,12 @@ func (d *DockerInfoManager) updateContainerDetail(ctx context.Context, container
 	container.IPV6 = containerJson.NetworkSettings.GlobalIPv6Address
 	container.Gateway = containerJson.NetworkSettings.Gateway
 	container.Mac = containerJson.NetworkSettings.MacAddress
+	container.Labels = containerJson.Config.Labels
 	container.NetworkMode = getNetworkMode(string(containerJson.HostConfig.NetworkMode))
 	container.VolumeMounts = volumeMounts
 	container.StorageType = getContainerStorageType(isNfs, isCephfs, isHostPath)
 	container.Environment = util.DeIdentificationEnvs(containerJson.Config.Env)
 	container.ImageID = containerJson.Image
-	// container.ImageDigest = getImageDigest(containerJson.Config.Image)
-	// container.ImageName, container.ImageCreated, container.ImageSize = d.getImageInfo(container.ImageID)
 	container.ImageName, container.ImageDigest, container.ImageCreated, container.ImageSize = d.getImageInfoV2(containerJson.Config.Image, container.ImageID)
 	var user string
 	if containerJson.Config.User == "0" {
@@ -631,16 +628,16 @@ func (d *DockerInfoManager) getImageInfo(imageID string) (string, string, int64)
 
 /*
 imageRef:
- 	1:docker.io/library/nginx:latest
-    2： library/nginx:latest
-    3:  nginx:latest
-    4： nginx
-    5: sha256:：xxxx
-    6：docker.io/library/nginx@sha256xxxx
-    7：library/nginx@sha256xxxx
-    8：nginx@sha256xxxx
-*/
 
+		1:docker.io/library/nginx:latest
+	   2： library/nginx:latest
+	   3:  nginx:latest
+	   4： nginx
+	   5: sha256:：xxxx
+	   6：docker.io/library/nginx@sha256xxxx
+	   7：library/nginx@sha256xxxx
+	   8：nginx@sha256xxxx
+*/
 func (d *DockerInfoManager) getImageInfoV2(imageRef string, imageID string) (imageName string, imageDigest string, createTime string, size int64) {
 	imageInspect, _, err := d.dockerCli.ImageInspectWithRaw(context.Background(), imageID)
 	if err != nil {

@@ -105,6 +105,9 @@ func (vi *Image) GetImageName() string {
 	if vi == nil {
 		return ""
 	}
+	if vi.ImageName != "" {
+		return vi.ImageName
+	}
 
 	imageName := vi.Repo + ":" + vi.Tag
 	if vi.Host != "" && !strings.Contains(vi.Host, DockerHost) {

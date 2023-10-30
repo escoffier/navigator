@@ -375,26 +375,26 @@ type DeployFlagGroup struct {
 }
 
 type DeployRecordView struct {
-	ID            int64                   `json:"id"`
-	ImageUUID     uint32                  `json:"imageUUID"`
-	ImageName     string                  `json:"imageName"`
-	Digest        string                  `json:"digest"`
-	Action        string                  `json:"action"`
-	White         bool                    `json:"white"`   // 是否白名单
-	InWhite       bool                    `json:"inWhite"` // 是否在白名单名
-	Flag          uint64                  `json:"flag"`
-	ImageFromType string                  `json:"imageFromType"`
-	ImageUniqueID uint64                  `json:"imageUniqueID,string"`
-	SecurityIssue []SecurityIssueLabel    `json:"securityIssue"` // 安全问题
-	VulnStatic    ImageVulnSeverityStatic `json:"vulnStatic"`
-	RiskPolicy    []SimplePolicy          `json:"riskPolicy"`   // 镜像的风险来源
-	TotalPolicy   []SimplePolicy          `json:"totalPolicy"`  // 镜像的风险来源
-	FullRepoName  string                  `json:"fullRepoName"` // 以下是为了和镜像列表保持一致，便于前端统一
-	Tag           string                  `json:"tag"`
-	LastScanAt    int64                   `json:"lastScanAt"` // 扫描完成时间戳(单位毫秒)
-	RegistryUrl   string                  `json:"registryUrl"`
-	CreatedAt     int64                   `json:"createdAt"` // milliseconds
-	UpdatedAt     int64                   `json:"updatedAt"` // milliseconds
+	ID            int64                `json:"id"`
+	ImageUUID     uint32               `json:"imageUUID"`
+	ImageName     string               `json:"imageName"`
+	Digest        string               `json:"digest"`
+	Action        string               `json:"action"`
+	White         bool                 `json:"white"`   // 是否白名单
+	InWhite       bool                 `json:"inWhite"` // 是否在白名单名
+	Flag          uint64               `json:"flag"`
+	ImageFromType string               `json:"imageFromType"`
+	ImageUniqueID uint64               `json:"imageUniqueID,string"`
+	SecurityIssue []SecurityIssueLabel `json:"securityIssue"` // 安全问题
+	VulnStatic    VulnSeverityStatic   `json:"vulnStatic"`
+	RiskPolicy    []SimplePolicy       `json:"riskPolicy"`   // 镜像的风险来源
+	TotalPolicy   []SimplePolicy       `json:"totalPolicy"`  // 镜像的风险来源
+	FullRepoName  string               `json:"fullRepoName"` // 以下是为了和镜像列表保持一致，便于前端统一
+	Tag           string               `json:"tag"`
+	LastScanAt    int64                `json:"lastScanAt"` // 扫描完成时间戳(单位毫秒)
+	RegistryUrl   string               `json:"registryUrl"`
+	CreatedAt     int64                `json:"createdAt"` // milliseconds
+	UpdatedAt     int64                `json:"updatedAt"` // milliseconds
 
 	DeployRecord *DeployRecord `json:"-"`
 }
