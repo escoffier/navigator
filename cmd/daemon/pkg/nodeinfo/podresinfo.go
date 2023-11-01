@@ -76,7 +76,7 @@ func (pr *PodResInfo) OnDelete(pod *corev1.Pod) {
 }
 
 func (pr *PodResInfo) OnUpdate(oldPod, newPod *corev1.Pod) {
-	var owner Resource
+	var owner *Resource = &Resource{}
 	owner.Name, owner.Kind = util.GetOwnerOfPod(newPod)
 	key, _ := cache.MetaNamespaceKeyFunc(newPod)
 	pr.data.Store(key, owner)
