@@ -13,20 +13,21 @@ type LogEvent struct {
 	Submodule string
 }
 
-type Option func(*LogEvent)
+type LogEventOption func(*LogEvent)
 
-func WithModule(value string) Option {
+func WithModule(value string) LogEventOption {
 	return func(c *LogEvent) {
 		c.Module = value
 	}
 }
-func WithSubModule(value string) Option {
+
+func WithSubModule(value string) LogEventOption {
 	return func(c *LogEvent) {
 		c.Submodule = value
 	}
 }
 
-func NewLogEvent(opt ...Option) *LogEvent {
+func NewLogEvent(opt ...LogEventOption) *LogEvent {
 	s := &LogEvent{}
 	for i := range opt {
 		op := opt[i]

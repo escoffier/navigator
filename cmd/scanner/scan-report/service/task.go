@@ -13,6 +13,7 @@ import (
 	types2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/types"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	scanner_ci "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-ci"
@@ -104,6 +105,7 @@ func (s *ExportTaskSrv) CreateExportTask(ctx context.Context, data *model.Export
 	if err := data.Check(); err != nil {
 		return err
 	}
+	data.FilePath = scannerUtils.Filename(data.FilePath)
 	// 把文件名写进去，用于前端展示
 	if err := s.ExportDal.CreateExportTask(ctx, data); err != nil {
 		logging.Get().Err(err).Msg("CreateExportTask")
