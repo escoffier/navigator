@@ -35,6 +35,7 @@ func (s *ExportApiSrv) CreateImageSearchExportTask(ctx *gin.Context) {
 		Parameter imagesec.ImageSearchApiParam `json:"parameter"`
 		Creator   string                       `json:"creator"` // 任务创建人
 		TaskType  string                       `json:"taskType"`
+		Filename  string                       `json:"filename"`
 	}
 
 	data := &ExportTensorTask{}
@@ -49,11 +50,13 @@ func (s *ExportApiSrv) CreateImageSearchExportTask(ctx *gin.Context) {
 		return
 	}
 	now := time.Now()
-	fileName := fmt.Sprintf("%d_image_search_%s.zip", now.UnixMilli(), data.TaskType)
+	if data.Filename == "" {
+		data.Filename = fmt.Sprintf("%d_image_search_%s.zip", now.UnixMilli(), data.TaskType)
+	}
 	task := &model.ExportTensorTask{
 		ExecuteType: consts.ExportImageSearch,
 		Parameter:   string(bys),
-		FilePath:    fileName,
+		FilePath:    data.Filename,
 		Creator:     data.Creator,
 		CreatedAt:   now,
 		TaskType:    data.TaskType,
@@ -207,6 +210,7 @@ func (s *ExportApiSrv) CreateScanResultExportTask(ctx *gin.Context) {
 		Parameter types2.ScanTaskExportParam `json:"parameter"`
 		Creator   string                     `json:"creator"`  // 任务创建人
 		TaskType  string                     `json:"taskType"` // 是html还是excel
+		Filename  string                     `json:"filename"`
 	}
 
 	data := &ExportTensorTask{}
@@ -229,13 +233,15 @@ func (s *ExportApiSrv) CreateScanResultExportTask(ctx *gin.Context) {
 		return
 	}
 	now := time.Now()
+	if data.Filename == "" {
+		data.Filename = fmt.Sprintf("%s_scan_result_export_%s_%d.zip", strings.ReplaceAll(data.Parameter.TaskCreateAt, " ", "T"), data.TaskType, now.Unix())
+	}
 
-	fileName := fmt.Sprintf("%s_scan_result_export_%s_%d.zip", strings.ReplaceAll(data.Parameter.TaskCreateAt, " ", "T"), data.TaskType, now.Unix())
 	task := &model.ExportTensorTask{
 		ExecuteType: consts.ExportScanTask,
 		Parameter:   string(bys),
 		Creator:     data.Creator,
-		FilePath:    fileName,
+		FilePath:    data.Filename,
 		CreatedAt:   now,
 		TaskType:    data.TaskType,
 		Lang:        util.GetLanguage(ctx),
