@@ -1,4 +1,3 @@
-##attck_rule_type=Persistence
 - key: Schedule Cron Jobs
   disable: true
   hid: pers_01
@@ -184,27 +183,27 @@
 #     urgency: false
 #     tags: [ATT&CK, filesystem, mitre_persistence]
 
-- key: Detect outbound connections to common miner pool ports
-  disable: true
-  hid: pers_08
-  condition: >
-    net_miner_pool and not trusted_images_query_miner_domain_dns
-  output: >
-    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,domain_name=%fd.sip.name,container=%container.info,image=%container.image.repository,container_id=%container.id,container_name=%container.name
-  info:
-    name:
-      en: "Detect outbound connections to common miner pool ports"
-      zh: "检测到连接到常见挖矿池端口的出站连接"
-    desc:
-      en: "Under normal circumstances, normal systems will not connect to outbound connections to common mining pool ports unless the system's operation and maintenance personnel or administrators explicitly configure mining activities or have related business needs. Normal servers and workstations usually do not actively connect to mining pools, as this is a resource-intensive activity that is usually performed by miners or related business leaders. If there is no clear business need or authorized mining behavior, the presence of outbound connections to the mining pool port in the system may be an anomaly. It may be infected, running a mining program, and trying to connect to the mining pool in order to exploit Computing resources to conduct cryptocurrency mining activities."
-      zh: "一般情况下，正常的系统不会连接到常见挖矿池端口的出站连接，除非系统的运维人员或管理员明确配置了挖矿活动或有相关的业务需求。正常的服务器和工作站通常不会主动连接到挖矿池，因为这是一种资源密集型活动，通常由矿工或相关业务负责人执行。如果没有明确的业务需求或授权挖矿行为，系统中出现连接到挖矿池端口的出站连接可能是异常情况，可能受到感染，正在运行挖矿程序，并试图连接到挖矿池，以利用计算资源进行加密货币挖矿活动。"
-    suggestion:
-      en: "Use micro isolation to block the flow, delete the backdoor of mining in time, and check whether the container is invaded."
-      zh: "使用微隔离阻拦流量，及时删除挖矿后门，同时排查容器是否遭到入侵。"
-    rule_type: Persistence
-    priority: ALERT
-    urgency: false
-    tags: [ATT&CK, network, mitre_backdoor_maintenance, L1]
+# - key: Detect outbound connections to common miner pool ports
+#   disable: true
+#   hid: pers_08
+#   condition: >
+#     net_miner_pool and not trusted_images_query_miner_domain_dns
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,domain_name=%fd.sip.name,container=%container.info,image=%container.image.repository,container_id=%container.id,container_name=%container.name
+#   info:
+#     name:
+#       en: "Detect outbound connections to common miner pool ports"
+#       zh: "检测到连接到常见挖矿池端口的出站连接"
+#     desc:
+#       en: "Under normal circumstances, normal systems will not connect to outbound connections to common mining pool ports unless the system's operation and maintenance personnel or administrators explicitly configure mining activities or have related business needs. Normal servers and workstations usually do not actively connect to mining pools, as this is a resource-intensive activity that is usually performed by miners or related business leaders. If there is no clear business need or authorized mining behavior, the presence of outbound connections to the mining pool port in the system may be an anomaly. It may be infected, running a mining program, and trying to connect to the mining pool in order to exploit Computing resources to conduct cryptocurrency mining activities."
+#       zh: "一般情况下，正常的系统不会连接到常见挖矿池端口的出站连接，除非系统的运维人员或管理员明确配置了挖矿活动或有相关的业务需求。正常的服务器和工作站通常不会主动连接到挖矿池，因为这是一种资源密集型活动，通常由矿工或相关业务负责人执行。如果没有明确的业务需求或授权挖矿行为，系统中出现连接到挖矿池端口的出站连接可能是异常情况，可能受到感染，正在运行挖矿程序，并试图连接到挖矿池，以利用计算资源进行加密货币挖矿活动。"
+#     suggestion:
+#       en: "Use micro isolation to block the flow, delete the backdoor of mining in time, and check whether the container is invaded."
+#       zh: "使用微隔离阻拦流量，及时删除挖矿后门，同时排查容器是否遭到入侵。"
+#     rule_type: Persistence
+#     priority: ALERT
+#     urgency: false
+#     tags: [ATT&CK, network, mitre_backdoor_maintenance, L1]
 
 - key: Detect crypto miners using the Stratum protocol
   hid: pers_09
