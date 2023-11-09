@@ -350,10 +350,10 @@ func (s *CMUserService) handleCMUserMsg(ctx context.Context, data []byte) error 
 		return s.deleteUser(mctx, msg.User.UserName)
 	case CMUserChangeStatus:
 		var status int
-		if msg.User.Status == 1 {
+		if msg.User.Status == 0 {
 			status = model.UserStatusNormal
 		}
-		if msg.User.Status == -1 {
+		if msg.User.Status == 1 {
 			status = model.UserStatusDisabled
 		}
 		return s.setUserStatus(mctx, msg.User.UserName, status)
@@ -380,7 +380,6 @@ func (s *CMUserService) upsertUsers(ctx context.Context, users []CMUser) error {
 				return err
 			}
 			user.ModuleID = modules
-			user.Token = util.GenerateUUIDHex()
 
 			err = tx.Model(model).Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "username"}},
@@ -390,8 +389,11 @@ func (s *CMUserService) upsertUsers(ctx context.Context, users []CMUser) error {
 				return err
 			}
 
+			err = dal.SaveAuthToken(ctx, tx, user.UserName, util.GenerateUUIDHex())
+			if err != nil {
+				logging.Get().Error().Err(err).Msg("")
+			}
 		}
-
 		return nil
 	})
 
@@ -409,12 +411,16 @@ func (s *CMUserService) upsertUser(ctx context.Context, cm CMUser) error {
 		return err
 	}
 	user.ModuleID = modules
-	user.Token = util.GenerateUUIDHex()
 
 	err = s.rdb.Get().WithContext(ctx).Model(user).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "username"}},
 		DoUpdates: clause.AssignmentColumns([]string{"pwd", "rule", "status", "module_id"}),
 	}).Create(user).Error
+	if err != nil {
+		logging.Get().Error().Err(err).Msg("")
+	}
+
+	err = dal.SaveAuthToken(ctx, s.rdb.Get(), user.UserName, util.GenerateUUIDHex())
 	if err != nil {
 		logging.Get().Error().Err(err).Msg("")
 	}
