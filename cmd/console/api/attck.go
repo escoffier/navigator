@@ -98,10 +98,12 @@ func (api *api) getCustomConfigs() http.HandlerFunc {
 		}
 
 		ruleKey, paramErr := param.QueryString(r, "rule")
-		if paramErr == nil && len(ruleKey) > 0 {
+		if paramErr == nil && len(ruleKey) > 0 { // 参数有效，根据rule查询
 			queryOpt.RuleKey = ruleKey
-		} else if paramErr != nil && paramErr != param.ErrInvalidParam {
+		} else if paramErr != nil && paramErr != param.ErrInvalidParam { // 解析参数错误
 			logging.Get().Warn().Err(paramErr).Msg("fail to parse rule")
+		} else { // 解析不报错，或 无有效的rule，说明是列表查询，增加status条件
+			queryOpt.Statuses = []model.CconfigStatus{model.StatusOK, model.StatusPending}
 		}
 
 		ruleCategories, paramErr := param.QueryString(r, "ruleCategory")
@@ -139,12 +141,11 @@ func (api *api) getCustomConfigs() http.HandlerFunc {
 		}
 
 		query, paramErr := param.QueryString(r, "query")
-		if paramErr == nil || len(query) > 0 {
+		if paramErr == nil && len(query) > 0 {
 			queryOpt.Query = query
 		} else if paramErr != nil && paramErr != param.ErrInvalidParam {
-			logging.Get().Warn().Err(paramErr).Msg("fail to parse customKey")
+			logging.Get().Warn().Err(paramErr).Msg("fail to parse query")
 		}
-		queryOpt.Statuses = []model.CconfigStatus{model.StatusOK, model.StatusPending}
 
 		configs, totalCnt, err := service.GetCustomConfigs(ctx, queryOpt, limit, offset, lang)
 		if err != nil {
