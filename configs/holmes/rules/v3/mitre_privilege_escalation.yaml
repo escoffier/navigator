@@ -423,7 +423,7 @@
   condition: >
     evt.type = connect and evt.args contains "docker.sock" and container and not tensorsec_namespace and
     shell_parent_procs and
-    proc.cmdline contains "docker -H unix:"
+    (proc.cmdline contains "docker -H unix:" or proc.cmdline contains "docker --host unix:")
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name
   info:
@@ -442,7 +442,7 @@
     tags: [ATT&CK, users, docker, filesystem, mitre_privilege_escalation, L4]
 
 - key: Try to read the k8s token and bypass RBAC
-  disabled: true
+  #disabled: true
   hid: priv_20
   condition: >
     open_read and fd.name = /var/run/secrets/kubernetes.io/serviceaccount/token and container and shell_parent_procs
@@ -490,10 +490,11 @@
   disable: true
   hid: priv_22
   condition: >
-    evt.type = openat and fd.name=/proc/net/unix and
-    container and
-    shell_parent_procs and
-    not show_information_procs
+    evt.type = openat and fd.name=/proc/net/unix and container 
+    and shell_parent_procs 
+    and not show_information_procs
+    and not proc.name=netstat
+    and not proc.name=lsof 
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name,evt.args=%evt.args,fd.name=%fd.name,proc.name=%proc.name,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3]
   info:
@@ -525,7 +526,7 @@
       en: "Using {method: vim} for linux privilege escalation"
       zh: "尝试利用{method_zh: vim}提权"
     desc:
-      en: "Normal users usually use Vim to edit text files rather than execute system commands or modify sensitive files. There is a high probability that the attacker will use {method_zh: vim} to escalate privileges after carrying out the attack, usually using SUID permissions to execute commands or modify sensitive files (such as: passwd). This method allows the permissions of the file owner or group to Run, allowing an attacker to run the malicious code or commands contained within it with elevated privileges."
+      en: "Normal users usually use Vim to edit text files rather than execute system commands or modify sensitive files. There is a high probability that the attacker will use {method: vim} to escalate privileges after carrying out the attack, usually using SUID permissions to execute commands or modify sensitive files (such as: passwd). This method allows the permissions of the file owner or group to Run, allowing an attacker to run the malicious code or commands contained within it with elevated privileges."
       zh: "正常用户使用 Vim 通常是用来编辑文本文件，而不是执行系统命令或修改敏感文件。大概率是攻击者在进行攻击后，利用{method_zh: vim}提权，通常利用具有SUID权限执行命令或修改敏感文件(如：passwd)，这种方式允许以文件所有者或所属组的权限来运行，从而允许攻击者以更高的权限来运行其中包含的恶意代码或命令。"
     suggestion:
       en: "Use the Immune Defence training application to restrict user permissions on sensitive files and commands."
@@ -784,30 +785,31 @@
     urgency: true
     tags: [ATT&CK, filesystem, mitre_privilege_escalation, L3]
 
-- key: DirtyPipe (CVE-2022-0847) Read-only file overwrite privilege escalation escape
-  disable: true
-  hid: priv_34
-  condition: >
-    container and shell_parent_procs and evt.type = arch_prctl 
-    and not k8s.ns.name = "kube-system"
-    and not falco_sensitive_mount_containers
-    and not user_sensitive_mount_containers
-  output: >
-    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent=%proc.pname,file=%fd.name,program=%proc.name,gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4],container_id=%container.id,container_name=%container.name,image=%container.image.repository
-  steps:
-    - name: checkRelatedExists
-      params: [ 'Read and write overwrite the passwd file', 2s, trigger.payload.output_map.proc_pid, payload.output_map.proc_ppid ]
-  info:
-    name:
-      en: "DirtyPipe (CVE-2022-0847) Read-only file overwrite privilege escalation escape"
-      zh: "DirtyPipe (CVE-2022-0847) 只读文件覆盖提权逃逸"
-    desc:
-      en: "CVE-2022-0847, also known as DirtyPipe, is a security vulnerability that allows attackers to exploit read-only files on Linux systems to perform file overwrite and privilege escalation escape. Generally, we believe that normal users will not actively execute CVE (known vulnerabilities) related attack tools or scripts. There is a high probability that attackers try to use the DirtyPipe vulnerability to overwrite files such as passwd. Their main goal is to escalate privileges and escape, that is, to enhance their Privilege levels on the infected system."
-      zh: "CVE-2022-0847，也被称为DirtyPipe，是一个安全漏洞，允许攻击者在Linux系统上利用只读文件进行文件覆盖提权逃逸。通常我们认为正常用户不会主动执行CVE（已知漏洞）相关的攻击工具或脚本，大概率是攻击者尝试利用DirtyPipe漏洞，对passwd等文件进行覆盖，其主要目标是提权逃逸，即提升其在受感染的系统上的权限级别。"
-    suggestion:
-      en: "Please use the process tree to determine whether the command is a normal behavior of a known process and whether it is executed by malware. Hackers may use this behavior to bypass defense detection. You can use an immune defense training application to limit user permissions for sensitive files and commands."
-      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，黑客可能通过该行为绕过防御检测，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
-    rule_type: Privilege_Escalation
-    priority: ALERT
-    urgency: true
-    tags: [ATT&CK, filesystem, mitre_privilege_escalation, L3]
+# - key: DirtyPipe (CVE-2022-0847) Read-only file overwrite privilege escalation escape
+#   disable: true
+#   hid: priv_34
+#   condition: >
+#     container and shell_parent_procs and evt.type =  
+#     and not k8s.ns.name = "kube-system"
+#     and not (k8s.pod.name contains "-holmes-" or k8s.pod.name contains "-kafka-")
+#     and not falco_sensitive_mount_containers
+#     and not user_sensitive_mount_containers
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent=%proc.pname,file=%fd.name,program=%proc.name,gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4],container_id=%container.id,container_name=%container.name,image=%container.image.repository
+#   steps:
+#     - name: checkRelatedExists
+#       params: [ 'Read and write overwrite the passwd file', 2s, trigger.payload.output_map.proc_pid, payload.output_map.proc_ppid ]
+#   info:
+#     name:
+#       en: "DirtyPipe (CVE-2022-0847) Read-only file overwrite privilege escalation escape"
+#       zh: "DirtyPipe (CVE-2022-0847) 只读文件覆盖提权逃逸"
+#     desc:
+#       en: "CVE-2022-0847, also known as DirtyPipe, is a security vulnerability that allows attackers to exploit read-only files on Linux systems to perform file overwrite and privilege escalation escape. Generally, we believe that normal users will not actively execute CVE (known vulnerabilities) related attack tools or scripts. There is a high probability that attackers try to use the DirtyPipe vulnerability to overwrite files such as passwd. Their main goal is to escalate privileges and escape, that is, to enhance their Privilege levels on the infected system."
+#       zh: "CVE-2022-0847，也被称为DirtyPipe，是一个安全漏洞，允许攻击者在Linux系统上利用只读文件进行文件覆盖提权逃逸。通常我们认为正常用户不会主动执行CVE（已知漏洞）相关的攻击工具或脚本，大概率是攻击者尝试利用DirtyPipe漏洞，对passwd等文件进行覆盖，其主要目标是提权逃逸，即提升其在受感染的系统上的权限级别。"
+#     suggestion:
+#       en: "Please use the process tree to determine whether the command is a normal behavior of a known process and whether it is executed by malware. Hackers may use this behavior to bypass defense detection. You can use an immune defense training application to limit user permissions for sensitive files and commands."
+#       zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，黑客可能通过该行为绕过防御检测，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+#     rule_type: Privilege_Escalation
+#     priority: ALERT
+#     urgency: true
+#     tags: [ATT&CK, filesystem, mitre_privilege_escalation, L3]

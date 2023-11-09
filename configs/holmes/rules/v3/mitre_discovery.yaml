@@ -51,9 +51,7 @@
   condition: >
     spawned_process and
     not container and
-    consider_network_tools_on_host and
     network_tool_procs and
-    not user_known_network_tool_activities and
     shell_parent_procs
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent_process=%proc.pname,container_id=%container.id,container_name=%container.name
@@ -291,14 +289,15 @@
     urgency: false
     tags: [ATT&CK, network, mitre_discovery, L4]
 
-- key: Scanning k8s sensitive ports
+- key: Scanning port detected
   hid: disc_13
   condition: >
     evt.type in (connect,sendto,sendmsg)
     and fd.name contains "->"
-    and not fd.sport in ("", 53)
     and fd.name != "" and fd.name exists and fd.type in ("ipv4", "ipv6")
     and shell_family_procs
+    and proc.name in (scan_ports_tool_binaries)
+    and not fd.sport in ("", 53)
     and not proc.name in (known_system_procs_network_activity_binaries)
     and not proc.pname in (known_system_procs_network_activity_binaries)
     and not (package_mgmt_procs or package_mgmt_ancestor_procs)
@@ -316,17 +315,17 @@
     - name: checkRegexMatch
       params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.proc_cmdline ]
     - name: checkRuleRecentCount
-      params: [ 'Scanning ports detected', 10s, 5, '["fd_sip", "fd_cip"]', '["fd_sport"]', 1m ]
+      params: [ 'Scanning port detected', 5s, 5, '["fd_sip", "fd_cip"]', '["fd_sport"]', 1m ]
   info:
     name:
-      en: "Scanning k8s sensitive ports"
-      zh: "扫描k8s敏感端口"
+      en: "Scanning port detected"
+      zh: "检测到正在扫描端口"
     desc:
-      en: "Generally, we believe that normal users will not scan Kubernetes (K8s) sensitive ports (such as kubernet ports). The high probability is that attackers are looking for potential loopholes or weaknesses in K8s after conducting attacks for subsequent attacks. This scanning behavior can be used to collect information about the target system, detect exploitable vulnerabilities, and identify weaknesses in the system."
-      zh: "通常我们认为正常用户不会扫描Kubernetes（K8s）敏感端口(如kubernet端口)，大概率是攻击者在进行攻击后，为了寻找K8s潜在的漏洞或弱点，以便进行后续的攻击。这种扫描行为可以用于收集目标系统的信息，探测可利用的漏洞，并确定系统中存在的弱点。"
+      en: "Attackers are conducting sensitive port scans, an activity in which attackers connect to various ports to determine which ones are open, often automated using tools such as Nmap. The scanning tool also attempts to identify version information of services and applications running on the target host so that attackers are aware of potential vulnerabilities. Detection of a sensitive port scan may suggest an attacker is searching for vulnerabilities that could lead to unauthorized access, system intrusion, or other cybersecurity threats."
+      zh: "攻击者正在进行端口扫描，这是一种活动，攻击者通过连接到各种端口，以确定哪些端口是开放的，通常使用工具如Nmap自动化进行。扫描工具还尝试识别目标主机上运行的服务和应用程序的版本信息，以便攻击者了解潜在漏洞。检测到敏感端口扫描可能暗示着攻击者寻找漏洞，可能会导致未经授权的访问、系统入侵或其他网络安全威胁。"
     suggestion:
-      en: "The K8S sensitive port access behavior is detected. Please confirm whether it is legal access in combination with specific commands. If not, it may be used by attackers. Please isolate the pod in time。"
-      zh: "检测到k8s敏感端口访问行为,请结合具体命令确认是否为合法访问，如果不是则可能遭到攻击者利用，请及时隔离该pod。"
+      en: "Please confirm the specific behavior of the tool and use specific commands to confirm whether it is legal access. If not, it may be exploited by attackers. Please isolate the pod in time."
+      zh: "请确认该工具具体行为，结合具体命令确认是否为合法访问，如果不是则可能遭到攻击者利用，请及时隔离该pod。"
     rule_type: Discovery
     priority: ALERT
     urgency: true

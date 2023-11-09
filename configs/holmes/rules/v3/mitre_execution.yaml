@@ -187,6 +187,7 @@
     and not fd.sport in ("", 53)
     and fd.name != "" and fd.name exists and fd.type in ("ipv4", "ipv6")
     and shell_family_procs
+    and proc.name in (brute_force_binaries)
     and not proc.name in (known_system_procs_network_activity_binaries)
     and not proc.pname in (known_system_procs_network_activity_binaries)
     and not (package_mgmt_procs or package_mgmt_ancestor_procs)
@@ -203,7 +204,7 @@
     - name: checkRegexMatch
       params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.proc_cmdline ]
     - name: checkRuleRecentCount
-      params: [ 'Brute force hacking detected', 10s, 5, '["fd_sip", "fd_sport", "fd_cip"]', '[]', 1m ]
+      params: [ 'Brute force hacking detected', 3s, 5, '["fd_sip", "fd_sport", "fd_cip"]', '[]', 1m ]
   info:
     name:
       en: "Brute force hacking detected"
@@ -279,6 +280,7 @@
     and not fd.name contains "->127.0.0.1"
     and not fd.name contains "->0.0.0.0:"
     and not fd.name contains "->::1"
+    and not (proc.cmdline contains "docker -H tcp://" and proc.cmdline contains ":2375")
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,user=%user.name,user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository
   steps:
@@ -304,7 +306,7 @@
   condition: >
     evt.type in (connect,sendto,sendmsg)
     and fd.name contains "->"
-    and not fd.sport in ("", 53)
+    and not fd.sport in ("", 53, 22)
     and fd.name != "" and fd.name exists and fd.type in ("ipv4", "ipv6")
     and shell_family_procs
     and not proc.name in (known_system_procs_network_activity_binaries)
@@ -317,7 +319,9 @@
     and not k8s.ns.name = "kube-system"
     and not fd.name contains "->127.0.0.1"
     and not fd.name contains "->0.0.0.0:"
-    and not fd.name contains "->::1" 
+    and not fd.name contains "->::1"
+    and not (proc.cmdline contains "docker -H tcp://" and proc.cmdline contains ":2375")
+#and not k8s.pod.name contains "51c1c6" and (inbound_outbound) and fd.sport=8080
   output: >
     pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_name=%proc.name,parent=%proc.pname,proc.aname[0]=%proc.aname[0],proc.aname[1]=%proc.aname[1],gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4]
   steps:
@@ -330,7 +334,7 @@
       en: "Reverse shell through {reverse_tool: socket and dup}"
       zh: "容器内通过{reverse_tool_zh: socket和dup}反弹shell"
     desc:
-      en: "Rebound shell (Reverse Shell) is a computer attack technique usually used by attackers to establish a command line interface with the target computer in order to remotely control the target computer. Normal users usually do not perform this behavior. The high probability is that after the attack, the attacker uses {reverse_tool_zh: socket and dup} to rebound the shell in the container to gain control of the container. The purpose is to move laterally, steal or tamper with sensitive data. and the creation of backdoors, posing a persistent threat. These behaviors pose potential threats to the security of the container and the entire environment."
+      en: "Rebound shell (Reverse Shell) is a computer attack technique usually used by attackers to establish a command line interface with the target computer in order to remotely control the target computer. Normal users usually do not perform this behavior. The high probability is that after the attack, the attacker uses {reverse_tool: socket and dup} to rebound the shell in the container to gain control of the container. The purpose is to move laterally, steal or tamper with sensitive data. and the creation of backdoors, posing a persistent threat. These behaviors pose potential threats to the security of the container and the entire environment."
       zh: "反弹 shell（Reverse Shell）是一种计算机攻击技术，通常由攻击者使用，目的是建立一个与目标计算机的命令行接口，以便在远程控制目标计算机。正常用户通常不会进行此行为，大概率是攻击者在进行攻击后，在容器内通过{reverse_tool_zh: socket和dup}反弹shell，获取容器内控制权，目的是横向移动、窃取或篡改敏感数据，以及建立后门，构成持久性威胁。这些行为对容器和整个环境的安全性构成潜在威胁。"
     suggestion:
       en: "If the container is intruded, we need to isolate the container, get the remote ip address of the attacker, and check other attacks to confirm the security of the cluster."
@@ -407,7 +411,6 @@
     and not package_mgmt_ancestor_procs
     and not exe_running_docker_save
     and not user_known_update_package_registry
-    and shell_parent_procs
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,file=%fd.name,container_id=%container.id,container_name=%container.name,image=%container.image.repository
   info:
@@ -536,7 +539,7 @@
   disable: true
   hid: exec_19
   condition: >
-    write_etc_common and not (tensorsec_namespace and k8s.pod.name contains "holmes") and shell_parent_procs
+    write_etc_common and not (tensorsec_namespace and k8s.pod.name contains "holmes") and shell_parent_procs and not fd.name = "/etc/sudoers"
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent=%proc.pname,file=%fd.name,program=%proc.name,gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4],container_id=%container.id,container_name=%container.name,image=%container.image.repository
   info:

@@ -4,8 +4,7 @@
   condition: >
     open_write and
     access_log_files and
-    evt.arg.flags contains "O_TRUNC" and
-    shell_parent_procs and
+    (shell_family_procs or proc.pname = containerd-shim) and
     not trusted_logging_images and
     not allowed_clear_log_files and 
     not tensorsec_namespace
