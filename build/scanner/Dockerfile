@@ -1,5 +1,4 @@
-FROM ubuntu:20.04
-
+FROM ubuntu:22.04
 ARG MIRROR_SOURCE=mirrors.aliyun.com
 
 RUN sed -i "s!archive.ubuntu.com/!${MIRROR_SOURCE}/!g" /etc/apt/sources.list \
