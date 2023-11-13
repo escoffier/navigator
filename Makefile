@@ -225,7 +225,7 @@ webhook:
 
 ## Build all images
 .PHONY: all
-all: drift-prevention-client faulty scanner scarecrow console data holmes daemon  \
+all: drift-prevention-client scanner scarecrow console data holmes daemon  \
 webhook cluster-manager kafka-proxy kube-scanner-report platform-report \
 scan_report apiscan-job cluster-proxy node-image
 
@@ -236,7 +236,6 @@ pushimages:
 	docker push $(REPOPREFIX)/console:$(IMAGE_TAG)
 	docker push $(REPOPREFIX)/scanner:$(IMAGE_TAG)
 	docker push $(REPOPREFIX)/cleaner:$(IMAGE_TAG)
-	docker push $(REPOPREFIX)/faulty:$(IMAGE_TAG)
 	docker push $(REPOPREFIX)/holmes:$(IMAGE_TAG)
 	docker push $(REPOPREFIX)/daemon:$(IMAGE_TAG)
 	docker push $(REPOPREFIX)/waston-redis:$(IMAGE_TAG)
@@ -256,7 +255,6 @@ rm-local-images:
 	docker rmi $(REPOPREFIX)/console:$(IMAGE_TAG)
 	docker rmi $(REPOPREFIX)/scanner:$(IMAGE_TAG)
 	docker rmi $(REPOPREFIX)/cleaner:$(IMAGE_TAG)
-	docker rmi $(REPOPREFIX)/faulty:$(IMAGE_TAG)
 	docker rmi $(REPOPREFIX)/holmes:$(IMAGE_TAG)
 	docker rmi $(REPOPREFIX)/daemon:$(IMAGE_TAG)
 	docker rmi $(REPOPREFIX)/waston-redis:$(IMAGE_TAG)
