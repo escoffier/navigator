@@ -679,6 +679,7 @@ func (ac *Controller) processNextItem() bool {
 		err = ac.syncService(as.key)
 	case *corev1.Endpoints:
 		err = ac.syncEndpoints(as.key)
+		err = ac.syncEndpoints(as.key)
 	case *corev1.Secret:
 		err = ac.syncSecret(as.key)
 	case *corev1.PersistentVolume:
@@ -1370,6 +1371,15 @@ func (ac *Controller) updateEndpoints(oldObj, newObj interface{}) {
 	oldS := oldObj.(*corev1.Endpoints)
 	newS := newObj.(*corev1.Endpoints)
 	logging.Get().Debug().Msgf("update endpoints %s", oldS.Name)
+	tmp := &pkgassets.EndpointsTmp{
+		Endpoints: newS,
+	}
+	// 添加去重校验:  部分 endpoints 无效的update太频繁
+	if ac.dupCache.Check(tmp) {
+		logging.Get().Debug().Msgf("skip unnecessary endpoints update event:%s", oldS.Name)
+		return
+	}
+	ac.dupCache.Put(tmp)
 	ac.enqueue(newS, pkgassets.ActionUpdate)
 }
 

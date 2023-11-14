@@ -127,5 +127,5 @@ func getBinaryPathByPid(pid string) string {
 	if err != nil {
 		logging.Get().Err(err).Msgf("getBinaryPathByPid failed. pid:%s,exePath:%s", pid, exePath)
 	}
-	return string(out)
+	return strings.TrimSpace(string(out))
 }

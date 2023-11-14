@@ -106,8 +106,8 @@ func (cb *RawContainerCallBack) doOnRawContainerEvent(ctx context.Context, e con
 
 	useRedis := cb.parent.enableRedisSearch("rawContainer")
 
-	logging.Get().Info().Msgf("process raw container event, action: %d, container: %s,name: %s, resource: %s/%s, useRedis: %t", e.action, e.container.ContainerID, e.container.Name, e.container.ResourceKind, e.container.ResourceName, useRedis)
-
+	logging.Get().Info().Msgf("process raw container event, action: %d, container: %s,name: %s, resource: %s/%s, useRedis: %t",
+		e.action, e.container.ContainerID, e.container.Name, e.container.ResourceKind, e.container.ResourceName, useRedis)
 	switch e.action {
 	case assets.ActionDelete:
 		var deleteErr error

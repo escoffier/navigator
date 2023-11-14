@@ -586,11 +586,11 @@ func (ev VolumeMountSlice) Value() (driver.Value, error) {
 }
 
 type ProcessData struct {
-	HostPid      int    `json:"hostPid"`
-	ContainerPid int    `json:"containerPid"`
-	Comm         string `json:"comm"`
-	UserName     string `json:"userName"`
-	StartTime    string `json:"startTime"`
+	HostPid      int    `json:"hostPid,omitempty"`
+	ContainerPid int    `json:"containerPid,omitempty"`
+	Comm         string `json:"comm,omitempty"`
+	UserName     string `json:"userName,omitempty"`
+	StartTime    string `json:"startTime,omitempty"`
 }
 
 type ProcessSlice []ProcessData

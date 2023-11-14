@@ -137,7 +137,7 @@ func (j *JavaFramework) FrameworkDiscovery(containerId string, cmdList []*cmdIte
 }
 
 // Python
-var regexpLanguagePython = ".*python$"
+var regexpLanguagePython = `.*python(\d?)$`
 
 // var pythonFramework = []string{"runserver"}
 var regexpPythonVersion = `(?<=Python\s).*`

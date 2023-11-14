@@ -174,7 +174,7 @@ func (c *containerdDriver) GetContainerMeta(namespace string, containerID string
 		ImageDigest:   []string{image.Target().Digest.String()},
 		State:         string(status.Status),
 		ImageRepoTags: nil,
-		GraphDriver:   types2.GraphDriverData{}, // todo yeds
+		GraphDriver:   types2.GraphDriverData{},
 		Labels:        info.Labels,
 	}
 	// get pod id
