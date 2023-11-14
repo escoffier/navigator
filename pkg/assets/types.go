@@ -358,6 +358,32 @@ func (t *TensorEndpoints) DuplicatedChecked() bool {
 	return t.dupChecked
 }
 
+func (e *EndpointsTmp) IdentityString() string {
+	sb := strings.Builder{}
+	if len(e.Subsets) > 0 {
+		sb.WriteString(e.ResourceVersion)
+	} else {
+		sb.WriteString("0")
+	}
+	return sb.String()
+}
+
+func (e *EndpointsTmp) KeyName() string {
+	sb := strings.Builder{}
+	sb.WriteString("Endpoints")
+	sb.WriteRune('\n')
+	sb.WriteString(e.Name)
+	sb.WriteRune('\n')
+	sb.WriteString(e.Namespace)
+	return sb.String()
+}
+
+func (e *EndpointsTmp) SetDuplicatedChecked(checked bool) {}
+
+func (e *EndpointsTmp) DuplicatedChecked() bool {
+	return false
+}
+
 // Secret
 type TensorSecret struct {
 	Cluster string

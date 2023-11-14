@@ -430,6 +430,7 @@ func NamespaceLabelQuery() *NamespaceLabelQueryOption {
 type BusiSvcQueryOption struct {
 	WhereLikeCondition map[string]string
 	WhereEqCondition   map[string]interface{}
+	WhereInCondition   map[string]interface{}
 	ContainerName      string
 }
 
@@ -437,6 +438,7 @@ func GetBusiSvcQueryOption() *BusiSvcQueryOption {
 	return &BusiSvcQueryOption{
 		WhereLikeCondition: make(map[string]string, 2),
 		WhereEqCondition:   make(map[string]interface{}, 2),
+		WhereInCondition:   make(map[string]interface{}, 1),
 	}
 }
 
@@ -3715,8 +3717,19 @@ func getRawContainerWithFrameworkByIds(ctx context.Context, rdb *gorm.DB, contai
 			idMap[withFramework.ContainerID] = struct{}{}
 			continue
 		}
-		containers[len(containers)-1].FrameworkStr += fmt.Sprintf(",%s", buildDesc(withFramework))
-		containers[len(containers)-1].FrameworkPath += fmt.Sprintf(",%s", withFramework.FrameworkPath)
+		frameworkStr := buildDesc(withFramework)
+		if containers[len(containers)-1].FrameworkStr != "" && frameworkStr != "" {
+			containers[len(containers)-1].FrameworkStr += ","
+		}
+		containers[len(containers)-1].FrameworkStr += frameworkStr
+
+		if isDetail {
+			frameworkPath := withFramework.FrameworkPath
+			if containers[len(containers)-1].FrameworkPath != "" && frameworkPath != "" {
+				containers[len(containers)-1].FrameworkPath += ","
+			}
+			containers[len(containers)-1].FrameworkPath += frameworkPath
+		}
 	}
 	return containers, nil
 }
@@ -3781,7 +3794,6 @@ func upsertRawContainersWithTx(tx *gorm.DB, container *assets.TensorRawContainer
 	if rawContainer.LastStopTime.IsZero() {
 		rawContainer.LastStopTime = rawContainer.CreatedAt
 	}
-	logging.GetLogger().Debug().Msgf("upsertRawContainersWithTx: lastStopTime:%v", rawContainer.LastStopTime)
 	err := tx.Model(&model.TensorRawContainer{}).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "id"}},
 		DoUpdates: clause.AssignmentColumns(OnDupUpdatedColsForRawContainer),
@@ -5546,6 +5558,9 @@ func CountBusiSvcs(ctx context.Context, rdb *gorm.DB, queryOptions *BusiSvcQuery
 		for k, v := range queryOptions.WhereLikeCondition {
 			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
 		}
+		for k, v := range queryOptions.WhereInCondition {
+			db = db.Where(fmt.Sprintf("%s IN ?", k), v)
+		}
 		db = db.Where("ivan_assets_raw_containers_svcs.status=0")
 		db = db.Joins("left join ivan_assets_raw_containers raw on  raw.id = ivan_assets_raw_containers_svcs.raw_container_id")
 		db = db.Where("raw.status=0")
@@ -5575,6 +5590,9 @@ func GetBusiSvcs(ctx context.Context, rdb *gorm.DB, queryOptions *BusiSvcQueryOp
 		}
 		for k, v := range queryOptions.WhereLikeCondition {
 			db = db.Where(fmt.Sprintf("%s LIKE ?", k), GetLikeExpr(v))
+		}
+		for k, v := range queryOptions.WhereInCondition {
+			db = db.Where(fmt.Sprintf("%s IN ?", k), v)
 		}
 		db = db.Where("ivan_assets_raw_containers_svcs.status=0")
 		db = db.Joins("left join ivan_assets_raw_containers raw on  raw.id = ivan_assets_raw_containers_svcs.raw_container_id")
@@ -5616,8 +5634,9 @@ func GetBusiStartUser(ctx context.Context, rdb *gorm.DB, busiType string) ([]str
 			Distinct("user")
 
 		if busiType != "" {
-			db = db.Where("svc_type = ? and status=0", busiType)
+			db = db.Where("svc_type = ? ", busiType)
 		}
+		db = db.Where("status=0 and user!=''")
 		err := db.Scan(&users).Error
 		if err == gorm.ErrRecordNotFound {
 			notFound = true
@@ -5634,7 +5653,7 @@ func GetBusiStartUser(ctx context.Context, rdb *gorm.DB, busiType string) ([]str
 	return users, nil
 }
 
-func GetBusiSvcDetail(ctx context.Context, rdb *gorm.DB, id int32) (*PodBusiSvcBaseDetail, error) {
+func GetBusiSvcDetail(ctx context.Context, rdb *gorm.DB, id uint32) (*PodBusiSvcBaseDetail, error) {
 	rCtx, cancel := context.WithTimeout(ctx, 6000*time.Millisecond)
 	defer cancel()
 
@@ -5835,7 +5854,7 @@ func GetExposeHosts(ctx context.Context, rdb *gorm.DB, webDesc string, protocols
 
 type ExposeHostDetail struct {
 	*ExposeHostPathBase
-	User  string
+	User  string          `json:"user"`
 	Ports model.PortSlice `json:"ports"`
 }
 

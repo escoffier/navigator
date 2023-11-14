@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/docker/docker/pkg/stringid"
 	"os"
 	"runtime/debug"
 	"strconv"
@@ -415,6 +416,12 @@ func (d *DockerInfoManager) containerFromRaw(containerJson *types.ContainerJSON)
 	finishedAt, _ := time.Parse(time.RFC3339Nano, containerJson.State.FinishedAt)
 	containerFullName := strings.TrimPrefix(containerJson.Name, "/")
 	containerName := containerJson.Config.Labels["io.kubernetes.container.name"]
+	if containerName == "" {
+		containerName = containerFullName
+	}
+	if containerName == "" {
+		containerName = stringid.TruncateID(containerJson.ID)
+	}
 	processes := getContainerProcessInfo(containerJson.State.Pid)
 	imageName, imageDigest, imageCreated, imageSize := d.getImageInfoV2(containerJson.Config.Image, containerJson.Image)
 	var user string
@@ -490,13 +497,20 @@ func (d *DockerInfoManager) containerFromEvent(message events.Message) *model.Te
 	}
 	podUid := message.Actor.Attributes["io.kubernetes.pod.uid"]
 
+	containerName := message.Actor.Attributes["io.kubernetes.container.name"]
+	if containerName == "" {
+		containerName = strings.TrimPrefix(message.Actor.Attributes["name"], "/")
+	}
+	if containerName == "" {
+		containerName = stringid.TruncateID(message.ID)
+	}
 	return &model.TensorRawContainer{
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Unix(message.Time, 0),
 		Status:      getContainerStatus(message.Status),
 		ContainerID: message.ID,
 		FullName:    strings.TrimPrefix(message.Actor.Attributes["name"], "/"),
-		Name:        message.Actor.Attributes["io.kubernetes.container.name"],
+		Name:        containerName,
 		PodName:     podName,
 		PodUid:      podUid,
 		Namespace:   message.Actor.Attributes["io.kubernetes.pod.namespace"],

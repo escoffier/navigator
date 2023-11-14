@@ -489,8 +489,8 @@ func (d *ContainerdInfoManager) containerFromRaw(ctx context.Context, container 
 	}
 	tensorRawContainer := &model.TensorRawContainer{
 		Status:         d.getContainerStatus(t.Status),
-		CreatedAt:      info.CreatedAt,
-		LastStopTime:   t.ExitedAt,
+		CreatedAt:      info.CreatedAt.UTC(),
+		LastStopTime:   t.ExitedAt.UTC(),
 		UpdatedAt:      time.Now(),
 		ContainerID:    container.ID(),
 		IP:             networkSettings.IPAddress,
@@ -690,7 +690,7 @@ func getUserFromContainerd(d *ContainerdInfoManager, containerId string, spec *o
 	resp, err := d.RunCmd(ctx, containerId, []string{"/bin/sh", "-c", "whoami"})
 	logging.Get().Error().Msgf("get user by cmd . output:%s, uid:%d, containerId:%s", resp, spec.Process.User.UID, containerId)
 	if err == nil && resp != "" && !strings.Contains(resp, "stderr:") {
-		return resp
+		return strings.TrimSuffix(resp, "\n")
 	}
 	bytes, err := json.Marshal(spec.Process.User)
 	if err != nil {

@@ -356,7 +356,7 @@ func (c *CRIOInfoManager) buildContainerDetail(container *runtimeapi.Container) 
 		resp, err := c.RunCmd(ctx, container.Id, []string{"/bin/sh", "-c", "whoami"})
 		logging.Get().Error().Msgf("get user by cmd . output:%s,uid:%d,containerId:%s", resp, runtime.Process.User.Uid, container.Id)
 		if err == nil && resp != "" && !strings.Contains(resp, "stderr:") {
-			user = resp
+			user = strings.TrimSuffix(resp, "\n")
 		} else {
 			userByte, err := json.Marshal(runtime.Process.User)
 			if err != nil {

@@ -1341,7 +1341,7 @@ func (rl *TensorResourcesService) GetBusiStartUser(ctx context.Context, busiTyep
 	return user, nil
 }
 
-func (rl *TensorResourcesService) GetBusiSvcDetail(ctx context.Context, id int32) (*dal.PodBusiSvcBaseDetail, error) {
+func (rl *TensorResourcesService) GetBusiSvcDetail(ctx context.Context, id uint32) (*dal.PodBusiSvcBaseDetail, error) {
 	return dal.GetBusiSvcDetail(ctx, rl.rdb.GetReadDB(), id)
 }
 

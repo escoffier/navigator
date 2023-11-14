@@ -2,6 +2,7 @@ package svcdiscovery
 
 import (
 	"context"
+	"fmt"
 	"github.com/dlclark/regexp2"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -13,17 +14,23 @@ import (
 // Tomcat
 var regexSvcTomcat = "tomcat"
 var regexSvcTomcatRootDir = []string{`(?<=-Dcatalina.base=)(.*)`, `(?<=-Dcatalina.home=)(.*)`}
+var regexSvcTomcatPort = `(?<=<Connector port=")\d+(?=" protocol="HTTP/1.1")`
+var regexSvcTomcatAccessLog = `(?<=directory=").*(?=")`
+var regexSvcTomcatCatalinaLog = `(?<==).*`
 var regexSvcTomcatVersion = `(?<=Version\s).*$`
 
 type TomcatSvc struct {
-	SvcRegex     *regexp2.Regexp
-	RootDirRegex *regexp2.Regexp
-	VersionRegex *regexp2.Regexp
-	Name         string // 服务类型
-	Port         string
-	RootDir      string // 主目录路径
-	ConfigDir    string
-	LogDir       string
+	SvcRegex         *regexp2.Regexp
+	RootDirRegex     *regexp2.Regexp
+	PortRegex        *regexp2.Regexp
+	AccessLogRegex   *regexp2.Regexp
+	CatalinaLogRegex *regexp2.Regexp
+	VersionRegex     *regexp2.Regexp
+	Name             string // 服务类型
+	Port             string
+	RootDir          string // 主目录路径
+	ConfigDir        string
+	LogDir           string
 }
 
 func NewTomcatSvc() ISvcDiscovery {
@@ -31,8 +38,6 @@ func NewTomcatSvc() ISvcDiscovery {
 	tomcat.Name = assets.BusiSvcTomcat
 	tomcat.Port = "8080"
 	tomcat.RootDir = "/usr/local/tomcat"
-	tomcat.ConfigDir = "/usr/local/tomcat/conf"
-	tomcat.LogDir = "/usr/local/tomcat/logs"
 	var err error
 	tomcat.SvcRegex, err = regexp2.Compile(regexSvcTomcat, regexp2.IgnoreCase)
 	if err != nil {
@@ -43,6 +48,21 @@ func NewTomcatSvc() ISvcDiscovery {
 	tomcat.RootDirRegex, err = regexp2.Compile(rootRegex, regexp2.IgnoreCase)
 	if err != nil {
 		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", rootRegex)
+		return nil
+	}
+	tomcat.PortRegex, err = regexp2.Compile(regexSvcTomcatPort, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcTomcatPort)
+		return nil
+	}
+	tomcat.AccessLogRegex, err = regexp2.Compile(regexSvcTomcatAccessLog, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcTomcatAccessLog)
+		return nil
+	}
+	tomcat.CatalinaLogRegex, err = regexp2.Compile(regexSvcTomcatCatalinaLog, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcTomcatCatalinaLog)
 		return nil
 	}
 	tomcat.VersionRegex, err = regexp2.Compile(regexSvcTomcatVersion, regexp2.IgnoreCase)
@@ -66,18 +86,16 @@ func (t *TomcatSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId str
 					continue
 				}
 				svcInfo.Name = t.Name
-				svcInfo.Port = t.Port
 				svcInfo.Cmd = cmd.cmdStr
 				svcInfo.BinaryDir = getBinaryPathByPid(cmd.pid)
 				continue
 			}
 			if svcInfo.RootDir == "" {
-				stringMatch, err := t.SvcRegex.FindStringMatch(a)
+				stringMatch, err := t.RootDirRegex.FindStringMatch(a)
 				if err != nil || stringMatch == nil {
 					continue
 				}
 				svcInfo.RootDir = stringMatch.String()
-				svcInfo.LogDir = svcInfo.RootDir + "/log"
 				svcInfo.ConfigDir = svcInfo.RootDir + "/conf"
 				break
 			}
@@ -99,9 +117,9 @@ func (t *TomcatSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId str
 		                     Apache Tomcat Version 10.0.14
 	*/
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancelFunc()
 	versionCmdList := []string{"/bin/bash", "-c", `cat $CATALINA_HOME/RELEASE-NOTES |grep "Apache Tomcat Version "`}
 	output, err := runCmd(ctx, containerId, versionCmdList)
+	cancelFunc()
 	if err != nil {
 		logging.Get().Err(err).Msgf("run cmd[%s] failed.", versionCmdList)
 	} else {
@@ -111,17 +129,85 @@ func (t *TomcatSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId str
 			svcInfo.Version = match.String()
 		}
 	}
+	// 解析配置文件
+	// port
+	ctx, cancelFunc = context.WithTimeout(context.Background(), 5*time.Second)
+	portCmd := []string{"/bin/bash", "-c", `cat $CATALINA_HOME/conf/server.xml |grep "<Connector port"`}
+	output, err = runCmd(ctx, containerId, portCmd)
+	cancelFunc()
+	if err != nil {
+		logging.Get().Err(err).Msgf("run cmd[%s] failed.", portCmd)
+	} else {
+		logging.Get().Info().Msgf("run cmd[%s] result:%s", portCmd, output)
+		match, err := t.PortRegex.FindStringMatch(output)
+		if err == nil && match != nil {
+			svcInfo.Port = match.String()
+		}
+	}
+	// log:accessLog
+	ctx, cancelFunc = context.WithTimeout(context.Background(), 5*time.Second)
+	accessLogCmd := []string{"/bin/bash", "-c", `cat $CATALINA_HOME/conf/server.xml |grep "org.apache.catalina.valves.AccessLogValve"`}
+	output, err = runCmd(ctx, containerId, accessLogCmd)
+	cancelFunc()
+	if err != nil {
+		logging.Get().Err(err).Msgf("run cmd[%s] failed.", accessLogCmd)
+	} else {
+		logging.Get().Info().Msgf("run cmd[%s] result:%s", accessLogCmd, output)
+		match, err := t.AccessLogRegex.FindStringMatch(output)
+		if err == nil && match != nil {
+			tmp := match.String()
+			if filepath.IsAbs(tmp) {
+				svcInfo.LogDir = tmp
+			} else {
+				svcInfo.LogDir = filepath.Join(svcInfo.RootDir, tmp)
+			}
+		}
+	}
+	// catalinaLog
+	ctx, cancelFunc = context.WithTimeout(context.Background(), 5*time.Second)
+	catalinaLogCmd := []string{"/bin/bash", "-c", `cat $CATALINA_HOME/conf/logging.properties |grep "1catalina.org.apache.juli.AsyncFileHandler.directory"`}
+	output, err = runCmd(ctx, containerId, catalinaLogCmd)
+	cancelFunc()
+	if err != nil {
+		logging.Get().Err(err).Msgf("run cmd[%s] failed.", catalinaLogCmd)
+	} else {
+		logging.Get().Info().Msgf("run cmd[%s] result:%s", catalinaLogCmd, output)
+		match, err := t.CatalinaLogRegex.FindStringMatch(output)
+		if err == nil && match != nil {
+			catalinaLogDir := strings.TrimSpace(match.String())
+			catalinaLogDir = strings.ReplaceAll(catalinaLogDir, "${catalina.base}", svcInfo.RootDir)
+			if catalinaLogDir != svcInfo.LogDir {
+				if svcInfo.LogDir != "" {
+					svcInfo.LogDir += ","
+				}
+				svcInfo.LogDir += catalinaLogDir
+			}
+		}
+	}
+	if svcInfo.Port == "" {
+		svcInfo.Port = t.Port
+	}
+	if svcInfo.LogDir == "" {
+		svcInfo.LogDir = filepath.Join(t.RootDir, "/logs")
+	}
 	return &svcInfo
 }
 
 // Apache
 var regexSvcApache = "httpd -dforeground"
 var regexSvcApacheVersion = `(?<=Apache\/)[^ ]+`
+var regexSvcApacheConfPath = `(?<=SERVER_CONFIG_FILE=").*(?=")`
+var regexSvcApacheLogPath = `(?<=DEFAULT_ERRORLOG=").*(?=")`
+var regexSvcApacheRootDir = `(?<=HTTPD_ROOT=").*(?=")`
+var regexSvcApachePort = `(?<=Listen\s).*`
 
 type ApacheSvc struct {
 	SvcRegex        *regexp2.Regexp
 	SvcVersionRegex *regexp2.Regexp
-	RootDirRegex    *regexp2.Regexp
+	SvcConfRegex    *regexp2.Regexp
+	SvcLogRegex     *regexp2.Regexp
+	SvcRootDirRegex *regexp2.Regexp
+	SvcPortRegex    *regexp2.Regexp
 	Name            string // 服务类型
 	Port            string
 	RootDir         string // 主目录路径
@@ -134,8 +220,6 @@ func NewApacheSvc() ISvcDiscovery {
 	apache.Name = assets.BusiSvcAppache
 	apache.Port = "80"
 	apache.RootDir = "/usr/local/apache2"
-	apache.ConfigDir = filepath.Join(apache.RootDir, "/conf")
-	apache.LogDir = filepath.Join(apache.RootDir, "/logs")
 	var err error
 	apache.SvcRegex, err = regexp2.Compile(regexSvcApache, regexp2.IgnoreCase)
 	if err != nil {
@@ -147,6 +231,27 @@ func NewApacheSvc() ISvcDiscovery {
 		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcApacheVersion)
 		return nil
 	}
+	apache.SvcConfRegex, err = regexp2.Compile(regexSvcApacheConfPath, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcApacheConfPath)
+		return nil
+	}
+	apache.SvcLogRegex, err = regexp2.Compile(regexSvcApacheLogPath, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcApacheLogPath)
+		return nil
+	}
+	apache.SvcRootDirRegex, err = regexp2.Compile(regexSvcApacheRootDir, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcApacheRootDir)
+		return nil
+	}
+	apache.SvcPortRegex, err = regexp2.Compile(regexSvcApachePort, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcApachePort)
+		return nil
+	}
+
 	return &apache
 }
 func (t *ApacheSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId string) *assets.ContainerSvcInfo {
@@ -157,7 +262,6 @@ func (t *ApacheSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId str
 			continue
 		}
 		svcInfo.Name = t.Name
-		svcInfo.Port = t.Port
 		svcInfo.Cmd = cmd.cmdStr
 		svcInfo.BinaryDir = getBinaryPathByPid(cmd.pid)
 		break
@@ -165,24 +269,40 @@ func (t *ApacheSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId str
 	if svcInfo.Name == "" {
 		return nil
 	}
-	if strings.Contains(cwd, "apache") {
-		svcInfo.RootDir = cwd
-		svcInfo.ConfigDir = filepath.Join(cwd, "/conf")
-		svcInfo.LogDir = filepath.Join(cwd, "/logs")
-	} else {
-		svcInfo.RootDir = t.RootDir
-		svcInfo.ConfigDir = t.ConfigDir
-		svcInfo.LogDir = t.LogDir
-	}
 	// version
-	//root@webapps01-7b45bc8dd4-clwvq:/usr/local# apachectl -v
-	//Server version: Apache/2.4.52 (Unix)
-	//Server built:   Dec 21 2021 01:34:45
+	/*
+		root@webapps01-74b8f9855d-w7vzn:/usr/local/apache2# httpd -V
+		Server version: Apache/2.4.52 (Unix)
+		Server built:   Dec 21 2021 01:34:45
+		Server's Module Magic Number: 20120211:121
+		Server loaded:  APR 1.7.0, APR-UTIL 1.6.1
+		Compiled using: APR 1.7.0, APR-UTIL 1.6.1
+		Architecture:   64-bit
+		Server MPM:     event
+		 threaded:     yes (fixed thread count)
+		   forked:     yes (variable process count)
+		Server compiled with....
+		-D APR_HAS_SENDFILE
+		-D APR_HAS_MMAP
+		-D APR_HAVE_IPV6 (IPv4-mapped addresses enabled)
+		-D APR_USE_PROC_PTHREAD_SERIALIZE
+		-D APR_USE_PTHREAD_SERIALIZE
+		-D SINGLE_LISTEN_UNSERIALIZED_ACCEPT
+		-D APR_HAS_OTHER_CHILD
+		-D AP_HAVE_RELIABLE_PIPED_LOGS
+		-D DYNAMIC_MODULE_LIMIT=256
+		-D HTTPD_ROOT="/usr/local/apache2"
+		-D SUEXEC_BIN="/usr/local/apache2/bin/suexec"
+		-D DEFAULT_PIDLOG="logs/httpd.pid"
+		-D DEFAULT_SCOREBOARD="logs/apache_runtime_status"
+		-D DEFAULT_ERRORLOG="logs/error_log"
+		-D AP_TYPES_CONFIG_FILE="conf/mime.types"
+		-D SERVER_CONFIG_FILE="conf/httpd.conf"
+	*/
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancelFunc()
-
-	apacheVersionCmd := []string{"apachectl", "-v"}
+	apacheVersionCmd := []string{svcInfo.BinaryDir, "-V"}
 	output, err := runCmd(ctx, containerId, apacheVersionCmd)
+	cancelFunc()
 	if err != nil {
 		logging.Get().Err(err).Msgf("run cmd[%s] failed.", apacheVersionCmd)
 	} else {
@@ -191,6 +311,63 @@ func (t *ApacheSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId str
 		if err == nil && match != nil {
 			svcInfo.Version = match.String()
 		}
+
+		match, err = t.SvcRootDirRegex.FindStringMatch(output)
+		if err == nil && match != nil {
+			svcInfo.RootDir = match.String()
+		}
+
+		match, err = t.SvcConfRegex.FindStringMatch(output)
+		if err == nil && match != nil {
+			path := match.String()
+			if filepath.IsAbs(path) {
+				svcInfo.ConfigDir = path
+			} else {
+				svcInfo.ConfigDir = filepath.Join(svcInfo.RootDir, path)
+			}
+		}
+
+		match, err = t.SvcLogRegex.FindStringMatch(output)
+		if err == nil && match != nil {
+			path := match.String()
+			if filepath.IsAbs(path) {
+				svcInfo.LogDir = path
+			} else {
+				svcInfo.LogDir = filepath.Join(svcInfo.RootDir, path)
+			}
+		}
+	}
+
+	if svcInfo.RootDir == "" {
+		svcInfo.RootDir = t.RootDir
+	}
+	if svcInfo.LogDir == "" {
+		svcInfo.LogDir = filepath.Join(cwd, "/logs")
+	}
+	if svcInfo.ConfigDir == "" {
+		svcInfo.LogDir = filepath.Join(cwd, "/conf")
+	} else {
+		//	 port
+		/*
+			root@webapps01-74b8f9855d-w7vzn:/usr/local/apache2/logs# cat /usr/local/apache2/conf/httpd.conf |grep "^Listen"
+			Listen 80
+		*/
+		ctx, cancelFunc = context.WithTimeout(context.Background(), 5*time.Second)
+		apachePortCmd := []string{"/bin/bash", "-c", fmt.Sprintf(`cat %s |grep "^Listen"`, svcInfo.ConfigDir)}
+		output, err = runCmd(ctx, containerId, apachePortCmd)
+		cancelFunc()
+		if err != nil {
+			logging.Get().Err(err).Msgf("run cmd[%s] failed.", apachePortCmd)
+		} else {
+			logging.Get().Info().Msgf("run cmd[%s] result:", apachePortCmd, output)
+			match, err := t.SvcPortRegex.FindStringMatch(output)
+			if err == nil && match != nil {
+				svcInfo.Port = match.String()
+			}
+		}
+	}
+	if svcInfo.Port == "" {
+		svcInfo.Port = t.Port
 	}
 	return &svcInfo
 }
@@ -198,16 +375,19 @@ func (t *ApacheSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId str
 // Nginx
 var regexSvcNginx = "nginx: master process nginx"
 var regexSvcNginxVersion = `(?<=nginx/).*$`
+var regexSvcNginxRootDir = `(?<=-p\s).*?(?=\s+)`
+var regexSvcNginxConfPath = `(?<=-c\s).*?(?=\s+)`
 
 type NginxSvc struct {
-	SvcRegex        *regexp2.Regexp
-	SvcVersionRegex *regexp2.Regexp
-	RootDirRegex    *regexp2.Regexp
-	Name            string // 服务类型
-	Port            string
-	RootDir         string // 主目录路径
-	ConfigDir       string
-	LogDir          string
+	SvcRegex         *regexp2.Regexp
+	SvcVersionRegex  *regexp2.Regexp
+	SvcRootDirRegex  *regexp2.Regexp
+	SvcConfPathRegex *regexp2.Regexp
+	Name             string // 服务类型
+	Port             string
+	RootDir          string // 主目录路径
+	ConfigDir        string
+	LogDir           string
 }
 
 func NewNginxSvc() ISvcDiscovery {
@@ -216,7 +396,6 @@ func NewNginxSvc() ISvcDiscovery {
 	nginx.Port = "80"
 	nginx.RootDir = "/etc/nginx"
 	//nginx.ConfigDir = "/etc/nginx/nginx.conf"
-	nginx.ConfigDir = nginx.RootDir
 	nginx.LogDir = "/var/log/nginx"
 	var err error
 	nginx.SvcRegex, err = regexp2.Compile(regexSvcNginx, regexp2.IgnoreCase)
@@ -227,6 +406,16 @@ func NewNginxSvc() ISvcDiscovery {
 	nginx.SvcVersionRegex, err = regexp2.Compile(regexSvcNginxVersion, regexp2.IgnoreCase)
 	if err != nil {
 		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcNginxVersion)
+		return nil
+	}
+	nginx.SvcRootDirRegex, err = regexp2.Compile(regexSvcNginxRootDir, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcNginxRootDir)
+		return nil
+	}
+	nginx.SvcConfPathRegex, err = regexp2.Compile(regexSvcNginxConfPath, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcNginxConfPath)
 		return nil
 	}
 	return &nginx
@@ -242,18 +431,25 @@ func (t *NginxSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId stri
 		svcInfo.Port = t.Port
 		svcInfo.Cmd = cmd.cmdStr
 		svcInfo.BinaryDir = getBinaryPathByPid(cmd.pid)
+		match, err := t.SvcRootDirRegex.FindStringMatch(cmd.cmdStr)
+		if err == nil && match != nil {
+			svcInfo.RootDir = match.String()
+		}
+		match, err = t.SvcConfPathRegex.FindStringMatch(cmd.cmdStr)
+		if err == nil && match != nil {
+			svcInfo.ConfigDir = match.String()
+		}
 		break
 	}
 	if svcInfo.Name == "" {
 		return nil
 	}
-
-	if strings.Contains(cwd, "nginx") {
-		svcInfo.RootDir = cwd
-	} else {
+	svcInfo.LogDir = t.LogDir
+	if svcInfo.RootDir == "" {
 		svcInfo.RootDir = t.RootDir
-		svcInfo.ConfigDir = t.RootDir
-		svcInfo.LogDir = t.LogDir
+	}
+	if svcInfo.ConfigDir == "" {
+		svcInfo.ConfigDir = filepath.Join(svcInfo.RootDir, "/nginx.conf")
 	}
 
 	// version
@@ -383,11 +579,13 @@ func (t *WeblogicSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId s
 var regexSvcWildfly = "wildfly"
 var regexSvcWildflyVersion = `(?<=WildFly Full\s)[^\s]+`
 var regexSvcWildflyRootDir = `(?<=-Djboss.home.dir=).*$`
+var regexSvcWildflyPort = `(?<=jboss.http.port:).*(?=})`
 
 type WildflySvc struct {
 	SvcRegex        *regexp2.Regexp
 	SvcVersionRegex *regexp2.Regexp
 	RootDirRegex    *regexp2.Regexp
+	SvcPortRegex    *regexp2.Regexp
 	Name            string // 服务类型
 	Port            string
 	RootDir         string // 主目录路径
@@ -398,7 +596,7 @@ type WildflySvc struct {
 func NewWildflySvc() ISvcDiscovery {
 	var wildfly WildflySvc
 	wildfly.Name = assets.BusiSvcWildfly
-	wildfly.Port = "8080"
+	wildfly.Port = "8080" // 8009 8080 8443 9990 9993 4712 4713
 	wildfly.RootDir = "/opt/jboss/wildfly"
 	var err error
 	wildfly.SvcRegex, err = regexp2.Compile(regexSvcWildfly, regexp2.IgnoreCase)
@@ -416,6 +614,11 @@ func NewWildflySvc() ISvcDiscovery {
 		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcWildflyRootDir)
 		return nil
 	}
+	wildfly.SvcPortRegex, err = regexp2.Compile(regexSvcWildflyPort, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcWildflyPort)
+		return nil
+	}
 	return &wildfly
 }
 
@@ -431,7 +634,7 @@ func (t *WildflySvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId st
 				matchString, _ := t.SvcRegex.MatchString(a)
 				if matchString {
 					svcInfo.Name = t.Name
-					svcInfo.Port = t.Port
+					//svcInfo.Port = t.Port
 					svcInfo.Cmd = cmd.cmdStr
 					svcInfo.BinaryDir = getBinaryPathByPid(cmd.pid)
 				}
@@ -440,6 +643,8 @@ func (t *WildflySvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId st
 				matchString, _ := t.RootDirRegex.FindStringMatch(a)
 				if matchString != nil {
 					svcInfo.RootDir = matchString.String()
+					svcInfo.ConfigDir = filepath.Join(svcInfo.RootDir, "/standalone/configuration/standalone.xml")
+					svcInfo.ConfigDir = filepath.Join(svcInfo.RootDir, "/standalone/log/server.log")
 				}
 			}
 
@@ -454,9 +659,29 @@ func (t *WildflySvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId st
 	if svcInfo.Name == "" {
 		return nil
 	}
+
 	if svcInfo.RootDir == "" {
 		svcInfo.RootDir = t.RootDir
-		return &svcInfo
+		svcInfo.ConfigDir = filepath.Join(svcInfo.RootDir, "/standalone/configuration/standalone.xml")
+		svcInfo.ConfigDir = filepath.Join(svcInfo.RootDir, "/standalone/log/server.log")
+	} else {
+		ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancelFunc()
+
+		shCmd := []string{"/bin/bash", "-c", fmt.Sprintf(`cat %s |grep "jboss.http.port"`, svcInfo.ConfigDir)}
+		output, err := runCmd(ctx, containerId, shCmd)
+		if err != nil {
+			logging.Get().Err(err).Msgf("run cmd[%s] failed.", shCmd)
+		} else {
+			logging.Get().Info().Msgf("run cmd[%s] result:%s", shCmd, output)
+			match, err := t.SvcPortRegex.FindStringMatch(output)
+			if err == nil && match != nil {
+				svcInfo.Port = match.String()
+			}
+		}
+	}
+	if svcInfo.Port == "" {
+		svcInfo.Port = t.Port
 	}
 	// version
 	/*
@@ -569,8 +794,9 @@ func (t *WebSphereSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId 
 	}
 	if svcInfo.RootDir == "" {
 		svcInfo.RootDir = t.RootDir
-		return &svcInfo
 	}
+	svcInfo.ConfigDir = filepath.Join(svcInfo.RootDir, "/config")
+	svcInfo.LogDir = filepath.Join(svcInfo.RootDir, "/log")
 	// version
 	/*
 		[was@webapps02dclgd bin]$ /opt/IBM/WebSphere/AppServer/bin/versionInfo.sh  |grep -A1 "IBM WebSphere Application Server"
@@ -598,12 +824,14 @@ func (t *WebSphereSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId 
 // OpenResty
 var regexSvcOpenResty = `^(?=.*nginx: master\sprocess\s)(?=.*openresty).+$`
 var regexSvcOpenRestyVersion = `(?<= openresty/)(.*)`
-var regexSvcOpenRestyRootDir = ``
+var regexSvcOpenRestyRootDir = `(?<=-p\s).*(\s?)`
+var regexSvcOpenRestyConfDir = `(?<=-c\s).*(\s?)`
 
 type OpenRestySvc struct {
 	SvcRegex        *regexp2.Regexp
 	SvcVersionRegex *regexp2.Regexp
 	RootDirRegex    *regexp2.Regexp
+	ConfigPathRegex *regexp2.Regexp
 	Name            string // 服务类型
 	Port            string
 	RootDir         string // 主目录路径
@@ -615,7 +843,7 @@ func NewOpenRestySvc() ISvcDiscovery {
 	var wildfly OpenRestySvc
 	wildfly.Name = assets.BusiSvcOpenResty
 	wildfly.Port = "80"
-	wildfly.RootDir = "/usr/local/openresty"
+	wildfly.RootDir = "/usr/local/openresty/nginx"
 	var err error
 	wildfly.SvcRegex, err = regexp2.Compile(regexSvcOpenResty, regexp2.IgnoreCase)
 	if err != nil {
@@ -632,6 +860,11 @@ func NewOpenRestySvc() ISvcDiscovery {
 		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcOpenRestyRootDir)
 		return nil
 	}
+	wildfly.ConfigPathRegex, err = regexp2.Compile(regexSvcOpenRestyConfDir, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcOpenRestyConfDir)
+		return nil
+	}
 	return &wildfly
 }
 
@@ -646,6 +879,14 @@ func (t *OpenRestySvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId 
 		svcInfo.Port = t.Port
 		svcInfo.Cmd = cmd.cmdStr
 		svcInfo.BinaryDir = getBinaryPathByPid(cmd.pid)
+		match, err := t.RootDirRegex.FindStringMatch(cmd.cmdStr)
+		if err == nil && match != nil {
+			svcInfo.RootDir = match.String()
+		}
+		match, err = t.ConfigPathRegex.FindStringMatch(cmd.cmdStr)
+		if err == nil && match != nil {
+			svcInfo.ConfigDir = match.String()
+		}
 		break
 	}
 	if svcInfo.Name == "" {
@@ -654,6 +895,10 @@ func (t *OpenRestySvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId 
 	if svcInfo.RootDir == "" {
 		svcInfo.RootDir = t.RootDir
 	}
+	if svcInfo.ConfigDir == "" {
+		svcInfo.ConfigDir = filepath.Join(svcInfo.RootDir, "conf/nginx.conf")
+	}
+	svcInfo.ConfigDir = filepath.Join(svcInfo.RootDir, "logs/error.log")
 	// version
 	/*
 		root@webapps-openresty-7fd874d75d-vj96r:/# openresty -V 2>&1 | grep "nginx version: openresty/"

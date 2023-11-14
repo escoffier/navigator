@@ -2,6 +2,7 @@ package svcdiscovery
 
 import (
 	"context"
+	"fmt"
 	"github.com/dlclark/regexp2"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -17,20 +18,24 @@ var regexSvcMysqlRootDir = `(?<=--basedir=)[^\s]+`
 var regexSvcMysqlConfigDir = `(?<=--defaults-file=)[^\s]+`
 var regexSvcMysqlDataDir = `(?<=--datadir=)[^\s]+`
 var regexSvcMysqlLogDir = `(?<=--log-error=)[^\s]+`
+var regexSvcMysqlPort = `(?<=port\s*=\s).*`
+var regexSvcMysqlDataDirInConf = `(?<=datadir\s*=\s).*`
 
 type MysqlSvc struct {
-	SvcRegex        *regexp2.Regexp
-	SvcVersionRegex *regexp2.Regexp
-	RootDirRegex    *regexp2.Regexp
-	ConfigDirRegex  *regexp2.Regexp
-	DataDirRegex    *regexp2.Regexp
-	LogDirRegex     *regexp2.Regexp
-	Name            string // 服务类型
-	Port            string
-	RootDir         string // 主目录路径
-	DataDir         string
-	ConfigDir       string
-	LogDir          string
+	SvcRegex           *regexp2.Regexp
+	SvcVersionRegex    *regexp2.Regexp
+	RootDirRegex       *regexp2.Regexp
+	ConfigDirRegex     *regexp2.Regexp
+	DataDirRegex       *regexp2.Regexp
+	LogDirRegex        *regexp2.Regexp
+	PortRegex          *regexp2.Regexp
+	DataDirInConfRegex *regexp2.Regexp
+	Name               string // 服务类型
+	Port               string
+	RootDir            string // 主目录路径
+	DataDir            string
+	ConfigDir          string
+	LogDir             string
 }
 
 func NewMysqlSvc() ISvcDiscovery {
@@ -39,7 +44,7 @@ func NewMysqlSvc() ISvcDiscovery {
 	mysql.Port = "3306"
 	mysql.RootDir = "/usr/sbin/"
 	mysql.DataDir = "/var/lib/mysql/"
-	mysql.ConfigDir = "/etc/mysql/"
+	mysql.ConfigDir = "/etc/mysql/my.cnf"
 	mysql.LogDir = "/var/log/mysql/"
 
 	var err error
@@ -71,6 +76,16 @@ func NewMysqlSvc() ISvcDiscovery {
 	mysql.LogDirRegex, err = regexp2.Compile(regexSvcMysqlLogDir, regexp2.IgnoreCase)
 	if err != nil {
 		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcMysqlLogDir)
+		return nil
+	}
+	mysql.PortRegex, err = regexp2.Compile(regexSvcMysqlPort, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcMysqlPort)
+		return nil
+	}
+	mysql.DataDirInConfRegex, err = regexp2.Compile(regexSvcMysqlDataDirInConf, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcMysqlDataDirInConf)
 		return nil
 	}
 	return &mysql
@@ -129,14 +144,34 @@ func (t *MysqlSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId stri
 	if svcInfo.RootDir == "" {
 		svcInfo.RootDir = t.RootDir
 	}
-	if svcInfo.DataDir == "" {
-		svcInfo.DataDir = t.DataDir
-	}
 	if svcInfo.ConfigDir == "" {
 		svcInfo.ConfigDir = t.ConfigDir
 	}
 	if svcInfo.LogDir == "" {
 		svcInfo.LogDir = t.LogDir
+	}
+	// port
+	portCmd := []string{"/bin/bash", "-c", fmt.Sprintf(`grep -E "port|datadir" %s`, svcInfo.ConfigDir)}
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
+	output, err := runCmd(ctx, containerId, portCmd)
+	cancelFunc()
+	if err != nil {
+		logging.Get().Err(err).Msgf("run cmd[%s] failed.", portCmd)
+	} else {
+		logging.Get().Info().Msgf("run cmd[%s] result:%s", portCmd, output)
+		match, err := t.SvcVersionRegex.FindStringMatch(output)
+		if err == nil && match != nil {
+			svcInfo.Port = match.String()
+		}
+		if svcInfo.DataDir == "" {
+			match, err = t.DataDirInConfRegex.FindStringMatch(output)
+			if err == nil && match != nil {
+				svcInfo.ConfigDir = match.String()
+			}
+		}
+	}
+	if svcInfo.DataDir == "" {
+		svcInfo.DataDir = t.DataDir
 	}
 	// version
 	/*
@@ -145,10 +180,9 @@ func (t *MysqlSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId stri
 	*/
 	mysqlPath := strings.ReplaceAll(binaryPath, "mysqld", "mysql")
 	versionCmd := []string{mysqlPath, "-V"}
-	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancelFunc()
-
-	output, err := runCmd(ctx, containerId, versionCmd)
+	ctx, cancelFunc = context.WithTimeout(context.Background(), 5*time.Second)
+	output, err = runCmd(ctx, containerId, versionCmd)
+	cancelFunc()
 	if err != nil {
 		logging.Get().Err(err).Msgf("run cmd[%s] failed.", versionCmd)
 	} else {
@@ -167,19 +201,23 @@ var regexSvcPostgreSQLVersion = `(?<=PostgreSQL\)\s)[^\s]+`
 var regexSvcPostgreSQLConfigDir = `(?<=config_file)[^\s]+`
 var regexSvcPostgreSQLDataDir = `(?<=-D\s)[^\s]+`
 var regexSvcPostgreSQLLogDir = `(?<=log_file)[^\s]+`
+var regexSvcPostgreSQLPort = `(?<=port\s*=\s).*`
+var regexSvcPostgreSQLDataDirInCnf = `(?<=data_directory\s*=\s).*?(?=\s)`
 
 type PostgreSQLSvc struct {
-	SvcRegex        *regexp2.Regexp
-	SvcVersionRegex *regexp2.Regexp
-	ConfigDirRegex  *regexp2.Regexp
-	DataDirRegex    *regexp2.Regexp
-	LogDirRegex     *regexp2.Regexp
-	Name            string // 服务类型
-	Port            string
-	RootDir         string // 主目录路径
-	DataDir         string
-	ConfigDir       string
-	LogDir          string
+	SvcRegex           *regexp2.Regexp
+	SvcVersionRegex    *regexp2.Regexp
+	ConfigDirRegex     *regexp2.Regexp
+	DataDirRegex       *regexp2.Regexp
+	LogDirRegex        *regexp2.Regexp
+	PortRegex          *regexp2.Regexp
+	DataDirInConfRegex *regexp2.Regexp
+	Name               string // 服务类型
+	Port               string
+	RootDir            string // 主目录路径
+	DataDir            string
+	ConfigDir          string
+	LogDir             string
 }
 
 func NewPostgreSQLSvc() ISvcDiscovery {
@@ -187,7 +225,7 @@ func NewPostgreSQLSvc() ISvcDiscovery {
 	mysql.Name = assets.BusiSvcPostgreSQL
 	mysql.Port = "5432"
 	mysql.DataDir = "/var/lib/postgresql/data"
-	mysql.ConfigDir = mysql.DataDir
+	mysql.ConfigDir = "/var/lib/postgresql/data/postgresql.conf"
 	mysql.LogDir = filepath.Join(mysql.DataDir)
 
 	var err error
@@ -216,6 +254,16 @@ func NewPostgreSQLSvc() ISvcDiscovery {
 		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcPostgreSQLLogDir)
 		return nil
 	}
+	mysql.PortRegex, err = regexp2.Compile(regexSvcPostgreSQLPort, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcPostgreSQLPort)
+		return nil
+	}
+	mysql.DataDirInConfRegex, err = regexp2.Compile(regexSvcPostgreSQLDataDirInCnf, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcPostgreSQLDataDirInCnf)
+		return nil
+	}
 	return &mysql
 }
 func (t *PostgreSQLSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId string) *assets.ContainerSvcInfo {
@@ -240,7 +288,7 @@ func (t *PostgreSQLSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId
 			svcInfo.LogDir = match.String()
 		}
 		svcInfo.Name = t.Name
-		svcInfo.Port = t.Port
+		//svcInfo.Port = t.Port
 		svcInfo.Cmd = cmdStr
 		svcInfo.BinaryDir = getBinaryPathByPid(cmd.pid)
 		index := strings.Index(cmdStr, " ")
@@ -260,14 +308,34 @@ func (t *PostgreSQLSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId
 		svcInfo.RootDir = strings.TrimSuffix(binaryPath, "bin/postgres")
 	}
 
-	if svcInfo.DataDir == "" {
-		svcInfo.DataDir = t.DataDir
-	}
 	if svcInfo.ConfigDir == "" {
 		svcInfo.ConfigDir = t.ConfigDir
 	}
 	if svcInfo.LogDir == "" {
 		svcInfo.LogDir = t.LogDir
+	}
+	// port
+	configFileCmd := []string{"/bin/bash", "-c", fmt.Sprintf(`grep -E "^port|^data_directory" %s`, svcInfo.ConfigDir)}
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
+	output, err := runCmd(ctx, containerId, configFileCmd)
+	cancelFunc()
+	if err != nil {
+		logging.Get().Err(err).Msgf("run cmd[%s] failed.", configFileCmd)
+	} else {
+		logging.Get().Info().Msgf("run cmd[%s] result:%s", configFileCmd, output)
+		match, err := t.PortRegex.FindStringMatch(output)
+		if err == nil && match != nil {
+			svcInfo.Port = match.String()
+		}
+		if svcInfo.DataDir == "" {
+			match, err = t.DataDirInConfRegex.FindStringMatch(output)
+			if err == nil && match != nil {
+				svcInfo.DataDir = match.String()
+			}
+		}
+	}
+	if svcInfo.DataDir == "" {
+		svcInfo.DataDir = t.DataDir
 	}
 	// version
 	/*
@@ -275,10 +343,9 @@ func (t *PostgreSQLSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId
 		postgres (PostgreSQL) 13.5 (Debian 13.5-1.pgdg110+1)
 	*/
 	versionCmd := []string{binaryPath, "-V"}
-	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancelFunc()
-
-	output, err := runCmd(ctx, containerId, versionCmd)
+	ctx, cancelFunc = context.WithTimeout(context.Background(), 5*time.Second)
+	output, err = runCmd(ctx, containerId, versionCmd)
+	cancelFunc()
 	if err != nil {
 		logging.Get().Err(err).Msgf("run cmd[%s] failed.", versionCmd)
 	} else {
@@ -297,26 +364,32 @@ var regexSvcMogoDbVersion = `(?<=version\s).*`
 var regexSvcMogoDbConfigDir = `(?<=--config\s)[^\s]+`
 var regexSvcMogoDbDataDir = `(?<=--dbpath\s)[^\s]+`
 var regexSvcMogoDbLogDir = `(?<=--logpath\s)[^\s]+`
+var regexSvcMogoDbPortInConf = `(?<=port:\s).*?(?=\s)`
+var regexSvcMogoDbDataDirInConf = `(?<=dbPath:\s).*?(?=\s)`
+var regexSvcMogoDbLogDirInConf = `(?<=  path:\s).*?(?=\s)`
 
 type MogoDbSvc struct {
-	SvcRegex        *regexp2.Regexp
-	SvcVersionRegex *regexp2.Regexp
-	ConfigDirRegex  *regexp2.Regexp
-	DataDirRegex    *regexp2.Regexp
-	LogDirRegex     *regexp2.Regexp
-	Name            string // 服务类型
-	Port            string
-	RootDir         string // 主目录路径
-	DataDir         string
-	ConfigDir       string
-	LogDir          string
+	SvcRegex           *regexp2.Regexp
+	SvcVersionRegex    *regexp2.Regexp
+	ConfigDirRegex     *regexp2.Regexp
+	DataDirRegex       *regexp2.Regexp
+	LogDirRegex        *regexp2.Regexp
+	PortInConfRegex    *regexp2.Regexp
+	DataDirInConfRegex *regexp2.Regexp
+	LogDirInConfRegex  *regexp2.Regexp
+	Name               string // 服务类型
+	Port               string
+	RootDir            string // 主目录路径
+	DataDir            string
+	ConfigDir          string
+	LogDir             string
 }
 
 func NewMogoDbSvc() ISvcDiscovery {
 	var mogodb MogoDbSvc
 	mogodb.Name = assets.BusiSvcMogoDB
 	mogodb.Port = "27017"
-	mogodb.ConfigDir = "/etc" // /etc/mongod.conf.orig
+	mogodb.ConfigDir = "/etc/mongod.conf.orig"
 	mogodb.DataDir = "/var/lib/mongodb"
 	mogodb.LogDir = "/var/log/mongodb"
 	var err error
@@ -345,6 +418,21 @@ func NewMogoDbSvc() ISvcDiscovery {
 		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcMogoDbLogDir)
 		return nil
 	}
+	mogodb.PortInConfRegex, err = regexp2.Compile(regexSvcMogoDbPortInConf, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcMogoDbPortInConf)
+		return nil
+	}
+	mogodb.DataDirInConfRegex, err = regexp2.Compile(regexSvcMogoDbDataDirInConf, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcMogoDbDataDirInConf)
+		return nil
+	}
+	mogodb.LogDirInConfRegex, err = regexp2.Compile(regexSvcMogoDbLogDirInConf, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcMogoDbLogDirInConf)
+		return nil
+	}
 	return &mogodb
 }
 func (t *MogoDbSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId string) *assets.ContainerSvcInfo {
@@ -369,9 +457,10 @@ func (t *MogoDbSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId str
 			svcInfo.LogDir = match.String()
 		}
 		svcInfo.Name = t.Name
-		svcInfo.Port = t.Port
+		//svcInfo.Port = t.Port
 		svcInfo.Cmd = cmdStr
 		svcInfo.BinaryDir = getBinaryPathByPid(cmd.pid)
+		svcInfo.RootDir = svcInfo.BinaryDir
 		splitN := strings.SplitN(cmdStr, " ", 1)
 		if len(splitN) > 0 {
 			binaryPath = splitN[0]
@@ -382,12 +471,41 @@ func (t *MogoDbSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId str
 		return nil
 	}
 
-	if svcInfo.DataDir == "" {
-		svcInfo.DataDir = t.DataDir
-	}
 	if svcInfo.ConfigDir == "" {
 		svcInfo.ConfigDir = t.ConfigDir
 	}
+
+	// parse config file
+	configFileCmd := []string{"/bin/sh", "-c", fmt.Sprintf(`grep -E "dbPath|path|port" %s`, svcInfo.ConfigDir)}
+	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
+	output, err := runCmd(ctx, containerId, configFileCmd)
+	cancelFunc()
+	if err != nil {
+		logging.Get().Err(err).Msgf("run cmd[%s] failed.", configFileCmd)
+	} else {
+		logging.Get().Info().Msgf("run cmd[%s] result:%s", configFileCmd, output)
+		match, err := t.PortInConfRegex.FindStringMatch(output)
+		if err == nil && match != nil {
+			svcInfo.Port = match.String()
+		}
+		if svcInfo.DataDir == "" {
+			match, err = t.DataDirInConfRegex.FindStringMatch(output)
+			if err == nil && match != nil {
+				svcInfo.DataDir = match.String()
+			}
+		}
+		if svcInfo.LogDir == "" {
+			match, err = t.LogDirInConfRegex.FindStringMatch(output)
+			if err == nil && match != nil {
+				svcInfo.LogDir = match.String()
+			}
+		}
+	}
+
+	if svcInfo.DataDir == "" {
+		svcInfo.DataDir = t.DataDir
+	}
+
 	if svcInfo.LogDir == "" {
 		svcInfo.LogDir = t.LogDir
 	}
@@ -397,10 +515,9 @@ func (t *MogoDbSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId str
 		db version v5.0.5
 	*/
 	versionCmd := []string{"/bin/sh", "-c", binaryPath + ` --version|grep "db "`}
-	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancelFunc()
-
-	output, err := runCmd(ctx, containerId, versionCmd)
+	ctx, cancelFunc = context.WithTimeout(context.Background(), 5*time.Second)
+	output, err = runCmd(ctx, containerId, versionCmd)
+	cancelFunc()
 	if err != nil {
 		logging.Get().Err(err).Msgf("run cmd[%s] failed.", versionCmd)
 	} else {
@@ -417,31 +534,35 @@ func (t *MogoDbSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId str
 var regexSvcRedis = `^[^\s]*redis-server\s`
 var regexSvcRedisVersion = `(?<=redis-cli\s).*`
 var regexSvcRedisPort = `(?<=--port\s)[^\s]+`
-var regexSvcRedisConfigDir = `(?<=--config-file\s)[^\s]+`
+var regexSvcRedisConfigDir = `([^\s]*\.conf)` // 获取 conf 配置文件路径
 var regexSvcRedisDataDir = `(?<=--dir\s)[^\s]+`
 var regexSvcRedisLogDir = `(?<=--logfile\s)[^\s]+`
+var regexSvcRedisDataDirInConf = `(?<=dir\s)[^\s]+`
+var regexSvcRedisLogDirInConf = `(?<=logfile\s)[^\s]+`
+var regexSvcRedisPortInConf = `(?<=port\s)[^\s]+`
 
 type RedisSvc struct {
-	SvcRegex        *regexp2.Regexp
-	SvcVersionRegex *regexp2.Regexp
-	SvcPortRegex    *regexp2.Regexp
-	ConfigDirRegex  *regexp2.Regexp
-	DataDirRegex    *regexp2.Regexp
-	LogDirRegex     *regexp2.Regexp
-	Name            string // 服务类型
-	Port            string
-	RootDir         string // 主目录路径
-	DataDir         string
-	ConfigDir       string
-	LogDir          string
+	SvcRegex           *regexp2.Regexp
+	SvcVersionRegex    *regexp2.Regexp
+	SvcPortRegex       *regexp2.Regexp
+	ConfigDirRegex     *regexp2.Regexp
+	DataDirRegex       *regexp2.Regexp
+	LogDirRegex        *regexp2.Regexp
+	DataDirInConfRegex *regexp2.Regexp
+	LogDirInConfRegex  *regexp2.Regexp
+	PortInConfRegex    *regexp2.Regexp
+	Name               string // 服务类型
+	Port               string
+	RootDir            string // 主目录路径
+	DataDir            string
+	ConfigDir          string
+	LogDir             string
 }
 
 func NewRedisSvc() ISvcDiscovery {
 	var redis RedisSvc
 	redis.Name = assets.BusiSvcRedis
 	redis.Port = "6379"
-	redis.DataDir = "/var/lib/redis/"
-	redis.LogDir = "/var/log/redis/"
 
 	var err error
 	redis.SvcRegex, err = regexp2.Compile(regexSvcRedis, regexp2.IgnoreCase)
@@ -474,6 +595,21 @@ func NewRedisSvc() ISvcDiscovery {
 		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcRedisLogDir)
 		return nil
 	}
+	redis.DataDirInConfRegex, err = regexp2.Compile(regexSvcRedisDataDirInConf, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcRedisDataDirInConf)
+		return nil
+	}
+	redis.LogDirInConfRegex, err = regexp2.Compile(regexSvcRedisLogDirInConf, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcRedisLogDirInConf)
+		return nil
+	}
+	redis.PortInConfRegex, err = regexp2.Compile(regexSvcRedisPortInConf, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcRedisPortInConf)
+		return nil
+	}
 	return &redis
 }
 func (t *RedisSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId string) *assets.ContainerSvcInfo {
@@ -503,17 +639,56 @@ func (t *RedisSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId stri
 		svcInfo.Name = t.Name
 		svcInfo.Cmd = cmdStr
 		svcInfo.BinaryDir = getBinaryPathByPid(cmd.pid)
+		svcInfo.RootDir = svcInfo.BinaryDir
 		break
 	}
 	if svcInfo.Name == "" {
 		return nil
 	}
 
-	if svcInfo.DataDir == "" {
-		svcInfo.DataDir = t.DataDir
+	if svcInfo.ConfigDir != "" {
+		configCmd := []string{`/bin/bash","-c","grep  -E "^dir|^logfile|^port"`}
+		ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+		output, err := runCmd(ctx, containerId, configCmd)
+		if err != nil {
+			logging.Get().Err(err).Msgf("run cmd[%s] failed.", configCmd)
+		} else {
+			logging.Get().Info().Msgf("run cmd[%s] result:%s", configCmd, output)
+			if svcInfo.DataDir == "" {
+				match, err := t.DataDirInConfRegex.FindStringMatch(output)
+				if err == nil && match != nil {
+					dataDir := match.String()
+					if filepath.IsAbs(dataDir) {
+						svcInfo.DataDir = dataDir
+					} else {
+						svcInfo.DataDir = filepath.Join(cwd, dataDir)
+					}
+				}
+			}
+
+			if svcInfo.LogDir == "" {
+				match, err := t.LogDirInConfRegex.FindStringMatch(output)
+				if err == nil && match != nil {
+					dir := match.String()
+					if filepath.IsAbs(dir) {
+						svcInfo.LogDir = dir
+					} else {
+						svcInfo.LogDir = filepath.Join(cwd, dir)
+					}
+				}
+			}
+			if svcInfo.Port == "" {
+				match, err := t.PortInConfRegex.FindStringMatch(output)
+				if err == nil && match != nil {
+					svcInfo.Port = match.String()
+				}
+			}
+
+		}
 	}
-	if svcInfo.ConfigDir == "" {
-		svcInfo.ConfigDir = t.ConfigDir
+
+	if svcInfo.DataDir == "" {
+		svcInfo.DataDir = cwd
 	}
 	if svcInfo.LogDir == "" {
 		svcInfo.LogDir = t.LogDir
@@ -528,10 +703,9 @@ func (t *RedisSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId stri
 		redis-cli 6.2.6
 	*/
 	versionCmd := []string{"redis-cli", "-v"}
-	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancelFunc()
-
+	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	output, err := runCmd(ctx, containerId, versionCmd)
+
 	if err != nil {
 		logging.Get().Err(err).Msgf("run cmd[%s] failed.", versionCmd)
 	} else {
@@ -551,21 +725,26 @@ var regexSvcGrafanaRootDir = `(?<=-homepath\s)[^\s]+`
 var regexSvcGrafanaConfigDir = `(?<=-config\s)[^\s]+`
 var regexSvcGrafanaDataDir = `(?<=-storage\s)[^\s]+`
 var regexSvcGrafanaLogDir = `(?<=-logpath\s)[^\s]+`
+var regexSvcGrafanaPortInConf = `(?<=http_port\s=\s+).*`
+var regexSvcGrafanaDataDirInConf = `(?<=[!;]path\s*=\s).*`
+var regexSvcGrafanaLogDirInConf = `(?<=logs\s=\s+).*`
 
 type GrafanaSvc struct {
-	SvcRegex        *regexp2.Regexp
-	SvcVersionRegex *regexp2.Regexp
-	SvcRootRegex    *regexp2.Regexp
-	ConfigDirRegex  *regexp2.Regexp
-	DataDirRegex    *regexp2.Regexp
-	LogDirRegex     *regexp2.Regexp
-	Name            string // 服务类型
-	Port            string
-	RootDir         string // 主目录路径
-	DataDir         string
-	ConfigDir       string
-	LogDir          string
-	BinDir          string
+	SvcRegex           *regexp2.Regexp
+	SvcVersionRegex    *regexp2.Regexp
+	SvcRootRegex       *regexp2.Regexp
+	ConfigDirRegex     *regexp2.Regexp
+	DataDirRegex       *regexp2.Regexp
+	LogDirRegex        *regexp2.Regexp
+	PortInConfRegex    *regexp2.Regexp
+	DataDirInConfRegex *regexp2.Regexp
+	LogDirInConfRegex  *regexp2.Regexp
+	Name               string // 服务类型
+	Port               string
+	RootDir            string // 主目录路径
+	DataDir            string
+	ConfigDir          string
+	LogDir             string
 }
 
 func NewGrafanaSvc() ISvcDiscovery {
@@ -573,10 +752,8 @@ func NewGrafanaSvc() ISvcDiscovery {
 	grafana.Name = assets.BusiSvcGrafana
 	grafana.Port = "3000"
 	grafana.RootDir = "/usr/share/grafana/"
-	grafana.DataDir = "/var/lib/grafana/"
 	grafana.LogDir = "/var/log/grafana/"
-	grafana.ConfigDir = "/etc/grafana/"
-	grafana.BinDir = "/usr/share/grafana/bin/grafana-server"
+	grafana.ConfigDir = "/etc/grafana/grafana.ini"
 
 	var err error
 	grafana.SvcRegex, err = regexp2.Compile(regexSvcGrafana, regexp2.IgnoreCase)
@@ -609,6 +786,22 @@ func NewGrafanaSvc() ISvcDiscovery {
 		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcGrafanaLogDir)
 		return nil
 	}
+	grafana.PortInConfRegex, err = regexp2.Compile(regexSvcGrafanaPortInConf, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcGrafanaPortInConf)
+		return nil
+	}
+	grafana.DataDirInConfRegex, err = regexp2.Compile(regexSvcGrafanaDataDirInConf, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcGrafanaDataDirInConf)
+		return nil
+	}
+	grafana.LogDirInConfRegex, err = regexp2.Compile(regexSvcGrafanaLogDirInConf, regexp2.IgnoreCase)
+	if err != nil {
+		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcGrafanaLogDirInConf)
+		return nil
+	}
+
 	return &grafana
 }
 func (t *GrafanaSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId string) *assets.ContainerSvcInfo {
@@ -644,13 +837,46 @@ func (t *GrafanaSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId st
 		return nil
 	}
 	if svcInfo.RootDir == "" {
-		svcInfo.RootDir = t.RootDir
+		if cwd != "/" {
+			svcInfo.RootDir = cwd
+		} else {
+			svcInfo.RootDir = t.RootDir
+		}
 	}
-	if svcInfo.DataDir == "" {
-		svcInfo.DataDir = t.DataDir
-	}
+
 	if svcInfo.ConfigDir == "" {
 		svcInfo.ConfigDir = t.ConfigDir
+	} else {
+		configCmd := []string{"/bin/bash", "-c", fmt.Sprintf(`grep -E -C1 "path relative to data_path setting|^logs|^http_port" %s`, svcInfo.ConfigDir)}
+		ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
+		output, err := runCmd(ctx, containerId, configCmd)
+		if err != nil {
+			logging.Get().Err(err).Msgf("run cmd[%s] failed.", configCmd)
+		} else {
+			logging.Get().Info().Msgf("run cmd[%s] result:%s", configCmd, output)
+			if svcInfo.Port != "" {
+				match, err := t.PortInConfRegex.FindStringMatch(output)
+				if err == nil && match != nil {
+					svcInfo.Port = match.String()
+				}
+			}
+			if svcInfo.DataDir == "" {
+				match, err := t.DataDirInConfRegex.FindStringMatch(output)
+				if err == nil && match != nil {
+					svcInfo.DataDir = match.String()
+				}
+			}
+			if svcInfo.LogDir == "" {
+				match, err := t.LogDirInConfRegex.FindStringMatch(output)
+				if err == nil && match != nil {
+					svcInfo.LogDir = match.String()
+				}
+			}
+		}
+	}
+
+	if svcInfo.DataDir == "" {
+		svcInfo.DataDir = t.DataDir
 	}
 	if svcInfo.LogDir == "" {
 		svcInfo.LogDir = t.LogDir
@@ -665,9 +891,7 @@ func (t *GrafanaSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId st
 		Grafana CLI version 7.3.6
 	*/
 	versionCmd := []string{"grafana-cli", "-v"}
-	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancelFunc()
-
+	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	output, err := runCmd(ctx, containerId, versionCmd)
 	if err != nil {
 		logging.Get().Err(err).Msgf("run cmd[%s] failed.", versionCmd)
@@ -685,15 +909,13 @@ func (t *GrafanaSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId st
 var regexSvcRsyslog = `^[^\s]*rsyslogd\s`
 var regexSvcRsyslogVersion = `(?<=rsyslogd\s)[^,]+`
 var regexSvcRsyslogConfigDir = `(?<=-config\s)[^\s]+`
-var regexSvcRsyslogDataDir = `(?<=-storage\s)[^\s]+`
-var regexSvcRsyslogLogDir = `(?<=-logpath\s)[^\s]+`
+var regexSvcRsyslogDataDir = `(?<=-f\s?).*?(\s)`
 
 type RsyslogSvc struct {
 	SvcRegex        *regexp2.Regexp
 	SvcVersionRegex *regexp2.Regexp
 	ConfigDirRegex  *regexp2.Regexp
 	DataDirRegex    *regexp2.Regexp
-	LogDirRegex     *regexp2.Regexp
 	Name            string // 服务类型
 	Port            string
 	RootDir         string // 主目录路径
@@ -703,39 +925,32 @@ type RsyslogSvc struct {
 }
 
 func NewRsyslogSvc() ISvcDiscovery {
-	var grafana RsyslogSvc
-	grafana.Name = assets.BusiSvcRsyslog
-	grafana.DataDir = "/var/lib/rsyslog/"
-	grafana.LogDir = "/var/log/messages"
-	grafana.ConfigDir = "/etc/" //  /etc/rsyslog.conf
+	var rsyslog RsyslogSvc
+	rsyslog.Name = assets.BusiSvcRsyslog
+	rsyslog.ConfigDir = "/etc/rsyslog.conf"
 
 	var err error
-	grafana.SvcRegex, err = regexp2.Compile(regexSvcRsyslog, regexp2.IgnoreCase)
+	rsyslog.SvcRegex, err = regexp2.Compile(regexSvcRsyslog, regexp2.IgnoreCase)
 	if err != nil {
 		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcRsyslog)
 		return nil
 	}
-	grafana.SvcVersionRegex, err = regexp2.Compile(regexSvcRsyslogVersion, regexp2.IgnoreCase)
+	rsyslog.SvcVersionRegex, err = regexp2.Compile(regexSvcRsyslogVersion, regexp2.IgnoreCase)
 	if err != nil {
 		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcRsyslogVersion)
 		return nil
 	}
-	grafana.ConfigDirRegex, err = regexp2.Compile(regexSvcRsyslogConfigDir, regexp2.IgnoreCase)
+	rsyslog.ConfigDirRegex, err = regexp2.Compile(regexSvcRsyslogConfigDir, regexp2.IgnoreCase)
 	if err != nil {
 		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcRsyslogConfigDir)
 		return nil
 	}
-	grafana.DataDirRegex, err = regexp2.Compile(regexSvcRsyslogDataDir, regexp2.IgnoreCase)
+	rsyslog.DataDirRegex, err = regexp2.Compile(regexSvcRsyslogDataDir, regexp2.IgnoreCase)
 	if err != nil {
 		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcRsyslogDataDir)
 		return nil
 	}
-	grafana.LogDirRegex, err = regexp2.Compile(regexSvcRsyslogLogDir, regexp2.IgnoreCase)
-	if err != nil {
-		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcRsyslogLogDir)
-		return nil
-	}
-	return &grafana
+	return &rsyslog
 }
 func (t *RsyslogSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId string) *assets.ContainerSvcInfo {
 	var svcInfo assets.ContainerSvcInfo
@@ -752,11 +967,7 @@ func (t *RsyslogSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId st
 		}
 		match, err = t.ConfigDirRegex.FindStringMatch(cmdStr)
 		if err == nil && match != nil {
-			svcInfo.ConfigDir = match.String()
-		}
-		match, err = t.LogDirRegex.FindStringMatch(cmdStr)
-		if err == nil && match != nil {
-			svcInfo.LogDir = match.String()
+			svcInfo.ConfigDir = strings.TrimSpace(match.String())
 		}
 		svcInfo.Name = t.Name
 		svcInfo.Cmd = cmdStr

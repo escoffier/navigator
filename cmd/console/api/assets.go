@@ -2418,7 +2418,7 @@ func (req *GetRawContainersWithFramework) Execute(ctx context.Context) ([]*dal.R
 		query.WithK8sManaged(*req.K8sManaged)
 	}
 	if len(req.Status) > 0 {
-		query.WithInConditionCustom("status", req.Status)
+		query.WithInConditionCustom("ivan_assets_raw_containers.status", req.Status)
 	}
 	if req.ClusterKey != "" {
 		query.WithCluster(req.ClusterKey)
@@ -2440,6 +2440,14 @@ func (req *GetRawContainersWithFramework) Execute(ctx context.Context) ([]*dal.R
 	}
 	if len(req.ResourceNames) != 0 {
 		query.WithColumnMultiQuery("resource_name", req.ResourceNames)
+	}
+
+	// framewrok
+	if len(req.FrameworkName) != 0 {
+		query.WhereFrameworkLikeCondition["framework_name"] = req.FrameworkName
+	}
+	if len(req.FrameworkVersion) != 0 {
+		query.WhereFrameworkLikeCondition["framework_version"] = req.FrameworkVersion
 	}
 
 	resSvc, ok := assets.GetResourcesService(ctx)
@@ -4208,10 +4216,10 @@ func (api *api) deleteNamespaceLabels() http.HandlerFunc {
 
 type BusiServiceReq struct {
 	containerName string
-	svcName       string
+	svcNameList   []string
 	svcVersion    string
-	svcType       string
-	user          string
+	svcTypeList   []string
+	userList      []string
 	limit         int
 	offset        int
 }
@@ -4219,10 +4227,19 @@ type BusiServiceReq struct {
 func (g *BusiServiceReq) Render(r *http.Request) {
 	g.limit, g.offset = getLimitAndOffsetWithDefault(r)
 	g.containerName = getNormalizedQueryParam(r, "containerName")
-	g.svcName = getNormalizedQueryParam(r, "svcName")
+	svcNames := getNormalizedQueryParam(r, "svcName")
+	if svcNames != "" {
+		g.svcNameList = strings.Split(svcNames, ",")
+	}
 	g.svcVersion = getNormalizedQueryParam(r, "svcVersion")
-	g.svcType = getNormalizedQueryParam(r, "svcType")
-	g.user = getNormalizedQueryParam(r, "user")
+	svcTypes := getNormalizedQueryParam(r, "svcType")
+	if svcTypes != "" {
+		g.svcTypeList = strings.Split(svcTypes, ",")
+	}
+	users := getNormalizedQueryParam(r, "user")
+	if users != "" {
+		g.userList = strings.Split(users, ",")
+	}
 }
 
 func (g *BusiServiceReq) Execute(ctx context.Context) ([]*dal.PodBusiSvcBase, int64, error) {
@@ -4233,14 +4250,14 @@ func (g *BusiServiceReq) Execute(ctx context.Context) ([]*dal.PodBusiSvcBase, in
 	if g.svcVersion != "" {
 		query.WhereLikeCondition["svc_version"] = g.svcVersion
 	}
-	if g.svcName != "" {
-		query.WhereEqCondition["svc_name"] = g.svcName
+	if len(g.svcNameList) > 0 {
+		query.WhereInCondition["svc_name"] = g.svcNameList
 	}
-	if g.svcType != "" {
-		query.WhereEqCondition["svc_type"] = g.svcType
+	if len(g.svcTypeList) > 0 {
+		query.WhereInCondition["svc_type"] = g.svcTypeList
 	}
-	if g.user != "" {
-		query.WhereEqCondition["ivan_assets_raw_containers_svcs.user"] = g.user
+	if len(g.userList) > 0 {
+		query.WhereInCondition["ivan_assets_raw_containers_svcs.user"] = g.userList
 	}
 
 	resSvc, ok := assets.GetResourcesService(ctx)
@@ -4278,7 +4295,7 @@ func (api *api) getWebBusiServices() http.HandlerFunc {
 
 		req := &BusiServiceReq{}
 		req.Render(r)
-		req.svcType = "Web服务"
+		req.svcTypeList = []string{assetsPkg.BusiSvcTypeWeb}
 		labels, total, err := req.Execute(ctx)
 		if err != nil {
 			logging.Get().Err(err).Msg("get Ingresses error")
@@ -4320,7 +4337,7 @@ func (api *api) getDbBusiServices() http.HandlerFunc {
 
 		req := &BusiServiceReq{}
 		req.Render(r)
-		req.svcType = "数据库"
+		req.svcTypeList = []string{assetsPkg.BusiSvcTypeDb}
 		labels, total, err := req.Execute(ctx)
 		if err != nil {
 			logging.Get().Err(err).Msg("get Ingresses error")
@@ -4340,7 +4357,7 @@ func (api *api) getBusiService() http.HandlerFunc {
 		defer cancel()
 
 		id := chi.URLParam(r, "id")
-		parseInt, err := strconv.ParseInt(id, 10, 32)
+		parseInt, err := strconv.ParseInt(id, 10, 64)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("parse id error.id:"+id)))
 			return
@@ -4350,7 +4367,7 @@ func (api *api) getBusiService() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("service instance get error")))
 			return
 		}
-		detail, err := resSvc.GetBusiSvcDetail(ctx, int32(parseInt))
+		detail, err := resSvc.GetBusiSvcDetail(ctx, uint32(parseInt))
 		if err != nil {
 			logging.Get().Err(err).Msg("get Ingresses error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
@@ -4367,10 +4384,10 @@ func (api *api) getBusiService() http.HandlerFunc {
 	}
 }
 
-var busiServiceKind = append(busiServiceWebKind, busiServiceDbKind...)
-
 func (api *api) getBusiServicesKind() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		var busiServiceKind = append(busiServiceWebKind, busiServiceDbKind...)
+		busiServiceKind = append(busiServiceKind, pkgAssets.BusiSvcGrafana)
 		response.Ok(w, response.WithItems(busiServiceKind))
 	}
 }
@@ -4386,8 +4403,6 @@ func (api *api) getBusiServicesType() http.HandlerFunc {
 var busiServiceWebKind = []string{
 	pkgAssets.BusiSvcTomcat,
 	pkgAssets.BusiSvcAppache,
-	pkgAssets.BusiSvcTomcat,
-	pkgAssets.BusiSvcAppache,
 	pkgAssets.BusiSvcNginx,
 	pkgAssets.BusiSvcWeblogic,
 	pkgAssets.BusiSvcWildfly,
@@ -4397,7 +4412,6 @@ var busiServiceWebKind = []string{
 
 func (api *api) getBusiServiceWebKind() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		busiServiceKind = append(busiServiceKind)
 		response.Ok(w, response.WithItems(busiServiceWebKind))
 	}
 }
