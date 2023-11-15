@@ -4295,7 +4295,7 @@ func (api *api) getWebBusiServices() http.HandlerFunc {
 
 		req := &BusiServiceReq{}
 		req.Render(r)
-		req.svcTypeList = []string{assetsPkg.BusiSvcTypeWeb}
+		req.svcTypeList = []string{assetsPkg.BusiSvcTypeWebEn}
 		labels, total, err := req.Execute(ctx)
 		if err != nil {
 			logging.Get().Err(err).Msg("get Ingresses error")
@@ -4337,7 +4337,7 @@ func (api *api) getDbBusiServices() http.HandlerFunc {
 
 		req := &BusiServiceReq{}
 		req.Render(r)
-		req.svcTypeList = []string{assetsPkg.BusiSvcTypeDb}
+		req.svcTypeList = []string{assetsPkg.BusiSvcTypeDbEn}
 		labels, total, err := req.Execute(ctx)
 		if err != nil {
 			logging.Get().Err(err).Msg("get Ingresses error")
@@ -4373,6 +4373,10 @@ func (api *api) getBusiService() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
+		// zh en
+		if !isEnglish(r) {
+			detail.SvcType = busiServiceTypeMap[detail.SvcType]
+		}
 		response.Ok(w, func(ev *response.HTTPEnvelope) {
 			data, err := json.Marshal(detail)
 			if err != nil {
@@ -4392,11 +4396,35 @@ func (api *api) getBusiServicesKind() http.HandlerFunc {
 	}
 }
 
-var busiServiceType = []string{pkgAssets.BusiSvcTypeWeb, pkgAssets.BusiSvcTypeDb, pkgAssets.BusiSvcTypeMonitor}
+func isEnglish(r *http.Request) bool {
+	lang := r.Header.Get("Accept-Language")
+	if lang == "" {
+		lang = "zh"
+	}
+	return lang == "en"
+}
+
+//var busiServiceType = []string{pkgAssets.BusiSvcTypeWeb, pkgAssets.BusiSvcTypeDb, pkgAssets.BusiSvcTypeMonitor}
+
+type BusiSvcTypeItem struct {
+	En string `json:"en"`
+	Zh string `json:"zh"`
+}
+
+var busiServiceTypeList = []BusiSvcTypeItem{
+	{En: pkgAssets.BusiSvcTypeWebEn, Zh: pkgAssets.BusiSvcTypeWeb},
+	{En: pkgAssets.BusiSvcTypeDbEn, Zh: pkgAssets.BusiSvcTypeDb},
+	{En: pkgAssets.BusiSvcTypeMonitorEn, Zh: pkgAssets.BusiSvcTypeMonitor},
+}
+var busiServiceTypeMap = map[string]string{
+	pkgAssets.BusiSvcTypeWebEn:     pkgAssets.BusiSvcTypeWeb,
+	pkgAssets.BusiSvcTypeDbEn:      pkgAssets.BusiSvcTypeDb,
+	pkgAssets.BusiSvcTypeMonitorEn: pkgAssets.BusiSvcTypeMonitor,
+}
 
 func (api *api) getBusiServicesType() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		response.Ok(w, response.WithItems(busiServiceType))
+		response.Ok(w, response.WithItems(busiServiceTypeList))
 	}
 }
 

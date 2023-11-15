@@ -532,7 +532,7 @@ func (t *MogoDbSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId str
 
 // Redis
 var regexSvcRedis = `^[^\s]*redis-server\s`
-var regexSvcRedisVersion = `(?<=redis-cli\s).*`
+var regexSvcRedisVersion = `(?<=v=)[^\s]+`
 var regexSvcRedisPort = `(?<=--port\s)[^\s]+`
 var regexSvcRedisConfigDir = `([^\s]*\.conf)` // 获取 conf 配置文件路径
 var regexSvcRedisDataDir = `(?<=--dir\s)[^\s]+`
@@ -699,10 +699,10 @@ func (t *RedisSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId stri
 
 	// version
 	/*
-		root@dbapps-7f7bbc9456-vbw4d:/data# redis-cli -v
-		redis-cli 6.2.6
+		root@51c1c6-test444-66f64568fc-jq2f6:/usr/local/bin# redis-server -v
+		Redis server v=6.2.4 sha=00000000:0 malloc=jemalloc-5.1.0 bits=64 build=d8a9b614fc8bcf79
 	*/
-	versionCmd := []string{"redis-cli", "-v"}
+	versionCmd := []string{svcInfo.BinaryDir, "-v"}
 	ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 	output, err := runCmd(ctx, containerId, versionCmd)
 

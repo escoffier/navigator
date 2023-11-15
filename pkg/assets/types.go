@@ -57,7 +57,7 @@ const (
 
 const ( // 服务名称
 	BusiSvcTomcat   = "Tomcat"
-	BusiSvcAppache  = "Appache"
+	BusiSvcAppache  = "Apache"
 	BusiSvcNginx    = "Nginx"
 	BusiSvcWeblogic = "Weblogic"
 	BusiSvcWildfly  = "Wildfly"
@@ -82,26 +82,29 @@ const ( // 编程语言
 )
 
 const ( // 服务类型
-	BusiSvcTypeWeb     = "Web服务"
-	BusiSvcTypeDb      = "数据库"
-	BusiSvcTypeMonitor = "监控服务"
+	BusiSvcTypeWeb       = "Web服务"
+	BusiSvcTypeWebEn     = "Web services"
+	BusiSvcTypeDb        = "数据库"
+	BusiSvcTypeDbEn      = "Databases"
+	BusiSvcTypeMonitor   = "监控服务"
+	BusiSvcTypeMonitorEn = "monitoring services"
 )
 
 var BusiSvcTypeMap = map[string]string{
-	BusiSvcTomcat:   BusiSvcTypeWeb,
-	BusiSvcAppache:  BusiSvcTypeWeb,
-	BusiSvcNginx:    BusiSvcTypeWeb,
-	BusiSvcWeblogic: BusiSvcTypeWeb,
-	BusiSvcWildfly:  BusiSvcTypeWeb,
+	BusiSvcTomcat:   BusiSvcTypeWebEn,
+	BusiSvcAppache:  BusiSvcTypeWebEn,
+	BusiSvcNginx:    BusiSvcTypeWebEn,
+	BusiSvcWeblogic: BusiSvcTypeWebEn,
+	BusiSvcWildfly:  BusiSvcTypeWebEn,
 	//BusiSvcJboss:      BusiSvcTypeWeb,
-	BusiSvcWebSphere:  BusiSvcTypeWeb,
-	BusiSvcOpenResty:  BusiSvcTypeWeb,
-	BusiSvcGrafana:    BusiSvcTypeMonitor,
-	BusiSvcRedis:      BusiSvcTypeDb,
-	BusiSvcMysql:      BusiSvcTypeDb,
-	BusiSvcPostgreSQL: BusiSvcTypeDb,
-	BusiSvcMogoDB:     BusiSvcTypeDb,
-	BusiSvcRsyslog:    BusiSvcTypeDb,
+	BusiSvcWebSphere:  BusiSvcTypeWebEn,
+	BusiSvcOpenResty:  BusiSvcTypeWebEn,
+	BusiSvcGrafana:    BusiSvcTypeMonitorEn,
+	BusiSvcRedis:      BusiSvcTypeDbEn,
+	BusiSvcMysql:      BusiSvcTypeDbEn,
+	BusiSvcPostgreSQL: BusiSvcTypeDbEn,
+	BusiSvcMogoDB:     BusiSvcTypeDbEn,
+	BusiSvcRsyslog:    BusiSvcTypeDbEn,
 }
 
 func GetRawContainerStatus(status int) string {

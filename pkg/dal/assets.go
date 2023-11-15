@@ -3719,14 +3719,14 @@ func getRawContainerWithFrameworkByIds(ctx context.Context, rdb *gorm.DB, contai
 		}
 		frameworkStr := buildDesc(withFramework)
 		if containers[len(containers)-1].FrameworkStr != "" && frameworkStr != "" {
-			containers[len(containers)-1].FrameworkStr += ","
+			containers[len(containers)-1].FrameworkStr += " , "
 		}
 		containers[len(containers)-1].FrameworkStr += frameworkStr
 
 		if isDetail {
 			frameworkPath := withFramework.FrameworkPath
 			if containers[len(containers)-1].FrameworkPath != "" && frameworkPath != "" {
-				containers[len(containers)-1].FrameworkPath += ","
+				containers[len(containers)-1].FrameworkPath += " , "
 			}
 			containers[len(containers)-1].FrameworkPath += frameworkPath
 		}
@@ -5831,7 +5831,7 @@ func GetExposeHosts(ctx context.Context, rdb *gorm.DB, webDesc string, protocols
 		if len(containerNames) == 0 {
 			continue
 		}
-		base.ContainerNames = strings.Join(containerNames, ",")
+		base.ContainerNames = strings.Join(containerNames, " , ")
 	}
 
 	var result []*ExposeHostItem
@@ -6068,9 +6068,10 @@ func CleanUpRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient
 		}
 
 		keys := make([]string, 0, len(result))
-
-		for _, doc := range result {
+		containerUuid := make([]uint32, len(keys))
+		for i, doc := range result {
 			keys = append(keys, cast.ToString(doc.Id))
+			containerUuid[i] = util.GenerateUUID(doc.Id)
 		}
 
 		err = rdb.WithContext(oneCtx).Transaction(func(tx *gorm.DB) error {
@@ -6085,10 +6086,15 @@ func CleanUpRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient
 			if len(keys) == 0 {
 				return nil
 			}
-			containerUuid := make([]uint32, len(keys))
-			// 重复计算container_uuid
-			for i, containerId := range keys {
-				containerUuid[i] = util.GenerateUUID(containerId)
+			logging.GetLogger().Info().Msgf("本次容器清理，clean count:%d", len(keys))
+			// clean svc,framework
+			err = rdb.Where(" updated_at < ? and  raw_container_id in ?", ts, keys).Delete(&model.TensorRawContainerSvc{}).Error
+			if err != nil {
+				return err
+			}
+			err = rdb.Where(" updated_at < ? and raw_container_id in ?", ts, keys).Delete(&model.TensorRawContainerFramework{}).Error
+			if err != nil {
+				return err
 			}
 			logging.GetLogger().Info().Msgf("CleanUpRawContainer delete Zset:container_images  nodeName:%s from redis: %v", nodeName, containerUuid)
 			err := deleteResourceImageByRawContainer(rCtx, redisClient, containerUuid)
@@ -6108,32 +6114,24 @@ func CleanUpRawContainer(ctx context.Context, rdb *gorm.DB, ts time.Time, cluste
 	defer cancel()
 
 	return rdb.WithContext(rCtx).Transaction(func(tx *gorm.DB) error {
-		//err := rdb.Model(&model.TensorRawContainer{}).
-		//	Where("cluster_key = ? and node_name = ? and updated_at < ? and status < 5", clusterKey, nodeName, ts).Updates(map[string]interface{}{
-		//	"status":     assets.Exited,
-		//	"updated_at": time.Now(),
-		//}).Error
-		var rawS []model.TensorRawContainer
-		err := rdb.Model(&rawS).Clauses(clause.Returning{Columns: []clause.Column{{Name: "id"}}}).Where("cluster_key = ? and node_name = ? and updated_at < ? and status < 5", clusterKey, nodeName, ts).Updates(map[string]interface{}{
+		var rawIds []string
+		err := rdb.Model(&model.TensorRawContainer{}).Where("cluster_key = ? and node_name = ? and updated_at < ? and status < 5", clusterKey, nodeName, ts).Pluck("id", &rawIds).Error
+		if err != nil {
+			return err
+		}
+		err = rdb.Model(&model.TensorRawContainer{}).Where("id in ?", rawIds).Updates(map[string]interface{}{
 			"status":     assets.Exited,
 			"updated_at": time.Now(),
 		}).Error
-		if err != nil {
-			return err
-		}
-		var rawIds []string
-		for _, raw := range rawS {
-			rawIds = append(rawIds, raw.ContainerID)
-		}
-		logging.GetLogger().Info().Msgf("本次容器清理，clean count:%d", len(rawIds))
+		logging.GetLogger().Info().Msgf("clean inactive container count:%d", len(rawIds))
 		if len(rawIds) == 0 {
 			return nil
 		}
-		err = rdb.Where(" updated_at < ? and status =0 and raw_container_id in ?", ts, rawIds).Delete(&model.TensorRawContainerSvc{}).Error
+		err = rdb.Where(" updated_at < ? and  raw_container_id in ?", ts, rawIds).Delete(&model.TensorRawContainerSvc{}).Error
 		if err != nil {
 			return err
 		}
-		return rdb.Where(" updated_at < ? and status =0 and raw_container_id in ?", ts, rawIds).Delete(&model.TensorRawContainerFramework{}).Error
+		return rdb.Where(" updated_at < ? and  raw_container_id in ?", ts, rawIds).Delete(&model.TensorRawContainerFramework{}).Error
 	})
 }
 

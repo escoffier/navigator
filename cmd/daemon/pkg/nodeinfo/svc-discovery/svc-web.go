@@ -117,7 +117,7 @@ func (t *TomcatSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId str
 		                     Apache Tomcat Version 10.0.14
 	*/
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
-	versionCmdList := []string{"/bin/bash", "-c", `cat $CATALINA_HOME/RELEASE-NOTES |grep "Apache Tomcat Version "`}
+	versionCmdList := []string{"/bin/bash", "-c", fmt.Sprintf(`cat %s/RELEASE-NOTES |grep "Apache Tomcat Version "`, svcInfo.RootDir)}
 	output, err := runCmd(ctx, containerId, versionCmdList)
 	cancelFunc()
 	if err != nil {
@@ -550,8 +550,10 @@ func (t *WeblogicSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId s
 	var jarPath string
 	if svcInfo.RootDir == "" {
 		svcInfo.RootDir = t.RootDir
-		return &svcInfo
 	}
+	prefix := strings.TrimSuffix(svcInfo.RootDir, "wlserver/server")
+	svcInfo.ConfigDir = filepath.Join(prefix, "user_projects/domains/base_domain/config/")
+	svcInfo.LogDir = filepath.Join(prefix, "user_projects/domains/base_domain/servers/AdminServer/logs/")
 	// version
 	/*
 		[oracle@webapps02-5775c98965-dclgd lib]$ java -cp weblogic.jar  weblogic.version | grep "WebLogic Server"
