@@ -186,6 +186,10 @@ func (d *DockerInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 		select {
 		case m := <-msg:
 			go func() {
+				if m.Action == "start" {
+					//todo  新增事件，延迟1秒处理，ports和进程
+					time.Sleep(time.Second)
+				}
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 				defer cancel()
 

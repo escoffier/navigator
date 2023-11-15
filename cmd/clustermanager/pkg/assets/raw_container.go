@@ -121,7 +121,7 @@ func (cb *RawContainerCallBack) doOnRawContainerEvent(ctx context.Context, e con
 		}
 		deleteErr = dal.DeleteRawContainerSyncReason(tctx, cb.parent.rdb.Get(), e.container.ClusterKey, e.container.Namespace, e.container.ContainerID)
 		if deleteErr != nil {
-			logging.Get().Err(deleteErr).Msgf("delete raw container sync reason in rdb error.%s,%s,%s", e.container.ContainerID)
+			logging.Get().Err(deleteErr).Msgf("delete raw container sync reason in rdb error.%s", e.container.ContainerID)
 		}
 
 	case assets.ActionUpdate, assets.ActionAdd:
