@@ -6119,13 +6119,16 @@ func CleanUpRawContainer(ctx context.Context, rdb *gorm.DB, ts time.Time, cluste
 		if err != nil {
 			return err
 		}
+		logging.GetLogger().Info().Msgf("clean inactive container count:%d", len(rawIds))
+		if len(rawIds) == 0 {
+			return nil
+		}
 		err = rdb.Model(&model.TensorRawContainer{}).Where("id in ?", rawIds).Updates(map[string]interface{}{
 			"status":     assets.Exited,
 			"updated_at": time.Now(),
 		}).Error
-		logging.GetLogger().Info().Msgf("clean inactive container count:%d", len(rawIds))
-		if len(rawIds) == 0 {
-			return nil
+		if err != nil {
+			return err
 		}
 		err = rdb.Where(" updated_at < ? and  raw_container_id in ?", ts, rawIds).Delete(&model.TensorRawContainerSvc{}).Error
 		if err != nil {
