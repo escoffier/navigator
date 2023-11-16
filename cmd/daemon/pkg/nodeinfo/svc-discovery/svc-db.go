@@ -175,11 +175,10 @@ func (t *MysqlSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId stri
 	}
 	// version
 	/*
-		root@dbapps-7f7bbc9456-vbw4d:/# mysql -V
-		mysql  Ver 8.0.27 for Linux on x86_64 (MySQL Community Server - GPL)
+		root@dbapps-7f7bbc9456-kszzz:/# mysqld -V
+		/usr/sbin/mysqld  Ver 8.0.27 for Linux on x86_64 (MySQL Community Server - GPL)
 	*/
-	mysqlPath := strings.ReplaceAll(binaryPath, "mysqld", "mysql")
-	versionCmd := []string{mysqlPath, "-V"}
+	versionCmd := []string{binaryPath, "-V"}
 	ctx, cancelFunc = context.WithTimeout(context.Background(), 5*time.Second)
 	output, err = runCmd(ctx, containerId, versionCmd)
 	cancelFunc()

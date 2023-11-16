@@ -4320,6 +4320,12 @@ func (api *api) getBusiStartUser() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
+		if buisi != "" {
+			_, isOK := busiServiceTypeMap[buisi]
+			if isOK == false {
+				RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, errors.New("not support type:"+buisi)))
+			}
+		}
 		users, err := resSvc.GetBusiStartUser(ctx, buisi)
 		if err != nil {
 			logging.Get().Err(err).Msg("getBusiStartUser failed.")

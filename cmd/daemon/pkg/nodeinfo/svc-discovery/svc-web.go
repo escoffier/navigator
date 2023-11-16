@@ -646,7 +646,7 @@ func (t *WildflySvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId st
 				if matchString != nil {
 					svcInfo.RootDir = matchString.String()
 					svcInfo.ConfigDir = filepath.Join(svcInfo.RootDir, "/standalone/configuration/standalone.xml")
-					svcInfo.ConfigDir = filepath.Join(svcInfo.RootDir, "/standalone/log/server.log")
+					svcInfo.LogDir = filepath.Join(svcInfo.RootDir, "/standalone/log/server.log")
 				}
 			}
 
@@ -665,7 +665,7 @@ func (t *WildflySvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId st
 	if svcInfo.RootDir == "" {
 		svcInfo.RootDir = t.RootDir
 		svcInfo.ConfigDir = filepath.Join(svcInfo.RootDir, "/standalone/configuration/standalone.xml")
-		svcInfo.ConfigDir = filepath.Join(svcInfo.RootDir, "/standalone/log/server.log")
+		svcInfo.LogDir = filepath.Join(svcInfo.RootDir, "/standalone/log/server.log")
 	} else {
 		ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancelFunc()
@@ -900,7 +900,7 @@ func (t *OpenRestySvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId 
 	if svcInfo.ConfigDir == "" {
 		svcInfo.ConfigDir = filepath.Join(svcInfo.RootDir, "conf/nginx.conf")
 	}
-	svcInfo.ConfigDir = filepath.Join(svcInfo.RootDir, "logs/error.log")
+	svcInfo.LogDir = filepath.Join(svcInfo.RootDir, "logs/error.log")
 	// version
 	/*
 		root@webapps-openresty-7fd874d75d-vj96r:/# openresty -V 2>&1 | grep "nginx version: openresty/"
