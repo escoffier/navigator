@@ -151,7 +151,7 @@ func (t *MysqlSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId stri
 		svcInfo.LogDir = t.LogDir
 	}
 	// port
-	portCmd := []string{"/bin/bash", "-c", fmt.Sprintf(`grep -E "port|datadir" %s`, svcInfo.ConfigDir)}
+	portCmd := []string{"/bin/bash", "-c", `grep -E "port|datadir" ` + svcInfo.ConfigDir}
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
 	output, err := runCmd(ctx, containerId, portCmd)
 	cancelFunc()
@@ -166,7 +166,7 @@ func (t *MysqlSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId stri
 		if svcInfo.DataDir == "" {
 			match, err = t.DataDirInConfRegex.FindStringMatch(output)
 			if err == nil && match != nil {
-				svcInfo.ConfigDir = match.String()
+				svcInfo.DataDir = match.String()
 			}
 		}
 	}
@@ -220,50 +220,50 @@ type PostgreSQLSvc struct {
 }
 
 func NewPostgreSQLSvc() ISvcDiscovery {
-	var mysql PostgreSQLSvc
-	mysql.Name = assets.BusiSvcPostgreSQL
-	mysql.Port = "5432"
-	mysql.DataDir = "/var/lib/postgresql/data"
-	mysql.ConfigDir = "/var/lib/postgresql/data/postgresql.conf"
-	mysql.LogDir = filepath.Join(mysql.DataDir)
+	var pgsql PostgreSQLSvc
+	pgsql.Name = assets.BusiSvcPostgreSQL
+	pgsql.Port = "5432"
+	pgsql.DataDir = "/var/lib/postgresql/data"
+	pgsql.ConfigDir = "/var/lib/postgresql/data/postgresql.conf"
+	pgsql.LogDir = filepath.Join(pgsql.DataDir)
 
 	var err error
-	mysql.SvcRegex, err = regexp2.Compile(regexSvcPostgreSQL, regexp2.IgnoreCase)
+	pgsql.SvcRegex, err = regexp2.Compile(regexSvcPostgreSQL, regexp2.IgnoreCase)
 	if err != nil {
 		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcPostgreSQL)
 		return nil
 	}
-	mysql.SvcVersionRegex, err = regexp2.Compile(regexSvcPostgreSQLVersion, regexp2.IgnoreCase)
+	pgsql.SvcVersionRegex, err = regexp2.Compile(regexSvcPostgreSQLVersion, regexp2.IgnoreCase)
 	if err != nil {
 		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcPostgreSQLVersion)
 		return nil
 	}
-	mysql.ConfigDirRegex, err = regexp2.Compile(regexSvcPostgreSQLConfigDir, regexp2.IgnoreCase)
+	pgsql.ConfigDirRegex, err = regexp2.Compile(regexSvcPostgreSQLConfigDir, regexp2.IgnoreCase)
 	if err != nil {
 		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcPostgreSQLConfigDir)
 		return nil
 	}
-	mysql.DataDirRegex, err = regexp2.Compile(regexSvcPostgreSQLDataDir, regexp2.IgnoreCase)
+	pgsql.DataDirRegex, err = regexp2.Compile(regexSvcPostgreSQLDataDir, regexp2.IgnoreCase)
 	if err != nil {
 		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcPostgreSQLDataDir)
 		return nil
 	}
-	mysql.LogDirRegex, err = regexp2.Compile(regexSvcPostgreSQLLogDir, regexp2.IgnoreCase)
+	pgsql.LogDirRegex, err = regexp2.Compile(regexSvcPostgreSQLLogDir, regexp2.IgnoreCase)
 	if err != nil {
 		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcPostgreSQLLogDir)
 		return nil
 	}
-	mysql.PortRegex, err = regexp2.Compile(regexSvcPostgreSQLPort, regexp2.IgnoreCase)
+	pgsql.PortRegex, err = regexp2.Compile(regexSvcPostgreSQLPort, regexp2.IgnoreCase)
 	if err != nil {
 		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcPostgreSQLPort)
 		return nil
 	}
-	mysql.DataDirInConfRegex, err = regexp2.Compile(regexSvcPostgreSQLDataDirInCnf, regexp2.IgnoreCase)
+	pgsql.DataDirInConfRegex, err = regexp2.Compile(regexSvcPostgreSQLDataDirInCnf, regexp2.IgnoreCase)
 	if err != nil {
 		logging.Get().Err(err).Msgf("regexp compile failed. [%s]", regexSvcPostgreSQLDataDirInCnf)
 		return nil
 	}
-	return &mysql
+	return &pgsql
 }
 func (t *PostgreSQLSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId string) *assets.ContainerSvcInfo {
 	var svcInfo assets.ContainerSvcInfo
@@ -314,7 +314,7 @@ func (t *PostgreSQLSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId
 		svcInfo.LogDir = t.LogDir
 	}
 	// port
-	configFileCmd := []string{"/bin/bash", "-c", fmt.Sprintf(`grep -E "^port|^data_directory" %s`, svcInfo.ConfigDir)}
+	configFileCmd := []string{"/bin/bash", "-c", `grep -E "^port|^data_directory" ` + svcInfo.ConfigDir}
 	ctx, cancelFunc := context.WithTimeout(context.Background(), 5*time.Second)
 	output, err := runCmd(ctx, containerId, configFileCmd)
 	cancelFunc()
@@ -335,6 +335,9 @@ func (t *PostgreSQLSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId
 	}
 	if svcInfo.DataDir == "" {
 		svcInfo.DataDir = t.DataDir
+	}
+	if svcInfo.Port == "" {
+		svcInfo.Port = t.Port
 	}
 	// version
 	/*
@@ -646,7 +649,7 @@ func (t *RedisSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId stri
 	}
 
 	if svcInfo.ConfigDir != "" {
-		configCmd := []string{`/bin/bash","-c","grep  -E "^dir|^logfile|^port"`}
+		configCmd := []string{"/bin/bash", "-c", `grep  -E "^dir|^logfile|^port"`}
 		ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 		output, err := runCmd(ctx, containerId, configCmd)
 		if err != nil {
@@ -846,7 +849,7 @@ func (t *GrafanaSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId st
 	if svcInfo.ConfigDir == "" {
 		svcInfo.ConfigDir = t.ConfigDir
 	} else {
-		configCmd := []string{"/bin/bash", "-c", fmt.Sprintf(`grep -E -C1 "path relative to data_path setting|^logs|^http_port" %s`, svcInfo.ConfigDir)}
+		configCmd := []string{"/bin/bash", "-c", `grep -E -C1 "path relative to data_path setting|^logs|^http_port" ` + svcInfo.ConfigDir}
 		ctx, _ := context.WithTimeout(context.Background(), 5*time.Second)
 		output, err := runCmd(ctx, containerId, configCmd)
 		if err != nil {

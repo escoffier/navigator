@@ -9,6 +9,7 @@ import (
 	"github.com/containerd/containerd/api/events"
 	"github.com/containerd/containerd/api/services/tasks/v1"
 	"github.com/containerd/containerd/api/types/task"
+	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/events/exchange"
 	"github.com/containerd/containerd/oci"
 	"github.com/containerd/containerd/runtime"
@@ -58,7 +59,15 @@ type ContainerdInfoManager struct {
 	clusterKey    string
 	mqReady       atomic.Bool
 	sync.RWMutex
-	runClient cri.RuntimeService // 向容器发送命令
+	runClient    cri.RuntimeService // 向容器发送命令
+	retryMap     map[string]*containerdRetryItem
+	retryMapLock *sync.Mutex
+}
+
+type containerdRetryItem struct {
+	namespace   string
+	containerId string
+	outTime     time.Time
 }
 
 // unix://xxx
@@ -96,6 +105,8 @@ func NewContainerdInfoManager(clusterKey, hostName, hostIP string, agent *contai
 		containerData: make(map[string]int64, 30),
 		agent:         agent,
 		clusterKey:    clusterKey,
+		retryMap:      make(map[string]*containerdRetryItem),
+		retryMapLock:  new(sync.Mutex),
 	}
 	containerdInfoManager.mqReady.Store(false)
 	go func() {
@@ -106,6 +117,15 @@ func NewContainerdInfoManager(clusterKey, hostName, hostIP string, agent *contai
 			}
 		}()
 		containerdInfoManager.clearContainerTimeoutData()
+	}()
+	go func() {
+		defer func() {
+			r := recover()
+			if r != nil {
+				logging.Get().Error().Str("CRI", ContainerdType).Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+			}
+		}()
+		containerdInfoManager.Retry()
 	}()
 	runClient, err := remote.NewRemoteRuntimeService(uri, 2*time.Second)
 	if err != nil {
@@ -129,6 +149,8 @@ func (d *ContainerdInfoManager) clearContainerTimeoutData() {
 
 			d.Lock()
 			defer d.Unlock()
+			d.retryMapLock.Lock()
+			defer d.retryMapLock.Unlock()
 
 			if count >= 60 { // if a map keeps a stable size but is with continuous add or delete, it should be reconstructed after a period of time to prevent memory leak
 				newMap := make(map[string]int64, len(d.containerData))
@@ -139,6 +161,13 @@ func (d *ContainerdInfoManager) clearContainerTimeoutData() {
 					newMap[containerID] = timestamp
 				}
 				d.containerData = newMap
+
+				newRetryMap := make(map[string]*containerdRetryItem, len(d.retryMap))
+				for containerID, timestamp := range d.retryMap {
+					newRetryMap[containerID] = timestamp
+				}
+				d.retryMap = newRetryMap
+
 				count = 0
 			} else {
 				for containerID, timestamp := range d.containerData {
@@ -191,7 +220,6 @@ func (d *ContainerdInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 			go func() {
 				currentCtx, cancel := context.WithTimeout(ctx, time.Second*5)
 				defer cancel()
-				logging.Get().Info().Msgf("containerd received event ,topic:%s,namespace:%s", m.Topic, m.Namespace)
 				v, err := typeurl.UnmarshalAny(m.Event)
 				if err != nil {
 					logging.Get().Err(err).Any("event", m).Msg("failed to unmarshal event")
@@ -207,6 +235,7 @@ func (d *ContainerdInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 					containerId = t.ContainerID
 					pid = t.Pid
 					action = "start"
+					time.Sleep(time.Second) //todo
 				case *events.TaskDelete:
 					containerId = t.ContainerID
 					pid = t.Pid
@@ -219,6 +248,7 @@ func (d *ContainerdInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 					logging.Get().Error().Msgf("containerd ignore event, namespace:%s,topic:%s,event:%s", m.Namespace, m.Topic, m.Event.GetTypeUrl())
 					return
 				}
+				logging.Get().Info().Msgf("containerd received event ,topic:%s,namespace:%s,containerId:%s", m.Topic, m.Namespace, containerId)
 				saveData(containerId, m.Timestamp.Unix())
 
 				if d.mqReady.Load() {
@@ -245,6 +275,10 @@ func (d *ContainerdInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 							}
 							if contain == nil {
 								return
+							}
+							//	 If the container port is empty, try again after 1 minute
+							if len(contain.Ports) == 0 {
+								d.addRetryContainer(m.Namespace, contain.ContainerID)
 							}
 						} else if m.Topic == runtime.TaskExitEventTopic || m.Topic == runtime.TaskDeleteEventTopic {
 							contain.LastStopTime = m.Timestamp
@@ -646,6 +680,74 @@ func (d *ContainerdInfoManager) RunCmd(ctx context.Context, containerId string, 
 		return string(stdout), nil
 	}
 	return fmt.Sprintf("stdout:%s\nstderr:%s", string(stdout), string(stderr)), nil
+}
+
+func (d *ContainerdInfoManager) addRetryContainer(namespace string, containerId string) {
+	if containerId == "" || namespace == "" {
+		return
+	}
+	logging.Get().Debug().Msgf("addRetryContainer: namespace:%s,containerId:%s", namespace, containerId)
+	d.retryMapLock.Lock()
+	d.retryMap[containerId] = &containerdRetryItem{
+		namespace:   namespace,
+		containerId: containerId,
+		outTime:     time.Now().Add(time.Minute),
+	}
+	d.retryMapLock.Unlock()
+}
+
+func (d *ContainerdInfoManager) Retry() {
+	timer := time.NewTicker(time.Minute)
+	for range timer.C {
+		logging.Get().Debug().Msg("retry begin")
+		var itemList []*containerdRetryItem
+		now := time.Now()
+		d.retryMapLock.Lock()
+		for key, value := range d.retryMap {
+			if value.outTime.Before(now) {
+				itemList = append(itemList, value)
+				delete(d.retryMap, key)
+			}
+		}
+		d.retryMapLock.Unlock()
+		for _, item := range itemList {
+			d.retryOnce(context.Background(), item.namespace, item.containerId)
+		}
+	}
+}
+
+func (d *ContainerdInfoManager) retryOnce(ctx context.Context, namespace string, containerId string) {
+	nsCtx := namespaces.WithNamespace(ctx, namespace)
+	getResponse, err := d.containerdCli.TaskService().Get(nsCtx, &tasks.GetRequest{
+		ContainerID: containerId,
+	})
+	if err != nil {
+		if errdefs.IsNotFound(err) {
+			logging.Get().Err(err).Msgf("retry: no running task found,containerId:%s", containerId)
+			return
+		}
+		logging.Get().Err(err).Msgf("retry failed. containerId:%s", containerId)
+		return
+	}
+	if getResponse.Process.ContainerID == "" {
+		getResponse.Process.ContainerID = getResponse.Process.ID
+	}
+	container, err := d.containerdCli.LoadContainer(nsCtx, getResponse.Process.ContainerID)
+	if err != nil {
+		logging.Get().Err(err).Msgf("retry: get container failed. containerId:%s", containerId)
+		return
+	}
+	containerDetail, err := d.buildContainerDetail(nsCtx, container, getResponse.Process)
+	if err != nil {
+		logging.Get().Error().Msgf("retry: ignore container:  err:%v ", err)
+		return
+	}
+	if containerDetail == nil {
+		logging.Get().Debug().Msgf("retry: ignore nil  container")
+		return
+	}
+	logging.Get().Debug().Msgf("retry finish, containerId:%s", containerId)
+	d.processEvents(containerDetail, "create")
 }
 
 // GenerateID generates a random unique id.

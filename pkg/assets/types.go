@@ -67,7 +67,7 @@ const ( // 服务名称
 	BusiSvcGrafana    = "Grafana"
 	BusiSvcRedis      = "Redis"
 	BusiSvcMysql      = "Mysql"
-	BusiSvcPostgreSQL = "PostgreSQL  "
+	BusiSvcPostgreSQL = "PostgreSQL"
 	BusiSvcMogoDB     = "MogoDB"
 	BusiSvcRsyslog    = "Rsyslog"
 )
