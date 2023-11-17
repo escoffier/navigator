@@ -47,6 +47,13 @@ type DockerInfoManager struct {
 	mqReady       atomic.Bool
 	policyCli     microseg.PolicyClient
 	sync.RWMutex
+	retryMap     map[string]*dockerRetryItem
+	retryMapLock *sync.Mutex
+}
+
+type dockerRetryItem struct {
+	containerId string
+	outTime     time.Time
 }
 
 func (d *DockerInfoManager) SetPodStore(store containerassets.PodCache) {
@@ -87,6 +94,8 @@ func NewDockerInfoManager(clusterKey, hostName, hostIP string, agent *containera
 		clusterKey:    clusterKey,
 		agent:         agent,
 		policyCli:     cli,
+		retryMap:      make(map[string]*dockerRetryItem),
+		retryMapLock:  new(sync.Mutex),
 	}
 	rs.mqReady.Store(false)
 
@@ -98,7 +107,15 @@ func NewDockerInfoManager(clusterKey, hostName, hostIP string, agent *containera
 		}()
 		rs.clearContainerTimeoutData()
 	}()
-
+	go func() {
+		defer func() {
+			r := recover()
+			if r != nil {
+				logging.Get().Error().Str("CRI", ContainerdType).Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+			}
+		}()
+		rs.Retry()
+	}()
 	return &rs, nil
 }
 
@@ -186,10 +203,10 @@ func (d *DockerInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 		select {
 		case m := <-msg:
 			go func() {
-				if m.Action == "start" {
-					//todo  新增事件，延迟1秒处理，ports和进程
-					time.Sleep(time.Second)
-				}
+				//if m.Action == "start" {
+				//	//todo  新增事件，延迟1秒处理，ports和进程
+				//	time.Sleep(time.Second)
+				//}
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 				defer cancel()
 
@@ -206,6 +223,10 @@ func (d *DockerInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 							container = d.updateContainerDetail(ctx, container)
 						} else {
 							container.LastStopTime = time.Unix(m.Time, 0)
+						}
+						if m.Action == "start" && len(container.Ports) == 0 {
+							//	 If the container port is empty, try again after 1 minute
+							d.addRetryContainer(container.ContainerID)
 						}
 						d.processEvents(ctx, container, m.Action)
 					}
@@ -745,6 +766,53 @@ func (d *DockerInfoManager) RunCmd(ctx context.Context, containerId string, cmd 
 		return strings.TrimSpace(string(stdOut.Bytes())), nil
 	}
 	return fmt.Sprintf("stdout:%sstderr:%s", string(stdOut.Bytes()), string(stdErr.Bytes())), nil
+}
+
+func (d *DockerInfoManager) addRetryContainer(containerId string) {
+	if containerId == "" {
+		return
+	}
+	logging.Get().Debug().Msgf("addRetryContainer: containerId:%s", containerId)
+	d.retryMapLock.Lock()
+	d.retryMap[containerId] = &dockerRetryItem{
+		containerId: containerId,
+		outTime:     time.Now().Add(time.Minute),
+	}
+	d.retryMapLock.Unlock()
+}
+
+func (d *DockerInfoManager) Retry() {
+	timer := time.NewTicker(time.Minute)
+	for range timer.C {
+		logging.Get().Debug().Msg("retry begin")
+		var itemList []*dockerRetryItem
+		now := time.Now()
+		d.retryMapLock.Lock()
+		for key, value := range d.retryMap {
+			if value.outTime.Before(now) {
+				itemList = append(itemList, value)
+				delete(d.retryMap, key)
+			}
+		}
+		d.retryMapLock.Unlock()
+		for _, item := range itemList {
+			d.retryOnce(context.Background(), item.containerId)
+		}
+	}
+}
+
+func (d *DockerInfoManager) retryOnce(ctx context.Context, containerId string) {
+	containerDetail, err := d.buildContainerDetail(containerId)
+	if err != nil {
+		logging.Get().Err(err).Msgf("retry failed. containerId:%s", containerId)
+		return
+	}
+	if containerDetail == nil {
+		logging.Get().Debug().Msgf("retry: ignore nil  container")
+		return
+	}
+	logging.Get().Debug().Msgf("retry finish, containerId:%s", containerId)
+	d.processEvents(ctx, containerDetail, "create")
 }
 
 func getImageDigest(image string) string {

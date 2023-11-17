@@ -900,7 +900,7 @@ func (t *OpenRestySvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId 
 	if svcInfo.ConfigDir == "" {
 		svcInfo.ConfigDir = filepath.Join(svcInfo.RootDir, "conf/nginx.conf")
 	}
-	svcInfo.LogDir = filepath.Join(svcInfo.RootDir, "logs/error.log")
+	svcInfo.LogDir = filepath.Join(svcInfo.RootDir, "logs/")
 	// version
 	/*
 		root@webapps-openresty-7fd874d75d-vj96r:/# openresty -V 2>&1 | grep "nginx version: openresty/"
