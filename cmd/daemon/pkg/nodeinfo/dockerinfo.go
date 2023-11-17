@@ -784,7 +784,7 @@ func (d *DockerInfoManager) addRetryContainer(containerId string) {
 func (d *DockerInfoManager) Retry() {
 	timer := time.NewTicker(time.Minute)
 	for range timer.C {
-		logging.Get().Debug().Msg("retry begin")
+		//logging.Get().Debug().Msg("retry begin")
 		var itemList []*dockerRetryItem
 		now := time.Now()
 		d.retryMapLock.Lock()
