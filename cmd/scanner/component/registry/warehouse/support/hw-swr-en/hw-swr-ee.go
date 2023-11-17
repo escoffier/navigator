@@ -1,6 +1,7 @@
 package hwswree
 
 import (
+	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -57,6 +58,12 @@ func (h *HwSwrEE) ListImages(ctx context.Context, extender warehouse.Extender, r
 				logging.Get().Err(err).Str("module", "RegistryImage").Str("image", fmt.Sprintf("%s:%s", imageName, tag)).Msg("huawei-swr-en pullImageManifest")
 				continue
 			}
+			imageDigest, err := ManifestV2Digest(manifest)
+			if err != nil {
+				logging.Get().Err(err).Str("module", "RegistryImage").Str("image", fmt.Sprintf("%s:%s", imageName, tag)).Msg("huawei-swr-en ManifestV2Digest")
+				continue
+			}
+
 			manifestByte, err := manifest.MarshalJSON()
 			if err != nil {
 				res.HasErr = true
@@ -76,7 +83,7 @@ func (h *HwSwrEE) ListImages(ctx context.Context, extender warehouse.Extender, r
 			image := &warehouse.Image{
 				RegistryID:   h.Config.RegistryID,
 				RegistryUrl:  h.Config.URL,
-				ImageDigest:  manifest.Config.Digest.String(),
+				ImageDigest:  imageDigest,
 				Repository:   imageName,
 				Tag:          tag,
 				Size:         uint(repo.Size),
@@ -242,4 +249,17 @@ func (h *HwSwrEE) pullConfigBlob(repo string, configDigest digest.Digest) (strin
 	}
 
 	return configBlob.String(), nil
+}
+
+func ManifestV2Digest(m *schema2.DeserializedManifest) (string, error) {
+	// caculate image digest
+	data, err := m.MarshalJSON()
+	if err != nil {
+		return "", err
+	}
+	dig, _, err := warehouse.SHA256(bytes.NewReader(data))
+	if err != nil {
+		return "", err
+	}
+	return dig.String(), err
 }
