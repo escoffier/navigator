@@ -223,9 +223,10 @@ func NewPostgreSQLSvc() ISvcDiscovery {
 	var pgsql PostgreSQLSvc
 	pgsql.Name = assets.BusiSvcPostgreSQL
 	pgsql.Port = "5432"
+	pgsql.RootDir = "/usr/lib/postgresql/"
 	pgsql.DataDir = "/var/lib/postgresql/data"
 	pgsql.ConfigDir = "/var/lib/postgresql/data/postgresql.conf"
-	pgsql.LogDir = filepath.Join(pgsql.DataDir)
+	pgsql.LogDir = "/var/log/postgresql/"
 
 	var err error
 	pgsql.SvcRegex, err = regexp2.Compile(regexSvcPostgreSQL, regexp2.IgnoreCase)
@@ -307,6 +308,9 @@ func (t *PostgreSQLSvc) SvcDiscovery(cmdList []*cmdItem, cwd string, containerId
 		svcInfo.RootDir = strings.TrimSuffix(binaryPath, "bin/postgres")
 	}
 
+	if svcInfo.RootDir == "" {
+		svcInfo.RootDir = t.RootDir
+	}
 	if svcInfo.ConfigDir == "" {
 		svcInfo.ConfigDir = t.ConfigDir
 	}
@@ -393,7 +397,7 @@ func NewMogoDbSvc() ISvcDiscovery {
 	mogodb.Port = "27017"
 	mogodb.ConfigDir = "/etc/mongod.conf.orig"
 	mogodb.DataDir = "/var/lib/mongodb"
-	mogodb.LogDir = "/var/log/mongodb"
+	mogodb.LogDir = "/var/log/mongodb/"
 	var err error
 	mogodb.SvcRegex, err = regexp2.Compile(regexSvcMogoDb, regexp2.IgnoreCase)
 	if err != nil {

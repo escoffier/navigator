@@ -699,7 +699,7 @@ func (d *ContainerdInfoManager) addRetryContainer(namespace string, containerId 
 func (d *ContainerdInfoManager) Retry() {
 	timer := time.NewTicker(time.Minute)
 	for range timer.C {
-		logging.Get().Debug().Msg("retry begin")
+		//logging.Get().Debug().Msg("retry begin")
 		var itemList []*containerdRetryItem
 		now := time.Now()
 		d.retryMapLock.Lock()
