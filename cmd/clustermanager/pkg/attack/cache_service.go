@@ -3,6 +3,7 @@ package attack
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math/rand"
@@ -108,20 +109,26 @@ func (c *CacheService) load() error {
 		return err
 	}
 
+	brd, err := json.Marshal(respData)
+	logging.Get().Debug().Str("respData", string(brd)).Err(err).Msg("LoadAttackRules resp")
 	if respData.DataChanged {
 		data := c.data()
+		logging.Get().Debug().Int64("respData.LatestDataVersion", respData.LatestDataVersion).Int64("data.Version", data.Version).Msg("respData.DataChanged")
 		if respData.LatestDataVersion != data.Version {
 			// 同步集群最新规则库版本
 			b64Decoded, err := base64.StdEncoding.DecodeString(respData.Data)
 			if err != nil {
+				logging.Get().Debug().Err(err).Msg("base64.StdEncoding.DecodeString")
 				return err
 			}
 			header, _, _, err := cryption.ReadRulesData(b64Decoded)
 			if err != nil {
+				logging.Get().Debug().Err(err).Msg("cryption.ReadRulesData")
 				return err
 			}
 			err = c.agent.UpdateRuleVersion(fmt.Sprintf("v%d.%d", header.Version[0], header.Version[1]))
 			if err != nil {
+				logging.Get().Debug().Err(err).Msg("c.agent.UpdateRuleVersion")
 				return err
 			}
 			// 缓存数据
@@ -130,7 +137,8 @@ func (c *CacheService) load() error {
 	}
 	if respData.SettingChanged {
 		config := c.config()
-		if respData.LatestDataVersion != config.Version {
+		logging.Get().Debug().Int64("respData.LatestSettingVersion", respData.LatestSettingVersion).Int64("config.Version", config.Version).Msg("respData.SettingChanged")
+		if respData.LatestSettingVersion != config.Version {
 			c.setConfig(respData.ClosedRules, respData.LatestSettingVersion)
 		}
 	}

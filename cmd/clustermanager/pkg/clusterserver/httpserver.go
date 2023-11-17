@@ -103,6 +103,7 @@ func (cs *ClusterServer) handleATTACKLatestData(c *gin.Context) {
 		reqSettingVersion = 0
 	}
 
+	logging.Get().Debug().Int64("curVersion", reqVersion).Int64("curDataVersion", reqDataVersion).Int64("curSettingVersion", reqSettingVersion).Msg("request param")
 	data, err := cs.attackCacheService.GetLatestData(ctx, reqVersion, reqDataVersion, reqSettingVersion)
 	if err != nil {
 		logging.Get().Err(err).Int64("reqDataVersion", reqDataVersion).Int64("reqSettingVersion", reqSettingVersion).Msg("get latest data err")
