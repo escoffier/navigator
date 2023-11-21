@@ -315,12 +315,12 @@ static NET_POLICY_RULE MatchNetPolicyRule(FIVE_TUPLE &tuple, FLOW_DIR dir, strin
         //print debug log
         LOG_D("i : %d, match %s rule key, key : %s, tuple proto : %d, dst port : %d, vPorts size : %d, %s.", 
             i, (dir == DIR_INGRESS) ? "ingress" : "egress", ruleKeys.at(i).c_str(), tuple.proto, tuple.dstPort, (int)it->second.vPorts.size(), PrintPortsData(it->second.vPorts).c_str());
-        //protocol
+        /*match protocol*/
         if(!((it->second.proto == 0) || (tuple.proto == it->second.proto))) break;
-        /*set match false*/
-        bIsMatch = false;
         /*port*/
         auto rulePorts = it->second.vPorts;
+        bIsMatch = (rulePorts.size() == 0) ? true : false;
+        /*match port*/
         for(p = 0; p < (int)rulePorts.size(); p++)
         {
             if(rulePorts.at(p).endPort == 0) {
@@ -360,7 +360,7 @@ static int UpdateNetSession(NFC_MSG_TYPE type, NF_CONNTRACK *ct, void *data)
     NFQ_RES_INFO *nfqres = (NFQ_RES_INFO *)data;
     NF_CONNTRACK *obj, *tmp = NULL;
     /*check argument*/
-    if(!ct || !data) 
+    if(!ct || !data) return NFCT_CB_CONTINUE;
     //
     obj = (NF_CONNTRACK *)nfqres->nfct;
     /*compare nfct*/
