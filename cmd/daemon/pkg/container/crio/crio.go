@@ -354,13 +354,14 @@ func (c *crioDriver) RuntimeInfo() (container.RuntimeInfo, error) {
 	return runtimeInfo, nil
 }
 
-func (c *crioDriver) GetImageLayersDir(namespace, imageId string) (layerDirs []string, err error) {
+// GetImageLayersDir crio  每层layer路径
+func (c *crioDriver) GetImageLayersDir(namespace, imageId string) (layerDirs []string, isTmpDir bool, err error) {
 	info, err := c.imageClient.ImageFsInfo()
 	if err != nil {
-		return nil, fmt.Errorf("ImageFsInfo failed. %v", err)
+		return nil, isTmpDir, fmt.Errorf("ImageFsInfo failed. %v", err)
 	}
 	if len(info) == 0 {
-		return nil, fmt.Errorf("crio ImageFsInfo failed")
+		return nil, isTmpDir, fmt.Errorf("crio ImageFsInfo failed")
 	}
 	var imagePath string
 	if info[0].GetFsId() != nil {
@@ -387,15 +388,15 @@ func (c *crioDriver) GetImageLayersDir(namespace, imageId string) (layerDirs []s
 	bytes, err := os.ReadFile(finalPath)
 	if err != nil {
 		logging.Get().Err(err).Msg("ReadFile failed.")
-		return nil, fmt.Errorf("ReadFile failed. %v", err)
+		return nil, isTmpDir, fmt.Errorf("ReadFile failed. %v", err)
 	}
 	var image CRIOImage
 	err = json.Unmarshal(bytes, &image)
 	if err != nil {
-		return nil, fmt.Errorf("Unmarshal CRIOImage failed.%v", err)
+		return nil, isTmpDir, fmt.Errorf("Unmarshal CRIOImage failed.%v", err)
 	}
 	if len(image.Rootfs.DiffIds) == 0 {
-		return nil, fmt.Errorf("diffId is empty. realImageId:%s", realImageId)
+		return nil, isTmpDir, fmt.Errorf("diffId is empty. realImageId:%s", realImageId)
 	}
 	firstDiffId := strings.TrimPrefix(image.Rootfs.DiffIds[0], "sha256:")
 	// get layers
@@ -406,11 +407,11 @@ func (c *crioDriver) GetImageLayersDir(namespace, imageId string) (layerDirs []s
 	var layerList []LayerItem
 	layerBytes, err := os.ReadFile(filepath.Join(overlayLayersPath, "/layers.json"))
 	if err != nil {
-		return nil, fmt.Errorf("ReadFile layers.json failed.%v", err)
+		return nil, isTmpDir, fmt.Errorf("ReadFile layers.json failed.%v", err)
 	}
 	err = json.Unmarshal(layerBytes, &layerList)
 	if err != nil {
-		return nil, fmt.Errorf("unmarshal LayerItem failed.%v", err)
+		return nil, isTmpDir, fmt.Errorf("unmarshal LayerItem failed.%v", err)
 	}
 	layerMap := make(map[string]string) // parentId :id
 	for _, item := range layerList {
@@ -430,7 +431,7 @@ func (c *crioDriver) GetImageLayersDir(namespace, imageId string) (layerDirs []s
 		parentId = p
 		resultPath = append(resultPath, filepath.Join(overlayPath, p, "/diff"))
 	}
-	return resultPath, nil
+	return resultPath, isTmpDir, nil
 }
 
 // TODO fix

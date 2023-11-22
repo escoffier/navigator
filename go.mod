@@ -137,6 +137,13 @@ require (
 )
 
 require (
+	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230106234847-43070de90fa1 // indirect
+	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20221215162035-5330a85ea652 // indirect
+	github.com/containerd/typeurl/v2 v2.1.0 // indirect
+	github.com/moby/sys/signal v0.7.0 // indirect
+)
+
+require (
 	cloud.google.com/go/compute v1.19.1 // indirect
 	cloud.google.com/go/compute/metadata v0.2.3 // indirect
 	cloud.google.com/go/iam v0.13.0 // indirect
@@ -259,7 +266,6 @@ require (
 	github.com/gobuffalo/here v0.6.0 // indirect
 	github.com/godbus/dbus v0.0.0-20190726142602-4481cbc300e2 // indirect
 	github.com/godbus/dbus/v5 v5.1.0 // indirect
-	github.com/gogo/googleapis v1.4.1 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
 	github.com/golang/mock v1.6.0 // indirect
 	github.com/gomodule/redigo v1.8.9 // indirect
@@ -441,7 +447,7 @@ require (
 	github.com/Masterminds/semver v1.5.0 // indirect
 	github.com/Masterminds/sprig v2.22.0+incompatible // indirect
 	github.com/Microsoft/go-winio v0.6.0 // indirect
-	github.com/Microsoft/hcsshim v0.10.0-rc.1 // indirect
+	github.com/Microsoft/hcsshim v0.10.0-rc.7 // indirect
 	github.com/NYTimes/gziphandler v1.1.1 // indirect
 	github.com/OneOfOne/xxhash v1.2.8 // indirect
 	github.com/ProtonMail/go-crypto v0.0.0-20230217124315-7d5c6f04bbb8 // indirect
@@ -615,10 +621,9 @@ require (
 )
 
 replace (
-	github.com/containerd/containerd => github.com/containerd/containerd v1.5.16
 	github.com/containernetworking/cni => github.com/containernetworking/cni v0.8.1
 	github.com/containers/podman/v3 => scm.tensorsecurity.cn/tensorsecurity-rd/podman/v3 v3.4.6-20220425170000
-	github.com/opencontainers/image-spec => github.com/opencontainers/image-spec v1.0.2-0.20210819154149-5ad6f50d6283
+	//github.com/opencontainers/image-spec => github.com/opencontainers/image-spec v1.0.2-0.20210819154149-5ad6f50d6283
 	gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.88
 	go.opentelemetry.io/otel/metric => go.opentelemetry.io/otel/metric v0.35.0
 	helm.sh/helm/v3 => helm.sh/helm/v3 v3.11.1
