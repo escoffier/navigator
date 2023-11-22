@@ -367,9 +367,19 @@ func (d *dockerDriver) SaveImage(namespace, imageID, fullPath string) (string, e
 	return fullPath, err
 }
 
-func (d *dockerDriver) GetImageLayersDir(namespace, imageId string) (layerDirs []string, err error) {
-	// TODO implement me
-	panic("implement me")
+// GetImageLayersDir  docker:LowerDir,MergedDir,UpperDir，WorkDir
+func (d *dockerDriver) GetImageLayersDir(namespace, imageId string) (layerDirs []string, isTmpDir bool, err error) {
+	ctx, cancel := context.WithTimeout(context.Background(), dockerRequestTimeout*time.Second)
+	defer cancel()
+	image, _, err := d.dockerCli.ImageInspectWithRaw(ctx, imageId)
+	if err != nil {
+		return nil, false, fmt.Errorf("get ImageInspectWithRaw failed.%v", err)
+	}
+	//
+	for _, path := range image.GraphDriver.Data {
+		layerDirs = append(layerDirs, path)
+	}
+	return layerDirs, false, nil
 }
 
 func init() {

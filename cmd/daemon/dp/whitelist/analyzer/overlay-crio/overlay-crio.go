@@ -42,7 +42,7 @@ func (o *OverlayCRIO) Clean() error {
 func (o *OverlayCRIO) AnalyzeWhiteList(runtime container.Runtime, runtimeInfo container.RuntimeInfo, image container.ImageInspect) (analyzer.ExecFiles, error) {
 	imageDir := make([]string, 0)
 
-	imagePaths, err := runtime.GetImageLayersDir(image.Namespace, image.ID)
+	imagePaths, _, err := runtime.GetImageLayersDir(image.Namespace, image.ID)
 	if err != nil {
 		logging.Get().Err(err).Msg("failed to get image layers dir")
 		return nil, err

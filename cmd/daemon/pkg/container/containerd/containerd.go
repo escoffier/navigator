@@ -2,10 +2,15 @@ package containerd
 
 import (
 	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"errors"
 	"fmt"
+	"github.com/opencontainers/go-digest"
+	"io"
 	"path/filepath"
+	"runtime"
 	"strconv"
 
 	"github.com/containerd/containerd"
@@ -17,7 +22,7 @@ import (
 	"github.com/containerd/containerd/images/archive"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/platforms"
-	"github.com/containerd/typeurl"
+	"github.com/containerd/typeurl/v2"
 	types2 "github.com/docker/docker/api/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container/docker"
@@ -67,7 +72,7 @@ func (c *containerdDriver) MonitorEvent(cb container.EventCallback) error {
 		case m := <-msg:
 			go func() {
 				logging.Get().Info().Msgf("containerd received event ,topic:%s,namespace:%s", m.Topic, m.Namespace)
-				v, err := typeurl.UnmarshalAny(m.Event)
+				var v, err = typeurl.UnmarshalAny(m.Event)
 				if err != nil {
 					logging.Get().Err(err).Any("event", m).Msg("failed to unmarshal event")
 					return
@@ -276,12 +281,14 @@ func (c *containerdDriver) ListImages() ([]container.ImageSummary, error) {
 			continue
 		}
 		for _, image := range images {
+			if strings.HasPrefix(image.Name(), "sha256:") {
+				continue
+			}
 			imageList = append(imageList, container.ImageSummary{
-				Namespace:   ns,
-				ID:          image.Name(),
-				Labels:      image.Labels(),
-				RepoTags:    []string{image.Name()},
-				RepoDigests: []string{image.Target().Digest.String()},
+				Namespace: ns,
+				ID:        image.Name(),
+				Labels:    image.Labels(),
+				RepoTags:  []string{image.Name()},
 			})
 		}
 	}
@@ -470,9 +477,122 @@ func (c *containerdDriver) SaveImage(namespace, imageID, fullPath string) (strin
 	return fullPath, nil
 }
 
-func (c *containerdDriver) GetImageLayersDir(namespace, imageId string) (layerDirs []string, err error) {
-	// TODO implement me
-	panic("implement me")
+// GetImageLayersDir : ctr content xxx
+/*
+1. 读取镜像的manifest文件，拿到layers信息
+2. 分别解压 layer 的tar.gzip包
+*/
+func (c *containerdDriver) GetImageLayersDir(namespace, imageId string) (layerDirs []string, isTmpDir bool, err error) {
+	nsCtx := namespaces.WithNamespace(context.Background(), namespace)
+	image, err := c.containerdCli.GetImage(nsCtx, imageId)
+	if err != nil {
+		return nil, false, fmt.Errorf("failed to get image , %v", err)
+	}
+
+	if image.Target().Digest == "" {
+		return nil, false, fmt.Errorf("image's digest is empty. %v", err)
+	}
+	digestStr := string(image.Target().Digest)
+	cs := c.containerdCli.ContentStore()
+	ra, err := cs.ReaderAt(nsCtx, ocispec.Descriptor{Digest: image.Target().Digest})
+	if err != nil {
+		return nil, false, fmt.Errorf("read manifest1 faild. %v", err)
+	}
+	dataBytes, err := io.ReadAll(content.NewReader(ra))
+	ra.Close()
+	var schema Schema
+	err = json.Unmarshal(dataBytes, &schema)
+	if err != nil {
+		return nil, false, fmt.Errorf("unmarshal schema1 faild. %v", err)
+	}
+	//  获取指定os的镜像digest
+	var targetDigest string
+	for _, manifest := range schema.Manifests {
+		if manifest.Platform.Os == runtime.GOOS && manifest.Platform.Architecture == runtime.GOARCH {
+			targetDigest = manifest.Digest
+			break
+		}
+	}
+	if targetDigest != "" {
+		ra, err = cs.ReaderAt(nsCtx, ocispec.Descriptor{Digest: digest.Digest(targetDigest)})
+		if err != nil {
+			return nil, false, fmt.Errorf("read manifest2 faild. %v", err)
+		}
+		dataBytes, err = io.ReadAll(content.NewReader(ra))
+		ra.Close()
+		err = json.Unmarshal(dataBytes, &schema)
+		if err != nil {
+			return nil, false, fmt.Errorf("unmarshal schema2 faild. %v", err)
+		}
+	}
+
+	if len(schema.Layers) == 0 {
+		return nil, false, fmt.Errorf("image's Layers is empty")
+	}
+
+	//  /imageContent/digetst
+	imagePath := fmt.Sprintf("/imageContent/%s", strings.TrimPrefix(digestStr, "sha256:"))
+	os.RemoveAll(imagePath)
+	err = os.MkdirAll(imagePath, os.ModePerm)
+	if err != nil {
+		return nil, false, fmt.Errorf("mkdir %s failed.%v", imagePath, err)
+	}
+	// 解压tar.gzip
+	for _, layer := range schema.Layers {
+		ra, err = cs.ReaderAt(nsCtx, ocispec.Descriptor{Digest: digest.Digest(layer.Digest)})
+		if err != nil {
+			panic("ReaderAt failed." + err.Error())
+		}
+		layerPath := filepath.Join(imagePath, strings.TrimPrefix(layer.Digest, "sha256:"))
+
+		buf := bytes.Buffer{}
+		_, err = io.CopyBuffer(&buf, content.NewReader(ra), nil)
+
+		gReader, err := gzip.NewReader(&buf)
+		if err != nil {
+			panic("gzip.NewReader err:" + err.Error())
+		}
+
+		tarReader := tar.NewReader(gReader)
+
+		for {
+			header, err := tarReader.Next()
+			if err == io.EOF {
+				break
+			} else if err != nil {
+				panic("reader.Next err:" + err.Error())
+			}
+			outputPath := filepath.Join(layerPath, header.Name)
+			layerDirs = append(layerDirs, outputPath)
+			switch header.Typeflag {
+			case tar.TypeDir:
+				err = os.MkdirAll(outputPath, os.ModePerm)
+				if err != nil {
+					return nil, false, fmt.Errorf("mkdirAll failed.%v", err)
+				}
+			case tar.TypeReg:
+				err = os.MkdirAll(filepath.Dir(outputPath), os.ModePerm)
+				if err != nil {
+					return nil, false, fmt.Errorf("mkdirAll failed.%v", err)
+				}
+
+				outputFile, err := os.Create(outputPath)
+				if err != nil {
+					return nil, false, fmt.Errorf("create file failed.%v", err)
+				}
+
+				_, err = io.Copy(outputFile, tarReader)
+				if err != nil {
+					return nil, false, fmt.Errorf("write file failed.%v", err)
+				}
+				outputFile.Close()
+			}
+		}
+		gReader.Close()
+		ra.Close()
+	}
+	logging.Get().Info().Msgf("extract containerd image tar.giz to %s success", imagePath)
+	return layerDirs, true, nil
 }
 
 func init() {
@@ -521,4 +641,33 @@ func NewcontainerdDriver(config container.RuntimeConfig) (container.Runtime, err
 	d.containerdCli = containerdCli
 
 	return &d, nil
+}
+
+type Schema struct {
+	MediaType     string `json:"mediaType"`
+	SchemaVersion int    `json:"schemaVersion"`
+
+	//Manifests 有值:"mediaType": "application/vnd.docker.distribution.manifest.list.v2+json"
+	Manifests []struct {
+		Digest    string `json:"digest"`
+		MediaType string `json:"mediaType"`
+		Platform  struct {
+			Architecture string `json:"architecture"`
+			Os           string `json:"os"`
+			Variant      string `json:"variant,omitempty"`
+		} `json:"platform"`
+		Size int `json:"size"`
+	} `json:"manifests"`
+
+	// Config,Layers有值："mediaType": "application/vnd.docker.distribution.manifest.v2+json"
+	Config struct {
+		MediaType string `json:"mediaType"`
+		Size      int    `json:"size"`
+		Digest    string `json:"digest"`
+	} `json:"config"`
+	Layers []struct {
+		MediaType string `json:"mediaType"`
+		Size      int    `json:"size"`
+		Digest    string `json:"digest"`
+	} `json:"layers"`
 }

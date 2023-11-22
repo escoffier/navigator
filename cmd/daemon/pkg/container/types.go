@@ -59,8 +59,9 @@ type Runtime interface {
 	ImageHistory(namespace string, imageID string) ([]HistoryResponseItem, error)
 	RuntimeInfo() (RuntimeInfo, error)
 	SaveImage(namespace, imageID, fullPath string) (string, error)
-	// GetImageLayersDir 获取镜像每层的文件系统存储路径
-	GetImageLayersDir(namespace, imageId string) (layerDirs []string, err error)
+	// GetImageLayersDir 获取镜像文件内容
+	//isTmpDir：是否是临时目录，如果是，使用后请手动删除
+	GetImageLayersDir(namespace, imageId string) (layerDirs []string, isTmpDir bool, err error)
 }
 
 type RuntimeConfig struct {

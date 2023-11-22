@@ -12,8 +12,9 @@ import (
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/events/exchange"
 	"github.com/containerd/containerd/oci"
+	"github.com/containerd/containerd/protobuf"
 	"github.com/containerd/containerd/runtime"
-	"github.com/containerd/typeurl"
+	"github.com/containerd/typeurl/v2"
 	"github.com/containernetworking/plugins/pkg/ns"
 	"github.com/docker/go-connections/nat"
 	"github.com/google/cadvisor/container/containerd/namespaces"
@@ -524,7 +525,7 @@ func (d *ContainerdInfoManager) containerFromRaw(ctx context.Context, container 
 	tensorRawContainer := &model.TensorRawContainer{
 		Status:         d.getContainerStatus(t.Status),
 		CreatedAt:      info.CreatedAt.UTC(),
-		LastStopTime:   t.ExitedAt.UTC(),
+		LastStopTime:   protobuf.FromTimestamp(t.ExitedAt).UTC(),
 		UpdatedAt:      time.Now(),
 		ContainerID:    container.ID(),
 		IP:             networkSettings.IPAddress,
