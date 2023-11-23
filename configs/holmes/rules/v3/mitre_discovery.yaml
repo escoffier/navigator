@@ -71,7 +71,7 @@
     tags: [ATT&CK, network, mitre_discovery, L4]
 
 - key: View process information in the container
-  disable: true
+  disabled: true
   hid: disc_04
   condition: >
     open_read and container and
@@ -218,7 +218,7 @@
     tags: [ATT&CK, container, exec, file, mitre_discovery, L1]
 
 - key: Get ApiServer_token through kubectl
-  disable: true
+  disabled: true
   hid: disc_10
   condition: >
     evt.type = execve and
