@@ -1,13 +1,13 @@
 ##custom_config_inits
 - key: miner_domains
   name:
-    zh: "挖矿域名"
+    zh: "挖矿IP"
     en: "Miner Domains Pool"
   effect:
-    zh: 可检测对应域名的挖矿连接
+    zh: 可检测对应IP的挖矿连接
     en: It could detect connections from the miner to the given domains
   prompt:
-    zh: "请输入完整的挖矿域名，多个输入回车分隔"
+    zh: "请输入完整的挖矿IP，多个输入回车分隔"
     en: "Please input the complete miner domains(no need of the schema prefix). Please seprate multiple ones by enter if needed."
   type: list
   # rulesAppliedSteps规范: the first item must be a rule; the others must be macros

@@ -1,6 +1,6 @@
 ##attck_rule_type=Privilege_Escalation
 - key: Launch Privileged Container
-  disable: true
+  disabled: true
   hid: priv_01
   condition: >
     container_started and container
@@ -487,7 +487,7 @@
     tags: [ATT&CK, docker, filesystem, mitre_privilege_escalation, L4]
 
 - key: Containerd vulnerability leads to container escape(CVE-2020-15257)
-  disable: true
+  disabled: true
   hid: priv_22
   condition: >
     evt.type = openat and fd.name=/proc/net/unix and container 
@@ -677,7 +677,7 @@
     tags: [ATT&CK, network, docker, mitre_privilege_escalation, L4]
 
 # - key: Launch Sensitive Mount Container
-#   disable: true
+#   disabled: true
 #   hid: priv_30
 #   condition: >
 #     container_started and container
@@ -704,7 +704,7 @@
 
 #docker exec -it ca59be69b71e  mount --bind /root /
 - key: Mount the host root directory to the container
-  disable: true
+  disabled: true
   hid: priv_31
   condition: >
     spawned_process 
@@ -731,7 +731,7 @@
 
 #Escape via SYS_PTRACE permissions
 - key: Escape via SYS_PTRACE permissions
-  disable: true
+  disabled: true
   hid: priv_32
   condition: >
     container 
@@ -760,7 +760,7 @@
 
 #cat /test/lxcfs/cgroup/devices.allow
 - key: lxcfs escape
-  disable: true
+  disabled: true
   hid: priv_33
   condition: >
     container and (open_write or open_read)
@@ -786,7 +786,7 @@
     tags: [ATT&CK, filesystem, mitre_privilege_escalation, L3]
 
 # - key: DirtyPipe (CVE-2022-0847) Read-only file overwrite privilege escalation escape
-#   disable: true
+#   disabled: true
 #   hid: priv_34
 #   condition: >
 #     container and shell_parent_procs and evt.type =  
