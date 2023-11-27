@@ -55,6 +55,8 @@ func (s *InitScanner) Init(ctx context.Context) error {
 	_ = s.createLicenseVer210DataMigrate(ctx)
 	// 已存在的策略快照
 	_ = s.createDetectPolicySnapshot(ctx)
+	// scanner 启动时清理镜像扫描过程中的临时文件
+	_ = s.removeImagescanDir(ctx)
 	return nil
 }
 
@@ -366,6 +368,20 @@ func (s *InitScanner) createDetectPolicySnapshot(ctx context.Context) error {
 				continue
 			}
 		}
+	}
+	return nil
+}
+
+// 2.20版本时，镜像扫描过程的中临时文件存放在/Imagescan这个目录下,程序异常退出时，这个目录可能没有被清理，所以在程序启动时清理该目录
+// FIXME 2.21版本进行优化，使用临时目录进行管理
+func (s *InitScanner) removeImagescanDir(ctx context.Context) error {
+	_, err := os.Stat("/Imagescan")
+	if err != nil {
+		return nil
+	}
+	if err := os.RemoveAll("/Imagescan"); err != nil {
+		s.Log.Err(err).Msg("RemoveAll Imagescan")
+		return err
 	}
 	return nil
 }
