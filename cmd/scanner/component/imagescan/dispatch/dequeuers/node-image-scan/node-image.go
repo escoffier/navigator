@@ -110,24 +110,43 @@ func (s *NodeImageScanQueue) GenTaskChan(ctx context.Context) chan *imagesecMode
 
 		for {
 			<-ticker.C
-			task, cnt, err := s.ScanTaskDal.SearchScanTask(ctx, imagesecModel.SearchTaskParam{
+			runTask, cnt, err := s.ScanTaskDal.SearchScanTask(ctx, imagesecModel.SearchTaskParam{
 				ImageFromType: imagesecModel.ImageFromNode,
-				ScanStatus:    []int64{imagesecModel.TaskStatusInprogress, imagesecModel.TaskStatusPending},
+				ScanStatus:    []int64{imagesecModel.TaskStatusInprogress},
 				Filter:        filter,
 			})
 			if err != nil {
 				ticker.Reset(time.Minute)
-				s.Log.Err(err).Msg("find inprogress scan task")
+				s.Log.Err(err).Msg("find inprogress scan runTask")
 				continue
 			}
-			s.Log.Debug().Int64("taskCnt", cnt).
-				Msg("find node image scan task")
+			s.Log.Debug().Int64("taskCnt", cnt).Msg("find node image scan running Task")
 
-			for i := range task {
-				out <- task[i]
+			for i := range runTask {
+				out <- runTask[i]
+			}
+			if cnt >= s.maxProgressTask {
+				s.Log.Info().Int64("runningTaskCnt", cnt).Msg("has max running task")
+				continue
 			}
 
-			if len(task) == 0 {
+			pendTask, cnt, err := s.ScanTaskDal.SearchScanTask(ctx, imagesecModel.SearchTaskParam{
+				ImageFromType: imagesecModel.ImageFromNode,
+				ScanStatus:    []int64{imagesecModel.TaskStatusPending},
+				Filter:        filter,
+			})
+			if err != nil {
+				ticker.Reset(time.Minute)
+				s.Log.Err(err).Msg("find scan pend Task")
+				continue
+			}
+			s.Log.Debug().Int64("taskCnt", cnt).Msg("find node image scan pendTask")
+
+			for i := range pendTask {
+				out <- pendTask[i]
+			}
+
+			if len(pendTask) == 0 {
 				ticker.Reset(time.Second * 20)
 			}
 		}
@@ -222,6 +241,14 @@ func (s *NodeImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, tas
 			s.Log.Err(err).Int64("taskID", task.ID).
 				Msg("SearchScanSubtask")
 			continue
+		}
+		if len(subtask) > 0 {
+			// 已开始发送子任务时才更新任务已开始
+			// 如果任务1开始了，但是节点的有其他子任务在执行，不能执行该任务下的子任务，这时不应该认为该任务已开始
+			if err := s.UpdateTaskInprogress(ctx, task.ID); err != nil {
+				s.Log.Err(err).Int64("taskID", task.ID).Msg("start task")
+				continue
+			}
 		}
 
 		for j := range subtask {

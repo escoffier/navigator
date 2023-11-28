@@ -112,24 +112,44 @@ func (s *RegImageScanQueue) GenTaskChan(ctx context.Context) chan *imagesecModel
 
 		for {
 			<-ticker.C
-			task, cnt, err := s.ScanTaskDal.SearchScanTask(ctx, imagesecModel.SearchTaskParam{
+			runTask, cnt, err := s.ScanTaskDal.SearchScanTask(ctx, imagesecModel.SearchTaskParam{
 				ImageFromType: imagesecModel.ImageFromRegistry,
-				ScanStatus:    []int64{imagesecModel.TaskStatusInprogress, imagesecModel.TaskStatusPending},
+				ScanStatus:    []int64{imagesecModel.TaskStatusInprogress},
 				Filter:        filter,
 			})
 			if err != nil {
 				ticker.Reset(time.Minute)
-				s.Log.Err(err).
-					Msg("find inprogress scan task")
+				s.Log.Err(err).Msg("find inprogress scan runTask")
 				continue
 			}
-			s.Log.Info().Int64("taskCnt", cnt).Msg("find registry image scan task")
+			s.Log.Info().Int64("runningTaskCnt", cnt).Msg("find registry image scan runTask")
 
-			for i := range task {
-				out <- task[i]
+			for i := range runTask {
+				out <- runTask[i]
 			}
 
-			if len(task) == 0 {
+			if cnt >= s.maxProgressTask {
+				s.Log.Info().Int64("runningTaskCnt", cnt).Msg("has max running task")
+				continue
+			}
+
+			pending, cnt, err := s.ScanTaskDal.SearchScanTask(ctx, imagesecModel.SearchTaskParam{
+				ImageFromType: imagesecModel.ImageFromRegistry,
+				ScanStatus:    []int64{imagesecModel.TaskStatusPending},
+				Filter:        filter.SetLimit(util.MinInt64(s.maxProgressTask, s.maxProgressTask-int64(len(runTask)))),
+			})
+			if err != nil {
+				ticker.Reset(time.Minute)
+				s.Log.Err(err).Msg("find inprogress scan pending")
+				continue
+			}
+			s.Log.Info().Int64("pendTaskCnt", cnt).Msg("find registry image scan pending")
+
+			for i := range pending {
+				out <- pending[i]
+			}
+
+			if len(pending) == 0 {
 				ticker.Reset(time.Second * 20)
 			}
 		}
@@ -153,12 +173,6 @@ func (s *RegImageScanQueue) GenSubtaskChan(ctx context.Context) chan imagesecTyp
 
 		for task := range taskChan {
 			s.Log.Info().Int64("taskID", task.ID).Msg("get a scan task")
-
-			if err := s.UpdateTaskInprogress(ctx, task.ID); err != nil {
-				s.Log.Err(err).Int64("taskID", task.ID).Msg("start task")
-				continue
-			}
-
 			if err := s.SearchSubtaskAndSendToChan(ctx, task, subtaskChan); err != nil {
 				s.Log.Err(err).Interface("task", task).Msg("SearchSubtaskAndSendToChan")
 				continue
@@ -189,8 +203,7 @@ func (s *RegImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, task
 
 	for i := range instance {
 		no := instance[i]
-		s.Log.Debug().Str("ClusterName", no.ClusterName).
-			Msg("find instance")
+		s.Log.Debug().Str("ClusterName", no.ClusterName).Msg("find instance")
 		// 查找当前扫描器在执行的所有子任务
 		param := imagesecModel.SearchTaskParam{
 			NodeUniqueID: uint64(no.ID),
@@ -206,7 +219,9 @@ func (s *RegImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, task
 			s.Log.Err(err).Int64("taskID", task.ID).Msg("SearchScanSubtask")
 			return err
 		}
+
 		if sendSubtask >= s.maxProgressSubtaskPerNode {
+			s.Log.Err(err).Str("ClusterName", no.ClusterName).Int64("cnt", sendSubtask).Msg("has subtask running")
 			// 缓一下
 			<-ticker.C
 			continue
@@ -227,6 +242,15 @@ func (s *RegImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, task
 		if err != nil {
 			s.Log.Err(err).Int64("taskID", task.ID).Msg("SearchScanSubtask")
 			continue
+		}
+
+		if len(subtask) > 0 {
+			// 已开始发送子任务时才更新任务已开始
+			// 如果任务1开始了，但是扫描的有其他子任务在执行，不能执行该任务下的子任务，这时不应该认为该任务已开始
+			if err := s.UpdateTaskInprogress(ctx, task.ID); err != nil {
+				s.Log.Err(err).Int64("taskID", task.ID).Msg("start task")
+				continue
+			}
 		}
 
 		for j := range subtask {

@@ -91,6 +91,7 @@ require (
 	github.com/agnivade/levenshtein v1.1.1
 	github.com/ahmetb/go-linq/v3 v3.2.0
 	github.com/apache/pulsar-client-go v0.11.0
+	github.com/containerd/typeurl/v2 v2.1.0
 	github.com/containernetworking/plugins v1.2.0
 	github.com/dlclark/regexp2 v1.8.1
 	github.com/elastic/go-libaudit/v2 v2.2.0
@@ -139,7 +140,6 @@ require (
 require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230106234847-43070de90fa1 // indirect
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20221215162035-5330a85ea652 // indirect
-	github.com/containerd/typeurl/v2 v2.1.0 // indirect
 	github.com/moby/sys/signal v0.7.0 // indirect
 )
 
@@ -476,7 +476,7 @@ require (
 	github.com/containerd/cgroups v1.1.0 // indirect
 	github.com/containerd/containerd v1.7.0
 	github.com/containerd/stargz-snapshotter/estargz v0.13.0 // indirect
-	github.com/containerd/typeurl v1.0.2
+	github.com/containerd/typeurl v1.0.2 // indirect
 	github.com/containers/podman/v3 v3.4.6-20220425170000
 	github.com/cpuguy83/go-md2man/v2 v2.0.2 // indirect
 	github.com/davecgh/go-spew v1.1.1

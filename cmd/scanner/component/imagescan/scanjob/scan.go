@@ -18,6 +18,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/types"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	imagesecTypes "gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
@@ -35,6 +36,7 @@ type RegImageScan struct {
 	ScanP         *prepare.ScanPrepare
 	TrivyEngin    *scanTrivy.TrivyEngin
 	ImageCacheURL string
+	Log           *scannerUtils.LogEvent
 }
 
 // 增加超时控制
@@ -67,6 +69,9 @@ func (s *RegImageScan) ScanAndSend(ctx context.Context, subtask imagesecTypes.Sc
 		Int64("subtaskID", subtask.SubTaskID).Msg("scan start")
 
 	prepareScan, err := s.PrepareScan(ctx, subtask)
+	// 删除中间数据
+	defer func(pre *types.PrepareScan) { _ = s.CleanUpScan(ctx, pre) }(prepareScan)
+
 	if err != nil {
 		errs = append(errs, err)
 	}
@@ -74,8 +79,7 @@ func (s *RegImageScan) ScanAndSend(ctx context.Context, subtask imagesecTypes.Sc
 	if err != nil {
 		errs = append(errs, err)
 	}
-	// 删除中间数据
-	defer func() { _ = s.CleanUpScan(ctx, prepareScan) }()
+
 	defer func() {
 		// 为啥要删除两次呢：因为 pullJob.Run和PrepareScan都会增加一次引用
 		_ = deleteJob.Run(timeoutCtx, Param(artifact))
@@ -237,6 +241,9 @@ func NewRegistryImageScan(mqWriter mq.Writer, cli redis.Client) (*RegImageScan, 
 		// TrivyEngin:       trivyEngin,
 		ImageCacheURL:    "0.0.0.0:5566/",
 		MaxSingeFileSize: (1 << 20) * 10,
+		Log: scannerUtils.NewLogEvent(
+			scannerUtils.WithSubModule("regImageScan"),
+			scannerUtils.WithModule(consts.ModuleImageScan)),
 	}
 	_ = s.DoScanImageTask(context.Background())
 
