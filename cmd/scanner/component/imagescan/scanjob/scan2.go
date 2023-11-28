@@ -343,14 +343,24 @@ func (s *RegImageScan) SendFileToKafka(ctx context.Context, saveInfo types.SafeF
 }
 
 func (s *RegImageScan) CleanUpScan(ctx context.Context, pre *types.PrepareScan) error {
-	if pre == nil || pre.ImageRootDir == "" {
+	if pre == nil {
+		s.Log.Info().Msg("not clean up scan data,pre is nil")
+		return nil
+	}
+	if pre.ImageRootDir == "" {
+		s.Log.Info().Str("ImageRootDir", pre.ImageRootDir).Msg("not clean up scan data")
 		return nil
 	}
 	_, err := os.Stat(pre.ImageRootDir)
 	if err != nil {
+		s.Log.Err(err).Str("ImageRootDir", pre.ImageRootDir).Msg("not clean up scan data")
 		return err
 	}
-	return os.RemoveAll(pre.ImageRootDir)
+	if err := os.RemoveAll(pre.ImageRootDir); err != nil {
+		s.Log.Err(err).Str("ImageRootDir", pre.ImageRootDir).Msg("not clean up scan data")
+		return err
+	}
+	return nil
 }
 
 func (s *RegImageScan) changCacheUrl(im string) (string, error) {
