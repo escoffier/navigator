@@ -578,7 +578,7 @@ func (e *Engine) SendSignalToPalace(x rego.BuiltinContext, a *ast.Term) (*ast.Te
 		},
 		{
 			Kind: palace.ScopeKindHostname,
-			Name: signal.Hostname,
+			Name: signal.NodeName, // 取nodename的值，nodename是从环境变量 MY_NODE_NAME 获取的
 		},
 	}
 
