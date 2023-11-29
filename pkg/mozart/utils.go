@@ -4,6 +4,8 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"math"
+	"os"
 	"sort"
 	"strconv"
 	"strings"
@@ -385,13 +387,39 @@ type requestCache struct {
 	lock  sync.Mutex
 }
 
-var RequestCache requestCache
+var RequestScopeCmdlineCache requestCache
+var RequestRegexCache requestCache
 
-func (cache *requestCache) init() {
-	RequestCache = requestCache{
+func requestCacheInit() {
+	RequestScopeCmdlineCache = requestCache{
 		cache: make(map[string]requestMozart),
 		lock:  sync.Mutex{},
 	}
+	RequestRegexCache = requestCache{ // 固定的key，无需清理
+		cache: make(map[string]requestMozart),
+		lock:  sync.Mutex{},
+	}
+	go func() {
+		clear1 := func() {
+			RequestScopeCmdlineCache.lock.Lock()
+			defer RequestScopeCmdlineCache.lock.Unlock()
+
+			for k, v := range RequestScopeCmdlineCache.cache {
+				if time.Now().Sub(v.time) > time.Second*10 {
+					delete(RequestScopeCmdlineCache.cache, k)
+				}
+			}
+		}
+		tick := time.NewTicker(time.Second * 5)
+		defer tick.Stop()
+		for {
+			select {
+			case <-tick.C:
+				clear1()
+			}
+		}
+	}()
+
 }
 
 func (cache *requestCache) get(name string) (requestMozart, bool) {
@@ -410,7 +438,7 @@ func (cache *requestCache) set(name string, req requestMozart) {
 }
 
 // 同节点只有一个服务实例，直接使用内存缓存
-func checkSimilar(event Event) bool {
+func checkScopeCmdlineSimilar(event Event) bool {
 
 	payload := SignalPayload{OutputFields: map[string]string{}}
 	payload.ClusterKey = event.Payload["cluster_key"].(string)
@@ -431,18 +459,19 @@ func checkSimilar(event Event) bool {
 		logging.Get().Error().Err(errors.New("event cmdline empty")).Str("event", event.Name).Interface("payload", payload).Msg("event cmdline empty")
 		return false
 	}
+	hash := scope + "$" + cmdline
 	// 检查缓存
-	if cacheEvent, ok := RequestCache.get(event.Name); ok && cacheEvent.scope == scope && cacheEvent.cmdline == cmdline {
-		if event.Time.Sub(cacheEvent.time) < time.Millisecond*100 {
+	if cacheEvent, ok := RequestScopeCmdlineCache.get(hash); ok {
+		if event.Time.Sub(cacheEvent.time) < time.Millisecond*500 {
 			if cacheEvent.count+1 >= cacheEvent.threshold {
 				// 更新缓存的计数
 				cacheEvent.threshold *= 2
 				cacheEvent.count += 1
-				RequestCache.set(event.Name, cacheEvent)
+				RequestScopeCmdlineCache.set(hash, cacheEvent)
 				return false
 			} else {
 				cacheEvent.count += 1
-				RequestCache.set(event.Name, cacheEvent)
+				RequestScopeCmdlineCache.set(hash, cacheEvent)
 				return true
 			}
 		}
@@ -456,6 +485,98 @@ func checkSimilar(event Event) bool {
 		threshold: 2,
 		count:     1,
 	}
-	RequestCache.set(event.Name, req)
+	RequestScopeCmdlineCache.set(hash, req)
+	return false
+}
+
+func checkRegexLimit(e *Engine, event Event) bool {
+	// 1. 检查cmdline是否超过300字符
+	outputFields, ok := event.Payload["output_fields"].(map[string]interface{})
+	if !ok {
+		// 后面会处理失败，这里不管
+		return false
+	}
+	cmdline, ok := outputFields["proc_cmdline"].(string)
+	envShortestCmdline := os.Getenv("REGEX_SHORTEST_CMDLINE")
+	shortestCmdline, err := strconv.Atoi(envShortestCmdline)
+	if err != nil {
+		shortestCmdline = 300
+	}
+	if !ok || len(cmdline) < shortestCmdline {
+		return false
+	}
+
+	// 2. 检查event所需steps中是否有正则匹配
+	rules, ok := e.Rules(e.GetActiveRulesVersion(), event.Name)
+	if !ok {
+		// 后面会报错退出，这里不管
+		return false
+	}
+
+	hasRegex := false
+	for _, v := range rules.rulesWithDefault {
+		if hasRegexStep(v.rules) {
+			hasRegex = true
+			break
+		}
+	}
+	if !hasRegex {
+		hasRegex = hasRegexStep(rules.otherRules)
+	}
+
+	if !hasRegex {
+		return false
+	}
+
+	// 3. 超过最大长度，直接不处理
+	envLongestCmdline := os.Getenv("REGEX_LONGEST_CMDLINE")
+	longestCmdline, err := strconv.Atoi(envLongestCmdline)
+	if err != nil {
+		longestCmdline = 1000
+	}
+	if len(cmdline) > longestCmdline {
+		return true
+	}
+
+	// 检查缓存
+	key := "RequestRegexLimitCheck"
+	envRegexFreqWin := os.Getenv("REGEX_FREQ_WIN")
+	regexFreqWin, err := strconv.Atoi(envRegexFreqWin)
+	if err != nil {
+		regexFreqWin = 1000
+	}
+	if cacheValue, ok := RequestRegexCache.get(key); ok {
+		if event.Time.Sub(cacheValue.time) < time.Millisecond*time.Duration(regexFreqWin) {
+			if cacheValue.count+1 >= cacheValue.threshold {
+				// 更新缓存的计数
+				cacheValue.threshold *= 1
+				cacheValue.count += 1
+				RequestRegexCache.set(key, cacheValue)
+				return false
+			} else {
+				cacheValue.count += 1
+				RequestRegexCache.set(key, cacheValue)
+				return true
+			}
+		}
+	}
+	// 更新缓存
+	req := requestMozart{
+		time:      event.Time,
+		threshold: math.MaxInt,
+		count:     1,
+	}
+	RequestRegexCache.set(key, req)
+	return false
+}
+
+func hasRegexStep(rules []Rule) bool {
+	for _, rule := range rules {
+		for _, step := range rule.Steps {
+			if step.Name == "checkRegexMatch" {
+				return true
+			}
+		}
+	}
 	return false
 }

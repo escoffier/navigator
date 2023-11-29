@@ -1,3 +1,7 @@
+// Package mozart
+// hangup 的功能是将一个任务暂时挂起，等到任务上的再次执行时间再重新执行
+// 具体场景是mozart的某些步骤会判断x秒内是否发生过什么事，一直阻塞等待x秒并不合理，这里采取先挂起，x秒后重新来检查的方式
+
 package mozart
 
 import (

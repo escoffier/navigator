@@ -8,7 +8,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/sdk/palace"
 )
 
-type option func(co *depOption)
+type Option func(co *depOption)
 
 type depOption struct {
 	palace *palace.Palace
@@ -17,25 +17,25 @@ type depOption struct {
 	redis  *redis.Client
 }
 
-func SetPalace(p *palace.Palace) option {
+func SetPalace(p *palace.Palace) Option {
 	return func(do *depOption) {
 		do.palace = p
 	}
 }
 
-func SetClusterManager(cm *k8s.ClusterInfoManager) option {
+func SetClusterManager(cm *k8s.ClusterInfoManager) Option {
 	return func(do *depOption) {
 		do.cm = cm
 	}
 }
 
-func SetPrInfo(p *nodeinfo.PodResInfo) option {
+func SetPrInfo(p *nodeinfo.PodResInfo) Option {
 	return func(do *depOption) {
 		do.prInfo = p
 	}
 }
 
-func SetRedis(r *redis.Client) option {
+func SetRedis(r *redis.Client) Option {
 	return func(do *depOption) {
 		do.redis = r
 	}

@@ -408,6 +408,7 @@ func (e *Engine) CheckRegexMatch(x rego.BuiltinContext, a, b *ast.Term) (*ast.Te
 		return ast.BooleanTerm(false), err
 	}
 	if err == nil {
+		logging.Get().Debug().Str("cacheKey", cacheKey).Msg("MOZART_DEBUG - regex hit cache")
 		return ast.BooleanTerm(result == "1"), nil
 	}
 
@@ -419,6 +420,7 @@ func (e *Engine) CheckRegexMatch(x rego.BuiltinContext, a, b *ast.Term) (*ast.Te
 		logging.Get().Error().Err(err).Str("pattern", pattern).Str("key", key).Msg(err.Error())
 		return ast.BooleanTerm(false), err
 	}
+	logging.Get().Debug().Str("cacheKey", cacheKey).Msg("MOZART_DEBUG - regex run match")
 	matched, err := re.MatchString(key)
 	if err != nil {
 		logging.Get().Error().Err(err).Str("pattern", pattern).Str("key", key).Msg(err.Error())

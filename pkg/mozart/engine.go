@@ -78,7 +78,7 @@ type Engine struct {
 	deps depOption
 }
 
-func NewMozartEngine(ctx context.Context, options ...option) (*Engine, error) {
+func NewMozartEngine(ctx context.Context, options ...Option) (*Engine, error) {
 
 	cache = cacheStruct{
 		Lock:     sync.Mutex{},
@@ -113,7 +113,7 @@ func NewMozartEngine(ctx context.Context, options ...option) (*Engine, error) {
 
 	regoPreQueries.init()
 
-	RequestCache.init()
+	requestCacheInit()
 
 	initHangupQueue(e)
 
@@ -357,8 +357,13 @@ func (e *Engine) Run(event Event) error {
 	logging.Get().Debug().Int("pool free", e.pool.Free()).Int("pool running", e.pool.Running()).Int("pool waiting", e.pool.Waiting()).Msg("MOZART_DEBUG - pool")
 	logging.Get().Debug().Str("input falco", event.Name).Msg("MOZART_DEBUG - input falco")
 
-	if ok := checkSimilar(event); ok {
+	if ok := checkScopeCmdlineSimilar(event); ok {
 		logging.Get().Debug().Str("input falco", event.Name).Msg("MOZART_DEBUG - omit similar falco")
+		return nil
+	}
+
+	if ok := checkRegexLimit(e, event); ok {
+		logging.Get().Debug().Str("input falco", event.Name).Msg("MOZART_DEBUG - omit regex falco")
 		return nil
 	}
 
