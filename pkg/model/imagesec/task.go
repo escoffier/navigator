@@ -260,6 +260,12 @@ func (vi *ImageScanSubTask) Serialize() {
 
 func (vi *ImageScanSubTask) Deserialize() {
 
+	// 任务发送到节点或扫描器才能算任务已开始，所以就会有部分情况导致任务失败，但是没有开始时间
+	// 比如：任务未发送到节点，任务对应的镜像已清理等
+	// 这里取个巧，认为任务是在5秒前开始的，这样页面上计算扫描用时就不会有错
+	if vi.FinishedAt > 0 && vi.StartedAt == 0 {
+		vi.StartedAt = vi.FinishedAt - 5*1000
+	}
 }
 
 func (vi *ImageScanSubTask) ToApiView() {
