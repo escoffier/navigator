@@ -387,6 +387,14 @@ func NewScanImageQueue(
 		),
 	}
 
+	if global2.ScannerOpts.ParallelTaskNum > 0 {
+		nodeQueue.maxProgressTask = int64(global2.ScannerOpts.ParallelTaskNum)
+	}
+
+	if global2.ScannerOpts.ParallelSubTaskNum > 0 {
+		nodeQueue.maxProgressSubtaskPerNode = int64(global2.ScannerOpts.ParallelSubTaskNum)
+	}
+
 	cnt1, err := strconv.ParseInt(os.Getenv("MAX_PROGRESS_TASK"), 10, 64)
 	if err == nil && cnt1 > 0 {
 		nodeQueue.maxProgressTask = cnt1

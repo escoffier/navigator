@@ -13,6 +13,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/types"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -444,6 +445,13 @@ func NewScanLibImageQueue(
 			scannerUtils.WithSubModule("RegImageScanQueue"),
 			scannerUtils.WithModule(consts.ModuleImageScan),
 		),
+	}
+	if global.ScannerOpts.ParallelTaskNum > 0 {
+		nodeQueue.maxProgressTask = int64(global.ScannerOpts.ParallelTaskNum)
+	}
+
+	if global.ScannerOpts.ParallelSubTaskNum > 0 {
+		nodeQueue.maxProgressSubtaskPerNode = int64(global.ScannerOpts.ParallelSubTaskNum)
 	}
 
 	cnt1, err := strconv.ParseInt(os.Getenv("MAX_PROGRESS_TASK"), 10, 64)

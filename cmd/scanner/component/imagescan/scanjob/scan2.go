@@ -25,9 +25,8 @@ import (
 func (s *RegImageScan) PrepareScan(ctx context.Context, ta imagesecTypes.ScanSubTask) (*types.PrepareScan, error) {
 
 	res := &types.PrepareScan{
-		Subtask:      ta,
-		Layers:       make([]types.ImageLayer, 0),
-		ImageRootDir: s.ScanP.GenRootDir(ctx, ta),
+		Subtask: ta,
+		Layers:  make([]types.ImageLayer, 0),
 		Image: imagesecModel.Image{
 			UniqueID:  ta.RegImageMeta.UniqueID,
 			Host:      ta.RegImageMeta.Host,
@@ -40,6 +39,14 @@ func (s *RegImageScan) PrepareScan(ctx context.Context, ta imagesecTypes.ScanSub
 		LayerFile:     make(map[string][]string),
 		Errs:          make([]error, 0),
 	}
+
+	subtaskRootPath, err := s.ScanP.GenRootDir(ctx, ta)
+	if err != nil {
+		s.Log.Err(err).Str("subtask", ta.LogStr()).Msg("GenRootDir")
+		return res, err
+	}
+	res.ImageRootDir = subtaskRootPath
+
 	layers, err := s.ScanP.PullImage(ctx, ta, res)
 	if err != nil {
 		logging.Get().Err(err).Str("module", "imagescan").Interface("image", ta.RegImageMeta).Msg("PrepareScan")
@@ -183,7 +190,7 @@ func (s *RegImageScan) AviraSrv(ctx context.Context, prepare *types.PrepareScan)
 				continue
 			}
 			// FIXME 不够优雅
-			prefix := filepath.Join(s.ScanP.GenRootDir(ctx, prepare.Subtask), GetSimDigest(dig))
+			prefix := filepath.Join(s.ScanP.GenDataRootDir(ctx, prepare.ImageRootDir), GetSimDigest(dig))
 
 			for j := range malware {
 				ma := malware[j]
@@ -360,6 +367,7 @@ func (s *RegImageScan) CleanUpScan(ctx context.Context, pre *types.PrepareScan) 
 		s.Log.Err(err).Str("ImageRootDir", pre.ImageRootDir).Msg("not clean up scan data")
 		return err
 	}
+	s.Log.Info().Str("ImageRootDir", pre.ImageRootDir).Msg("clean up scan data")
 	return nil
 }
 
