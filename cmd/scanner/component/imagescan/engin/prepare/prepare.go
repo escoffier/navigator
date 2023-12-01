@@ -45,14 +45,22 @@ func NewPrepareImageScan() *ScanPrepare {
 	return s
 }
 
-func (s *ScanPrepare) GenTarDir(ctx context.Context, subtask imagesecTypes.ScanSubTask) string {
-	tarPath := filepath.Join(s.RootPath, fmt.Sprintf("%d", subtask.SubTaskID), s.ImageTarDirName)
+func (s *ScanPrepare) GenTarDir(ctx context.Context, sbRootPath string) string {
+	tarPath := filepath.Join(sbRootPath, s.ImageTarDirName)
 	return tarPath
 }
 
-func (s *ScanPrepare) GenRootDir(ctx context.Context, subtask imagesecTypes.ScanSubTask) string {
+func (s *ScanPrepare) GenRootDir(ctx context.Context, subtask imagesecTypes.ScanSubTask) (string, error) {
+	temp, err := os.MkdirTemp("", fmt.Sprintf("%d-*", subtask.SubTaskID))
+	if err != nil {
+		return "", err
+	}
+	return temp, nil
+}
+
+func (s *ScanPrepare) GenDataRootDir(ctx context.Context, sbRootPath string) string {
 	// 每次任务的 ID 是不一样的，且只有失败的任务才可以重试,所以才不会有误删除情况
-	rootDir := filepath.Join(s.RootPath, fmt.Sprintf("%d", subtask.SubTaskID), s.ImageDataDirName)
+	rootDir := filepath.Join(sbRootPath, s.ImageDataDirName)
 	return rootDir
 }
 
@@ -62,8 +70,8 @@ func (s *ScanPrepare) PrepareFile(ctx context.Context, subtask imagesecTypes.Sca
 		return nil
 	}
 
-	tarPath := s.GenTarDir(ctx, subtask)
-	rootDir := s.GenRootDir(ctx, subtask)
+	tarPath := s.GenTarDir(ctx, res.ImageRootDir)
+	rootDir := s.GenDataRootDir(ctx, res.ImageRootDir)
 
 	if err := os.MkdirAll(tarPath, os.ModeDir); err != nil {
 		return err
