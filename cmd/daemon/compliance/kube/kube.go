@@ -115,8 +115,9 @@ func (k *Kube) InitConfig() error {
 	k.chroot = k.v.GetString("chroot")
 	if k.chroot != "" {
 		nc = func() *exec.Cmd {
-			ctx, _ := context.WithTimeout(context.Background(), time.Minute*5)
+			ctx, _ := context.WithTimeout(context.Background(), time.Minute*3)
 			cmd := exec.CommandContext(ctx, "sh")
+			cmd.WaitDelay = time.Second
 			cmd.Dir = "/"
 			cmd.SysProcAttr = &syscall.SysProcAttr{Chroot: k.chroot}
 			return cmd

@@ -2,6 +2,7 @@ package host
 
 import (
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -80,8 +81,9 @@ func getBootLoader() (boot string, err error) {
 }
 
 func getSystemLogManager() (syslog string, err error) {
-	out, err := check.RunCommandWithOutput(nc, "sudo lsof +D /var/log | grep /var/log/syslog | cut -f1 -d' '")
+	out, err := check.RunCommandWithOutput(nc, "ulimit -n 1024 && lsof +D /var/log | grep /var/log/syslog | cut -f1 -d' '")
 	if err != nil {
+		os.Environ()
 		out, err = check.RunCommandWithOutput(nc, "service rsyslog status")
 		if err != nil {
 			return "", err
