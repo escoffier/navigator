@@ -79,7 +79,7 @@ func (pr *PodResInfo) OnUpdate(oldPod, newPod *corev1.Pod) {
 	var owner *Resource = &Resource{}
 	owner.Name, owner.Kind = util.GetOwnerOfPod(newPod)
 	key, _ := cache.MetaNamespaceKeyFunc(newPod)
-	pr.data.Store(key, &owner)
+	pr.data.Store(key, owner)
 
 	logging.Get().Debug().Msgf("raw-container - update pod: %s/%s owner: %s/%s", newPod.Namespace, newPod.Name, owner.Kind, owner.Name)
 	for _, status := range newPod.Status.ContainerStatuses {
