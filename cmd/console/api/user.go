@@ -320,8 +320,8 @@ func (api *api) resetPassword() http.HandlerFunc {
 
 func (api *api) userEnable() http.HandlerFunc {
 	type userEnableReq struct {
-		Username string `json:"username"`
-		Enable   bool   `json:"enable"`
+		Usernames []string `json:"usernames"`
+		Enable    bool     `json:"enable"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -345,7 +345,7 @@ func (api *api) userEnable() http.HandlerFunc {
 			return
 		}
 
-		if req.Username == "" {
+		if len(req.Usernames) == 0 {
 			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("params illegal")))
@@ -359,7 +359,7 @@ func (api *api) userEnable() http.HandlerFunc {
 			oldStatus = model.UserStatusNormal
 		}
 		err = api.rdb.Get().WithContext(ctx).Model(&model.User{}).
-			Where("username = ? AND status = ?", req.Username, oldStatus).
+			Where("username IN ? AND status = ?", req.Usernames, oldStatus).
 			UpdateColumn("status", status).Error
 		if err != nil {
 			RespAndLog(w, ctx,
@@ -368,7 +368,7 @@ func (api *api) userEnable() http.HandlerFunc {
 		}
 
 		response.Ok(w, response.WithTarget(&response.TargetRef{
-			Name: fmt.Sprintf("%s/%v", req.Username, req.Enable),
+			Name: fmt.Sprintf("%s/%v", strings.Join(req.Usernames, ","), req.Enable),
 			ID:   "",
 			Link: "",
 		}))
@@ -667,6 +667,10 @@ func (api *api) getProfile() http.HandlerFunc {
 		if !has {
 			RespAndLog(w, ctx, NewInvalidAuthToken(http.StatusUnauthorized, fmt.Errorf("username is not found")))
 			return
+		}
+
+		if u.Status != model.UserStatusNormal {
+			u.ModuleID = "[]"
 		}
 
 		response.Ok(w, response.WithItem(&getProfileResp{

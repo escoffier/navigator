@@ -179,12 +179,7 @@ func FromCMUser(cm CMUser) (*model.User, error) {
 		Platform:  CMUserPlatform,
 		CreatedAt: time.Now().Unix(),
 		Creator:   "system",
-	}
-	if cm.Status == 0 {
-		user.Status = model.UserStatusNormal
-	}
-	if cm.Status == 1 {
-		user.Status = model.UserStatusDisabled
+		Status:    model.UserStatusDisabled,
 	}
 
 	if cm.CreateTime != "" {
@@ -355,18 +350,8 @@ func (s *CMUserService) handleCMUserMsg(ctx context.Context, data []byte) error 
 	case CMUserDelete:
 		return s.deleteUser(mctx, msg.User.UserName)
 	case CMUserChangeStatus:
-		var status int
-		if msg.User.Status == 0 {
-			status = model.UserStatusNormal
-		}
-		if msg.User.Status == 1 {
-			status = model.UserStatusDisabled
-		}
-		return s.setUserStatus(mctx, msg.User.UserName, status)
 	case CMUserChange:
-		return s.upsertUser(mctx, msg.User)
 	case CMUserResetPassword:
-		return s.setUserPassword(mctx, msg.User.UserName, msg.User.Password)
 	}
 	return nil
 }
@@ -389,7 +374,7 @@ func (s *CMUserService) upsertUsers(ctx context.Context, users []CMUser) error {
 
 			err = tx.Model(model).Clauses(clause.OnConflict{
 				Columns:   []clause.Column{{Name: "username"}},
-				DoUpdates: clause.AssignmentColumns([]string{"pwd", "rule", "status", "module_id"}),
+				UpdateAll: false,
 			}).Create(user).Error
 			if err != nil {
 				return err
@@ -420,7 +405,7 @@ func (s *CMUserService) upsertUser(ctx context.Context, cm CMUser) error {
 
 	err = s.rdb.Get().WithContext(ctx).Model(user).Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "username"}},
-		DoUpdates: clause.AssignmentColumns([]string{"pwd", "rule", "status", "module_id"}),
+		UpdateAll: false,
 	}).Create(user).Error
 	if err != nil {
 		logging.Get().Error().Err(err).Msg("")
@@ -436,17 +421,6 @@ func (s *CMUserService) upsertUser(ctx context.Context, cm CMUser) error {
 
 func (s *CMUserService) deleteUser(ctx context.Context, username string) error {
 	return s.rdb.Get().WithContext(ctx).Model(&model.User{}).Where("username = ?", username).Delete(&model.User{}).Error
-}
-
-func (s *CMUserService) setUserStatus(ctx context.Context, username string, status int) error {
-	return s.rdb.Get().WithContext(ctx).Model(&model.User{}).Where("username = ?", username).Update("status", status).Error
-}
-
-func (s *CMUserService) setUserPassword(ctx context.Context, username string, password string) error {
-	return s.rdb.Get().WithContext(ctx).Model(&model.User{}).Where("username = ?", username).Updates(map[string]interface{}{
-		"pwd":                password,
-		"last_change_pwd_at": time.Now().UnixMilli(),
-	}).Error
 }
 
 func (s *CMUserService) getDefaultAuth(ctx context.Context) (string, error) {
@@ -507,7 +481,7 @@ func (s *CMUserService) Authenticate(ctx context.Context, claims jwt.MapClaims) 
 	}
 
 	if user.Status != model.UserStatusNormal {
-		return nil, errors.New(fmt.Sprintf("user %s status unauthorized", u.UserName))
+		user.ModuleID = "[]"
 	}
 
 	return user, nil
