@@ -2565,13 +2565,14 @@ func (api *api) getRawContainer() http.HandlerFunc {
 			//return
 		}
 		containerID := chi.URLParam(r, "containerID")
+		containerIdIsPrefix := len(containerID) == 12
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
 			logging.Get().Error().Msg("service instance get error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
-		contain, err := resSvc.GetRawContainerWithFramework(ctx, clusterKey, containerID)
+		contain, err := resSvc.GetRawContainerWithFramework(ctx, clusterKey, containerID, containerIdIsPrefix)
 		if err != nil {
 			logging.Get().Err(err).Msgf("get raw container error.")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))

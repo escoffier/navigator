@@ -1140,12 +1140,16 @@ func (rl *TensorResourcesService) ListRawContainerWithFramework(ctx context.Cont
 	return containers, cnt, nil
 }
 
-func (rl *TensorResourcesService) GetRawContainerWithFramework(ctx context.Context, clusterKey string, rawContainerId string) (*dal.RawContainerWithFrameworkStr, error) {
+func (rl *TensorResourcesService) GetRawContainerWithFramework(ctx context.Context, clusterKey string, rawContainerId string, containerIdIsPrefix bool) (*dal.RawContainerWithFrameworkStr, error) {
 	query := dal.RawContainersWithFrameworkQuery()
 	if rawContainerId == "" {
 		return nil, errors.New("rawContainerId is empty.")
 	}
-	query.WithID(rawContainerId)
+	if !containerIdIsPrefix {
+		query.WithID(rawContainerId)
+	} else {
+		query.WithPrefixID(rawContainerId)
+	}
 	if clusterKey != "" {
 		query.WithCluster(clusterKey)
 	}
