@@ -250,6 +250,12 @@ func SelectUser(ctx context.Context, rdb *gorm.DB, userName string) (bool, *mode
 	return true, &queryUser, nil
 }
 
+func FindUserList(ctx context.Context, rdb *gorm.DB, usernames []string) ([]*model.User, error) {
+	users := make([]*model.User, 0)
+	err := rdb.WithContext(ctx).Where("username IN ?", usernames).Find(&users).Error
+	return users, err
+}
+
 type UserNameAccount struct {
 	UserName string `gorm:"column:username" json:"userName"`
 	Account  string `gorm:"column:account" json:"account"`
