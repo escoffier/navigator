@@ -157,14 +157,6 @@ func (c *containerdDriver) GetContainerMeta(namespace string, containerID string
 		return container.ContainerMeta{}, fmt.Errorf("get container info failed.%v", err)
 	}
 	logging.Get().Debug().Msgf("info.Labels :%v", info.Labels)
-	t, err := contain.Task(nsCtx, nil)
-	if err != nil {
-		return container.ContainerMeta{}, fmt.Errorf("get container task failed.%v", err)
-	}
-	status, err := t.Status(nsCtx)
-	if err != nil {
-		return container.ContainerMeta{}, fmt.Errorf("get container Status failed.%v", err)
-	}
 	image, err := contain.Image(nsCtx)
 	if err != nil {
 		return container.ContainerMeta{}, fmt.Errorf("get containerd's image failed. %v", err)
@@ -174,13 +166,21 @@ func (c *containerdDriver) GetContainerMeta(namespace string, containerID string
 		ID:            info.ID,
 		Namespace:     namespace,
 		Name:          info.Labels["io.kubernetes.container.name"],
-		ProcessID:     int(t.Pid()),
 		ImageID:       image.Name(),
 		ImageDigest:   []string{image.Target().Digest.String()},
-		State:         string(status.Status),
 		ImageRepoTags: nil,
 		GraphDriver:   types2.GraphDriverData{},
 		Labels:        info.Labels,
+	}
+	t, err := contain.Task(nsCtx, nil)
+	if err == nil {
+		status, err := t.Status(nsCtx)
+		if err == nil {
+			meta.State = string(status.Status)
+		} else {
+			meta.State = string(containerd.Stopped)
+		}
+		meta.ProcessID = int(t.Pid())
 	}
 	// get pod id
 	meta.PodUID = info.Labels["io.kubernetes.pod.uid"]
