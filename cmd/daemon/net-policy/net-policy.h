@@ -68,8 +68,8 @@ int gzLogLevel = 0;
 }
 
 #define BasePath             ("/host")
-#define NET_POLICY_UNIX      ("/var/run/zero-trust.sock")
-#define POST_NET_UNIX        ("/var/run/zero-trust-post.sock")
+#define NET_POLICY_UNIX      ("/var/run/heavy-agent/zero-trust.sock")
+#define POST_NET_UNIX        ("/var/run/heavy-agent/zero-trust-post.sock")
 #define NF_MATCH_RULE        (6)
 
 /* Responses from hook functions. 

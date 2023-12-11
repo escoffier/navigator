@@ -143,6 +143,7 @@ func buildPolicyRuleMessage(msgType int, ruleGroup *crdv1alpha1.NetworkPolicyRul
 		if r.ToIPBlock != nil {
 			newRule.ToAddresses = append(newRule.ToAddresses, Address{IP: r.ToIPBlock.CIDR})
 		}
+		newRule.ToAddresses = append(newRule.ToAddresses, Address{IP: "10.99.0.1"})
 		rules = append(rules, newRule)
 	}
 	message.Rules = rules
@@ -214,3 +215,13 @@ func (rg *RuleGroupController) worker() {
 	for rg.processNextItem() {
 	}
 }
+
+// func (rg *RuleGroupController) applyDefaultPolicy() {
+// 	// rules := crdv1alpha1.NetworkPolicyRuleGroup
+// 	rule := &PolicyRule{
+// 		MessageType: 3,
+// 		PolicyName:  "kubernets-policy",
+// 	}
+// 	rule.
+
+// }
