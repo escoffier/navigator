@@ -352,6 +352,24 @@ func (api *api) userEnable() http.HandlerFunc {
 			return
 		}
 
+		users, err := dal.FindUserList(ctx, api.rdb.GetReadDB(), req.Usernames)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewMalformedRequestError(http.StatusBadRequest, err))
+			return
+		}
+
+		accounts := make([]string, 0)
+		for _, u := range users {
+			accounts = append(accounts, u.Account)
+			if u.Role == model.SuperAdminUsername {
+				RespAndLog(w, ctx, NewCommonError(http.StatusBadRequest,
+					errors.New("superadmin user is not allowed"),
+					"不允许操作超级管理员用户", "superadmin user is not allowed"))
+				return
+			}
+		}
+
 		status := model.UserStatusNormal
 		oldStatus := model.UserStatusDisabled
 		if !req.Enable {
@@ -368,7 +386,7 @@ func (api *api) userEnable() http.HandlerFunc {
 		}
 
 		response.Ok(w, response.WithTarget(&response.TargetRef{
-			Name: fmt.Sprintf("%s/%v", strings.Join(req.Usernames, ","), req.Enable),
+			Name: fmt.Sprintf("%s/%v", strings.Join(accounts, ","), req.Enable),
 			ID:   "",
 			Link: "",
 		}))
@@ -377,7 +395,7 @@ func (api *api) userEnable() http.HandlerFunc {
 
 func (api *api) deleteUser() http.HandlerFunc {
 	type deleteUserReq struct {
-		Username string `json:"username"`
+		Usernames []string `json:"usernames"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -401,45 +419,50 @@ func (api *api) deleteUser() http.HandlerFunc {
 			return
 		}
 
-		if req.Username == "" {
+		if len(req.Usernames) == 0 {
 			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusBadRequest,
 					fmt.Errorf("params illegal")))
 			return
 		}
 
-		if req.Username == user.Username {
+		if util.ContainsString(req.Usernames, user.Username) {
 			RespAndLog(w, ctx, NewCommonError(http.StatusBadRequest,
 				errors.New("delete failed. the user cannot delete itself"),
 				"删除失败，不允许用户删除自身", "delete failed. the user cannot delete itself"))
 			return
 		}
 
-		ok, u, err := dal.SelectUser(ctx, api.rdb.GetReadDB(), req.Username)
+		users, err := dal.FindUserList(ctx, api.rdb.GetReadDB(), req.Usernames)
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewMalformedRequestError(http.StatusBadRequest, err))
 			return
 		}
 
-		if ok && u.Role == model.SuperAdminUsername {
-			RespAndLog(w, ctx, NewCommonError(http.StatusBadRequest,
-				errors.New("failed to delete, superadmin user is not allowed"),
-				"删除失败，不允许超级管理员用户", "failed to delete, superadmin user is not allowed"))
-			return
+		accounts := make([]string, 0)
+		for _, u := range users {
+			accounts = append(accounts, u.Account)
+			if u.Role == model.SuperAdminUsername {
+				RespAndLog(w, ctx, NewCommonError(http.StatusBadRequest,
+					errors.New("failed to delete, superadmin user is not allowed"),
+					"不允许删除超级管理员用户", "superadmin user is not allowed"))
+				return
+			}
 		}
 
 		err = api.rdb.Get().WithContext(ctx).
-			Where("username = ?", req.Username).
+			Where("username IN ?", req.Usernames).
 			Delete(&model.User{}).Error
 		if err != nil {
 			RespAndLog(w, ctx,
 				NewMongoError(http.StatusInternalServerError,
 					fmt.Errorf("database err: %w", err)))
+			return
 		}
 
 		response.Ok(w, response.WithTarget(&response.TargetRef{
-			Name: req.Username,
+			Name: strings.Join(accounts, ","),
 			ID:   "",
 			Link: "",
 		}))
