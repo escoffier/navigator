@@ -3090,17 +3090,19 @@ type colMultiQuery struct {
 }
 
 type RawContainersQueryOption struct {
-	whereEqCondition  map[string]interface{}
-	whereInCondition  map[string]interface{}
-	columnQuery       colQuery
-	columnQueries     []colMultiQuery
-	prefixColumnQuery colQuery
+	whereEqCondition     map[string]interface{}
+	whereInCondition     map[string]interface{}
+	wherePrefixCondition map[string]string
+	columnQuery          colQuery
+	columnQueries        []colMultiQuery
+	prefixColumnQuery    colQuery
 }
 
 func RawContainersQuery() *RawContainersQueryOption {
 	return &RawContainersQueryOption{
-		whereEqCondition: make(map[string]interface{}, 3),
-		whereInCondition: make(map[string]interface{}, 3),
+		whereEqCondition:     make(map[string]interface{}, 3),
+		whereInCondition:     make(map[string]interface{}, 3),
+		wherePrefixCondition: make(map[string]string),
 	}
 }
 
@@ -3135,6 +3137,10 @@ func (q *RawContainersQueryOption) WithContainerName(ns string) *RawContainersQu
 
 func (q *RawContainersQueryOption) WithID(ns string) *RawContainersQueryOption {
 	q.whereEqCondition["id"] = ns
+	return q
+}
+func (q *RawContainersQueryOption) WithPrefixID(id string) *RawContainersQueryOption {
+	q.wherePrefixCondition["id"] = id
 	return q
 }
 
@@ -3610,6 +3616,11 @@ func GetRawContainersWithFramework(ctx context.Context, rdb *gorm.DB, queryOptio
 			db = db.Where(fmt.Sprintf("%s in ?", column), val)
 		}
 	}
+
+	for k, v := range queryOptions.wherePrefixCondition {
+		db = db.Where(fmt.Sprintf("%s like '%s%%'", k, v))
+	}
+
 	if len(queryOptions.columnQuery.column) > 0 && len(queryOptions.columnQuery.query) > 0 {
 		db = db.Where(fmt.Sprintf("%s LIKE ?", queryOptions.columnQuery.column), GetLikeExpr(queryOptions.columnQuery.query))
 	}
