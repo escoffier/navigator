@@ -3,8 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo/handler"
-	svcdiscovery "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo/svc-discovery"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -14,6 +12,9 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo/handler"
+	svcdiscovery "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo/svc-discovery"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -376,12 +377,12 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 	var policyClient, policyEventClient microseg.PolicyClient
 
 	if microsegv2 {
-		policyClient, err = microseg.NewPolicyClient("/var/run/zero-trust.sock")
+		policyClient, err = microseg.NewPolicyClient("/var/run/heavy-agent/zero-trust.sock")
 		if err != nil {
 			return err
 		}
 
-		policyEventClient, err = microseg.NewPolicyClient("/var/run/zero-trust-post.sock")
+		policyEventClient, err = microseg.NewPolicyClient("/var/run/heavy-agent/zero-trust-post.sock")
 		if err != nil {
 			return err
 		}
