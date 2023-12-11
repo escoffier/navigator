@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io/fs"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -377,14 +378,31 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 	var policyClient, policyEventClient microseg.PolicyClient
 
 	if microsegv2 {
-		policyClient, err = microseg.NewPolicyClient("/var/run/heavy-agent/zero-trust.sock")
+		pathExists := false
+		_, err = os.Stat("/var/run/heavy-agent")
 		if err != nil {
-			return err
+			if os.IsNotExist(err) {
+				err = os.Mkdir("/var/run/heavy-agent", fs.ModeDir)
+				if err != nil {
+					logging.Get().Err(err).Msg("create dir: /var/run/heavy-agent/")
+				} else {
+					pathExists = true
+				}
+			}
+		} else {
+			pathExists = true
 		}
 
-		policyEventClient, err = microseg.NewPolicyClient("/var/run/heavy-agent/zero-trust-post.sock")
-		if err != nil {
-			return err
+		if pathExists {
+			policyClient, err = microseg.NewPolicyClient("/var/run/heavy-agent/zero-trust.sock")
+			if err != nil {
+				return err
+			}
+
+			policyEventClient, err = microseg.NewPolicyClient("/var/run/heavy-agent/zero-trust-post.sock")
+			if err != nil {
+				return err
+			}
 		}
 	}
 
