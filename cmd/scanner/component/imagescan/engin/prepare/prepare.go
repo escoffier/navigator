@@ -21,6 +21,7 @@ import (
 )
 
 type ScanPrepare struct {
+	ScanCachePath    string
 	CacheLayerPath   string
 	RootPath         string
 	TarFilename      string //  "layer.tar"
@@ -29,13 +30,14 @@ type ScanPrepare struct {
 	Log              *scannerUtils.LogEvent
 }
 
-func NewPrepareImageScan() *ScanPrepare {
+func NewPrepareImageScan(scanCachePath string) *ScanPrepare {
 	s := &ScanPrepare{
 		CacheLayerPath:   "/FileServerCache/layerManage/data/",
 		TarFilename:      "layer.tar",
 		RootPath:         "/Imagescan/",
 		ImageTarDirName:  "tar",
 		ImageDataDirName: "data",
+		ScanCachePath:    scanCachePath,
 		Log: scannerUtils.NewLogEvent(
 			scannerUtils.WithSubModule("ScanPrepare"),
 			scannerUtils.WithModule(consts.ModuleImageScan),
@@ -51,11 +53,16 @@ func (s *ScanPrepare) GenTarDir(ctx context.Context, sbRootPath string) string {
 }
 
 func (s *ScanPrepare) GenRootDir(ctx context.Context, subtask imagesecTypes.ScanSubTask) (string, error) {
-	temp, err := os.MkdirTemp("", fmt.Sprintf("%d-*", subtask.SubTaskID))
+
+	// 每次任务的 ID 是不一样的，且只有失败的任务才可以重试,所以不会有误删除情况
+	dir := filepath.Join(s.ScanCachePath, fmt.Sprintf("%d", subtask.SubTaskID))
+
+	s.Log.Info().Str("taskRootPath", dir).Msg("genRootDir")
+	err := os.MkdirAll(dir, os.ModePerm)
 	if err != nil {
 		return "", err
 	}
-	return temp, nil
+	return dir, nil
 }
 
 func (s *ScanPrepare) GenDataRootDir(ctx context.Context, sbRootPath string) string {

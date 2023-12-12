@@ -151,6 +151,7 @@ func NewFileUploadSrv(
 	if n, err := strconv.Atoi(os.Getenv("FILE_EXPIRATION_PER_DAY")); err == nil && n > 0 {
 		s.FileExpirationDay = int64(n)
 	}
+	_ = os.MkdirAll(s.FileRootPath, os.ModePerm)
 
 	return s
 

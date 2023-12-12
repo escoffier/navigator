@@ -3,6 +3,9 @@ package scanjob
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -27,16 +30,18 @@ import (
 var registryImageScan *RegImageScan
 
 type RegImageScan struct {
+	ScanCachePath    string
 	MqWriter         mq.Writer
 	MaxSingeFileSize int64
 	ScanSubtaskChan  chan imagesecTypes.ScanSubTask
 	TaskQueue        *TaskQueue
 	// 主集群会控制下发任务的数量，但是各子集群的配置可能不一样，所以子集群也需要控制并发度
-	ScanEnginNum  chan int64
-	ScanP         *prepare.ScanPrepare
-	TrivyEngin    *scanTrivy.TrivyEngin
-	ImageCacheURL string
-	Log           *scannerUtils.LogEvent
+	ScanEnginNum          chan int64
+	ScanP                 *prepare.ScanPrepare
+	TrivyEngin            *scanTrivy.TrivyEngin
+	ImageCacheURL         string
+	CacheCleanPerInterval int64
+	Log                   *scannerUtils.LogEvent
 }
 
 // 增加超时控制
@@ -234,10 +239,11 @@ func NewRegistryImageScan(mqWriter mq.Writer, cli redis.Client) (*RegImageScan, 
 	// }
 
 	s := &RegImageScan{
-		MqWriter:        mqWriter,
-		ScanSubtaskChan: make(chan imagesecTypes.ScanSubTask, 1),
-		TaskQueue:       NewTaskQueue(),
-		ScanP:           prepare.NewPrepareImageScan(),
+		MqWriter:              mqWriter,
+		ScanCachePath:         filepath.Join(global.ScannerOpts.PvcPath, "scanImage"),
+		ScanSubtaskChan:       make(chan imagesecTypes.ScanSubTask, 1),
+		TaskQueue:             NewTaskQueue(),
+		CacheCleanPerInterval: 60 * 60,
 		// TrivyEngin:       trivyEngin,
 		ImageCacheURL:    "0.0.0.0:5566/",
 		MaxSingeFileSize: (1 << 20) * 10,
@@ -245,6 +251,13 @@ func NewRegistryImageScan(mqWriter mq.Writer, cli redis.Client) (*RegImageScan, 
 			scannerUtils.WithSubModule("regImageScan"),
 			scannerUtils.WithModule(consts.ModuleImageScan)),
 	}
+
+	s.ScanP = prepare.NewPrepareImageScan(s.ScanCachePath)
+
+	if global.ScannerOpts.CacheCleanPerInterval > 0 {
+		s.CacheCleanPerInterval = global.ScannerOpts.CacheCleanPerInterval
+	}
+
 	_ = s.DoScanImageTask(context.Background())
 
 	subtaskParallel := global.SubtaskParallel
@@ -260,6 +273,8 @@ func NewRegistryImageScan(mqWriter mq.Writer, cli redis.Client) (*RegImageScan, 
 	}
 
 	registryImageScan = s
+
+	registryImageScan.Monitor(context.Background())
 
 	return registryImageScan, nil
 }
@@ -437,3 +452,42 @@ func getWebshellLevel(n int) string {
 }
 
 type Param map[string]interface{}
+
+func (s *RegImageScan) Monitor(ctx context.Context) {
+	// 扫描过程可能因为各种各样的原因，导致异常退出而没有来的及清理临时文件
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				s.Log.Error().Str("Stack", string(debug.Stack())).Msg("Monitor")
+			}
+		}()
+		ticker := time.NewTicker(time.Minute * 10)
+		defer ticker.Stop()
+		for {
+			<-ticker.C
+			_ = s.cleanCacheFile(ctx)
+		}
+	}()
+
+}
+
+func (s *RegImageScan) cleanCacheFile(ctx context.Context) error {
+	dir, err := os.ReadDir(s.ScanCachePath)
+	if err != nil {
+		s.Log.Err(err).Str("ScanCachePath", s.ScanCachePath).Msg("cleanCacheFile")
+		return err
+	}
+	for _, fi := range dir {
+		info, err := fi.Info()
+		if err != nil {
+			continue
+		}
+		if time.Now().Unix()-info.ModTime().Unix() > s.CacheCleanPerInterval {
+			fn := filepath.Join(s.ScanCachePath, fi.Name())
+			s.Log.Info().Str("file", fn).Msg("cache file in scanned has expired and cleaned")
+			_ = os.RemoveAll(fn)
+		}
+	}
+	s.Log.Info().Str("ScanCachePath", s.ScanCachePath).Msg("clean cache file")
+	return nil
+}

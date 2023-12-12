@@ -12,48 +12,51 @@ import (
 var ScannerRunOpts ScannerOpts
 
 const (
-	httpListenAddr       = "http-listen-addr"
-	redisEndpoint        = "redis-endpoint"
-	parallelTaskNum      = "parallel-task-num"
-	parallelSubtaskNum   = "parallel-subtask-num"
-	logLevel             = "log-level"
-	webShellServerAddr   = "web-shell-server-addr"
-	imageCacheServerIP   = "image-cache-server-ip"
-	imageCacheServerPort = "image-cache-server-port"
-	pvcPath              = "pvc-path"
+	httpListenAddr        = "http-listen-addr"
+	redisEndpoint         = "redis-endpoint"
+	parallelTaskNum       = "parallel-task-num"
+	parallelSubtaskNum    = "parallel-subtask-num"
+	logLevel              = "log-level"
+	webShellServerAddr    = "web-shell-server-addr"
+	imageCacheServerIP    = "image-cache-server-ip"
+	imageCacheServerPort  = "image-cache-server-port"
+	pvcPath               = "pvc-path"
+	CacheCleanPerInterval = "cache-clean-interval"
 )
 
 var EnableLeaderElection bool
 
 // ScannerOpts the scanner options
 type ScannerOpts struct {
-	HTTPListenAddr       string
-	RedisEndpoint        string
-	RedisPassword        string
-	ParallelTaskNum      int
-	ParallelSubTaskNum   int
-	LogLevel             string
-	WebShellServerAddr   string
-	ImageCacheServerIP   string
-	ImageCacheServerPort int
-	PvcPath              string
-	ScanWebshellTimeout  int
+	HTTPListenAddr        string
+	RedisEndpoint         string
+	RedisPassword         string
+	ParallelTaskNum       int
+	ParallelSubTaskNum    int
+	LogLevel              string
+	WebShellServerAddr    string
+	ImageCacheServerIP    string
+	ImageCacheServerPort  int
+	PvcPath               string
+	ScanWebshellTimeout   int
+	CacheCleanPerInterval int64
 }
 
 // NewDefaultScannerOpts the new default clair options.
 func NewDefaultScannerOpts() *ScannerOpts {
 	return &ScannerOpts{
-		HTTPListenAddr:       ":8080",
-		RedisEndpoint:        "tensorsec-redis-ha-announce-0:26379,tensorsec-redis-ha-announce-1:26379,tensorsec-redis-ha-announce-2:26379",
-		RedisPassword:        "12345",
-		ParallelTaskNum:      2,
-		ParallelSubTaskNum:   2,
-		LogLevel:             "info",
-		WebShellServerAddr:   fmt.Sprintf("%s/v1/php/detector", "0.0.0.0:7777"),
-		ImageCacheServerIP:   "0.0.0.0",
-		ImageCacheServerPort: 9278,
-		PvcPath:              "/root/testdb",
-		ScanWebshellTimeout:  2 * 60, // 2分钟
+		HTTPListenAddr:        ":8080",
+		RedisEndpoint:         "tensorsec-redis-ha-announce-0:26379,tensorsec-redis-ha-announce-1:26379,tensorsec-redis-ha-announce-2:26379",
+		RedisPassword:         "12345",
+		ParallelTaskNum:       2,
+		ParallelSubTaskNum:    2,
+		LogLevel:              "info",
+		WebShellServerAddr:    fmt.Sprintf("%s/v1/php/detector", "0.0.0.0:7777"),
+		ImageCacheServerIP:    "0.0.0.0",
+		ImageCacheServerPort:  9278,
+		PvcPath:               "/root/testdb",
+		ScanWebshellTimeout:   2 * 60, // 2分钟
+		CacheCleanPerInterval: 60 * 60,
 	}
 }
 
@@ -67,17 +70,18 @@ func GetScannerOpts(cmd *cobra.Command) *ScannerOpts {
 	}
 
 	return &ScannerOpts{
-		HTTPListenAddr:       viper.GetString(httpListenAddr),
-		RedisEndpoint:        os.Getenv("REDIS_CLUSTER_URL"),
-		RedisPassword:        os.Getenv("REDIS_PASSWORD"),
-		ParallelTaskNum:      viper.GetInt(parallelTaskNum),
-		ParallelSubTaskNum:   viper.GetInt(parallelSubtaskNum),
-		LogLevel:             viper.GetString(logLevel),
-		WebShellServerAddr:   os.Getenv("WEBSHELL_SERVER_URL"),
-		ImageCacheServerIP:   viper.GetString(imageCacheServerIP),
-		ImageCacheServerPort: viper.GetInt(imageCacheServerPort),
-		PvcPath:              viper.GetString(pvcPath),
-		ScanWebshellTimeout:  timeSecond,
+		HTTPListenAddr:        viper.GetString(httpListenAddr),
+		RedisEndpoint:         os.Getenv("REDIS_CLUSTER_URL"),
+		RedisPassword:         os.Getenv("REDIS_PASSWORD"),
+		ParallelTaskNum:       viper.GetInt(parallelTaskNum),
+		ParallelSubTaskNum:    viper.GetInt(parallelSubtaskNum),
+		LogLevel:              viper.GetString(logLevel),
+		WebShellServerAddr:    os.Getenv("WEBSHELL_SERVER_URL"),
+		ImageCacheServerIP:    viper.GetString(imageCacheServerIP),
+		ImageCacheServerPort:  viper.GetInt(imageCacheServerPort),
+		PvcPath:               viper.GetString(pvcPath),
+		ScanWebshellTimeout:   timeSecond,
+		CacheCleanPerInterval: viper.GetInt64(CacheCleanPerInterval),
 	}
 }
 
@@ -92,6 +96,7 @@ func AddScannerFlags(cmd *cobra.Command) {
 	cmd.Flags().String(webShellServerAddr, defaultOps.WebShellServerAddr, "web shell server addr")
 	cmd.Flags().String(imageCacheServerIP, defaultOps.ImageCacheServerIP, "image cache server ip")
 	cmd.Flags().Int(imageCacheServerPort, defaultOps.ImageCacheServerPort, "image cache server port")
+	cmd.Flags().Int64(CacheCleanPerInterval, defaultOps.CacheCleanPerInterval, "image scan cache clean interval")
 	cmd.Flags().String(pvcPath, defaultOps.PvcPath, "pvc path")
 	cmd.Flags().BoolVar(&EnableLeaderElection, "leader-elect", false,
 		"Enable leader election for console. "+
@@ -107,6 +112,7 @@ func AddScannerFlags(cmd *cobra.Command) {
 		imageCacheServerIP,
 		imageCacheServerPort,
 		pvcPath,
+		CacheCleanPerInterval,
 	} {
 		err := viper.BindPFlag(flag, cmd.Flags().Lookup(flag))
 		if err != nil {
