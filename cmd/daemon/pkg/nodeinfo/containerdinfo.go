@@ -498,7 +498,7 @@ func (d *ContainerdInfoManager) containerFromRaw(ctx context.Context, container 
 	containerName := info.Labels["io.kubernetes.container.name"]
 	var (
 		imageId      = info.Image
-		imageName    string
+		imageName    = info.Image
 		imageCreated string
 		imageSize    int64
 		imageDigest  string
@@ -636,13 +636,34 @@ func (d *ContainerdInfoManager) processEvents(container *model.TensorRawContaine
 			}
 			container.Ports = utils.MergeContainerPorts(ports, container.Ports, container.IP)
 			container.VolumeMounts = utils.MergeVolumeMounts(volumeMounts, container.VolumeMounts)
-			if container.ImageName == "" {
+			if container.ImageDigest == "" {
 				for _, con := range pod.Status.ContainerStatuses {
 					if strings.Contains(con.ContainerID, container.ContainerID) {
 						container.ImageName = con.Image
+						/*
+							case1:
+									containerID: containerd://a08863714f070db8109577f5ac10dc2b5438d492cca5f1603ee9a0975a912554
+							   		image: sha256:873127efbc8a791d06e85271d9a2ec4c5d58afdf612d490e24fb3ec68e891c8d
+									imageID: sha256:873127efbc8a791d06e85271d9a2ec4c5d58afdf612d490e24fb3ec68e891c8d
+							case2:
+									containerID: docker://c7abff34f1ce2a4e7545e4897d41c627cac69d7fb43adb1ea3ffa3f085e3bd2b
+									image: harbor.tensorsecurity.com/tensorsecurity/mysql:8.0.28-debian-10-r41
+							    	imageID: docker-pullable://harbor.tensorsecurity.com/tensorsecurity/mysql@sha256:7686964fc33f106d98bf5430287a4aa250dc36146dd4ee4d3ebdd566b89d6663
+						*/
 						split := strings.Split(con.ImageID, "@")
 						if len(split) == 2 {
 							container.ImageDigest = split[1]
+						} else if strings.HasPrefix(con.ImageID, "sha256:") {
+							container.ImageDigest = con.ImageID
+						}
+						break
+					}
+				}
+				if strings.HasPrefix(container.ImageName, "sha256:") {
+					for _, con := range pod.Spec.Containers {
+						if con.Name == container.Name {
+							container.ImageName = con.Image
+							break
 						}
 					}
 				}
