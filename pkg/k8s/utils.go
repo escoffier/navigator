@@ -3,6 +3,7 @@ package k8s
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/avast/retry-go"
@@ -109,4 +110,18 @@ func ReplaceJobYamlWithTheTargetImageRepos(ctx context.Context, job *batchV1.Job
 		}
 	}
 	return targetRepoURL, targetTag, err
+}
+
+func GetKubeMininorVersion(kubeVersion string) int {
+	logging.Get().Info().Msgf("kubernetes version: %s", kubeVersion)
+	strs := strings.Split(kubeVersion, ".")
+	var intVersion int
+	var err error
+	if len(strs) >= 2 {
+		intVersion, err = strconv.Atoi(strs[1])
+		if err != nil {
+			logging.Get().Err(err).Msg("parse kubernetes version err")
+		}
+	}
+	return intVersion
 }

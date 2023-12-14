@@ -3,7 +3,9 @@ package assets
 import (
 	"context"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	netv1 "k8s.io/api/networking/v1"
+	"k8s.io/client-go/kubernetes"
 	netLister "k8s.io/client-go/listers/networking/v1"
 	"reflect"
 	"time"
@@ -64,50 +66,54 @@ var (
 )
 
 type Controller struct {
-	podLister    corelisters.PodLister
-	dpLister     applisters.DeploymentLister
-	dsLister     applisters.DaemonSetLister
-	jbLister     batchv1lister.JobLister
-	cjbLister    v1beta1lister.CronJobLister
-	cjbv1Lister  batchv1lister.CronJobLister
-	rcLister     corelisters.ReplicationControllerLister
-	ssLister     applisters.StatefulSetLister
-	rsLister     applisters.ReplicaSetLister
-	rlLister     rbaclisters.RoleLister
-	crlLister    rbaclisters.ClusterRoleLister
-	nsLister     corelisters.NamespaceLister
-	nodeLister   corelisters.NodeLister
-	hpLister     defenselisters.HoneypotLister
-	svcLister    corelisters.ServiceLister
-	endLister    corelisters.EndpointsLister
-	secretLister corelisters.SecretLister
-	pvLister     corelisters.PersistentVolumeLister
-	pvcLister    corelisters.PersistentVolumeClaimLister
-	ingLister    netLister.IngressLister
-	podSynced    cache.InformerSynced
-	dsSynced     cache.InformerSynced
-	dpSynced     cache.InformerSynced
-	jbSynced     cache.InformerSynced
-	cjbSynced    cache.InformerSynced
-	rcSynced     cache.InformerSynced
-	ssSynced     cache.InformerSynced
-	rsSynced     cache.InformerSynced
-	rlSynced     cache.InformerSynced
-	crlSynced    cache.InformerSynced
-	nsSynced     cache.InformerSynced
-	nodeSynced   cache.InformerSynced
-	hpSynced     cache.InformerSynced
-	svcSynced    cache.InformerSynced
-	endSynced    cache.InformerSynced
-	secretSynced cache.InformerSynced
-	pvSynced     cache.InformerSynced
-	pvcSynced    cache.InformerSynced
-	ingSynced    cache.InformerSynced
-	queue        workqueue.RateLimitingInterface
-	clusterKey   string
-	mqWriter     mq.Writer
-	topic        string
-	poolInfo     *pkgassets.PoolInfo
+	podLister       corelisters.PodLister
+	dpLister        applisters.DeploymentLister
+	dsLister        applisters.DaemonSetLister
+	jbLister        batchv1lister.JobLister
+	cjbLister       v1beta1lister.CronJobLister
+	cjbv1Lister     batchv1lister.CronJobLister
+	rcLister        corelisters.ReplicationControllerLister
+	ssLister        applisters.StatefulSetLister
+	rsLister        applisters.ReplicaSetLister
+	rlLister        rbaclisters.RoleLister
+	crlLister       rbaclisters.ClusterRoleLister
+	nsLister        corelisters.NamespaceLister
+	nodeLister      corelisters.NodeLister
+	hpLister        defenselisters.HoneypotLister
+	svcLister       corelisters.ServiceLister
+	endLister       corelisters.EndpointsLister
+	secretLister    corelisters.SecretLister
+	pvLister        corelisters.PersistentVolumeLister
+	pvcLister       corelisters.PersistentVolumeClaimLister
+	ingNetV1Lister  netLister.IngressLister
+	ingNetV1BLister netLister.IngressLister
+	ingExtV1BLister netLister.IngressLister
+	podSynced       cache.InformerSynced
+	dsSynced        cache.InformerSynced
+	dpSynced        cache.InformerSynced
+	jbSynced        cache.InformerSynced
+	cjbSynced       cache.InformerSynced
+	rcSynced        cache.InformerSynced
+	ssSynced        cache.InformerSynced
+	rsSynced        cache.InformerSynced
+	rlSynced        cache.InformerSynced
+	crlSynced       cache.InformerSynced
+	nsSynced        cache.InformerSynced
+	nodeSynced      cache.InformerSynced
+	hpSynced        cache.InformerSynced
+	svcSynced       cache.InformerSynced
+	endSynced       cache.InformerSynced
+	secretSynced    cache.InformerSynced
+	pvSynced        cache.InformerSynced
+	pvcSynced       cache.InformerSynced
+	ingNetV1Synced  cache.InformerSynced
+	ingNetV1BSynced cache.InformerSynced
+	ingExtV1BSynced cache.InformerSynced
+	queue           workqueue.RateLimitingInterface
+	clusterKey      string
+	mqWriter        mq.Writer
+	topic           string
+	poolInfo        *pkgassets.PoolInfo
 
 	dupCache *pkgassets.DuplicationCheckingCache
 }
@@ -119,7 +125,7 @@ type Assets struct {
 	Action pkgassets.Action
 }
 
-func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory externalversions.SharedInformerFactory, writer mq.Writer, clusterKey, topic string, poolInfo *pkgassets.PoolInfo, version int) *Controller {
+func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory externalversions.SharedInformerFactory, writer mq.Writer, clusterKey, topic string, poolInfo *pkgassets.PoolInfo, k8sClient *kubernetes.Clientset) (*Controller, error) {
 	ac := &Controller{
 		podLister:    factory.Core().V1().Pods().Lister(),
 		dpLister:     factory.Apps().V1().Deployments().Lister(),
@@ -138,7 +144,6 @@ func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory 
 		secretLister: factory.Core().V1().Secrets().Lister(),
 		pvLister:     factory.Core().V1().PersistentVolumes().Lister(),
 		pvcLister:    factory.Core().V1().PersistentVolumeClaims().Lister(),
-		ingLister:    factory.Networking().V1().Ingresses().Lister(),
 		queue:        workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "assets"),
 		clusterKey:   clusterKey,
 		mqWriter:     writer,
@@ -146,7 +151,14 @@ func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory 
 		poolInfo:     poolInfo,
 		dupCache:     pkgassets.NewDuplicationCheckingCache(3*time.Hour, dupCacheSize),
 	}
-
+	// todo 可优化为api-resource方式
+	var version int
+	kubeVersion, err := k8sClient.DiscoveryClient.ServerVersion()
+	if err != nil {
+		return nil, err
+	}
+	logging.Get().Info().Msgf("kubernetes version: %s", kubeVersion.String())
+	version = k8s.GetKubeMininorVersion(kubeVersion.String())
 	// cronjob is deprecated in v1.21+ unavailable in v1.25+
 	if version >= 21 {
 		ac.cjbv1Lister = factory.Batch().V1().CronJobs().Lister()
@@ -164,6 +176,55 @@ func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory 
 			DeleteFunc: ac.deleteCronJob,
 		})
 		ac.cjbSynced = factory.Batch().V1beta1().CronJobs().Informer().HasSynced
+	}
+
+	// ingress  暂时 支持 networking.k8s.io/v1
+	var supportedIngressApiVersion []string
+	resources, err := k8sClient.Discovery().ServerPreferredResources()
+	if err != nil {
+		logging.Get().Err(err).Msgf("get api-resources failed.")
+		return nil, err
+	}
+	for _, resource := range resources {
+		if resource == nil {
+			continue
+		}
+		for _, apiRes := range resource.APIResources {
+			if apiRes.Kind == "Ingress" {
+				supportedIngressApiVersion = append(supportedIngressApiVersion, resource.GroupVersion)
+				break
+			}
+		}
+	}
+	logging.Get().Info().Msgf("kubernetes support ingress apiVersionList: %v", supportedIngressApiVersion)
+	syncedFunc := func() bool { return true }
+	if len(supportedIngressApiVersion) == 0 {
+		ac.ingNetV1Synced = syncedFunc
+		ac.ingNetV1BSynced = syncedFunc
+		ac.ingExtV1BSynced = syncedFunc
+	}
+	for _, apiVersion := range supportedIngressApiVersion {
+		switch apiVersion {
+		case "networking.k8s.io/v1":
+			ac.ingNetV1Lister = factory.Networking().V1().Ingresses().Lister()
+			// Ingress
+			factory.Networking().V1().Ingresses().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
+				AddFunc:    ac.addIngress,
+				UpdateFunc: ac.updateIngress,
+				DeleteFunc: ac.deleteIngress,
+			})
+			ac.ingNetV1Synced = factory.Networking().V1().Ingresses().Informer().HasSynced
+			ac.ingNetV1BSynced = syncedFunc
+			ac.ingExtV1BSynced = syncedFunc
+		case "networking.k8s.io/v1beta1":
+			ac.ingNetV1Synced = syncedFunc
+			ac.ingNetV1BSynced = syncedFunc
+			ac.ingExtV1BSynced = syncedFunc
+		case "extensions/v1beta1":
+			ac.ingNetV1Synced = syncedFunc
+			ac.ingNetV1BSynced = syncedFunc
+			ac.ingExtV1BSynced = syncedFunc
+		}
 	}
 
 	tensorFactory.Defense().V1().Honeypots().Lister()
@@ -222,14 +283,6 @@ func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory 
 		DeleteFunc: ac.deleteNamespace,
 	})
 	ac.nsSynced = factory.Core().V1().Namespaces().Informer().HasSynced
-
-	// Ingress
-	factory.Networking().V1().Ingresses().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    ac.addIngress,
-		UpdateFunc: ac.updateIngress,
-		DeleteFunc: ac.deleteIngress,
-	})
-	ac.ingSynced = factory.Networking().V1().Ingresses().Informer().HasSynced
 
 	// Service
 	factory.Core().V1().Services().Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
@@ -310,14 +363,14 @@ func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory 
 	})
 	ac.hpSynced = tensorFactory.Defense().V1().Honeypots().Informer().HasSynced
 
-	return ac
+	return ac, nil
 }
 
 func (ac *Controller) Run(stopChan <-chan struct{}) {
 	defer ac.queue.ShutDown()
 
 	if !cache.WaitForNamedCacheSync("assetsController", stopChan, ac.dpSynced, ac.dsSynced, ac.podSynced, ac.rsSynced,
-		ac.rlSynced, ac.crlSynced, ac.nsSynced, ac.nodeSynced, ac.jbSynced, ac.cjbSynced, ac.rcSynced, ac.ssSynced, ac.hpSynced, ac.ingSynced, ac.svcSynced, ac.endSynced,
+		ac.rlSynced, ac.crlSynced, ac.nsSynced, ac.nodeSynced, ac.jbSynced, ac.cjbSynced, ac.rcSynced, ac.ssSynced, ac.hpSynced, ac.ingNetV1Synced, ac.ingNetV1BSynced, ac.ingExtV1BSynced, ac.svcSynced, ac.endSynced,
 		ac.secretSynced, ac.pvSynced, ac.pvcSynced) {
 		return
 	}
@@ -807,7 +860,7 @@ func (ac *Controller) syncIngress(key string) error {
 		return err
 	}
 	action := pkgassets.ActionAdd
-	r, err := ac.ingLister.Ingresses(namespace).Get(name)
+	r, err := ac.ingNetV1Lister.Ingresses(namespace).Get(name)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			action = pkgassets.ActionDelete
