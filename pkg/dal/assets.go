@@ -4302,28 +4302,23 @@ func CleanUpUnUpdatedIngresses(ctx context.Context, rdb *gorm.DB, ts time.Time, 
 	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
 
-	return util.RetryWithBackoff(ctx, func() error {
-		oneCtx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
-		defer cancel()
-
-		return rdb.WithContext(oneCtx).Transaction(func(tx *gorm.DB) error {
-			var ingressIds []int32
-			err := tx.Model(&model.TensorIngress{}).Where("updated_at < ? AND status = ? AND cluster_key = ?", ts, 0, clusterKey).Select("id").Scan(&ingressIds).Error
-			if err != nil {
-				return err
-			}
-			if len(ingressIds) == 0 {
-				return nil
-			}
-			err = tx.Model(&model.TensorIngress{}).Where("id in ?", ingressIds).Updates(map[string]interface{}{
-				"status":     1,
-				"updated_at": ts,
-			}).Error
-			if err != nil {
-				return err
-			}
-			return tx.Where("updated_at < ?  AND  ingress_id in ( ?)", ts, ingressIds).Delete(&model.TensorIngressRule{}).Error
-		})
+	return rdb.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var ingressIds []uint32
+		err := tx.Model(&model.TensorIngress{}).Where("updated_at < ? AND status = ? AND cluster_key = ?", ts, 0, clusterKey).Select("id").Scan(&ingressIds).Error
+		if err != nil {
+			return err
+		}
+		if len(ingressIds) == 0 {
+			return nil
+		}
+		err = tx.Model(&model.TensorIngress{}).Where("id in ?", ingressIds).Updates(map[string]interface{}{
+			"status":     1,
+			"updated_at": ts,
+		}).Error
+		if err != nil {
+			return err
+		}
+		return tx.Where("updated_at < ?  AND  ingress_id in ?", ts, ingressIds).Delete(&model.TensorIngressRule{}).Error
 	})
 }
 

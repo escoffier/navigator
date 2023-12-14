@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -114,16 +113,11 @@ func NewServer() (*server, error) {
 	if err != nil {
 		return nil, err
 	}
-	kubeVersion, err := agent.GetHostClient().Clientset.DiscoveryClient.ServerVersion()
+	controller, err := assets.NewAssetsController(factory, tensorFactory, mqWriter, agent.CusterID, "kube-resources", s.config.PoolInfo, agent.GetHostClient().Clientset)
 	if err != nil {
 		return nil, err
 	}
-	logging.Get().Info().Msgf("kubernetes version: %s", kubeVersion.String())
-	intVersion, err := strconv.Atoi(kubeVersion.Minor)
-	if err != nil {
-		return nil, err
-	}
-	go assets.NewAssetsController(factory, tensorFactory, mqWriter, agent.CusterID, "kube-resources", s.config.PoolInfo, intVersion).Run(stopChan)
+	go controller.Run(stopChan)
 
 	if microsegv2 {
 		go microseg.NewNetworkPolicyController(agent.GetHostClient().TensorClientset, factory, tensorFactory).Run(stopChan)

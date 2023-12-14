@@ -1,6 +1,8 @@
 package k8s
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestGetImagePrefixAndPostFixFrom(t *testing.T) {
 	type args struct {
@@ -88,6 +90,32 @@ func TestGetImagePrefixAndPostFixFrom(t *testing.T) {
 			}
 			if got3 != tt.want3 {
 				t.Errorf("GetImagePrefixAndPostFixFrom() got3 = %v, want %v", got3, tt.want3)
+			}
+		})
+	}
+}
+
+func TestGetKubeMininorVersion(t *testing.T) {
+	type args struct {
+		kubeVersion string
+	}
+	tests := []struct {
+		name string
+		args args
+		want int
+	}{
+		// TODO: Add test cases.
+		{
+			name: "test1",
+			args: args{
+				kubeVersion: "v1.25.2",
+			}, want: 25,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := GetKubeMininorVersion(tt.args.kubeVersion); got != tt.want {
+				t.Errorf("GetKubeMininorVersion() = %v, want %v", got, tt.want)
 			}
 		})
 	}

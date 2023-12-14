@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
-	"strconv"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/microseg/types"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/security-rd/go-pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -534,11 +534,7 @@ func NewNetworkPolicyController(clientset *versioned.Clientset, factory informer
 		logging.Get().Err(err).Msg("faild to get kubenetes version")
 		return nil
 	}
-	v, err := strconv.Atoi(ver.Minor)
-	if err != nil {
-		logging.Get().Err(err).Msgf("invalid kube version %s", ver.String())
-		return nil
-	}
+	v := k8s.GetKubeMininorVersion(ver.String())
 	if v < 21 {
 		controller.endpointsliceListerv1beta1 = factory.Discovery().V1beta1().EndpointSlices().Lister()
 	} else {
