@@ -231,7 +231,7 @@ func (s *ImageMigrate) MigrateExitData(ctx context.Context, ver string) error {
 	s.Log.Info().Msg("Migrate MigrateExitData start")
 
 	migrate, err := s.DataMigrateDal.SearchDataMigrate(ctx,
-		imagesecModel.SearchDataMigrateParam{SoftVersion: ver, Model: consts.DataMigrateModelImage})
+		imagesecModel.SearchDataMigrateParam{SoftVersion: consts.ScannerVersion220, Model: consts.DataMigrateModelImage})
 	if err != nil {
 		return err
 	}
@@ -503,7 +503,7 @@ func (s *ImageMigrate) syncImageMeta(ctx context.Context) error {
 		s.Log.Err(err).Msg("SyncImageMeta time Parse failed")
 		return err
 	}
-	ticker := time.NewTicker(time.Second * 1)
+	ticker := time.NewTicker(time.Second * 10)
 	defer ticker.Stop()
 	cnt := 0
 	for {

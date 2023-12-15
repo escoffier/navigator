@@ -2,6 +2,7 @@ package imagesec
 
 import (
 	"context"
+	"fmt"
 	"time"
 
 	"gitlab.com/security-rd/go-pkg/databases"
@@ -36,7 +37,7 @@ func (dal *DataMigrateDao) SearchDataMigrate(ctx context.Context, param imagesec
 		db = db.Where("model = ?", param.Model)
 	}
 	if param.SoftVersion != "" {
-		db = db.Where("soft_version = ?", param.SoftVersion)
+		db = db.Where("soft_version LIKE  ?", fmt.Sprintf("%%%s%%", param.SoftVersion))
 	}
 	param.Filter = param.Filter.SetMaxLimit(consts.DefaultMaxLimit)
 	db = model.AddFilter(db, param.Filter)

@@ -52,9 +52,11 @@ func (s *InitScanner) Init(ctx context.Context) error {
 		return err
 	}
 	// 2.20版本数据迁移
-	_ = s.createLicenseVer210DataMigrate(ctx)
+	_ = s.createVer210DataMigrate(ctx)
+
 	// 已存在的策略快照
 	_ = s.createDetectPolicySnapshot(ctx)
+
 	// scanner 启动时清理镜像扫描过程中的临时文件
 	_ = s.removeImagescanDir(ctx)
 	return nil
@@ -304,7 +306,7 @@ func (s *InitScanner) createDefaultSensitiveRule(ctx context.Context) error {
 }
 
 // 2.10版本数据迁移
-func (s *InitScanner) createLicenseVer210DataMigrate(ctx context.Context) error {
+func (s *InitScanner) createVer210DataMigrate(ctx context.Context) error {
 
 	ver := os.Getenv("SOFT_VERSION")
 	if !strings.HasPrefix(ver, consts.ScannerVersion220) {

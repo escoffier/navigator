@@ -1,9 +1,11 @@
 package prepare
 
 import (
+	"archive/tar"
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -11,6 +13,7 @@ import (
 	"time"
 
 	"github.com/docker/distribution/manifest/schema2"
+	dockerarchive "github.com/docker/docker/pkg/archive"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/types"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -108,14 +111,15 @@ func (s *ScanPrepare) PrepareFile(ctx context.Context, subtask imagesecTypes.Sca
 			res.Errs = append(res.Errs, fmt.Errorf("can not copy file:%s", tarFile))
 			return err
 		}
+		ly := res.Layers[i]
 
-		if err := s.ExtractTar(ctx, tarFile, unzipPath); err != nil {
-			s.Log.Err(err).Str("tarFile", tarFile).
-				Str("unzipPath", unzipPath).Msg("PrepareScan ExtractTar")
-			res.Errs = append(res.Errs, fmt.Errorf("can not extract file:%s", tarFile))
-			return err
+		// 另一种方法试试
+		if err2 := s.ExtractDockerTar(tarFile, unzipPath); err2 != nil {
+			s.Log.Err(err2).Interface("layer", ly).Msg("PrepareScan ExtractDockerTar")
+			res.Errs = append(res.Errs, fmt.Errorf("can not extract file:%s,err:%s", tarFile, err2.Error()))
+			return fmt.Errorf("extract tar file:%s,layerFilePath:%s", err2.Error(), unzipPath)
 		}
-
+		s.Log.Info().Str("tarFile", tarFile).Str("unzipPath", unzipPath).Msg("PrepareScan ExtractTar success")
 		files, err := s.Collect(ctx, unzipPath, scannerUtils.CommonFilter, res)
 		if err != nil {
 			s.Log.Err(err).Str("tarFile", tarFile).
@@ -125,6 +129,56 @@ func (s *ScanPrepare) PrepareFile(ctx context.Context, subtask imagesecTypes.Sca
 		res.LayerFile[dig] = files
 	}
 
+	return nil
+}
+
+func (s *ScanPrepare) ExtractDockerTar(tarFile, destDir string) error {
+	_ = os.RemoveAll(destDir)
+	if err := os.MkdirAll(destDir, os.ModePerm); err != nil {
+		return err
+	}
+
+	file, err := os.Open(tarFile)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = file.Close() }()
+	// 不能使用自带的包直接解压，一定得有这一步
+	decompressStreamReader, err := dockerarchive.DecompressStream(file)
+	if err != nil {
+		s.Log.Err(err).Str("tarFile", tarFile).Str("destDir", destDir).Msg("ExtractDockerTar")
+		return err
+	}
+
+	defer func() { _ = decompressStreamReader.Close() }()
+
+	tarReader := tar.NewReader(decompressStreamReader)
+
+	for {
+		header, err := tarReader.Next()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			s.Log.Err(err).Str("tarFile", tarFile).Str("destDir", destDir).Msg("ExtractDockerTar tarReader")
+			return err
+		}
+
+		target := filepath.Join(destDir, header.Name)
+		switch header.Typeflag {
+		case tar.TypeDir:
+			if err := os.MkdirAll(target, os.ModePerm); err != nil {
+				s.Log.Err(err).Str("tarFile", tarFile).Str("target", target).Msg("ExtractDockerTar MkdirAll")
+				return err
+			}
+		case tar.TypeReg:
+			if err := SaveFileFromTarReader(tarReader, target); err != nil {
+				s.Log.Err(err).Str("tarFile", tarFile).Str("target", target).Msg("ExtractDockerTar SaveFileFromTarReader")
+				continue
+			}
+		}
+	}
+	s.Log.Info().Str("tarFile", tarFile).Str("destDir", destDir).Msg("ExtractDockerTar success")
 	return nil
 }
 
@@ -255,4 +309,15 @@ func (s *ScanPrepare) Collect(ctx context.Context, rootDir string, filter scanne
 		return nil
 	})
 	return res, err
+}
+
+func SaveFileFromTarReader(tarReader *tar.Reader, target string) error {
+	all, err := io.ReadAll(tarReader)
+	if err != nil {
+		return err
+	}
+	if err := os.WriteFile(target, all, os.ModePerm); err != nil {
+		return err
+	}
+	return nil
 }
