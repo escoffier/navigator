@@ -123,8 +123,8 @@ func (s *RegSyncSrv) GetLayers(image warehouse.Image) []imagesecTypes.Layer {
 		layers2 = append(layers2, nl)
 	}
 	layers := make([]imagesecTypes.Layer, 0)
-	min := util.MinInt(len(layers1), len(layers2))
-	for i := 0; i < min; i++ {
+	minInt := util.MinInt(len(layers1), len(layers2))
+	for i := 0; i < minInt; i++ {
 		nl := imagesecTypes.Layer{
 			Comment:   layers2[i].Comment,
 			Created:   layers2[i].Created,
