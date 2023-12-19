@@ -7,7 +7,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/mozilla/tls-observatory/logger"
+	"gitlab.com/security-rd/go-pkg/logging"
+
 	coreV1 "k8s.io/api/core/v1"
 	metaV1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -62,22 +63,23 @@ func (s *Service) getStorageView(ctx context.Context, pod *PodInfo) (*model.Stor
 	if pod == nil {
 		return nil, fmt.Errorf("not support storage view")
 	}
-	logger.GetLogger().Debugf("getStorageView pod:%+v", pod)
+	logging.Get().Debug().Msgf("getStorageView pod:%+v", pod)
 	kubeClient, restConfig, err := k8s.KubeClientFromServiceAccoount()
 
 	if err != nil || kubeClient == nil || restConfig == nil {
 		return nil, fmt.Errorf("k8s is not ready")
 	}
 
+	storageView := &model.StorageView{}
 	namespace := getNamespace()
 	api := kubeClient.CoreV1()
 	pvc, err := api.PersistentVolumeClaims(namespace).Get(ctx, pod.PVC, metaV1.GetOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("couldn't get pvc: %w", err)
+		logging.Get().Error().Err(err).Msg("couldn't get pvc")
+		return storageView, nil
 	}
 
 	resourceStorage := pvc.Spec.Resources.Requests[coreV1.ResourceStorage]
-	storageView := &model.StorageView{}
 	storageView.Total = resourceStorage.Value()
 
 	cmd := []string{
@@ -102,7 +104,8 @@ func (s *Service) getStorageView(ctx context.Context, pod *PodInfo) (*model.Stor
 	}
 	exec, err := remotecommand.NewSPDYExecutor(restConfig, "POST", req.URL())
 	if err != nil {
-		return nil, fmt.Errorf("cannot get kube executor: %w", err)
+		logging.Get().Error().Err(err).Msg("cannot get kube executor")
+		return storageView, nil
 	}
 	var stdOutBuf bytes.Buffer
 	var stdErrBuf bytes.Buffer
@@ -112,17 +115,20 @@ func (s *Service) getStorageView(ctx context.Context, pod *PodInfo) (*model.Stor
 		Stderr: &stdErrBuf,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to kube execute command: %w", err)
+		logging.Get().Error().Err(err).Msg("failed to kube execute command")
+		return storageView, nil
 	}
 
 	stdOut := strings.Fields(stdOutBuf.String())
 	if len(stdOut) == 0 {
-		return nil, fmt.Errorf("unxpected stdOut: %s", stdOutBuf.String())
+		logging.Get().Error().Err(fmt.Errorf("unxpected stdOut: %s", stdOutBuf.String())).Msg("")
+		return storageView, nil
 	}
 
 	usedMem, err := strconv.ParseInt(stdOut[0], 10, 64)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get pvc used disk space: %w", err)
+		logging.Get().Error().Err(err).Msg("failed to get pvc used disk space")
+		return storageView, nil
 	}
 	storageView.Used = usedMem * 1024
 

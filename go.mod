@@ -34,7 +34,6 @@ require (
 	github.com/mattn/go-colorable v0.1.13 // indirect
 	github.com/mcuadros/go-version v0.0.0-20190830083331-035f6764e8d2
 	github.com/mitchellh/go-homedir v1.1.0
-	github.com/mozilla/tls-observatory v0.0.0-20210609171429-7bc42856d2e5
 	github.com/nats-io/nats.go v1.15.0
 	github.com/nats-io/stan.go v0.10.2
 	github.com/novln/docker-parser v1.0.0
