@@ -58,19 +58,16 @@ type ImageWithCorrelateData struct {
 func imageListToImage(im model.ImageList) Image {
 	img := Image{
 		ID:            im.ID,
-		UniqueID:      im.UniqueImage,
 		ImageFromType: ImageFromRegistry,
-		Host:          "",
+		Host:          im.Library,
 		Repo:          im.FullRepoName,
 		Tag:           im.Tags,
 		Digest:        im.Digest,
 		Size:          int64(im.Size),
-		BuildAt:       0,
 		User:          im.GetBootUser(),
 		Flag:          im.Flag,
 		ImageUUID:     im.ImageUUID,
 		RegID:         im.RegistryID,
-		NodeID:        0,
 		Heartbeat:     im.UpdatedAt.UnixMilli(),
 		CreatedAt:     util.GetTimeUnixMilli(&im.CreatedAt),
 		UpdatedAt:     util.GetTimeUnixMilli(&im.UpdatedAt),
@@ -81,6 +78,8 @@ func imageListToImage(im model.ImageList) Image {
 	if err := json.Unmarshal([]byte(im.OS), &scanOS); err == nil {
 		img.OS = scanOS
 	}
+	img.UniqueID = img.GenUniqueID()
+	img.ImageUUID = im.GenImageUUID()
 
 	return img
 }

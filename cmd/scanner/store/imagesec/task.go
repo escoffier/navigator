@@ -170,6 +170,9 @@ func (dal *ScanTaskDao) UpdateScanSubtask(ctx context.Context, param imagesecMod
 	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
 	db := dal.db.Get().WithContext(cancelCtx).Table(new(imagesecModel.ImageScanSubTask).TableName())
+	if len(param.Ids) > 0 {
+		db = db.Where("id IN ?", param.Ids)
+	}
 	if param.ID > 0 {
 		db = db.Where("id = ?", param.ID)
 	}
@@ -312,6 +315,8 @@ type ScanTaskPreDal interface {
 	DeleteScanSubtask(ctx context.Context, subtaskID int64) error
 	CreateScanSubtask(ctx context.Context, data *model.SubTask) error
 	SearchScanSubtask(ctx context.Context, param imagesecModel.SearchTaskParam) ([]*model.SubTask, error)
+	UpdateScanSubtask(ctx context.Context, ids []int64, updater map[string]interface{}) error
+	UpdateScanTask(ctx context.Context, ids []int64, updater map[string]interface{}) error
 }
 
 type ScanTaskPreDao struct {
@@ -362,6 +367,9 @@ func (dal *ScanTaskPreDao) SearchScanSubtask(ctx context.Context, param imagesec
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	db := dal.db.Get().WithContext(ctx).Model(&model.SubTask{})
+	if param.SubtaskID > 0 {
+		db = db.Where("id = ?", param.SubtaskID)
+	}
 	if param.TaskID > 0 {
 		db = db.Where("task_id = ?", param.TaskID)
 	}
@@ -375,6 +383,31 @@ func (dal *ScanTaskPreDao) SearchScanSubtask(ctx context.Context, param imagesec
 	res := make([]*model.SubTask, 0)
 	err := db.Find(&res).Error
 	return res, err
+}
+
+func (dal *ScanTaskPreDao) UpdateScanSubtask(ctx context.Context, ids []int64, updater map[string]interface{}) error {
+	if len(ids) == 0 {
+		return nil
+	}
+
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	db := dal.db.Get().WithContext(ctx).Model(&model.SubTask{})
+	db = db.Where("id IN ?", ids)
+	err := db.Updates(updater).Error
+	return err
+}
+
+func (dal *ScanTaskPreDao) UpdateScanTask(ctx context.Context, ids []int64, updater map[string]interface{}) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+	db := dal.db.Get().WithContext(ctx).Model(&model.Task{})
+	db = db.Where("id IN ?", ids)
+	err := db.Updates(updater).Error
+	return err
 }
 
 func NewScanTaskPreDao(db *databases.RDBInstance) *ScanTaskPreDao {

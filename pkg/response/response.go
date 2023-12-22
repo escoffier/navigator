@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
-	"runtime/debug"
 
 	"github.com/gin-gonic/gin"
 	json "github.com/json-iterator/go"
@@ -228,7 +227,7 @@ func JSONError(ctx *gin.Context, err error, opts ...ResponseErrorOptionFunc) {
 		op(data)
 	}
 
-	logging.Get().Err(err).Str("stack", string(debug.Stack())).Msg("JSON error")
+	logging.Get().Err(err).Msg("API error")
 	if err != nil {
 		data.Error.Message = err.Error()
 	}

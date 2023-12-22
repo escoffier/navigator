@@ -69,15 +69,14 @@ func NewScanTaskSrv(
 	}
 
 	s := &ScanTaskSrv{
-		taskDal:           taskDal,
-		preImageDal:       preImageDal,
-		preTaskDal:        preTaskDal,
-		detectDal:         detectDal,
-		imageSrv:          imageSrv,
-		imageDal:          imageDal,
-		scanConfigDal:     scanConfigDal,
-		userDal:           userDal,
-		PreTaskUpdateChan: make(chan *imagesecModel.ImageScanSubTask),
+		taskDal:       taskDal,
+		preImageDal:   preImageDal,
+		preTaskDal:    preTaskDal,
+		detectDal:     detectDal,
+		imageSrv:      imageSrv,
+		imageDal:      imageDal,
+		scanConfigDal: scanConfigDal,
+		userDal:       userDal,
 		Log: scannerUtils.NewLogEvent(
 			scannerUtils.WithSubModule("ScanTaskSrv"),
 			scannerUtils.WithModule(consts.ModuleImageScan)),

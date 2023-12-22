@@ -210,6 +210,7 @@ func (s *ImageReport) RegImage(ctx context.Context, imageReport imagesecTypes.No
 
 	s.Log.Debug().Int("images", len(images)).
 		Int("envs", len(envs)).Msg("ImageMateToModel")
+
 	if len(images) == 0 {
 		return nil
 	}

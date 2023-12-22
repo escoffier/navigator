@@ -22,11 +22,10 @@ type RegSyncSrv struct {
 	FullSyncChan  chan imagesecModel.ImageSyncTask
 	IncSyncChan   chan imagesecModel.ImageSyncTask
 	FullSyncQueue *TaskQueue
-
-	registryDal imagesecStore.RegistryDal
-	syncTaskDal imagesecStore.SyncTaskDal
-	scanInsDal  imagesecStore.ScanInstanceDal
-	Log         *scannerUtils.LogEvent
+	registryDal   imagesecStore.RegistryDal
+	syncTaskDal   imagesecStore.SyncTaskDal
+	scanInsDal    imagesecStore.ScanInstanceDal
+	Log           *scannerUtils.LogEvent
 }
 
 type ImageSyncService interface {

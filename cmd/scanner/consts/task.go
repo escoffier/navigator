@@ -25,6 +25,7 @@ const (
 	ImageScanSuccess
 	ImageScanFailed
 	ImageNotScan
+	ImageScanAdapt = 21 // 2.19版本的数据已经适配到2.20之后的版本
 )
 
 const (

@@ -17,12 +17,15 @@ func (s *ScanTaskSrv) ContinueUpdateTaskAndSubtask(ctx context.Context) error {
 	_ = s.UpdateTaskReady(ctx)
 	_ = s.UpdateTaskFinished(ctx)
 	_ = s.UpdateSubtaskTimeout(ctx)
-	_ = s.UpdatePreSubtask(ctx)
+	_ = s.MigratePreSubtask(ctx)
 	return nil
 }
 
 // 删除未完成的检测任务
 func (s *ScanTaskSrv) DeleteDetectTask(ctc context.Context, subtaskIds []int64) error {
+	if len(subtaskIds) == 0 {
+		return nil
+	}
 	param := imagesecModel.SearchTaskParam{
 		Priority:       imagesecModel.DetectPriorityScan,
 		ScanStatus:     []int64{imagesecModel.TaskStatusPending},
@@ -286,9 +289,7 @@ func (s *ScanTaskSrv) UpdateSubtaskTimeout(ctx context.Context) error {
 
 				for j := range subtask {
 					sub := subtask[j]
-					// 查询老集群的扫描情况,升级后删除这里代码即可
 					timeout := false
-					go func() { s.PreTaskUpdateChan <- sub }()
 					if sub.StartedAt <= 0 {
 						continue
 					}
@@ -335,6 +336,8 @@ func (s *ScanTaskSrv) UpdateTaskPause(ctx context.Context, taskID int64) error {
 		return scani18.UpdateScanTask(err)
 	}
 	go func() { _ = s.UpdateSubTaskPause(ctx, taskID) }()
+	// 兼容老版本
+	go func() { _ = s.AdaptTaskPause(ctx, taskID) }()
 	return nil
 }
 
@@ -354,6 +357,8 @@ func (s *ScanTaskSrv) UpdateTaskPending(ctx context.Context, taskID int64) error
 		return scani18.UpdateScanTask(err)
 	}
 	go func() { _ = s.UpdateSubTaskPending(ctx, taskID) }()
+	// 兼容老版本
+	go func() { _ = s.AdaptTaskPending(ctx, taskID) }()
 	return nil
 }
 
@@ -374,6 +379,9 @@ func (s *ScanTaskSrv) UpdateTaskTerminate(ctx context.Context, taskID int64) err
 		return scani18.UpdateScanTask(err)
 	}
 	go func() { _ = s.UpdateSubTaskTerminate(ctx, taskID) }()
+	// 兼容老版本
+	go func() { _ = s.AdaptTaskTerminate(ctx, taskID) }()
+
 	return nil
 }
 
@@ -415,16 +423,15 @@ func (s *ScanTaskSrv) UpdateSubTaskPause(ctx context.Context, taskID int64) erro
 			if subtask[i].Status >= imagesecModel.TaskStatusTerminate {
 				continue
 			}
-
-			if err := s.taskDal.UpdateScanSubtask(ctx, imagesecModel.UpdateTaskParam{
-				ID:      subtask[i].ID,
-				Updater: updater,
-				Where:   fmt.Sprintf("status < %d", imagesecModel.TaskStatusPause),
-			}); err != nil {
-				s.Log.Err(err).Int64("taskID", taskID).Msg("UpdateSubTaskPause")
-				continue
-			}
 		}
+		if err := s.taskDal.UpdateScanSubtask(ctx, imagesecModel.UpdateTaskParam{
+			Ids:     subtaskIds,
+			Updater: updater,
+			Where:   fmt.Sprintf("status < %d", imagesecModel.TaskStatusPause),
+		}); err != nil {
+			s.Log.Err(err).Int64("taskID", taskID).Msg("UpdateSubTaskPause")
+		}
+
 		// 删除检测任务
 		_ = s.DeleteDetectTask(ctx, subtaskIds)
 
@@ -465,21 +472,23 @@ func (s *ScanTaskSrv) UpdateSubTaskPending(ctx context.Context, taskID int64) er
 		}
 		startId = subtask[len(subtask)-1].ID
 		subtaskIds := make([]int64, 0)
+
 		for i := range subtask {
 			subtaskIds = append(subtaskIds, subtask[i].ID)
 			if subtask[i].Status >= imagesecModel.TaskStatusTerminate {
 				continue
 			}
-
-			if err := s.taskDal.UpdateScanSubtask(ctx, imagesecModel.UpdateTaskParam{
-				ID:      subtask[i].ID,
-				Updater: updater,
-				Where:   fmt.Sprintf("status <= %d", imagesecModel.TaskStatusPause),
-			}); err != nil {
-				s.Log.Err(err).Int64("taskID", taskID).Msg("UpdateSubTaskPending")
-				continue
-			}
 		}
+
+		if err := s.taskDal.UpdateScanSubtask(ctx, imagesecModel.UpdateTaskParam{
+			Ids:     subtaskIds,
+			Updater: updater,
+			Where:   fmt.Sprintf("status <= %d", imagesecModel.TaskStatusPause),
+		}); err != nil {
+			s.Log.Err(err).Int64("taskID", taskID).Msg("UpdateSubTaskPending")
+			continue
+		}
+
 		_ = s.DeleteDetectTask(ctx, subtaskIds)
 	}
 	return nil
@@ -537,6 +546,7 @@ func (s *ScanTaskSrv) UpdateSubTaskTerminate(ctx context.Context, taskID int64) 
 				continue
 			}
 		}
+
 		_ = s.DeleteDetectTask(ctx, subtaskIds)
 	}
 	return nil

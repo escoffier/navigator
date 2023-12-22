@@ -15,7 +15,10 @@ const (
 	DataMigrateModelScanResult = "scan-result"
 )
 const (
-	ImageStatusImageAdapt        = 20
+	ImageStatusImageAdapted     = 20
+	ImageStatusImageForScanTask = 21
+	ImageImageAdapted           = "adapted"
+
 	DefaultSubtaskCntBySingeTask = 400
 	SyncScanTaskCheckInterval    = 2 * 60 * 1000
 )

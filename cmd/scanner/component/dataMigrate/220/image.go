@@ -9,8 +9,6 @@ import (
 	"strings"
 	"time"
 
-	"scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
-
 	"github.com/segmentio/kafka-go"
 	"gitlab.com/security-rd/go-pkg/mq"
 
@@ -23,6 +21,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	imagesecType "gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type ImageMigrate struct {
@@ -104,7 +103,7 @@ func NewImageMate(
 	return s
 }
 
-func (s *ImageMigrate) MigrateImage(ctx context.Context, imageID int64, subtaskID int64) error {
+func (s *ImageMigrate) MigrateImage(ctx context.Context, imageID int64) error {
 	registry, _, err := s.RegDal.SearchRegistry(ctx, imagesecModel.SearchRegistryParam{Deleted: consts.FalseString})
 	if err != nil {
 		s.Log.Err(err).Msg("MigrateImage")
@@ -117,11 +116,7 @@ func (s *ImageMigrate) MigrateImage(ctx context.Context, imageID int64, subtaskI
 	for i := range registry {
 		regs[registry[i].ID] = registry[i]
 	}
-	images, _, err := s.ImageDal.SearchImage(ctx, imagesecModel.SearchImageParam{
-		ImageFromType: imagesecModel.ImageFromRegistry,
-		NotCount:      true,
-		InIds:         []int64{imageID},
-	}, nil)
+	images, _, err := s.ImageDal.SearchImage(ctx, imagesecModel.SearchImageParam{InIds: []int64{imageID}}, nil)
 	if err != nil {
 		s.Log.Err(err).Msg("MigrateImage")
 		return err
@@ -139,39 +134,42 @@ func (s *ImageMigrate) MigrateImage(ctx context.Context, imageID int64, subtaskI
 
 	im.Library = reg.Url
 
-	imageMeta := DataToImage(images[0])
+	nr := ToNodeReport(im)
 
-	err = s.ImageMetaDal.CreateRegImage(ctx, imageMeta)
-
-	if err != nil {
-		s.Log.Err(err).Int64("imageID", imageID).Msg("CreateRegImage failed")
-		return err
-	}
-	nr := ToNodeReport(images[0])
 	if err := s.sendImageToKafka(ctx, nr); err != nil {
 		s.Log.Err(err).Int64("imageID", imageID).Msg("MigrateImage sendImageToKafka")
 		return err
 	}
-	data, err := s.PreImageService.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
-		ImageFromType:   imagesecModel.ImageFromRegistry,
-		ImageId:         imageID,
-		ImageUniqueID:   images[0].UniqueImage,
-		VulnEnable:      true,
-		MalwareEnable:   true,
-		PkgEnable:       true,
-		SensitiveEnable: true,
-		WebshellEnable:  true,
-	})
+	_ = s.updateImageAdapted(ctx, im.ID)
+
+	s.Log.Info().Int64("imageID", imageID).Str("imageName", im.GetImageName()).Msg("MigrateImage success")
+	return nil
+}
+
+func (s *ImageMigrate) MigrateScan(ctx context.Context, imageID int64, subtaskID int64) error {
+
+	data, vulns, err := s.PreImageService.GetImageCorrelateData(ctx, imageID)
+
 	if err != nil {
 		s.Log.Err(err).Msg("GetImageCorrelateData failed")
 		return err
 	}
 
+	// 漏洞和软件包的数据要直接入库
 	vulnIssue := GetVulnToImage(data)
 	pkgIssue := GetPkgToImage(data)
 
+	s.Log.Err(err).Int64("imageID", imageID).Int("vulnIssue", len(vulnIssue)).Int("pkgIssue", len(pkgIssue)).
+		Int("vuln", len(vulns)).Int("pkg", len(data.Pkg)).Msg("MigrateImage")
+
 	if err := s.ScanResultDal.CreatePkg(ctx, data.Pkg); err != nil {
 		s.Log.Err(err).Int64("imageID", imageID).Msg("MigrateImage CreatePkg")
+	}
+	if err := s.ScanResultDal.CreateVuln(ctx, imagesecModel.CreateVulnParam{
+		OnlineVuln: false,
+		Data:       vulns,
+	}); err != nil {
+		s.Log.Err(err).Int64("imageID", imageID).Msg("MigrateImage vuln")
 	}
 
 	if err := s.ScanIssueDal.CreateVulnToImage(ctx, imagesecModel.CreateVulnToImageParam{
@@ -189,98 +187,18 @@ func (s *ImageMigrate) MigrateImage(ctx context.Context, imageID int64, subtaskI
 	}
 
 	scanRes := ToScanResult(data, subtaskID)
+
 	scanRes.ImageUniqueID = data.Image.UniqueID
+
+	// 其他的数据发 kafka
 	_ = s.sendScanResultToKafka(ctx, scanRes)
 
 	s.Log.Info().Int64("imageID", imageID).Str("imageName", data.Image.GetImageName()).Msg("MigrateImage success")
 	return nil
 }
 
-func DataToImage(image model.ImageList) []*imagesecModel.Image {
-	res := make([]*imagesecModel.Image, 0)
-
-	im := &imagesecModel.Image{
-		ImageFromType: imagesecModel.ImageFromRegistry,
-		Host:          image.Library,
-		Repo:          image.FullRepoName,
-		Tag:           image.Tags,
-		ImageName:     image.GetImageName(),
-		Digest:        image.Digest,
-		Size:          int64(image.Size),
-		LayerStr:      strings.Join(strings.Split(image.Layers, "|"), ","),
-		Layer:         getLayers(image),
-		User:          image.GetBootUser(),
-		Flag:          image.Flag,
-		ImageUUID:     image.ImageUUID,
-		RegID:         image.RegistryID,
-		Project:       image.Project,
-		Heartbeat:     time.Now().UnixMilli(),
-	}
-	var osInfo types.OS
-	if err := json.Unmarshal([]byte(image.OS), &osInfo); err == nil {
-		im.OS = osInfo
-	}
-	if err := im.Check(); err == nil {
-		res = append(res, im)
-	}
-	return res
-}
-
-func (s *ImageMigrate) MigrateExitData(ctx context.Context, ver string) error {
-
-	s.Log.Info().Msg("Migrate MigrateExitData start")
-
-	migrate, err := s.DataMigrateDal.SearchDataMigrate(ctx,
-		imagesecModel.SearchDataMigrateParam{SoftVersion: consts.ScannerVersion220, Model: consts.DataMigrateModelImage})
-	if err != nil {
-		return err
-	}
-	if len(migrate) == 0 || migrate[0].FinishedAt > 0 {
-		return nil
-	}
-	mi := migrate[0]
-	var lastID int64
-	if i, err := strconv.ParseInt(mi.Last, 10, 64); err == nil {
-		lastID = i
-	}
-
-	filter := model.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortAsc().SetSortFiledByID()
-
-	ticker := time.NewTicker(time.Second * 5)
-	defer ticker.Stop()
-	cnt := 0
-	for {
-		<-ticker.C
-		images, _, err := s.ImageDal.SearchImage(ctx, imagesecModel.SearchImageParam{
-			ImageFromType: imagesecModel.ImageFromRegistry,
-			StartID:       lastID,
-			NotCount:      true,
-		}, filter)
-		if err != nil {
-			s.Log.Err(err).Str("SOFT_VERSION", ver).Msg("Migrate")
-			return err
-		}
-		if len(images) == 0 {
-			updater := map[string]interface{}{"finished_at": time.Now().UnixMilli()}
-			_ = s.DataMigrateDal.UpdateDataMigrate(ctx, mi.ID, updater)
-			s.Log.Err(err).Str("SOFT_VERSION", ver).Msg("Migrate finished")
-			break
-		}
-		cnt += len(images)
-		lastID = images[len(images)-1].ID
-		for i := range images {
-			image := images[i]
-			_ = s.MigrateImage(ctx, image.ID, 0)
-		}
-		updater := map[string]interface{}{"last": fmt.Sprintf("%d", lastID)}
-		_ = s.DataMigrateDal.UpdateDataMigrate(ctx, mi.ID, updater)
-	}
-	s.Log.Info().Int("imageCnt", cnt).Msg("Migrate MigrateExitData end")
-	return nil
-}
-
 func (s *ImageMigrate) Migrate(ctx context.Context, ver string) error {
-	_ = s.MigrateExitData(ctx, ver)
+	// _ = s.MigrateExitData(ctx, ver)
 	_ = s.SyncImageMeta(ctx, ver)
 	return nil
 }
@@ -295,10 +213,10 @@ func ToNodeReport(image model.ImageList) imagesecType.NodeReport {
 	}
 
 	layers := getLayers(image)
-
 	im := imagesecType.ImageMeta{
+		Created:  image.FirstPushTime.String(),
 		Digests:  []string{image.Digest},
-		RepoTags: []string{image.GetImageName()},
+		RepoTags: []string{fmt.Sprintf("%s/%s:%s", image.Library, image.FullRepoName, image.Tags)},
 		Os:       image.OS,
 		Size:     int64(image.Size),
 		Layers:   layers,
@@ -311,28 +229,6 @@ func ToNodeReport(image model.ImageList) imagesecType.NodeReport {
 	nr.RegImages = append(nr.RegImages, im)
 
 	return nr
-}
-
-func GenImageUniqueID(data imagesecType.NodeReport) uint64 {
-	images := make([]*imagesecModel.Image, 0)
-
-	for _, image := range data.RegImages {
-		im := &imagesecModel.Image{
-			ImageFromType: imagesecModel.ImageFromRegistry,
-			RegID:         data.RegInfo.RegID,
-		}
-
-		for _, repoTag := range image.RepoTags {
-			host, repo, tag := scannerUtils.ParseImageName(repoTag)
-			im.Host, im.Repo, im.Tag = host, repo, tag
-		}
-	}
-
-	if len(images) > 0 {
-		images[0].ImageName = images[0].GetImageName()
-		return images[0].GenUniqueID()
-	}
-	return 0
 }
 
 func ToScanResult(data *imagesecModel.ImageWithCorrelateData2, subtaskID int64) imagesecType.ScanResult {
@@ -364,7 +260,7 @@ func ToScanResult(data *imagesecModel.ImageWithCorrelateData2, subtaskID int64) 
 		mod := strings.Join([]string{wb.Mod.User, wb.Mod.Group, wb.Mod.Perm}, " ")
 		size, _ := strconv.ParseInt(wb.Size, 10, 64)
 		web := imagesecType.HmWebshell{
-			Filename:            wb.Filename, // todo
+			Filename:            wb.Filename,
 			MD5:                 wb.MD5,
 			Mod:                 mod,
 			Size:                size,
@@ -377,23 +273,38 @@ func ToScanResult(data *imagesecModel.ImageWithCorrelateData2, subtaskID int64) 
 	}
 
 	res := imagesecType.ScanResult{
-		TaskID:      0,
-		SubTaskID:   subtaskID,
-		OS:          data.Image.OS,
-		VulnResults: nil, // 直接入库
-		Sensitives:  imagesecType.SensitiveFileResults{SensitiveFiles: sensitiveFiles},
-		Malwares:    imagesecType.MalwareResults{ClamAvScanResults: avira},
-		Webshells:   imagesecType.WebshellResults{HmWebshells: webshell},
+		IgnoreVulnAndPkg: true,
+		SubTaskID:        subtaskID,
+		OS:               data.Image.OS,
+		Sensitives:       imagesecType.SensitiveFileResults{SensitiveFiles: sensitiveFiles},
+		Malwares:         imagesecType.MalwareResults{ClamAvScanResults: avira},
+		Webshells:        imagesecType.WebshellResults{HmWebshells: webshell},
 	}
 	return res
 }
 
 func GetVulnToImage(data *imagesecModel.ImageWithCorrelateData2) []*imagesecModel.VulnToImage {
+
 	res := make([]*imagesecModel.VulnToImage, 0)
+
+	im := data.Image
+	im.ImageFromType = imagesecModel.ImageFromRegistry
+
+	iuid := im.GenUniqueID()
+
 	for i := range data.Vuln {
+		vu := data.Vuln[i]
+		pkg := imagesecModel.Pkg{
+			Name:    vu.PkgName,
+			Version: vu.PkgVersion,
+		}
+		puid := pkg.GenUniqueID()
+		vu2 := imagesecModel.Vuln{Name: data.Vuln[i].Name, PkgUniqueID: puid}
+		vuid := vu2.GenUniqueID()
+
 		ti := &imagesecModel.VulnToImage{
-			UniqueTarget:  data.Vuln[i].UniqueID,
-			ImageUniqueID: data.Image.UniqueID,
+			UniqueTarget:  vuid,
+			ImageUniqueID: iuid,
 		}
 		res = append(res, ti)
 	}
@@ -401,29 +312,72 @@ func GetVulnToImage(data *imagesecModel.ImageWithCorrelateData2) []*imagesecMode
 }
 
 func GetPkgToImage(data *imagesecModel.ImageWithCorrelateData2) []*imagesecModel.PkgToImage {
+
+	im := data.Image
+	im.ImageFromType = imagesecModel.ImageFromRegistry
+	iuid := im.GenUniqueID()
+
 	issue := make([]*imagesecModel.PkgToImage, 0)
 	for i := range data.Pkg {
+		vu := data.Pkg[i]
+		pkg := imagesecModel.Pkg{
+			Name:    vu.Name,
+			Version: vu.Version,
+		}
+		puid := pkg.GenUniqueID()
+
 		pk := &imagesecModel.PkgToImage{
-			UniqueTarget:  data.Pkg[i].GenUniqueID(),
-			ImageUniqueID: data.Image.UniqueID,
+			UniqueTarget:  puid,
+			ImageUniqueID: iuid,
 		}
 		issue = append(issue, pk)
 	}
 	return issue
 }
 
-func getLayers(im model.ImageList) []imagesecType.Layer {
+func getLayers(image model.ImageList) []imagesecType.Layer {
+
 	layers := make([]imagesecType.Layer, 0)
-	if im.ManifestV2 == nil {
+	if image.ManifestV2 == nil || image.ConfigFile == nil {
 		return layers
 	}
 
-	for _, layer := range im.ManifestV2.Layers {
-		newLayer := imagesecType.Layer{
-			Size:   layer.Size,
-			Digest: layer.Digest,
+	manifestV2 := image.ManifestV2
+
+	layers1 := make([]imagesecType.Layer, 0)
+	for i := range manifestV2.Layers {
+		ly := manifestV2.Layers[i]
+		nl := imagesecType.Layer{
+			Size:   ly.Size,
+			Digest: ly.Digest,
 		}
-		layers = append(layers, newLayer)
+		layers1 = append(layers1, nl)
+	}
+
+	history := image.ConfigFile.History
+	layers2 := make([]imagesecType.Layer, 0)
+	for i := range history {
+		if history[i].EmptyLayer {
+			continue
+		}
+		ly := history[i]
+		nl := imagesecType.Layer{
+			Comment:   ly.Comment,
+			Created:   ly.Created.UnixMilli(),
+			CreatedBy: ly.CreatedBy,
+		}
+		layers2 = append(layers2, nl)
+	}
+	minInt := util.MinInt(len(layers1), len(layers2))
+	for i := 0; i < minInt; i++ {
+		nl := imagesecType.Layer{
+			Comment:   layers2[i].Comment,
+			Created:   layers2[i].Created,
+			CreatedBy: layers2[i].CreatedBy,
+			Size:      layers1[i].Size,
+			Digest:    layers1[i].Digest,
+		}
+		layers = append(layers, nl)
 	}
 	return layers
 }
@@ -477,12 +431,11 @@ func (s *ImageMigrate) SyncImageMeta(ctx context.Context, ver string) error {
 			}
 		}()
 
-		ticker := time.NewTicker(time.Minute * 30)
+		ticker := time.NewTicker(time.Minute)
 		defer ticker.Stop()
 		for {
 			<-ticker.C
 			_ = s.syncImageMeta(ctx)
-			ticker.Reset(time.Minute * 30)
 		}
 	}()
 	return nil
@@ -491,30 +444,20 @@ func (s *ImageMigrate) SyncImageMeta(ctx context.Context, ver string) error {
 func (s *ImageMigrate) syncImageMeta(ctx context.Context) error {
 	s.Log.Info().Msg("Migrate SyncImageMeta start")
 
-	filter := model.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortDesc().SetSortFiled("updated_at")
+	filter := model.EmptyFilter().SetLimit(consts.DefaultMaxLimit)
 
-	layout := "2006-01-02 15:04:05.000000"
-	thirtyAgoStr := time.Now().Add(-30 * time.Minute).Format(layout) // 30分钟前的时间str
-	thirtyAgo, err := time.Parse(layout, thirtyAgoStr)               // 把str转为time.Time格式，才能进行数据库查询
-
-	timeNowStr := time.Now().Format(layout)
-	lastTime, err := time.Parse(layout, timeNowStr)
-	if err != nil {
-		s.Log.Err(err).Msg("SyncImageMeta time Parse failed")
-		return err
-	}
-	ticker := time.NewTicker(time.Second * 10)
+	ticker := time.NewTicker(time.Second * 5)
 	defer ticker.Stop()
 	cnt := 0
 	for {
 		<-ticker.C
-
 		registry, _, err := s.RegDal.SearchRegistry(ctx, imagesecModel.SearchRegistryParam{Deleted: consts.FalseString})
 		if err != nil {
 			s.Log.Err(err).Msg("MigrateImage")
 			continue
 		}
 		if len(registry) == 0 {
+			ticker.Reset(time.Minute * 2)
 			continue
 		}
 		regs := make(map[int64]imagesecModel.Registry)
@@ -525,10 +468,10 @@ func (s *ImageMigrate) syncImageMeta(ctx context.Context) error {
 		}
 
 		images, _, err := s.ImageDal.SearchImage(ctx, imagesecModel.SearchImageParam{
-			ImageFromType: imagesecModel.ImageFromRegistry,
-			StartTime:     lastTime,
-			NotCount:      true,
-			RegIds:        retIds,
+			Where:    fmt.Sprintf("status = 0"),
+			NotCount: true,
+			RegIds:   retIds,
+			Fields:   []string{"id", "status"},
 		}, filter)
 
 		if err != nil {
@@ -536,37 +479,85 @@ func (s *ImageMigrate) syncImageMeta(ctx context.Context) error {
 			return err
 		}
 		if len(images) == 0 {
-			s.Log.Err(err).Msg("SyncImageMeta finished")
+			s.Log.Info().Msg("SyncImageMeta this batch finished")
 			break
 		}
-		lastTime = images[len(images)-1].UpdatedAt
-
-		flag := false // 标记是否扫描到30分钟之前得镜像
-
-		res := make([]*imagesecModel.Image, 0)
-
-		for _, image := range images {
-			reg, ok := regs[image.RegistryID]
-			if !ok {
+		for i := range images {
+			if images[i].Status != 0 {
 				continue
 			}
-			image.Library = reg.Url
-			if image.UpdatedAt.Before(thirtyAgo) {
-				flag = true
-				break
-			}
-			res = append(res, DataToImage(image)...)
+			_ = s.MigrateImage(ctx, images[i].ID)
 		}
-		cnt += len(images)
-		if err := s.ImageMetaDal.CreateRegImage(ctx, res); err != nil {
-			s.Log.Err(err).Msg("Migrate SyncImageMeta CreateRegImage failed")
-			continue
-		}
-		if flag {
-			break
-		}
+		s.Log.Info().Int("syncImageCnt", len(images)).Msg("Migrate SyncImageMeta")
 	}
 
 	s.Log.Info().Int("syncImageCnt", cnt).Msg("Migrate SyncImageMeta end")
+	return nil
+}
+
+func (s *ImageMigrate) updateImageAdapted(ctx context.Context, imageID int64) error {
+	updater := map[string]interface{}{
+		"status": consts.ImageStatusImageAdapted,
+	}
+	err := s.ImageDal.UpdateImage(ctx, fmt.Sprintf("id = %d", imageID), updater, nil)
+	if err != nil {
+		s.Log.Err(err).Msg("updateImageAdapted")
+		return err
+	}
+	return nil
+}
+
+// 和运维商量，中移环境不关心老数据，重新扫描
+func (s *ImageMigrate) MigrateExitData(ctx context.Context, ver string) error {
+
+	s.Log.Info().Msg("Migrate MigrateExitData start")
+
+	migrate, err := s.DataMigrateDal.SearchDataMigrate(ctx,
+		imagesecModel.SearchDataMigrateParam{SoftVersion: consts.ScannerVersion220, Model: consts.DataMigrateModelImage})
+	if err != nil {
+		return err
+	}
+	if len(migrate) == 0 || migrate[0].FinishedAt > 0 {
+		return nil
+	}
+	mi := migrate[0]
+	var lastID int64
+	if i, err := strconv.ParseInt(mi.Last, 10, 64); err == nil {
+		lastID = i
+	}
+
+	filter := model.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortAsc().SetSortFiledByID()
+
+	ticker := time.NewTicker(time.Second * 5)
+	defer ticker.Stop()
+	cnt := 0
+	for {
+		<-ticker.C
+		images, _, err := s.ImageDal.SearchImage(ctx, imagesecModel.SearchImageParam{
+			ImageFromType: imagesecModel.ImageFromRegistry,
+			StartID:       lastID,
+			NotCount:      true,
+		}, filter)
+		if err != nil {
+			s.Log.Err(err).Str("SOFT_VERSION", ver).Msg("Migrate")
+			return err
+		}
+		if len(images) == 0 {
+			updater := map[string]interface{}{"finished_at": time.Now().UnixMilli()}
+			_ = s.DataMigrateDal.UpdateDataMigrate(ctx, mi.ID, updater)
+			s.Log.Err(err).Str("SOFT_VERSION", ver).Msg("Migrate finished")
+			break
+		}
+		cnt += len(images)
+		lastID = images[len(images)-1].ID
+		for i := range images {
+			image := images[i]
+			_ = s.MigrateImage(ctx, image.ID)
+			// _ = s.MigrateScan(ctx, image.ID, 0)
+		}
+		updater := map[string]interface{}{"last": fmt.Sprintf("%d", lastID)}
+		_ = s.DataMigrateDal.UpdateDataMigrate(ctx, mi.ID, updater)
+	}
+	s.Log.Info().Int("imageCnt", cnt).Msg("Migrate MigrateExitData end")
 	return nil
 }

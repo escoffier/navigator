@@ -154,7 +154,7 @@ const (
 
 const (
 	TaskStatusNotReadyStr       = "notReady"     // 没有准备好
-	TaskStatusPendingStr        = "pending"      // 等到中
+	TaskStatusPendingStr        = "pending"      // 等待中
 	TaskStatusInprogressStr     = "inprogress"   // 执行中
 	TaskStatusPauseStr          = "pause"        // 暂停
 	TaskStatusScanFinishedStr   = "scanFinished" // 扫描完成但是检测未已完成

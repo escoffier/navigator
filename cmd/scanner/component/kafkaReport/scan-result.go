@@ -90,7 +90,14 @@ func (s *ScanResultReportSrv) CreateScanResult(ctx context.Context, data imagese
 	correlate := &imagesecModel.ImageWithCorrelateData2{Image: image}
 
 	correlate.Image.OS = data.OS
-	vulns, _ := s.CreatePkgVuln(ctx, data, image.UniqueID, correlate)
+	if !data.IgnoreVulnAndPkg {
+		// fixme 如果都是老集群，那么漏洞发现就没有数据
+		vulns, _ := s.CreatePkgVuln(ctx, data, image.UniqueID, correlate)
+		// 在线镜像的漏洞
+		if util.ExistBit1(image.Flag, imagesecModel.FlagImageOnline) {
+			go func() { s.OnlineVulnChan <- vulns }()
+		}
+	}
 
 	_ = s.CreateSensitive(ctx, data, image.UniqueID, correlate)
 	_ = s.CreateMalware(ctx, data, image.UniqueID, correlate)
@@ -102,10 +109,6 @@ func (s *ScanResultReportSrv) CreateScanResult(ctx context.Context, data imagese
 
 	// 更新镜像信息
 	_ = s.UpdateImage(ctx, image.ID, correlate)
-	// 在线镜像的漏洞
-	if util.ExistBit1(image.Flag, imagesecModel.FlagImageOnline) {
-		go func() { s.OnlineVulnChan <- vulns }()
-	}
 
 	go func() {
 		dd := DetectImageData{
@@ -132,20 +135,6 @@ func (s *ScanResultReportSrv) CreateScanResult(ctx context.Context, data imagese
 		s.Log.Err(err).Int64("subtaskID", data.SubTaskID).Int64("taskID", data.TaskID).Msg("CreateScanResult")
 		return err
 	}
-
-	return nil
-}
-
-func (s *ScanResultReportSrv) CreateScanResultForDataMigrate(ctx context.Context, data imagesecTypes.ScanResult) error {
-
-	image := imagesecModel.Image{UniqueID: data.ImageUniqueID}
-
-	correlate := &imagesecModel.ImageWithCorrelateData2{Image: image}
-	_ = s.CreateSensitive(ctx, data, image.UniqueID, correlate)
-	_ = s.CreateMalware(ctx, data, image.UniqueID, correlate)
-	_ = s.CreateWebshell(ctx, data, image.UniqueID, correlate)
-
-	s.Log.Info().Int64("imageID", image.ID).Int64("subtaskID", data.SubTaskID).Msg("CreateScanResult succeed")
 
 	return nil
 }
@@ -915,18 +904,9 @@ func (s *ScanResultReportSrv) ReceiveImageScanResult(ctx context.Context, msg ka
 		return nil
 	}
 
-	if data.SubTaskID > 0 {
-		if err := s.CreateScanResult(ctx, data); err != nil {
-			s.Log.Err(err).Msg("CreateScanResult")
-			// 消费消息后，不管扫描结果入库是否成功，对于 kafka来说都是成功消费，所以只记录，不返回 error
-		}
-	}
-	// subtaskID<=0 表示是数据迁移等情况
-	if data.SubTaskID <= 0 {
-		if err := s.CreateScanResultForDataMigrate(ctx, data); err != nil {
-			s.Log.Err(err).Msg("CreateScanResultForDataMigrate")
-			// 消费消息后，不管扫描结果入库是否成功，对于 kafka来说都是成功消费，所以只记录，不返回 error
-		}
+	if err := s.CreateScanResult(ctx, data); err != nil {
+		s.Log.Err(err).Msg("CreateScanResult")
+		// 消费消息后，不管扫描结果入库是否成功，对于 kafka来说都是成功消费，所以只记录，不返回 error
 	}
 
 	return nil

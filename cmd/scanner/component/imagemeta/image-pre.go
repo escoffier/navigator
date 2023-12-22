@@ -3,8 +3,7 @@ package imagemeta
 import (
 	"context"
 	"fmt"
-	"strings"
-	"time"
+	"strconv"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
@@ -12,7 +11,7 @@ import (
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 )
 
 type PreRegImageSrv struct {
@@ -43,164 +42,121 @@ func NewPreLibImageSrv() *PreRegImageSrv {
 	}
 }
 
-func (s *PreRegImageSrv) GetImageCorrelateData(ctx context.Context, param imagesecModel.ImageAssociateParam) (
-	*imagesecModel.ImageWithCorrelateData2, error) {
-	param.Deserialize()
+func (s *PreRegImageSrv) GetImageCorrelateData(ctx context.Context, imageID int64) (
+	*imagesecModel.ImageWithCorrelateData2, []*imagesecModel.Vuln, error) {
 
-	ans := &imagesecModel.ImageWithCorrelateData{}
+	ans := &imagesecModel.ImageWithCorrelateData{
+		Sensitive: make([]*model.ImageSensitiveFile, 0),
+		Webshell:  make([]*scannermodel.Webshell, 0),
+		Env:       make([]*model.ImageEnv, 0),
+		Vuln:      make([]*model.Vuln, 0),
+		Software:  make([]*model.ImageSoftware, 0),
+		License:   make([]string, 0),
+		Virus:     make([]*model.ImageVirus, 0),
+	}
 
-	images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.SearchImageParam{InIds: []int64{param.ImageId}}, nil)
+	images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.SearchImageParam{InIds: []int64{imageID}}, nil)
 	if err != nil {
-		s.Log.Err(err).Int64("ImageID", param.ImageId).Msg("ImageWithCorrelateData ImageBaseDetail")
-		return nil, err
+		s.Log.Err(err).Int64("ImageID", imageID).Msg("ImageWithCorrelateData ImageBaseDetail")
+		return nil, nil, err
 	}
 	if len(images) == 0 {
-		return nil, fmt.Errorf("not find image:%d", param.ImageId)
+		return nil, nil, fmt.Errorf("not find image:%d", imageID)
 	}
 	image := images[0]
 
 	ans.ImageList = image
 
-	imageID := param.ImageId
+	daoParam := store.SearchImageScanResultParam{ImageID: imageID}
 
-	registry, _, err := s.registryDal.SearchRegistry(ctx, imagesecModel.SearchRegistryParam{Deleted: consts.FalseString, ID: image.RegistryID})
+	// 2.11版本之前，没有拆分
+	imageData, err := s.scanResultDal.SearchScanImage(ctx, imagesecModel.ScanResultSearchParam{ImageID: imageID})
 	if err != nil {
-		s.Log.Err(err).Msg("SearchImageWithScan.SearchRegistry")
-		return nil, err
+		s.Log.Err(err).Int64("imageID", imageID).Msg("GetImageCorrelateDataFor211 SearchScanImage")
 	}
-	if len(registry) > 0 {
-		ans.Registry = &(registry[0])
+	if err == nil {
+		ans.Virus = append(ans.Virus, imageData.Virus...)
+		ans.Sensitive = append(ans.Sensitive, imageData.Sensitive...)
+		ans.Env = append(ans.Env, imageData.Env...)
+		ans.Software = append(ans.Software, imageData.Software...)
+		ans.Webshell = append(ans.Webshell, imageData.Webshell...)
 	}
 
-	daoParam := ScanResultParamToStoreParam(param.ScanResultSearchParam)
-
-	daoParam.ImageID = imageID
-
-	dataFor211, err := s.GetImageCorrelateDataFor211(ctx, param)
+	webshell, _, err := s.scanResultDal.SearchWebShell(ctx, daoParam, nil)
 	if err != nil {
-		s.Log.Err(err).Int64("imageID", param.ImageId).Msg("GetImageCorrelateData GetImageCorrelateDataFor211")
-		return nil, err
+		s.Log.Err(err).Msg("SearchImageWithScan.SearchWebShell")
 	}
-
-	ans.VirusCnt = dataFor211.VirusCnt
-	ans.Virus = dataFor211.Virus
-	ans.SensitiveCnt = dataFor211.SensitiveCnt
-	ans.Sensitive = dataFor211.Sensitive
-	ans.EnvCnt = dataFor211.EnvCnt
-	ans.Env = dataFor211.Env
-	ans.Software = dataFor211.Software
-	ans.SoftwareCnt = dataFor211.SoftwareCnt
-
-	if param.WebshellEnable {
-		webshell, webshellCnt, err := s.scanResultDal.SearchWebShell(ctx, daoParam, nil)
-		if err != nil {
-			s.Log.Err(err).Msg("SearchImageWithScan.SearchWebShell")
-			return nil, err
-		}
-		ans.WebshellCnt = webshellCnt
-		ans.Webshell = webshell
-	}
+	ans.Webshell = append(ans.Webshell, webshell...)
 
 	// 查询该镜像的所有漏洞，更详细的查询请使用VulnServiceInterface
-	if param.VulnEnable {
-		vuln, cnt, err := s.vulnDal.SearchVuln(ctx, store.SearchVulnParam{ImageIds: []int64{imageID},
-			OmitFields: param.ScanResultSearchParam.OmitFields}, nil)
-		if err != nil {
-			s.Log.Err(err).Int64("ImageID", imageID).Msg("ImageWithCorrelateData SearchVuln")
-			return nil, err
+	vuln, _, err := s.vulnDal.SearchVuln(ctx, store.SearchVulnParam{ImageIds: []int64{imageID}}, nil)
+	if err != nil {
+		s.Log.Err(err).Int64("ImageID", imageID).Msg("ImageWithCorrelateData SearchVuln")
+	}
+
+	ans.Vuln = append(ans.Vuln, vuln...)
+
+	env, _, err := s.scanResultDal.SearchImageEnv(ctx, daoParam, nil)
+	if err != nil {
+		s.Log.Err(err).Int64("ImageID", imageID).Msg("ImageWithCorrelateData SearchImageEnv")
+	}
+	ans.Env = append(ans.Env, env...)
+
+	sensitive, _, err := s.scanResultDal.SearchSensitive(ctx, daoParam, nil)
+	if err != nil {
+		s.Log.Err(err).Int64("ImageID", imageID).Msg("ImageWithCorrelateData SearchSensitive")
+	}
+	ans.Sensitive = append(ans.Sensitive, sensitive...)
+
+	software, _, err := s.scanResultDal.SearchSoftware(ctx, daoParam, nil)
+	if err != nil {
+		s.Log.Err(err).Int64("ImageID", imageID).Msg("ImageWithCorrelateData SearchSoftware")
+	}
+	ans.Software = append(ans.Software, software...)
+
+	virus, _, err := s.scanResultDal.SearchVirus(ctx, daoParam, nil)
+	if err != nil {
+		s.Log.Err(err).Int64("ImageID", imageID).Msg("ImageWithCorrelateData SearchVirus")
+	}
+	ans.Virus = append(ans.Virus, virus...)
+
+	vulns := make([]*imagesecModel.Vuln, 0)
+
+	for i := range ans.Vuln {
+		vu1 := ans.Vuln[i]
+		vu := &imagesecModel.Vuln{
+			Name:          vu1.Name,
+			PkgName:       vu1.PkgName,
+			PkgVersion:    vu1.PkgVersion,
+			CnnvdName:     vu1.CnnvdName,
+			DescriptionEn: vu1.Description,
+			DescriptionZh: vu1.Description,
+			References:    vu1.Link,
+			Class:         vu1.Class,
+			Severity:      vu1.SeverityInt,
+			Language:      vu1.Language,
+			Frame:         vu1.Frame,
+			FixedVersion:  vu1.FixedBy,
+			Target:        vu1.Target,
 		}
-		ans.Vuln = vuln
-		ans.VulnCnt = cnt
+		if vu1.Metadata != nil {
+			vu.CVSS = map[string]imagesecModel.Cvss{}
+			f, _ := strconv.ParseFloat(vu1.Metadata.CVSS.CVSSv3Score, 64)
+			vu.CVSS[imagesecModel.CVSSNvd] = imagesecModel.Cvss{
+				V3Score:  f,
+				V3Vector: vu1.Metadata.CVSS.CVSSv3Vector,
+			}
+		}
+		pk := imagesecModel.Pkg{
+			Name:    vu.PkgName,
+			Version: vu.PkgVersion,
+		}
+		vu.PkgUniqueID = pk.GenUniqueID()
+
+		vulns = append(vulns, vu)
 	}
 
 	res := ans.Adapt() // 适配成最新的版本
 
-	res.ImageBaseResponse = res.ToImageBaseResponse()
-	// 程序中分页
-	res = res.AddFilter(param.ScanResultSearchParam.Filter)
-	return res, nil
-}
-
-func ScanResultParamToStoreParam(s imagesecModel.ScanResultSearchParam) store.SearchImageScanResultParam {
-	param := store.SearchImageScanResultParam{
-		ImageID:     s.ImageID,
-		LayerDigest: s.LayerDigest,
-		Keyword:     s.Keyword,
-	}
-	if s.ExceptionPkgLicense == consts.TrueString {
-		param.Flag = util.SetBit1(param.Flag, imagesecModel.FlagHasExceptionPkgLicense)
-	}
-
-	if s.ExceptionEnv == consts.TrueString {
-		param.NormalEnv = consts.FalseString
-	} else if s.ExceptionEnv == consts.FalseString {
-		param.NormalEnv = consts.TrueString
-	}
-
-	if s.ExceptionPkg == consts.TrueString {
-		param.Flag = util.SetBit1(param.Flag, imagesecModel.FlagHasExceptionPKG)
-	}
-	return param
-}
-
-func (s *PreRegImageSrv) GetImageCorrelateDataFor211(ctx context.Context, param imagesecModel.ImageAssociateParam) (
-	*imagesecModel.ImageWithCorrelateData, error) {
-	imageData, err := s.scanResultDal.SearchScanImage(ctx, param.ScanResultSearchParam)
-	if err != nil {
-		s.Log.Err(err).Int64("imageID", param.ImageId).Msg("GetImageCorrelateDataFor211 SearchScanImage")
-		return nil, err
-	}
-	if !param.PkgEnable || param.ScanResultSearchParam.ExceptionPkg == consts.TrueString {
-		return imageData, nil
-	}
-	abnormalSoft := make(map[string]uint64)
-	for i := range imageData.Software {
-		key := fmt.Sprintf("%s|%s", imageData.Software[i].Name, imageData.Software[i].Version)
-		abnormalSoft[key] = imageData.Software[i].Flag
-	}
-
-	// 查software
-	vulns, _, err := s.vulnDal.SearchVuln(ctx, store.SearchVulnParam{
-		Fields:   []string{"id", "name", "pkg_name", "pkg_version"},
-		ImageIds: []int64{param.ImageId},
-	}, nil)
-
-	if err != nil {
-		s.Log.Err(err).Int64("imageID", param.ImageId).Msg("GetImageCorrelateDataFor211 SearchVuln")
-		return nil, err
-	}
-
-	softExit := make(map[string]bool)
-	soft := make([]*model.ImageSoftware, 0)
-	keyword := param.ScanResultSearchParam.Keyword
-	for i := range vulns {
-		key := fmt.Sprintf("%s|%s", vulns[i].PkgName, vulns[i].PkgVersion)
-		if !softExit[key] {
-			softExit[key] = true
-
-			if keyword != "" && (!strings.Contains(strings.ToLower(vulns[i].PkgName), keyword) &&
-				!strings.Contains(strings.ToLower(vulns[i].PkgVersion), keyword)) {
-				continue
-			}
-
-			so := &model.ImageSoftware{
-				Name:    vulns[i].PkgName,
-				Version: vulns[i].PkgVersion,
-				Flag:    abnormalSoft[key],
-			}
-
-			soft = append(soft, so)
-		}
-	}
-
-	imageData.Software = soft
-	imageData.SoftwareCnt = int64(len(soft))
-
-	return imageData, nil
-}
-
-func (s *PreRegImageSrv) GetPreImage(ctx context.Context) error {
-	ticker := time.NewTicker(time.Minute * 30)
-	defer ticker.Stop()
-	return nil
+	return res, vulns, nil
 }

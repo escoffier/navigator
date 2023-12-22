@@ -19,6 +19,7 @@ import (
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
 	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type SyncTaskDispatcher interface {
@@ -66,7 +67,6 @@ func (s *RegDispatchSrv) DispatchSyncTask(ctx context.Context) error {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				s.Log.Error().Str("Stack", string(debug.Stack())).Msg("dispatchFullSyncTask panic recover")
 				s.Log.Error().Str("Stack", string(debug.Stack())).Msg("dispatchFullSyncTask panic recover")
 			}
 		}()
@@ -192,7 +192,6 @@ func (s *RegDispatchSrv) dispatchFullSyncTask(ctx context.Context) {
 		}
 		for _, ta := range tasks {
 			up := SyncTaskUpdate{SyncTaskID: ta.ID, Start: true}
-			go func() { s.SyncTaskUpdateChan <- up }()
 			regs, _, err := s.registryDal.SearchRegistry(ctx, imagesecModel.SearchRegistryParam{ID: ta.RegistryID, Deleted: consts.FalseString})
 			if err != nil {
 				s.Log.Err(err).Msg("SearchRegistry")
@@ -227,6 +226,17 @@ func (s *RegDispatchSrv) dispatchFullSyncTask(ctx context.Context) {
 
 			ta.Registry = regs[0]
 			ta.ScanInsInfo = scanInsInfo[0]
+
+			s.Log.Debug().Int64("regID", ta.RegistryID).Str("ScannerVersion", ta.ScanInsInfo.ScannerVersion).
+				Msg("dispatchFullSyncTask ScannerVersion")
+
+			if !util.ThanVersion(ta.ScanInsInfo.ScannerVersion, consts.ScannerVersion220) {
+				s.Log.Info().Int64("regID", ta.RegistryID).Str("ScannerVersion", ta.ScanInsInfo.ScannerVersion).
+					Msg("dispatchFullSyncTask ScannerVersion less 2.20")
+				continue
+			}
+
+			go func() { s.SyncTaskUpdateChan <- up }()
 
 			s.Log.Debug().Int64("regID", ta.RegistryID).Interface("syncTask", ta).
 				Msg("dispatchFullSyncTask ready to send")
@@ -344,7 +354,7 @@ func (s *RegDispatchSrv) getSyncStatus(st int64) string {
 	case consts.StreamStatusSyncFinished:
 		return imagesecModel.TaskStatusImageSyncFinishedStr
 	default:
-		s.Log.Error().Str("Stack", string(debug.Stack())).Str("module", "RegistryImage").Int64("rpcStatus", st).Msg("getSyncStatus")
+		s.Log.Error().Int64("rpcStatus", st).Msg("getSyncStatus")
 		return "unknown"
 	}
 }
