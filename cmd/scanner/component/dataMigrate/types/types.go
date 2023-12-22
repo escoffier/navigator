@@ -7,5 +7,5 @@ import (
 )
 
 type ImageService interface {
-	GetImageCorrelateData(ctx context.Context, param imagesecModel.ImageAssociateParam) (*imagesecModel.ImageWithCorrelateData2, error)
+	GetImageCorrelateData(ctx context.Context, imageID int64) (*imagesecModel.ImageWithCorrelateData2, []*imagesecModel.Vuln, error)
 }

@@ -35,6 +35,7 @@ type ImageCacheDal interface {
 type PreImageDal interface {
 	DeletePreImage(ctx context.Context, image *model.ImageList) error
 	CreatePreImage(ctx context.Context, image *model.ImageList) error
+	SearchDefaultStrategy(ctx context.Context) (*model.ScanStrategy, error)
 }
 
 type ImageMetaDao struct {
@@ -603,10 +604,10 @@ func (dal *ImageMetaDao) DeletePreImage(ctx context.Context, image *model.ImageL
 	// if image.Digest != "" {
 	// 	_ = dal.db.Get().WithContext(ctx).Table(tableName).Where("digest = ?", image.Digest).Delete(&model.ImageList{}).Error
 	// }
-	if image.FullRepoName != "" && image.Tags != "" && image.RegistryID > 0 {
-		_ = dal.db.Get().WithContext(ctx).Table(tableName).Where("full_repo_name = ?", image.FullRepoName).
-			Where("tags = ?", image.Tags).Where("registry_id = ?", image.RegistryID).Delete(&model.ImageList{}).Error
-	}
+	// if image.FullRepoName != "" && image.Tags != "" && image.RegistryID > 0 {
+	// 	_ = dal.db.Get().WithContext(ctx).Table(tableName).Where("full_repo_name = ?", image.FullRepoName).
+	// 		Where("tags = ?", image.Tags).Where("registry_id = ?", image.RegistryID).Delete(&model.ImageList{}).Error
+	// }
 
 	return nil
 }
@@ -665,6 +666,19 @@ func (dal *ImageCacheDao) SearchCacheInfo(ctx context.Context, dataType string) 
 	}
 
 	return res[0], nil
+}
+
+func (dal *ImageMetaDao) SearchDefaultStrategy(ctx context.Context) (*model.ScanStrategy, error) {
+	timeoutCtx, cancelFunc := context.WithTimeout(ctx, 10*time.Second)
+	defer cancelFunc()
+	db := dal.db.Get().WithContext(timeoutCtx).Model(new(model.ScanStrategy))
+	db.Where("is_default = ?", true)
+	res := new(model.ScanStrategy)
+	if err := db.First(res).Error; err != nil {
+		return nil, err
+	}
+	res.Deserialize()
+	return res, nil
 }
 
 // 所有镜像的统计，不统计镜像本身属性

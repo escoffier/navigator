@@ -94,20 +94,21 @@ type VulnResult struct {
 
 // ScanResult 镜像扫描结果.trivy的扫描结果为一个数组，我们会把结果扁平化放到此结构体里。
 type ScanResult struct {
-	UUID           string                `json:"uuid"`      // 每次扫描任务的唯一标识
-	TaskID         int64                 `json:"taskID"`    // 对应的扫描任务id
-	SubTaskID      int64                 `json:"subTaskID"` // 对应的子任务id
-	ImageUniqueID  uint64                `json:"imageUniqueID"`
-	OS             types.OS              `json:"os"`
-	VulnResults    []VulnResult          `json:"vulnResults"` // 漏洞和软件包信息
-	Sensitives     SensitiveFileResults  `json:"sensitives"`  // 敏感文件
-	Malwares       MalwareResults        `json:"malwares"`    // 恶意软件扫描结果
-	Webshells      WebshellResults       `json:"webshells"`   // webshell 扫描结果
-	License        []License             `json:"license"`     // 镜像使用的license 名
-	WebFrameInfo   WebFrameInfo          `json:"webFrameInfo"`
-	StatusStr      string                `json:"statusStr"`
-	Msg            string                `json:"msg"`
-	OriginArtifact ftypes.ArtifactDetail `json:"originArtifact"` // irene扫描结果中的artifact。scanner利用这里的软件包信息做漏洞匹配.为了方便而设置，和vulnResult相比有冗余数据
+	UUID             string                `json:"uuid"`      // 每次扫描任务的唯一标识
+	TaskID           int64                 `json:"taskID"`    // 对应的扫描任务id
+	SubTaskID        int64                 `json:"subTaskID"` // 对应的子任务id
+	ImageUniqueID    uint64                `json:"imageUniqueID"`
+	OS               types.OS              `json:"os"`
+	VulnResults      []VulnResult          `json:"vulnResults"` // 漏洞和软件包信息
+	Sensitives       SensitiveFileResults  `json:"sensitives"`  // 敏感文件
+	Malwares         MalwareResults        `json:"malwares"`    // 恶意软件扫描结果
+	Webshells        WebshellResults       `json:"webshells"`   // webshell 扫描结果
+	License          []License             `json:"license"`     // 镜像使用的license 名
+	WebFrameInfo     WebFrameInfo          `json:"webFrameInfo"`
+	StatusStr        string                `json:"statusStr"`
+	Msg              string                `json:"msg"`
+	IgnoreVulnAndPkg bool                  `json:"IgnoreVulnAndPkg"` //  忽略漏洞的数据
+	OriginArtifact   ftypes.ArtifactDetail `json:"originArtifact"`   // irene扫描结果中的artifact。scanner利用这里的软件包信息做漏洞匹配.为了方便而设置，和vulnResult相比有冗余数据
 }
 
 // SyncScannedResult used for sync scanned result to all cluster's node

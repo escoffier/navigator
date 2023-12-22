@@ -204,7 +204,6 @@ func ParseWebshellCode(pre string) string {
 	}
 	after, err := base64.StdEncoding.DecodeString(pre)
 	if err != nil {
-		logging.Get().Info().Str("pre", pre).Msg("decode base64 error")
 		return pre
 	}
 	return string(after)

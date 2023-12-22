@@ -386,13 +386,14 @@ type UpdateSecurityPolicyParam struct {
 }
 
 type UpdateTaskParam struct {
+	Ids     []int64
 	ID      int64
 	Updater map[string]interface{}
 	Where   string
 }
 
 func (vi UpdateTaskParam) Check() error {
-	if vi.ID <= 0 && vi.Where == "" {
+	if vi.ID <= 0 && vi.Where == "" && len(vi.Ids) == 0 {
 		return fmt.Errorf("not get where condition")
 	}
 	if len(vi.Updater) == 0 {
