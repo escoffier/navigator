@@ -8,9 +8,10 @@ import (
 	"github.com/go-redis/redis/v8"
 	json "github.com/json-iterator/go"
 
+	"gitlab.com/security-rd/go-pkg/logging"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 type ImageVulnsReporter struct {
@@ -174,10 +175,12 @@ func (s ImageVulnsSummary) ResourceSummary(tx context.Context, clusterKey, names
 
 			}
 		}
-		sums[riskTypeKey] = Summary{
-			Count:    count,
-			Severity: maxRiskTypeSeverity,
-			RiskType: riskType,
+		if count > 0 {
+			sums[riskTypeKey] = Summary{
+				Count:    count,
+				Severity: maxRiskTypeSeverity,
+				RiskType: riskType,
+			}
 		}
 	}
 
