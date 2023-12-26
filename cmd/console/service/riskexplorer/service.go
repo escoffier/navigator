@@ -11,13 +11,14 @@ import (
 
 	"github.com/go-redis/redis/v8"
 	json "github.com/json-iterator/go"
+	"gitlab.com/security-rd/go-pkg/logging"
+
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 var (
