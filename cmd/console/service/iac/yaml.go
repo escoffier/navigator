@@ -435,7 +435,7 @@ func initBuiltInScheduleAndTemplate() error {
 			TemplateID:  templateID,
 			Description: DBPeriodScheduleDescription,
 			Schedule:    DBPeriodScheduleSchedule,
-			Config:      []byte(`{}`),
+			Config:      []byte(`{"all":true}`),
 			Status:      DBScheduleOff,
 			NextTime:    time.Now(),
 			CreatedAt:   time.Now(),
