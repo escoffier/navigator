@@ -7,10 +7,12 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"image/png"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -566,6 +568,39 @@ func (api *api) idpLogin() http.HandlerFunc {
 			ID:   "",
 			Link: "",
 		}))
+	}
+}
+
+func (api *api) geDxHost() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), defaultAccountTimeout)
+		defer cancel()
+
+		conf, err := dal.GetConfig(ctx, api.rdb.GetReadDB(), model.ConfIdpLogin)
+		if err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				logging.Get().Warn().Err(err).Msgf("")
+				response.Ok(w, response.WithItem(map[string]string{"host": ""}))
+			}
+
+		}
+
+		resp := idp.LoginConfig{}
+		if err = json.Unmarshal(conf.Config, &resp); err != nil {
+			RespAndLog(w, r.Context(),
+				NewAnError(http.StatusInternalServerError, fmt.Errorf("unmarshal json failed: %w", err)))
+			return
+		}
+
+		host := ""
+		if resp.Enabled && resp.Platform == idp.DxPlatform {
+			u, err := url.Parse(resp.DiscoveryEndpoint)
+			if err == nil {
+				host = u.Scheme + "://" + u.Host
+			}
+		}
+
+		response.Ok(w, response.WithItem(map[string]string{"host": host}))
 	}
 }
 

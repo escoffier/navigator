@@ -24,6 +24,7 @@ func (api *api) userCenter() func(chi.Router) {
 			r.Post("/radiusLogin", api.RadiusLogin())
 			r.Get("/idp/login/url", api.getIdpLoginUrl())
 			r.Post("/idp/login", api.idpLogin())
+			r.Get("/idp/dxhost", api.geDxHost())
 		})
 		r.Post("/radiusResponseChallenge", api.RadiusResponseChallenge())
 		r.Post("/createCaptcha", api.createCaptcha())
