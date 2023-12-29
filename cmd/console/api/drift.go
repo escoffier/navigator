@@ -490,7 +490,7 @@ func (api *api) driftPolicyImageWhitelist() http.HandlerFunc {
 			return
 		}
 
-		containers, err := driSvc.PolicyDetail(ctx, policy, 10000, 0)
+		containers, err := driSvc.PolicyDetailRawContainers(ctx, policy)
 		if err != nil {
 			logging.GetLogger().Err(err).Msg("get containers error")
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get containers error")))
@@ -498,17 +498,19 @@ func (api *api) driftPolicyImageWhitelist() http.HandlerFunc {
 		}
 
 		imageTags := []string{}
+		imageDigests := []string{}
 		for _, container := range containers {
-			imageTag := container.Image
-			if !strings.Contains(container.Image, ":") {
-				imageTag = container.Image + ":latest"
+			imageTag := container.ImageName
+			if !strings.Contains(container.ImageName, ":") {
+				imageTag = container.ImageName + ":latest"
 			}
 			imageTags = append(imageTags, imageTag)
+			imageDigests = append(imageDigests, container.ImageDigest)
 		}
 
 		logging.GetLogger().Debug().Interface("imageTags", imageTags).Msg("imageTags")
 
-		whitelist, count, err := driSvc.GetDefaultWhitelist(ctx, offset, limit, imageTags, searchStr)
+		whitelist, count, err := driSvc.GetDefaultWhitelist(ctx, offset, limit, imageTags, imageDigests, searchStr)
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("Get default whitelist error")
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("Get default whitelist error")))

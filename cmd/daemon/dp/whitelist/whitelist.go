@@ -58,6 +58,7 @@ func (wc *WhitelistCount) GenerateExecWhiteList(image container.ImageInspect) (i
 		repoDigest = strings.Split(image.RepoDigests[0], "@")[1]
 	}
 
+	logging.Get().Info().Msgf("GenerateExecWhiteList image info: %#v", image)
 	// check file cache
 	whiteListFileName := fmt.Sprintf(whiteListBackFileTemplate, repoDigest)
 	if isFile(whiteListFileName) {
@@ -93,7 +94,7 @@ func (wc *WhitelistCount) GenerateExecWhiteList(image container.ImageInspect) (i
 	// save whitelist result to file cache
 	_ = dumpWhitelist(resWhiteList, whiteListFileName)
 	// send whitelist to kafka
-	_ = sendWhitelist(wc.mqWriter, strings.Trim(image.ID, "sha256:"), image.RepoTags, resWhiteList)
+	_ = sendWhitelist(wc.mqWriter, strings.Trim(image.ID, "sha256:"), image.RepoTags, image.RepoDigests, resWhiteList)
 
 	return imageInfo{WhiteList: resWhiteList}, nil
 }
@@ -236,7 +237,7 @@ func transformListType(whitelist []WhitelistFile) []model.DriftWhitelistFile {
 	return res
 }
 
-func sendWhitelist(mqWrite mq.Writer, imageID string, repoTags []string, whitelist []WhitelistFile) error {
+func sendWhitelist(mqWrite mq.Writer, imageID string, repoTags []string, repoDigests []string, whitelist []WhitelistFile) error {
 	if len(whitelist) == 0 {
 		return fmt.Errorf("whitelist is null, skip send")
 	}
@@ -247,9 +248,10 @@ func sendWhitelist(mqWrite mq.Writer, imageID string, repoTags []string, whiteli
 	logging.Get().Trace().Msgf("white list len:%v", len(whitelist))
 
 	kafkaData := model.DriftImageWhitelistKafka{
-		ImageID:    imageID,
-		RepoTags:   repoTags,
-		Whitelists: transformListType(whitelist),
+		ImageID:     imageID,
+		RepoTags:    repoTags,
+		RepoDigests: repoDigests,
+		Whitelists:  transformListType(whitelist),
 	}
 	msg, err := json.Marshal(kafkaData)
 	if err != nil {

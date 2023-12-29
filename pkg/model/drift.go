@@ -226,12 +226,13 @@ type DriftSupportInfo struct {
 }
 
 type DriftImageWhitelist struct {
-	ImageID   string `json:"image_id" gorm:"column:image_id;varchar(65)"`
-	Filepath  string `json:"filepath" gorm:"column:path;varchar(768)"`
-	CheckSum  string `json:"check_sum" gore:"column:hash;varchar(8)"`
-	RepoTag   string `json:"repo_tag" gorm:"column:repo_tag;varchar(255)"`
-	CreatedAt int64  `json:"created_at" gorm:"column:created_at;autoCreateTime:milli"`
-	UpdatedAt int64  `json:"updated_at" gorm:"column:updated_at;autoUpdateTime:milli"`
+	ImageID    string `json:"image_id" gorm:"column:image_id;varchar(65)"`
+	Filepath   string `json:"filepath" gorm:"column:path;varchar(768)"`
+	CheckSum   string `json:"check_sum" gore:"column:hash;varchar(8)"`
+	RepoTag    string `json:"repo_tag" gorm:"column:repo_tag;varchar(255)"`
+	RepoDigest string `json:"repo_digest" gorm:"column:repo_digest;varchar(255)"`
+	CreatedAt  int64  `json:"created_at" gorm:"column:created_at;autoCreateTime:milli"`
+	UpdatedAt  int64  `json:"updated_at" gorm:"column:updated_at;autoUpdateTime:milli"`
 }
 
 func (DriftImageWhitelist) TableName() string {
@@ -244,9 +245,10 @@ type DriftWhitelistFile struct {
 }
 
 type DriftImageWhitelistKafka struct {
-	ImageID    string               `json:"image_id"`
-	RepoTags   []string             `json:"repo_tags"`
-	Whitelists []DriftWhitelistFile `json:"whitelists"`
+	ImageID     string               `json:"image_id"`
+	RepoTags    []string             `json:"repo_tags"`
+	RepoDigests []string             `json:"repo_digests"`
+	Whitelists  []DriftWhitelistFile `json:"whitelists"`
 }
 
 type ReasonItem struct {
