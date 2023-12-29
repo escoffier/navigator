@@ -112,9 +112,26 @@ func updateImageWhitelist(ctx context.Context, db *gorm.DB, data model.DriftImag
 
 	var insertData []model.DriftImageWhitelist
 	for _, v := range data.Whitelists {
+		repoTag  := ""
+		repoDigest := ""
+		if len(data.RepoTags) == 0  && len(data.RepoDigests) == 0 {
+			continue
+		}
+		if len(data.RepoTags) != 0 {
+			repoTag = data.RepoTags[0]
+		}
+		if len(data.RepoDigests) != 0 {
+			repoDigest = data.RepoDigests[0]
+			repoDigestList := strings.Split(repoDigest, "@")
+			if len(repoDigestList) == 2 {
+				repoDigest = repoDigestList[1]
+			}
+		}
+
 		insertData = append(insertData, model.DriftImageWhitelist{
 			ImageID:  data.ImageID,
-			RepoTag:  data.RepoTags[0],
+			RepoTag:  repoTag,
+			RepoDigest: repoDigest,
 			Filepath: v.FileName,
 			CheckSum: v.Checksum,
 		})
@@ -508,6 +525,10 @@ func (rl *TensorDriftService) PolicyDetail(ctx context.Context, policy model.Dri
 	return dal.PolicyDetail(ctx, rl.rdb.GetReadDB(), policy, limit, offset)
 }
 
+func (rl *TensorDriftService) PolicyDetailRawContainers(ctx context.Context, policy model.DriftPolicy) ([]model.TensorRawContainer, error) {
+	return dal.PolicyDetailRawContainers(ctx, rl.rdb.GetReadDB(), policy)
+}
+
 func (rl *TensorDriftService) GetImageID(ctx context.Context, ids uint32) ([]int64, error) {
 	return dal.GetImageID(ctx, rl.rdb.GetReadDB(), ids)
 }
@@ -572,8 +593,15 @@ func parseSignal(item *es.SearchHit) (*palace.Signal, error) {
 	return &signal, nil
 }
 
-func (rl *TensorDriftService) GetDefaultWhitelist(ctx context.Context, offset, limit int, tags []string, searchStr string) ([]model.DriftImageWhitelist, int64, error) {
-	return dal.GetDefaultWhitelistByImageTags(ctx, rl.rdb.GetReadDB(), offset, limit, tags, searchStr)
+func (rl *TensorDriftService) GetDefaultWhitelist(ctx context.Context, offset, limit int, tags, digests []string, searchStr string) ([]model.DriftImageWhitelist, int64, error) {
+	result, n, err := dal.GetDefaultWhitelistByImageTags(ctx, rl.rdb.GetReadDB(), offset, limit, tags, searchStr)
+	if err != nil {
+		logging.Get().Err(err).Msg("get default whitelist error")
+	}
+	if len(result) == 0 || n == 0 {
+		result, n, err = dal.GetDefaultWhitelistByImageDigest(ctx, rl.rdb.GetReadDB(), offset, limit, digests, searchStr)
+	}
+	return result, n, err
 }
 
 func (rl *TensorDriftService) driftConfigMapUpdate(ctx context.Context, policyData model.PoliciesData) error {

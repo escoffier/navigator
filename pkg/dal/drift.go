@@ -533,6 +533,29 @@ func PolicyDetail(ctx context.Context, rdb *gorm.DB, policy model.DriftPolicy, l
 	return res, nil
 }
 
+func PolicyDetailRawContainers(ctx context.Context, rdb *gorm.DB, policy model.DriftPolicy) ([]model.TensorRawContainer, error) {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	res := []model.TensorRawContainer{}
+	db := rdb.Model(&model.TensorRawContainer{}).WithContext(ctx)
+	db = db.Where("cluster_key=? and resource_name = ? and namespace = ? and resource_kind=? and status =?",
+		policy.ClusterKey,
+		policy.Resource,
+		policy.Namespace,
+		policy.ResourceKind,
+		0,
+	)
+	var len int64
+	db.Count(&len)
+	err := db.Order("created_at desc"). // return 50 latest containers, reduce the pressure of es
+						Find(&res).Error
+
+	if err != nil {
+		return nil, err
+	}
+	return res, nil
+}
+
 func GetImageID(ctx context.Context, rdb *gorm.DB, ids uint32) ([]int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
@@ -701,6 +724,53 @@ func GetDefaultWhitelistByImageTags(ctx context.Context, rdb *gorm.DB, offset, l
 	for _, tag := range tags {
 		orConditions = append(orConditions, "repo_tag LIKE ?")
 		args = append(args, "%"+tag+"%")
+	}
+	query := strings.Join(orConditions, " OR ")
+	if searchStr != "" {
+		// db = db.Where("path LIKE ?", "%"+searchStr+"%")
+		query = fmt.Sprintf("(%s) AND path LIKE ?", query)
+		args = append(args, "%"+searchStr+"%")
+	}
+	db = db.Where(query, args...)
+	var count int64
+	err := db.Count(&count).Error
+	if err != nil {
+		return nil, 0, err
+	}
+
+	db = db.Offset(offset)
+	db = db.Limit(limit)
+	err = db.Find(&res).Error
+	if err != nil {
+		return nil, 0, err
+	}
+	return res, count, nil
+}
+
+func GetDefaultWhitelistByImageDigest(ctx context.Context, rdb *gorm.DB, offset, limit int, digests []string, searchStr string) ([]model.DriftImageWhitelist, int64, error) {
+
+	if len(digests) == 0 {
+		return nil, 0, nil
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
+	defer cancel()
+
+	var res []model.DriftImageWhitelist
+
+	db := rdb.Model(&res).WithContext(ctx)
+
+	var orConditions []string
+	var args []interface{}
+	digestsMap := make(map[string]struct{})
+
+	for _, digest := range digests {
+		if _, ok := digestsMap[digest]; ok {
+			continue
+		}
+		orConditions = append(orConditions, "repo_digest LIKE ?")
+		args = append(args, "%"+digest+"%")
+		digestsMap[digest] = struct{}{}
 	}
 	query := strings.Join(orConditions, " OR ")
 	if searchStr != "" {
