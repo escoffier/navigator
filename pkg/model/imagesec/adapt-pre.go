@@ -12,23 +12,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
-// 为了兼容之前的代码
-func ToImageBaseResponse(im model.ImageList) ImageBaseResponse {
-	ans := ImageBaseResponse{
-		ID:           im.ID,
-		Digest:       im.Digest,
-		ImageAttr:    ImageAttrResponse{},
-		UUID:         im.ImageUUID,
-		FullRepoName: im.FullRepoName,
-		Tag:          im.Tags,
-		Size:         util.ParseByteSize(int64(im.Size)),
-		Flag:         im.Flag,
-		RegistryID:   im.RegistryID,
-		Project:      im.Project,
-	}
-	return ans
-}
-
 type ImageWithCorrelateData struct {
 	ImageList         model.ImageList
 	ImageBaseResponse ImageBaseResponse
@@ -251,7 +234,7 @@ func ConvertVuln(ss []*model.Vuln) []*VulnView {
 			Severity:       GetSeverityEN(ss[i].SeverityInt),
 			Flag:           ss[i].Flag,
 			AttackPath:     ss[i].Attr["AV"],
-			AttackPathView: GetVulnAVView(model.LangZh)[ss[i].Attr["AV"]],
+			AttackPathView: GetVulnAVView(LangZh)[ss[i].Attr["AV"]],
 			Class:          ss[i].Class,
 			ClassView:      ss[i].GetVulnClassView(),
 			KernelVuln:     util.ExistBit1(ss[i].Flag, VulnFlagKernel),
@@ -287,7 +270,7 @@ func (iws *ImageWithCorrelateData) Adapt() *ImageWithCorrelateData2 {
 		Image:        imageListToImage(iws.ImageList),
 		Sensitive:    convertSensitiveFile(iws.Sensitive),
 		SensitiveCnt: iws.SensitiveCnt,
-		Webshell:     convertWebshell(iws.Webshell),
+		WebshellView: convertWebshell(iws.Webshell),
 		WebshellCnt:  iws.WebshellCnt,
 		Env:          convertImageEnv(iws.Env),
 		EnvCnt:       iws.EnvCnt,

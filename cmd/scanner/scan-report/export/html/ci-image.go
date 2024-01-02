@@ -47,7 +47,7 @@ func (s *ExportCiImageHtmlSrv) GetImageIdNames(ctx context.Context, taskID int64
 	logging.Get().Info().Int64("taskID", taskID).Msg("ExportCiImageHtmlSrv.GetImageIdNames start")
 	res := &types2.ImageIDNameWithTask{TaskId: taskID, Images: make([]types2.ImageIDName, 0)}
 
-	data, err := s.ExportTaskDal.SearchHtmlPrepare(ctx, taskID, model.ExportHtmlPrepareCicdImageDetail)
+	data, err := s.ExportTaskDal.SearchHtmlPrepare(ctx, taskID, imagesec.ExportHtmlPrepareCicdImageDetail)
 	if err != nil {
 		logging.Get().Err(err).Int64("taskID", taskID).Msg("GetImages.SearchHtmlPrepare")
 		return res, err
@@ -81,7 +81,7 @@ func (s *ExportCiImageHtmlSrv) GetImages(ctx context.Context, taskID int64, star
 		End:    true,
 	}
 
-	data, err := s.ExportTaskDal.SearchHtmlPrepare(ctx, taskID, model.ExportHtmlPrepareCicdImageDetail)
+	data, err := s.ExportTaskDal.SearchHtmlPrepare(ctx, taskID, imagesec.ExportHtmlPrepareCicdImageDetail)
 	if err != nil {
 		logging.Get().Err(err).Int64("taskID", taskID).Int64("startID", starID).Msg("GetImages.SearchHtmlPrepare")
 		return nil, err
@@ -121,7 +121,7 @@ func (s *ExportCiImageHtmlSrv) GetImages(ctx context.Context, taskID int64, star
 // 风险总览
 func (s *ExportCiImageHtmlSrv) GetRiskOverView(ctx context.Context, taskID int64) (*types2.RiskOverView, error) {
 	risk := &types2.RiskOverView{}
-	data, err := s.ExportTaskDal.SearchHtmlPrepare(ctx, taskID, model.ExportHtmlPrepareCicdImageDetail)
+	data, err := s.ExportTaskDal.SearchHtmlPrepare(ctx, taskID, imagesec.ExportHtmlPrepareCicdImageDetail)
 	if err != nil {
 		logging.Get().Err(err).Int64("taskID", taskID).Msg("ExportCiImageHtmlSrv.GetRiskOverView.SearchHtmlPrepare")
 		return nil, err
@@ -150,7 +150,7 @@ func (s *ExportCiImageHtmlSrv) GetRiskOverView(ctx context.Context, taskID int64
 	for i := range taskImages {
 		for j := range taskImages[i].Vuln {
 			vu := taskImages[i].Vuln[j]
-			risk.StatisticsVulnSeverity(model.ExportVulnImage{
+			risk.StatisticsVulnSeverity(imagesec.ExportVulnImage{
 				TaskID:   taskID,
 				Severity: vu.SeverityInt,
 				CanFixed: vu.FixedVersion != "",
@@ -185,7 +185,7 @@ func (s *ExportCiImageHtmlSrv) GetExportVuln(ctx context.Context, param types2.G
 		End:   true,
 	}
 
-	data, err := s.ExportTaskDal.SearchHtmlPrepare(ctx, param.TaskID, model.ExportHtmlPrepareCicdImageDetail)
+	data, err := s.ExportTaskDal.SearchHtmlPrepare(ctx, param.TaskID, imagesec.ExportHtmlPrepareCicdImageDetail)
 	if err != nil {
 		logging.Get().Err(err).Int64("taskID", param.TaskID).Msg("GetImages.SearchHtmlPrepare")
 		return nil, err
@@ -248,7 +248,7 @@ func (s *ExportCiImageHtmlSrv) GetImageVuln(ctx context.Context, param types2.Ge
 		End:   true,
 	}
 
-	data, err := s.ExportTaskDal.SearchHtmlPrepare(ctx, param.TaskID, model.ExportHtmlPrepareCicdImageDetail)
+	data, err := s.ExportTaskDal.SearchHtmlPrepare(ctx, param.TaskID, imagesec.ExportHtmlPrepareCicdImageDetail)
 	if err != nil {
 		logging.Get().Err(err).Int64("taskID", param.TaskID).Msg("GetImages.SearchHtmlPrepare")
 		return nil, err
@@ -311,7 +311,7 @@ func (s *ExportCiImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageID
 		ImageName:         "",
 		VulnSeverityCount: types2.VulnSeverityCount{},
 	}
-	data, err := s.ExportTaskDal.SearchHtmlPrepare(ctx, taskID, model.ExportHtmlPrepareCicdImageDetail)
+	data, err := s.ExportTaskDal.SearchHtmlPrepare(ctx, taskID, imagesec.ExportHtmlPrepareCicdImageDetail)
 	if err != nil {
 		logging.Get().Err(err).Int64("taskID", taskID).Int64("imageID", imageID).Msg("GetImages.SearchHtmlPrepare")
 		return nil, err
@@ -377,7 +377,7 @@ func (s *ExportCiImageHtmlSrv) getKoaStatus(ctx context.Context, taskID int64) (
 }
 
 // 新建导出任务
-func (s *ExportCiImageHtmlSrv) createExportHtml(ctx context.Context, task model.ExportTensorTask) error {
+func (s *ExportCiImageHtmlSrv) createExportHtml(ctx context.Context, task imagesec.ExportTensorTask) error {
 	url := s.KoaAddr + "/api/v1/middle/startCreateHtml"
 
 	type body struct {
@@ -435,25 +435,25 @@ func (s *ExportCiImageHtmlSrv) createExportHtml(ctx context.Context, task model.
 	return nil
 }
 
-func (s *ExportCiImageHtmlSrv) genFilePath(ctx context.Context, task model.ExportTensorTask) string {
+func (s *ExportCiImageHtmlSrv) genFilePath(ctx context.Context, task imagesec.ExportTensorTask) string {
 	return s.FileDir + "/" + strings.ReplaceAll(task.FilePath, ".zip", "") + "/"
 }
 
 func (s *ExportCiImageHtmlSrv) Run(ctx context.Context) {
 	tasks, _, err := s.ExportTaskDal.SearchExportTask(ctx, imagesec.SearchExportTaskParam{
-		TaskType:        model.ExportHtml,
+		TaskType:        imagesec.ExportHtml,
 		ExecuteType:     []string{consts.ExportCIReport},
 		Finished:        consts.FalseString,
 		Failure:         consts.FalseString,
 		ExportHtmlReady: consts.TrueString,
-		Filter: &model.Filter{
+		Filter: &imagesec.Filter{
 			SortBy:    consts.SortByDesc,
 			SortFiled: "id",
 			Limit:     1,
 		},
 	})
 	if err != nil {
-		logging.Get().Err(err).Str("TaskType", model.ExportHtml).Msg("ExportCiImageHtmlSrv SearchExportTask")
+		logging.Get().Err(err).Str("TaskType", imagesec.ExportHtml).Msg("ExportCiImageHtmlSrv SearchExportTask")
 		return
 	}
 	if len(tasks) == 0 {

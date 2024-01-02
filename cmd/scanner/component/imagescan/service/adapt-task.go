@@ -128,19 +128,19 @@ func (s *ScanTaskSrv) MigratePreSubtask(ctx context.Context) error {
 			})
 			if err != nil {
 				s.Log.Err(err).Msg("AdaptPreScan get scan task")
-				ticker.Reset(time.Minute * 5)
+				time.Sleep(time.Minute * 5)
+				time.Sleep(time.Minute * 5)
 				continue
 			}
-
-			s.Log.Info().Int("taskCnt", len(tasks)).Msg("AdaptPreScan find running task")
 
 			if len(tasks) == 0 {
-				ticker.Reset(time.Minute)
+				time.Sleep(time.Minute)
 				continue
 			}
-			ticker.Reset(time.Second * 10)
 			for _, task := range tasks {
-				s.Log.Info().Int64("taskID", task.ID).Msg("AdaptPreScan find running task")
+				if task.ImageFromType != imagesecModel.ImageFromRegistry {
+					continue
+				}
 
 				subtask, _, err := s.taskDal.SearchScanSubtask(ctx, imagesecModel.SearchTaskParam{
 					TaskID:          task.ID,
@@ -150,7 +150,7 @@ func (s *ScanTaskSrv) MigratePreSubtask(ctx context.Context) error {
 
 				if err != nil {
 					s.Log.Err(err).Msg("UpdateSubtaskTimeout SearchScanSubtask")
-					ticker.Reset(time.Minute * 5)
+					time.Sleep(time.Minute * 5)
 					continue
 				}
 				for j := range subtask {
@@ -206,17 +206,17 @@ func (s *ScanTaskSrv) MigratePreSubtask(ctx context.Context) error {
 			subtask, err := s.preTaskDal.SearchScanSubtask(ctx, imagesecModel.SearchTaskParam{ScanStatus: []int64{consts.ImageScanSuccess, consts.ImageScanFailed}})
 			if err != nil {
 				s.Log.Err(err).Msg("AdaptPreScan get scan task")
-				ticker.Reset(time.Minute * 1)
+				time.Sleep(time.Minute * 1)
 				continue
 			}
 
 			s.Log.Info().Int("subtask", len(subtask)).Msg("AdaptPreScan find success or failed subtask")
 
 			if len(subtask) == 0 {
-				ticker.Reset(time.Minute)
+				time.Sleep(time.Minute)
 				continue
 			}
-			ticker.Reset(time.Second * 10)
+			time.Sleep(time.Second * 10)
 			for i := range subtask {
 				su := subtask[i]
 				switch su.Status {
@@ -237,11 +237,6 @@ func (s *ScanTaskSrv) updateSuccess(ctx context.Context, sub *model.SubTask) err
 	s.Log.Info().Int64("taskID", sub.TaskID).Int64("subtaskID", sub.ID).
 		Str("ImageName", sub.FullRepoName+":"+sub.Tag).Msg("AdaptPreScan subtask scan success")
 
-	updater := map[string]interface{}{
-		"status":     imagesecModel.TaskStatusSendFinished,
-		"status_str": imagesecModel.ScanStatusToStr(imagesecModel.TaskStatusSendFinished),
-		"started_at": sub.StartedAt.UnixMilli(),
-	}
 	// 新老版本的扫描器的调度不一致
 	// 当前任务已
 	subtask, _, err := s.taskDal.SearchScanSubtask(ctx, imagesecModel.SearchTaskParam{SubtaskID: sub.ID})
@@ -293,6 +288,12 @@ func (s *ScanTaskSrv) updateSuccess(ctx context.Context, sub *model.SubTask) err
 			s.Log.Err(err).Msg("AdaptPreSubtask  UpdateScanTask")
 			return err
 		}
+	}
+
+	updater := map[string]interface{}{
+		"status":     imagesecModel.TaskStatusScanFinished,
+		"status_str": imagesecModel.ScanStatusToStr(imagesecModel.TaskStatusScanFinished),
+		"started_at": sub.StartedAt.UnixMilli(),
 	}
 
 	if err := s.taskDal.UpdateScanSubtask(ctx, imagesecModel.UpdateTaskParam{
@@ -403,7 +404,7 @@ func (s *ScanTaskSrv) AdaptTaskTerminate(ctx context.Context, taskID int64) erro
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	filter := model.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiledByID().SetSortAsc()
+	filter := imagesecModel.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiledByID().SetSortAsc()
 
 	var startId int64
 
@@ -415,7 +416,7 @@ func (s *ScanTaskSrv) AdaptTaskTerminate(ctx context.Context, taskID int64) erro
 			Filter:  filter,
 		})
 		if err != nil {
-			ticker.Reset(time.Minute)
+			time.Sleep(time.Minute)
 			s.Log.Err(err).Int64("taskID", taskID).Msg("UpdateSubTaskTerminate")
 			continue
 		}
@@ -437,7 +438,7 @@ func (s *ScanTaskSrv) AdaptTaskPause(ctx context.Context, taskID int64) error {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	filter := model.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiledByID().SetSortAsc()
+	filter := imagesecModel.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiledByID().SetSortAsc()
 
 	var startId int64
 
@@ -487,7 +488,7 @@ func (s *ScanTaskSrv) AdaptTaskPending(ctx context.Context, taskID int64) error 
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	filter := model.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiledByID().SetSortAsc()
+	filter := imagesecModel.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiledByID().SetSortAsc()
 
 	var startId int64
 

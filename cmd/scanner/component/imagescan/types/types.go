@@ -16,15 +16,9 @@ type UpdateSubTask struct {
 	CreatedAt int64
 	SubtaskID int64
 	Status    int64
+	ScanUUID  string
 	Err       error
 	Reason    string
-	RetryCnt  int64
-}
-
-type UpdateTask struct {
-	CreatedAt int64
-	TaskID    int64
-	Status    int64
 	RetryCnt  int64
 }
 
@@ -45,19 +39,8 @@ type LatestDBVersion struct {
 	Webshell string
 }
 
-type MalwareService interface {
-	// 同一个 client 保证线程安全
-	ScanMalware(ctx context.Context, path string, recursion bool) ([]string, error)
-	// 更新db库
-	UpdateDB(ctx context.Context, config imagesecModel.DBMeta, data []byte) error
-}
-
 type UpdateDBService interface {
 	UpdateDB(ctx context.Context, param imagesecModel.UpdateDbParam) error
-}
-
-type UpdateDBEngin interface {
-	UpdateDB(ctx context.Context, param imagesecModel.UpdateDbParam) (*imagesecModel.ScanDbMeta, error)
 }
 
 type DispatchDBService interface {
@@ -67,4 +50,8 @@ type DispatchDBService interface {
 
 type RPCReceiver interface {
 	ReceiveFromRPC(ctx context.Context) error
+}
+
+type ImageScanJob interface {
+	ImageScan(ctx context.Context, pre *imagesecTypes.PrepareScan) []imagesecTypes.ScanJobResult
 }

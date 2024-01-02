@@ -11,7 +11,7 @@ func CheckImageWebshell(ctx context.Context, data *imagesecModel.ImageWithCorrel
 	policy *imagesecModel.SecurityPolicy) []*imagesecModel.ImageDetectResult {
 
 	ans := make([]*imagesecModel.ImageDetectResult, 0)
-	if policy == nil || data == nil || data.Image.ID <= 0 || !policy.Enable || !policy.Webshell.Enable || len(data.Webshell) == 0 {
+	if policy == nil || data == nil || data.Image.ID <= 0 || !policy.Enable || !policy.Webshell.Enable || len(data.WebshellView) == 0 {
 		return ans
 	}
 	white := policy.Webshell.White
@@ -27,11 +27,11 @@ func CheckImageWebshell(ctx context.Context, data *imagesecModel.ImageWithCorrel
 		}
 	}
 
-	for i := range data.Webshell {
-		ws := data.Webshell[i]
+	for i := range data.WebshellView {
+		ws := data.WebshellView[i]
 		var flag uint64
 
-		if util.ExistInStringSlice(white, data.Webshell[i].Filename) {
+		if util.ExistInStringSlice(white, data.WebshellView[i].Filename) {
 			flag = util.SetBit1(flag, imagesecModel.FlagDetectInWhite)
 		}
 		if (ws.RiskLevel == imagesecModel.WebshellRiskLevelCertain && certain) ||
@@ -52,7 +52,7 @@ func CheckImageWebshell(ctx context.Context, data *imagesecModel.ImageWithCorrel
 			red := &imagesecModel.ImageDetectResult{
 				DetectType:    imagesecModel.DetectTypeWebshellRule,
 				Flag:          flag,
-				UniqueTarget:  data.Webshell[i].UniqueID,
+				UniqueTarget:  data.WebshellView[i].UniqueID,
 				ImageUniqueID: data.Image.UniqueID,
 				PolicyID:      policy.ID,
 			}

@@ -21,44 +21,6 @@ type SubScannerToMainSql struct {
 	Params  string `json:"params"`  // if need something condition
 }
 
-const (
-	SubSqlUpdate           = "update"
-	SubSqlCreate           = "create"
-	MainScannerObject      = "mainScanner"
-	SubScannerObject       = "subScanner"
-	DaemonObject           = "daemon"
-	SubScannerKafkaTopic   = "ivan_scanner_subscanner"
-	SubScannerKafkaGroupID = "ivan_subscanner_scanner"
-	VulnType               = "vuln"
-)
-
-const (
-	TrivyDB  = "trivy"
-	CustomDB = "custom"
-	ClamavDB = "clamav"
-	AviraDB  = "avira"
-)
-
-const (
-	VulnDir              = "/trivy"
-	MaliciousDir         = "malicious"
-	VulnVersionPath      = VulnDir + "/version"
-	MaliciousVersionPath = MaliciousDir + "/version"
-	ClamavVersionPath    = ClamavDBPath + "/version"
-	AviraVersionPath     = AviraDBPath + "/version"
-	TrivyDBPath          = VulnDir + "/trivy.db"
-	CustomDBPath         = VulnDir + "/custom.db"
-	ClamavDBPath         = MaliciousDir + "/clamav"
-	AviraDBPath          = MaliciousDir + "/avira"
-
-	DefaultDBName    = "default db name"
-	DownVulnZip      = "DownVuln.zip"
-	PushVulnZip      = "VulnDB.zip"
-	DownMaliciousZip = "DownMalicious.zip"
-	PushMaliciousZip = "MaliciousDB.zip"
-	UnzipPath        = "offline/"
-)
-
 type DBMateData struct {
 	Version string `json:"version"`
 	Comment string `json:"comment"`
@@ -69,17 +31,6 @@ func (d *DBMateData) GetUUID() uint64 {
 	return util.GenerateUUID64(fmt.Sprintf("%s-%s-%s", d.Version, d.Comment, d.Hash))
 }
 
-type MaliciousDBVersion struct {
-	Clamav ClamavDBVersion `json:"clamavVersion"`
-	Avira  AviraDBVersion  `json:"AviraVersion"`
-}
-
-type ClamavDBVersion struct {
-	ComPressDBVersion string     `json:"compressDBVersion"`
-	ClamavVersion     DBMateData `json:"clamavVersion"`
-	UpdateTime        int64      `gorm:"autoUpdateTime:milli;column:update_time" json:"updateTime"`
-}
-
 func (vi *ClamavDBVersion) GetVersion() int64 {
 	var nowTime time.Time
 	var err error
@@ -88,19 +39,6 @@ func (vi *ClamavDBVersion) GetVersion() int64 {
 		logging.GetLogger().Warn().Msgf("parse time %v error %v", vi.ClamavVersion.Version)
 	}
 	return nowTime.UnixMilli()
-}
-
-type AviraDBVersion struct {
-	ComPressDBVersion string     `json:"compressDBVersion"`
-	AvriaVersion      DBMateData `json:"AviraVersion"`
-	UpdateTime        int64      `gorm:"autoUpdateTime:milli;column:update_time" json:"updateTime"`
-}
-
-type VulnDBVersion struct {
-	ComPressDBVersion string     `json:"compressDBVersion"`
-	TrivyVersion      DBMateData `json:"trivyVersion"`
-	CustomDBVersion   DBMateData `json:"customDBVersion"`
-	UpdateTime        int64      `gorm:"autoUpdateTime:milli;column:update_time" json:"updateTime"`
 }
 
 func (vi *VulnDBVersion) GetVersion(objType string) int64 {
@@ -125,11 +63,6 @@ func (vi *VulnDBVersion) Same(version VulnDBVersion) bool {
 		return true
 	}
 	return false
-}
-
-type ScannerDBVersion struct {
-	VulnVersion      VulnDBVersion      `json:"vulnVersion"`
-	MaliciousVersion MaliciousDBVersion `json:"maliciousVersion"`
 }
 
 func (vi *ClamavDBVersion) CompareVersion(nowVer MaliciousDBVersion) bool {

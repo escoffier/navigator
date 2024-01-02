@@ -1,4 +1,4 @@
-package imagesec
+package imagesecStore
 
 import (
 	"context"
@@ -9,13 +9,12 @@ import (
 	"gitlab.com/security-rd/go-pkg/databases"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
 type ScanDbMetaDal interface {
-	CreateScanDbMeta(ctx context.Context, data *imagesecModel.ScanDbMeta) error
-	SearchScanDbMeta(ctx context.Context, param imagesecModel.SearchScanDbMetaParam) ([]*imagesecModel.ScanDbMeta, int64, error)
+	CreateScanDbMeta(ctx context.Context, data *imagesecModel.ScanConfigDB) error
+	SearchScanDbMeta(ctx context.Context, param imagesecModel.SearchScanDbParam) ([]*imagesecModel.ScanConfigDB, int64, error)
 	GetLastDBVersion(ctx context.Context) (imagesecModel.LastDB, error)
 }
 
@@ -27,28 +26,13 @@ func NewScanDbMetaDao(db *databases.RDBInstance) *ScanDbMetaDao {
 	return &ScanDbMetaDao{db: db}
 }
 
-func (dal *ScanDbMetaDao) CreateScanDbMeta(ctx context.Context, data *imagesecModel.ScanDbMeta) error {
+func (dal *ScanDbMetaDao) CreateScanDbMeta(ctx context.Context, data *imagesecModel.ScanConfigDB) error {
 	data.Serialize()
 	if err := data.Check(); err != nil {
 		return err
 	}
 	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
-	pre := make([]*imagesecModel.ScanDbMeta, 0)
-	if err := dal.db.Get().WithContext(cancelCtx).Table(data.TableName()).
-		Where("unique_id = ?", data.UniqueID).Find(&pre).Error; err != nil {
-		return err
-	}
-
-	if len(pre) > 0 {
-		if data.Same(pre[0]) {
-			return nil
-		}
-		if err := dal.db.Get().WithContext(cancelCtx).Table(data.TableName()).
-			Where("unique_id = ?", pre[0].UniqueID).Delete(pre[0]).Error; err != nil {
-			return err
-		}
-	}
 	db := dal.db.Get().WithContext(cancelCtx).Table(data.TableName())
 	if err := db.Create(data).Error; err != nil {
 		if strings.Contains(err.Error(), consts.DuplicateKey) {
@@ -59,12 +43,12 @@ func (dal *ScanDbMetaDao) CreateScanDbMeta(ctx context.Context, data *imagesecMo
 	return nil
 }
 
-func (dal *ScanDbMetaDao) SearchScanDbMeta(ctx context.Context, param imagesecModel.SearchScanDbMetaParam) (
-	[]*imagesecModel.ScanDbMeta, int64, error) {
+func (dal *ScanDbMetaDao) SearchScanDbMeta(ctx context.Context, param imagesecModel.SearchScanDbParam) (
+	[]*imagesecModel.ScanConfigDB, int64, error) {
 	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
 
-	db := dal.db.Get().WithContext(cancelCtx).Table(new(imagesecModel.ScanDbMeta).TableName())
+	db := dal.db.Get().WithContext(cancelCtx).Table(new(imagesecModel.ScanConfigDB).TableName())
 	if param.Keyword != "" {
 		db = db.Where("db_version LIKE ? ", fmt.Sprintf("%%%s%%", param.Keyword))
 	}
@@ -87,8 +71,8 @@ func (dal *ScanDbMetaDao) SearchScanDbMeta(ctx context.Context, param imagesecMo
 	if err := db.Count(&cnt).Error; err != nil {
 		return nil, 0, err
 	}
-	res := make([]*imagesecModel.ScanDbMeta, 0)
-	db = model.AddFilter(db, param.Filter)
+	res := make([]*imagesecModel.ScanConfigDB, 0)
+	db = imagesecModel.AddFilter(db, param.Filter)
 	err := db.Find(&res).Error
 	return res, cnt, err
 }
@@ -123,24 +107,24 @@ func (dal *ScanDbMetaDao) GetLastDBVersion(ctx context.Context) (imagesecModel.L
 
 }
 
-func (dal *ScanDbMetaDao) getLast(ctx context.Context, col string) (imagesecModel.ScanDbMeta, error) {
+func (dal *ScanDbMetaDao) getLast(ctx context.Context, col string) (imagesecModel.ScanConfigDB, error) {
 	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
 
-	db := dal.db.Get().WithContext(cancelCtx).Table(new(imagesecModel.ScanDbMeta).TableName()).Where("db_type = ?", col)
+	db := dal.db.Get().WithContext(cancelCtx).Table(new(imagesecModel.ScanConfigDB).TableName()).Where("db_type = ?", col)
 
-	filter := model.EmptyFilter().SetSortFiled("id").SetSortDesc().SetLimit(1)
+	filter := imagesecModel.EmptyFilter().SetSortFiled("id").SetSortDesc().SetLimit(1)
 
-	db = model.AddFilter(db, filter)
+	db = imagesecModel.AddFilter(db, filter)
 
-	res := make([]imagesecModel.ScanDbMeta, 0)
+	res := make([]imagesecModel.ScanConfigDB, 0)
 
 	err := db.Find(&res).Error
 	if err != nil {
-		return imagesecModel.ScanDbMeta{}, err
+		return imagesecModel.ScanConfigDB{}, err
 	}
 	if len(res) == 0 {
-		return imagesecModel.ScanDbMeta{}, nil
+		return imagesecModel.ScanConfigDB{}, nil
 	}
 	for i := range res {
 		res[i].Deserialize()

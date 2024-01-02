@@ -1,144 +1,15 @@
 package imagesecReport
 
 import (
-	"encoding/json"
-	"fmt"
-	"io"
-	"os"
 	"strings"
 	"time"
 
-	"github.com/boltdb/bolt"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
-	trivyTypes "scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/types"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	imagesecTypes "gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
 )
-
-func GetVulnDetailFromBolt(vulnBoltDB *bolt.DB, vulnName string) (*trivyTypes.DetectedVulnerability, error) {
-	vuln := trivyTypes.DetectedVulnerability{}
-	err := vulnBoltDB.View(func(tx *bolt.Tx) error {
-		var err error
-		cnvdBucket := tx.Bucket([]byte("vulnerability"))
-		if cnvdBucket == nil {
-			return fmt.Errorf("not get vulnerability bucket")
-		}
-		cnvdBytes := cnvdBucket.Get([]byte(vulnName))
-		if len(cnvdBytes) == 0 {
-			return fmt.Errorf("not get %s vuln data", vulnName)
-		}
-
-		err = json.Unmarshal(cnvdBytes, &vuln)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
-	return &vuln, err
-}
-
-func GetCnnvdFromBolt(cnnvdBoltDB *bolt.DB, vulnName string) (*cnnvd.VulnerabilityInfo, error) {
-	cnnvdRes := cnnvd.VulnerabilityInfo{}
-	err := cnnvdBoltDB.View(func(tx *bolt.Tx) error {
-		var err error
-		cnvdBucket := tx.Bucket([]byte("cnnvd"))
-		if cnvdBucket == nil {
-			return fmt.Errorf("not get cnnvd bucket")
-		}
-		cnvdBytes := cnvdBucket.Get([]byte(vulnName))
-		if len(cnvdBytes) == 0 {
-			return fmt.Errorf("not get %s cnnvd data", vulnName)
-		}
-
-		err = json.Unmarshal(cnvdBytes, &cnnvdRes)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
-	return &cnnvdRes, err
-}
-
-func GetCnvdFromBolt(cnvdBoltDB *bolt.DB, vulnName string) ([]cnvd.Metadata, error) {
-	cnvdRes := make([]cnvd.Metadata, 0)
-	err := cnvdBoltDB.View(func(tx *bolt.Tx) error {
-		var err error
-		cnvdBucket := tx.Bucket([]byte("cnvd"))
-		if cnvdBucket == nil {
-			return fmt.Errorf("not get cnvd bucket")
-		}
-		cnvdBytes := cnvdBucket.Get([]byte(vulnName))
-		if len(cnvdBytes) == 0 {
-			return fmt.Errorf("not get %s cnvd data", vulnName)
-		}
-
-		err = json.Unmarshal(cnvdBytes, &cnvdRes)
-		if err != nil {
-			return err
-		}
-		return nil
-	})
-	return cnvdRes, err
-}
-
-func MkEmptyDir(path string) error {
-	_ = os.RemoveAll(path)
-
-	if err := os.MkdirAll(path, os.ModePerm); err != nil {
-		return err
-	}
-	return nil
-}
-
-func OpenBoltDB(path string) (*bolt.DB, error) {
-	options := bolt.Options{
-		Timeout:  time.Second * 10,
-		ReadOnly: true,
-	}
-	options.Timeout = time.Second * 15
-	db, err := bolt.Open(string(path), 0600, &options)
-	if err != nil {
-		return nil, err
-	}
-	return db, nil
-}
-
-func CopyFile(pre, after string) error {
-	if err := copyFile(pre, after); err != nil {
-		return err
-	}
-	return nil
-}
-
-func copyFile(source, destination string) error {
-	sourceFile, err := os.Open(source)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = sourceFile.Close() }()
-
-	destinationFile, err := os.Create(destination)
-	if err != nil {
-		return err
-	}
-
-	defer func() { _ = destinationFile.Close() }()
-
-	_, err = io.Copy(destinationFile, sourceFile)
-	if err != nil {
-		return err
-	}
-
-	err = destinationFile.Sync()
-	if err != nil {
-		return err
-	}
-	return nil
-}
 
 func GetRegImageInfo(data imagesecTypes.NodeReport) ([]*imagesecModel.Image,
 	map[uint64][]*imagesecModel.ImageEnv) {
@@ -207,6 +78,12 @@ func (s *ImageReport) GetNodeImageInfo(data imagesecTypes.NodeReport) ([]*images
 	//  digests=["docker.io/maohaoxin/syslog_upd_app_linux@sha256:b2d3f7e9af1d16382539dc3c330acc7d2d5cd2109d0eeff0f60679769bc91f55"]
 	//  imageId=sha256:f66e9f553ba9899c5802abc1ebd9868f7bebe7bee406b5489d47550b8b15c210
 	//  repoTags=["sha256:f66e9f553ba9899c5802abc1ebd9868f7bebe7bee406b5489d47550b8b15c210"]
+	/*
+		digests=["docker.io/573320328/liuqianli@sha256:c57b291c4f0f9b4b17cf56a4628b25c323a811d1784a89f66b1379bbaeb5599d"]
+			imageId=docker.io/573320328/liuqianli:v9
+					repoTags=["docker.io/573320328/liuqianli:v9"]
+					uuid=db336be30e3c4f4daf8704560a898072
+	*/
 
 	images := make([]*imagesecModel.Image, 0)
 	envs := make(map[uint64][]*imagesecModel.ImageEnv)
@@ -222,6 +99,7 @@ func (s *ImageReport) GetNodeImageInfo(data imagesecTypes.NodeReport) ([]*images
 
 	for _, image := range data.NodeImages {
 		im := &imagesecModel.Image{
+			Namespace:     image.Namespace,
 			ImageFromType: imagesecModel.ImageFromNode,
 			ImageID:       image.ImageId,
 			Size:          image.Size,
@@ -246,7 +124,7 @@ func (s *ImageReport) GetNodeImageInfo(data imagesecTypes.NodeReport) ([]*images
 
 		for _, repoTag := range image.RepoTags {
 			host, repo, tag := scannerUtils.ParseImageName(repoTag)
-			im.Host, im.Repo, im.Tag, im.Project = host, repo, tag, getProject(repo)
+			im.Host, im.Repo, im.Tag, im.Project, im.ImageName = host, repo, tag, getProject(repo), repoTag
 
 			// 本地镜像没有推送到仓库，是没有digest的
 			if len(image.Digests) == 0 {
@@ -269,7 +147,7 @@ func (s *ImageReport) GetNodeImageInfo(data imagesecTypes.NodeReport) ([]*images
 	ans := make([]*imagesecModel.Image, 0)
 	for i := range images {
 		if err := images[i].Check(); err != nil {
-			s.Log.Debug().Str("image", images[i].GetImageName()).Msg("image check")
+			s.Log.Debug().Interface("image", images[i]).Msg("image check")
 			continue
 		}
 		ans = append(ans, images[i])
@@ -326,15 +204,4 @@ func parseImageEnv(imageUniqueID uint64, data []string) []*imagesecModel.ImageEn
 		envs = append(envs, ev)
 	}
 	return envs
-}
-
-func GetLicense(l string) []string {
-	ans := make([]string, 0)
-	split := strings.Split(l, " ")
-	for i := range split {
-		if split[i] != "" {
-			ans = append(ans)
-		}
-	}
-	return ans
 }

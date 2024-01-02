@@ -6,7 +6,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta/metaGlobal"
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -36,7 +36,7 @@ type ImageInfoMetaSrv struct {
 	scanInstanceDal imagesecStore.ScanInstanceDal
 	policyDal       imagesecStore.DetectPolicyDal
 	detectResultDal imagesecStore.ImageDetectResultDal
-	trustedDal      store.TrustedImageDal
+	trustedDal      adaptStore.TrustedImageDal
 	configDal       imagesecStore.ScanImageConfigDal
 	scanTaskDal     imagesecStore.ScanTaskDal
 	deployRecordDal imagesecStore.DeployDal
@@ -55,7 +55,7 @@ func NewImageMetaSrv(
 	nodeInfoDal imagesecStore.NodeInfoDal,
 	policyDal imagesecStore.DetectPolicyDal,
 	detectResultDal imagesecStore.ImageDetectResultDal,
-	trustedDal store.TrustedImageDal,
+	trustedDal adaptStore.TrustedImageDal,
 	configDal imagesecStore.ScanImageConfigDal,
 	scanTaskDal imagesecStore.ScanTaskDal,
 	scanInstanceDal imagesecStore.ScanInstanceDal,
@@ -159,7 +159,7 @@ func (s *ImageInfoMetaSrv) GetImageCorrelateData(ctx context.Context,
 		Image:             imagesecModel.Image{},
 		ImageBaseResponse: imagesecModel.ImageBaseResponse{},
 		Sensitive:         make([]*imagesecModel.SensitiveFile, 0),
-		Webshell:          make([]*imagesecModel.WebshellView, 0),
+		WebshellView:      make([]*imagesecModel.WebshellView, 0),
 		Env:               make([]*imagesecModel.ImageEnv, 0),
 		Vuln:              make([]*imagesecModel.VulnView, 0),
 		Pkg:               make([]*imagesecModel.Pkg, 0),
@@ -306,7 +306,7 @@ func (s *ImageInfoMetaSrv) TopRiskImage(ctx context.Context) ([]*imagesecModel.I
 			ScanInstanceEnable: true,
 			NodeInfoEnable:     true,
 		},
-		Filter: model.EmptyFilter().SetLimit(consts.DefaultPerPage),
+		Filter: imagesecModel.EmptyFilter().SetLimit(consts.DefaultPerPage),
 	})
 	if err != nil {
 		s.Log.Err(err).Msg("TopRiskImage")

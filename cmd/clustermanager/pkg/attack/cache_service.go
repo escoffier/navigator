@@ -13,12 +13,13 @@ import (
 
 	"github.com/avast/retry-go"
 
+	"gitlab.com/security-rd/go-pkg/cryption"
+	"gitlab.com/security-rd/go-pkg/logging"
+
 	clusterAgent "gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/cryption"
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 const (

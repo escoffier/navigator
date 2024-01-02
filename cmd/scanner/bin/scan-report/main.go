@@ -29,7 +29,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/service"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/starter"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/types"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	flag2 "gitlab.com/piccolo_su/vegeta/pkg/flag"
 )
@@ -190,9 +190,9 @@ func start(config starter.Config) {
 	backgroundSrv.Start(context.Background())
 
 	registryDal := imagesecStore.NewRegistryDao(config.Rdb)
-	vulnDal := store.NewVulnDao(config.Rdb)
+	vulnDal := adaptStore.NewVulnDao(config.Rdb)
 	resourceDal := imagesecStore.NewResourceDao(config.Rdb)
-	trustedImageDal := store.NewScannerOrm(config.Rdb)
+	trustedImageDal := adaptStore.NewTrustedImageDao(config.Rdb)
 	exportTaskDal := imagesecStore.NewExportTaskDao(config.Rdb)
 	scannerInstanceInfoDal := imagesecStore.NewScannerInstanceDao(config.Rdb)
 

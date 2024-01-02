@@ -22,7 +22,11 @@ type Handler struct {
 	Log                 *scannerUtils.LogEvent
 }
 
-func NewHandler(receiver ScanSubtaskReceiver, syncer ImageSyncer, registryValidator RegistryValidator) *Handler {
+func NewHandler(
+	receiver ScanSubtaskReceiver,
+	syncer ImageSyncer,
+	registryValidator RegistryValidator,
+) *Handler {
 	s := &Handler{
 		ScanSubtaskReceiver: receiver,
 		ImageSyncer:         syncer,
@@ -47,7 +51,7 @@ func (vi *Handler) OnCreate(s rpcstream.Stream, reqID string, msg protoreflect.P
 
 	switch msgType {
 	case pb.ImageSecReqType_RegistryImageScan:
-		_ = vi.addScanTask(s, reqID, msgID, req.Payload)
+		_ = vi.addRegScanTask(s, reqID, msgID, req.Payload)
 	case pb.ImageSecReqType_RegistryImageSync:
 		_ = vi.addSyncTask(s, reqID, msgID, req.Payload)
 	case pb.ImageSecReqType_RegistryHealthyCheck:
@@ -69,8 +73,8 @@ func (vi *Handler) OnDelete(_ rpcstream.Stream, _ string, _ protoreflect.ProtoMe
 	vi.Log.Info().Msg("rcp stream delete")
 }
 
-// 扫描任务
-func (vi *Handler) addScanTask(s rpcstream.Stream, reqID, msgID string, payload []byte) error {
+// 接收仓库镜像扫描的任务
+func (vi *Handler) addRegScanTask(s rpcstream.Stream, reqID, msgID string, payload []byte) error {
 	subTask := imagesecTypes.ScanSubTask{}
 	err := json.Unmarshal(payload, &subTask)
 
@@ -91,21 +95,11 @@ func (vi *Handler) addScanTask(s rpcstream.Stream, reqID, msgID string, payload 
 
 	go func() { vi.ImageSecRespChan <- pong }()
 
-	vi.Log.Info().
-		Str("msgID", msgID).
-		Str("reqID", reqID).
-		Int64("taskID", subTask.TaskID).
-		Int64("subTaskID", subTask.SubTaskID).
-		Interface("RegInfo", subTask.RegInfo).
-		Interface("ImageMeta", subTask.RegImageMeta).
-		Interface("ScanInstance", subTask.ScanInstance).
-		Interface("SensitiveRules", subTask.SensitiveRules).
-		Msg("receive registry scan task")
-
+	vi.Log.Info().Str("scanSubtask", subTask.LogStr()).Msg("receive registry scan task")
 	return nil
 }
 
-// 同步任务
+// 接收同步镜像的任务
 func (vi *Handler) addSyncTask(s rpcstream.Stream, reqID, msgID string, payload []byte) error {
 	subTask := imagesecModel.ImageSyncTask{}
 	err := json.Unmarshal(payload, &subTask)

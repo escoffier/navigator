@@ -8,7 +8,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
@@ -83,7 +82,7 @@ func (s *SensitiveRuleSrv) SearchSensitiveRule(ctx context.Context, param images
 		return nil, 0, scani18.SearchSensitiveRule(err)
 	}
 	la, ok := ctx.Value(imagesecModel.AcceptLanguage).(string)
-	if ok && la == model.LangZh {
+	if ok && la == imagesecModel.LangZh {
 		for i := range data {
 			if dis, ok := s.ZhRule[data[i].Value]; ok && dis != "" {
 				data[i].Description = dis
@@ -182,32 +181,32 @@ func (s *ScanImageConfigSrv) GetConstView(ctx context.Context, constType string)
 	)
 	switch constType {
 	case consts.ConstViewTypeVulnAttackPath:
-		avEn = imagesecModel.GetVulnAVView(model.LangEn)
-		avZH = imagesecModel.GetVulnAVView(model.LangZh)
+		avEn = imagesecModel.GetVulnAVView(imagesecModel.LangEn)
+		avZH = imagesecModel.GetVulnAVView(imagesecModel.LangZh)
 	case consts.ConstViewTypeScanTaskType:
-		avEn = imagesecModel.GetTaskTypeView(model.LangEn)
-		avZH = imagesecModel.GetTaskTypeView(model.LangZh)
+		avEn = imagesecModel.GetTaskTypeView(imagesecModel.LangEn)
+		avZH = imagesecModel.GetTaskTypeView(imagesecModel.LangZh)
 	case consts.ConstViewTypeVulnClass:
-		avEn = imagesecModel.GetVulnClassView(model.LangEn)
-		avZH = imagesecModel.GetVulnClassView(model.LangZh)
+		avEn = imagesecModel.GetVulnClassView(imagesecModel.LangEn)
+		avZH = imagesecModel.GetVulnClassView(imagesecModel.LangZh)
 	case consts.ConstViewTypeVulnSeverity:
-		avEn = imagesecModel.GetSeverityView(model.LangEn)
-		avZH = imagesecModel.GetSeverityView(model.LangZh)
+		avEn = imagesecModel.GetSeverityView(imagesecModel.LangEn)
+		avZH = imagesecModel.GetSeverityView(imagesecModel.LangZh)
 	case consts.ConstViewDetectPolicyScope:
-		avEn = imagesecModel.GetDetectScopeTypeType(model.LangEn)
-		avZH = imagesecModel.GetDetectScopeTypeType(model.LangZh)
+		avEn = imagesecModel.GetDetectScopeTypeType(imagesecModel.LangEn)
+		avZH = imagesecModel.GetDetectScopeTypeType(imagesecModel.LangZh)
 	case consts.ConstViewDetectPolicyType:
-		avEn = imagesecModel.GetDetectPolicyTypeType(model.LangEn)
-		avZH = imagesecModel.GetDetectPolicyTypeType(model.LangZh)
+		avEn = imagesecModel.GetDetectPolicyTypeType(imagesecModel.LangEn)
+		avZH = imagesecModel.GetDetectPolicyTypeType(imagesecModel.LangZh)
 	case consts.ConstViewImageFromType:
-		avEn = imagesecModel.GetImageFromType(model.LangEn)
-		avZH = imagesecModel.GetImageFromType(model.LangZh)
+		avEn = imagesecModel.GetImageFromType(imagesecModel.LangEn)
+		avZH = imagesecModel.GetImageFromType(imagesecModel.LangZh)
 	case consts.ConstViewDeployAction:
-		avEn = imagesecModel.GetDeployAction(model.LangEn)
-		avZH = imagesecModel.GetDeployAction(model.LangZh)
+		avEn = imagesecModel.GetDeployAction(imagesecModel.LangEn)
+		avZH = imagesecModel.GetDeployAction(imagesecModel.LangZh)
 	case consts.ConstViewOpenLicense:
-		avEn = GetOpenSources(model.LangEn)
-		avZH = GetOpenSources(model.LangZh)
+		avEn = GetOpenSources(imagesecModel.LangEn)
+		avZH = GetOpenSources(imagesecModel.LangZh)
 	}
 
 	for k, v := range avEn {
@@ -219,8 +218,8 @@ func (s *ScanImageConfigSrv) GetConstView(ctx context.Context, constType string)
 	}
 	// 对于漏洞严重级别需要排序
 	if constType == consts.ConstViewTypeVulnSeverity {
-		ans.EN = imagesecModel.GetSeverityView2(model.LangEn)
-		ans.ZH = imagesecModel.GetSeverityView2(model.LangZh)
+		ans.EN = imagesecModel.GetSeverityView2(imagesecModel.LangEn)
+		ans.ZH = imagesecModel.GetSeverityView2(imagesecModel.LangZh)
 	}
 
 	return ans

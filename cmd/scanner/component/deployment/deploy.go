@@ -12,7 +12,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/deployment/detector"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/detect"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -58,7 +57,7 @@ func (s *DeploySrv) GetImageDataForDeploy(ctx context.Context, param imagesecMod
 		subtaskParam := imagesecModel.SearchTaskParam{
 			ImageUniqueID: image.UniqueID,
 			ScanStatus:    []int64{imagesecModel.TaskStatusDetectFinished},
-			Filter:        model.EmptyFilter().SetSortDesc().SetSortFiledByID().SetLimit(1)}
+			Filter:        imagesecModel.EmptyFilter().SetSortDesc().SetSortFiledByID().SetLimit(1)}
 
 		subtasks, _, err := s.scanTaskDal.SearchScanSubtask(ctx, subtaskParam)
 		if err != nil {
@@ -136,7 +135,7 @@ func (s *DeploySrv) CheckDeploy(ctx context.Context, param imagesecModel.DeployM
 	}
 	param.ImageUUID = param.GenImageUUID()
 
-	s.Log.Info().Interface("param", param).Msg("CheckDeploy start")
+	s.Log.Debug().Interface("param", param).Msg("CheckDeploy start")
 
 	res := s.GetImageDataForDeploy(ctx, param)
 

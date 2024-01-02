@@ -23,6 +23,7 @@ type Image struct {
 	Host             string                `gorm:"column:host" json:"host"`
 	Repo             string                `gorm:"column:repo" json:"repo"`
 	Tag              string                `gorm:"column:tag" json:"tag"`
+	Namespace        string                `gorm:"column:namespace" json:"namespace"`  // 节点镜像所在namespace
 	ImageName        string                `gorm:"column:image_name" json:"imageName"` // 主要用于搜索
 	Digest           string                `gorm:"column:digest" json:"digest"`
 	OS               types.OS              `gorm:"-" json:"os"` // 为啥不用 ImageOS :为了兼容老数据,返回数据为啥要定义新结构体:因为 trivy 的Eosl 可能不序列化
@@ -159,6 +160,9 @@ func (vi *Image) Deserialize() {
 			vi.Layer[i].Created = vi.Layer[i].Created * 1000
 		}
 	}
+	if vi.ImageFromType == ImageFromNode && vi.Namespace == "" {
+		vi.Namespace = "k8s.io"
+	}
 }
 
 func (vi *Image) Serialize() {
@@ -271,7 +275,7 @@ func (vi *Image) GenUniqueID() uint64 {
 	case ImageFromRegistry:
 		uid = util.GenerateUUID64(fmt.Sprintf("%d-%s-%s-%s", vi.RegID, vi.Repo, vi.Tag, vi.ImageFromType))
 	case ImageFromNode:
-		uid = util.GenerateUUID64(fmt.Sprintf("%d-%s-%s-%s-%s", vi.NodeID, vi.ImageName, vi.Digest, vi.ImageID, vi.ImageFromType))
+		uid = util.GenerateUUID64(fmt.Sprintf("%d-%s-%s-%s-%s-%s", vi.NodeID, vi.ImageName, vi.Digest, vi.ImageID, vi.ImageFromType, vi.Namespace))
 	case ImageFromDeploy:
 		uid = util.GenerateUUID64(fmt.Sprintf("%s-%s-%s", vi.ImageName, vi.Digest, vi.ImageFromType))
 	}
@@ -495,7 +499,19 @@ func (vi *CacheInfo) TableName() string {
 	return "ivan_scan_image_cache"
 }
 
-const (
-	CacheTypeImagePrepare = "imagePrepare"
-	CacheTypVulnOverview  = "vulnOverview"
-)
+type EtcPasswdUser struct {
+	Username string
+	Password string
+	UID      int64
+	GID      string
+	Comment  string
+	HomeDir  string
+	Shell    string
+}
+
+type EtcGroupUser struct {
+	Name     string
+	Password string
+	GID      int64
+	Members  []string
+}

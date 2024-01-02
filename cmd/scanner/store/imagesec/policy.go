@@ -1,4 +1,4 @@
-package imagesec
+package imagesecStore
 
 import (
 	"context"
@@ -181,7 +181,7 @@ func (dal *DetectPolicyDao) SearchDetectPolicy(ctx context.Context, param images
 		db = db.Where("id IN ( ? )", sub)
 	}
 
-	db = model.AddFilter(db, param.Filter)
+	db = imagesecModel.AddFilter(db, param.Filter)
 	res := make([]*imagesecModel.SecurityPolicy, 0)
 	err := db.Find(&res).Error
 	if err != nil {
@@ -211,7 +211,7 @@ func (dal *DetectPolicyDao) SearchDetectPolicySnapshot(ctx context.Context, para
 		db = db.Select(param.Filed)
 	}
 
-	db = model.AddFilter(db, param.Filter)
+	db = imagesecModel.AddFilter(db, param.Filter)
 	err := db.Find(&ans).Error
 
 	if err != nil {

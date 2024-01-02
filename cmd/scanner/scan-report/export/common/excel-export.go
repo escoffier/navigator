@@ -15,14 +15,14 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/types"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type ExcelExportSrv struct {
-	ExportTaskDal imagesec.ExportTaskDal
+	ExportTaskDal imagesecStore.ExportTaskDal
 	LibImageSrv   types.ImageSrvInterface
 	NodeImageSrv  types.ImageSrvInterface
 	FileDir       string // 文件存储的决对路径
@@ -31,7 +31,7 @@ type ExcelExportSrv struct {
 }
 
 func NewExcelExportSrv(
-	exportTaskDal imagesec.ExportTaskDal,
+	exportTaskDal imagesecStore.ExportTaskDal,
 	libImageSrv types.ImageSrvInterface,
 	nodeImageSrv types.ImageSrvInterface,
 	fileDir string, // 文件存储的决对路径
@@ -181,7 +181,7 @@ func (s *ExcelExportSrv) RunExport(ctx context.Context, executeType string, imag
 	}
 }
 
-func (s *ExcelExportSrv) GetExcelData(ctx context.Context, image imagesecModel.Image, vulnCol *atomic.Int32, task model.ExportTensorTask) (
+func (s *ExcelExportSrv) GetExcelData(ctx context.Context, image imagesecModel.Image, vulnCol *atomic.Int32, task imagesecModel.ExportTensorTask) (
 	map[types.SheetName]chan []string, error) {
 	// 获取镜像详情
 	logging.Get().Info().Int64("imageID", image.ID).Uint64("ImageUniqueID", image.UniqueID).
@@ -224,7 +224,7 @@ func (s *ExcelExportSrv) GetExcelData(ctx context.Context, image imagesecModel.I
 	res[GenImageVulnInfoMeta(task.Lang).SheetName] = GenVulnInfoChan(baseImage, data.Vuln, task.Lang)
 	res[GenImageSensitiveFileInfoMeta(task.Lang).SheetName] = GenSensitiveFileChan(baseImage, data.Sensitive)
 	res[GenImageVirusInfoMeta(task.Lang).SheetName] = GenMalwareChan(baseImage, data.Malware)
-	res[GenImageWebshellInfoMeta(task.Lang).SheetName] = GenWebShellChan(baseImage, data.Webshell)
+	res[GenImageWebshellInfoMeta(task.Lang).SheetName] = GenWebShellChan(baseImage, data.WebshellView)
 	res[GenImageEnvInfoMeta(task.Lang).SheetName] = GenEnvChan(baseImage, data.Env)
 	res[GenImageResourcesInfoMeta(task.Lang).SheetName] = GenImageResourceChan(baseImage, data.Container)
 
@@ -292,8 +292,8 @@ func (s *ExcelExportSrv) ZipAndSave(ctx context.Context, filename string, excelF
 	return nil
 }
 
-func (s *ExcelExportSrv) GenTensorExportTaskChan(ctx context.Context, executeType string) chan model.ExportTensorTask {
-	out := make(chan model.ExportTensorTask, 1)
+func (s *ExcelExportSrv) GenTensorExportTaskChan(ctx context.Context, executeType string) chan imagesecModel.ExportTensorTask {
+	out := make(chan imagesecModel.ExportTensorTask, 1)
 
 	go func() {
 		defer func() {
@@ -310,11 +310,11 @@ func (s *ExcelExportSrv) GenTensorExportTaskChan(ctx context.Context, executeTyp
 			<-tick.C
 
 			task, _, err := s.ExportTaskDal.SearchExportTask(ctx, imagesecModel.SearchExportTaskParam{
-				TaskType:    model.ExportExcel,
+				TaskType:    imagesecModel.ExportExcel,
 				ExecuteType: []string{executeType},
 				Finished:    consts.FalseString,
 				Failure:     consts.FalseString,
-				Filter:      &model.Filter{Limit: 1},
+				Filter:      &imagesecModel.Filter{Limit: 1},
 			})
 			if err != nil {
 
@@ -338,7 +338,7 @@ func (s *ExcelExportSrv) getImageSrv(ctx context.Context, imageFromType string) 
 
 func ConvertData(res map[types.SheetName]chan []string, lang string) map[types.SheetName]chan []string {
 
-	if lang == model.LangZh || lang == "" {
+	if lang == imagesecModel.LangZh || lang == "" {
 		return res
 	}
 

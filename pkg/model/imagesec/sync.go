@@ -1,7 +1,6 @@
 package imagesec
 
 import (
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -35,7 +34,7 @@ type SearchRegistryParam struct {
 	EndSyncAt       int64
 	Deleted         string
 	ScannerInstance string
-	Filter          *model.Filter
+	Filter          *Filter
 }
 
 func (s *SearchRegistryParam) Compatible() {
@@ -52,5 +51,5 @@ type SearchSyncTaskParam struct {
 	RegIds   []int64
 	Finished string
 	SyncType string
-	Filter   *model.Filter
+	Filter   *Filter
 }

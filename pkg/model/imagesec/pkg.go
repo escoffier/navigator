@@ -37,9 +37,10 @@ func (vi *Pkg) Check() error {
 	if vi.Name == "" {
 		return fmt.Errorf("not get Name")
 	}
-	if vi.Version == "" {
-		return fmt.Errorf("not get Version")
-	}
+	// 部分软件没有版本号
+	// if vi.Version == "" {
+	// 	return fmt.Errorf("not get Version")
+	// }
 
 	if vi.UniqueID == 0 {
 		vi.UniqueID = vi.GenUniqueID()

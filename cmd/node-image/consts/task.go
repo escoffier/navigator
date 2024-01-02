@@ -7,4 +7,5 @@ const (
 	VulnDBNotifyFilename = "notify-update"
 	AviraDBPath          = "/usr/local/savapi-sdk-linux64/bin"
 	AviraBinaryPath      = "/usr/local/savapi-sdk-linux64/bin"
+	WorkingDir           = "/var/lib/tensor" // dp working dir
 )

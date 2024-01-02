@@ -13,7 +13,6 @@ import (
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/i18"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
@@ -38,7 +37,6 @@ type ScanTaskSrv struct {
 	imageDal          imagesecStore.ImageMetaDal
 	userDal           imagesecStore.UserDal
 	scanConfigDal     imagesecStore.ScanImageConfigDal
-	PreTaskUpdateChan chan *imagesecModel.ImageScanSubTask
 	Log               *scannerUtils.LogEvent
 }
 
@@ -97,7 +95,7 @@ func (s *ScanTaskSrv) CreateImageScanTask(ctx context.Context, imageSearchParam 
 		imageSearchParam.CheckRegDeleted = consts.TrueString
 	}
 	taskInfo.ImageListParam = imageSearchParam
-	imageSearchParam.Filter = model.EmptyFilter().SetLimit(1)
+	imageSearchParam.Filter = imagesecModel.EmptyFilter().SetLimit(1)
 
 	taskInfo.Status = imagesecModel.TaskStatusNotReady
 	taskInfo.StatusStr = imagesecModel.ScanStatusToStr(imagesecModel.TaskStatusNotReady)
@@ -285,7 +283,7 @@ func (s *ScanTaskSrv) RescheduleScanSubtask(ctx context.Context, subtaskID int64
 func (s *ScanTaskSrv) CreateSubtask(ctx context.Context, taskID int64, imageSearchParam imagesecModel.ImageSearchApiParam) error {
 
 	var startID int64
-	imageSearchParam.Filter = model.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortAsc().SetSortFiledByID()
+	imageSearchParam.Filter = imagesecModel.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortAsc().SetSortFiledByID()
 	imageSearchParam.AssociateParam = imagesecModel.ImageAssociateParam{
 		RegistryEnable:     true,
 		ScanInstanceEnable: true,
@@ -310,7 +308,6 @@ func (s *ScanTaskSrv) CreateSubtask(ctx context.Context, taskID int64, imageSear
 			ima := images[i]
 			sub := &imagesecModel.ImageScanSubTask{
 				TaskID:        taskID,
-				ClusterKey:    ima.ClusterKey,
 				ImageUniqueID: ima.UniqueID,
 				NodeUniqueID:  ima.NodeUniqueID,
 				Status:        imagesecModel.TaskStatusPending,

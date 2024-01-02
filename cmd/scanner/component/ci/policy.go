@@ -8,17 +8,17 @@ import (
 
 	"gitlab.com/security-rd/go-pkg/logging"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	scanner_ci "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-ci"
 )
 
 type PolicyManager struct {
-	dal     store.ScanCiInterface
+	dal     adaptStore.ScanCiInterface
 	userDal imagesecStore.UserDal
 }
 
-func NewPolicyManager(dal store.ScanCiInterface, userDal imagesecStore.UserDal) PolicyManager {
+func NewPolicyManager(dal adaptStore.ScanCiInterface, userDal imagesecStore.UserDal) PolicyManager {
 	return PolicyManager{dal: dal, userDal: userDal}
 }
 

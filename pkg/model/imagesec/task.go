@@ -3,8 +3,6 @@ package imagesec
 import (
 	"encoding/json"
 	"fmt"
-
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 type ImageDetectTask struct {
@@ -212,21 +210,22 @@ func (vi *ImageScanTask) Serialize() {
 type ImageScanSubTask struct {
 	ID            int64  `gorm:"primaryKey" json:"id"`
 	TaskID        int64  `gorm:"column:task_id" json:"taskID"`
-	ClusterKey    string `gorm:"column:cluster_key" json:"clusterKey"`
 	ImageUniqueID uint64 `gorm:"column:image_unique_id" json:"imageUniqueID,string"`
 	// 对于结点镜像来说，表示节点UniqueID,对于仓库镜像来说表示 subScannerInstanceID
 	NodeUniqueID uint64 `gorm:"column:node_unique_id" json:"nodeUniqueID,string"` // 调度的时候使用
 	Status       int64  `gorm:"column:status" json:"status"`                      // 任务状态
 	StatusStr    string `gorm:"column:status_str" json:"statusStr"`               // 任务状态
 	StartedAt    int64  `gorm:"column:started_at" json:"startedAt"`
-	FinishedAt   int64  `gorm:"column:finished_at" json:"finishedAt"`
+	FinishedAt   int64  `gorm:"column:finished_at" json:"finishedAt"` // 扫描完成也要更新这个值，因为要加检测任务
 	Msg          string `gorm:"column:msg" json:"msg"`
 	Reason       string `gorm:"column:reason" json:"reason"`
-	ImageName    string `gorm:"column:image_name" json:"imageName"`
-	// 节点镜像：节点名，仓库镜像：仓库名
-	Hostname     string `gorm:"column:hostname" json:"hostname"`
-	ScanInsVer   string `gorm:"column:scan_ins_ver" json:"scanInsVer"` // 扫描器版本，为了兼容
-	ImageCleared bool   `gorm:"-" json:"imageCleared"`                 // 镜像是否被清理了
+	ImageName    string `gorm:"column:image_name" json:"imageName"`    // 冗余信息，前端展示
+	Hostname     string `gorm:"column:hostname" json:"hostname"`       // 冗余信息，前端展示,节点镜像：节点名，仓库镜像：仓库名
+	ScanInsVer   string `gorm:"column:scan_ins_ver" json:"scanInsVer"` // 扫描器版本，为了兼容老版本,对于老版本的扫描器，要使用原来2.20之前的扫描逻辑
+
+	// 扫描器的 uuid，扫描重启动后会变动，通过该字段来判断是否需要重新发送
+	ScanUUID     string `gorm:"column:scan_uuid" json:"scanUUID"`
+	ImageCleared bool   `gorm:"-" json:"imageCleared"` // 镜像是否被清理了
 
 	CreatedAt int64 `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
 	UpdatedAt int64 `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
@@ -234,6 +233,11 @@ type ImageScanSubTask struct {
 
 func (vi *ImageScanSubTask) TableName() string {
 	return "ivan_image_scan_subtask"
+}
+
+func (vi *ImageScanSubTask) LogInfo() string {
+	ss := fmt.Sprintf("subtask:%d-%d-%s", vi.TaskID, vi.ID, vi.ImageName)
+	return ss
 }
 
 func (vi *ImageScanSubTask) Check() error {
@@ -282,7 +286,7 @@ func (vi *ImageScanSubTask) ToApiView() {
 		vi.StartedAt = 0
 		vi.FinishedAt = 0
 	}
-	if vi.StatusStr == TaskStatusInprogressStr {
+	if vi.StatusStr != TaskStatusDetectFinishedStr {
 		vi.FinishedAt = 0
 	}
 }
@@ -330,7 +334,7 @@ func GetTaskTypeView(lang string) map[string]string {
 		ImageSyncTrigger:         SyncTriggerOperatorEN,
 		ManualTrigger:            ManualTriggerEN,
 	}
-	if lang == model.LangEn {
+	if lang == LangEn {
 		return avEn
 	}
 

@@ -10,7 +10,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/export/common"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/types"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
@@ -40,7 +39,7 @@ func (s *ImageSearchExportExcel) Run(ctx context.Context) {
 	go s.ExcelExportService.RunExport(ctx, consts.ExportImageSearch, s.GenImageChan, common.ConvertData)
 }
 
-func (s *ImageSearchExportExcel) GenImageChan(ctx context.Context, task model.ExportTensorTask) chan imagesecModel.Image {
+func (s *ImageSearchExportExcel) GenImageChan(ctx context.Context, task imagesecModel.ExportTensorTask) chan imagesecModel.Image {
 	out := make(chan imagesecModel.Image, 1)
 
 	go func() {
@@ -63,7 +62,7 @@ func (s *ImageSearchExportExcel) GenImageChan(ctx context.Context, task model.Ex
 
 		var startID int64
 		// 批量查询
-		param.Filter = &model.Filter{Limit: consts.DefaultMaxLimit, SortBy: consts.SortByAsc, SortFiled: "id"}
+		param.Filter = &imagesecModel.Filter{Limit: consts.DefaultMaxLimit, SortBy: consts.SortByAsc, SortFiled: "id"}
 		for {
 			param.StartID = startID
 			images, cnt, err := s.ImageSrv.ListImageWithScanInfo(ctx, param)

@@ -2,6 +2,7 @@ package vulnmatch
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -28,21 +29,22 @@ var (
 // Scanner implements the OspkgDetector and LibraryDetector
 type Scanner struct {
 	applier       local.Applier
-	ospkgDetector local.OspkgDetector
+	osPkgDetector local.OspkgDetector
 }
 
 // NewScanner is the factory method for Scanner
 func NewScanner(applier local.Applier, ospkgDetector local.OspkgDetector) Scanner {
 	return Scanner{
 		applier:       applier,
-		ospkgDetector: ospkgDetector,
+		osPkgDetector: ospkgDetector,
 	}
 }
 
-func (s Scanner) Scan(ctx context.Context, target string, artifactDetail ftypes.ArtifactDetail, options types.ScanOptions) (report.Results, *ftypes.OS, error) {
-	var eosl bool
-	var results report.Results
-	var vulnResults report.Results
+func (s Scanner) Scan(ctx context.Context, target string, artifactDetail ftypes.ArtifactDetail,
+	options types.ScanOptions) (report.Results, *ftypes.OS, error) {
+	// var eosl bool
+	results := make(report.Results, 0)
+	// var vulnResults report.Results
 
 	vulnResults, eosl, err := s.checkVulnerabilities(target, artifactDetail, options)
 	if err != nil {
@@ -96,7 +98,7 @@ func (s Scanner) scanOSPkgs(target string, detail ftypes.ArtifactDetail, options
 		pkgs = mergePkgs(pkgs, detail.HistoryPackages)
 	}
 
-	result, eosl, err := s.detectVulnsInOSPkgs(target, detail.OS.Family, detail.OS.Name, pkgs)
+	result, eosl, err := s.detectVulnInOSPkg(target, detail.OS.Family, detail.OS.Name, pkgs)
 	if err != nil {
 		return nil, false, fmt.Errorf("failed to scan OS packages: %w", err)
 	} else if result == nil {
@@ -113,12 +115,12 @@ func (s Scanner) scanOSPkgs(target string, detail ftypes.ArtifactDetail, options
 	return result, eosl, nil
 }
 
-func (s Scanner) detectVulnsInOSPkgs(target, osFamily, osName string, pkgs []ftypes.Package) (*report.Result, bool, error) {
+func (s Scanner) detectVulnInOSPkg(target, osFamily, osName string, pkgs []ftypes.Package) (*report.Result, bool, error) {
 	if osFamily == "" {
 		return nil, false, nil
 	}
-	vulns, eosl, err := s.ospkgDetector.Detect("", osFamily, osName, time.Time{}, pkgs)
-	if err == ospkgDetector.ErrUnsupportedOS {
+	vulns, eosl, err := s.osPkgDetector.Detect("", osFamily, osName, time.Time{}, pkgs)
+	if errors.Is(err, ospkgDetector.ErrUnsupportedOS) {
 		return nil, false, nil
 	} else if err != nil {
 		return nil, false, fmt.Errorf("failed vulnerability detection of OS packages: %w", err)

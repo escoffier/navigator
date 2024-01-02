@@ -12,17 +12,17 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	scanner_ci "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-ci"
 )
 
-func NewWebhookManager(dal store.ScanCiInterface) WebhookManager {
+func NewWebhookManager(dal adaptStore.ScanCiInterface) WebhookManager {
 	return WebhookManager{dal: dal}
 }
 
 type WebhookManager struct {
-	dal store.ScanCiInterface
+	dal adaptStore.ScanCiInterface
 }
 type WebhookReq struct {
 	ID      int64  `json:"id"`

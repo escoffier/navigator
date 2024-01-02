@@ -10,7 +10,6 @@ import (
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/i18"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -143,10 +142,10 @@ func (api *DetectAPI) GetPolicySnapshot(ctx *gin.Context) {
 
 func (api *DetectAPI) SearchPolicy(ctx *gin.Context) {
 
-	filter := model.GetFilter(ctx)
+	filter := imagesecModel.GetFilter(ctx)
 
 	param2 := imagesecModel.SearchSecurityPolicyParam{
-		Filter:      model.GetFilter(ctx).SetSortDesc().SetSortFiled("updated_at").SetLimit(0).SetOffset(0),
+		Filter:      imagesecModel.GetFilter(ctx).SetSortDesc().SetSortFiled("updated_at").SetLimit(0).SetOffset(0),
 		Keyword:     util.GetKeywordFromQuery(ctx, "keyword"),
 		Deleted:     consts.FalseString,
 		Enable:      util.GetStringSliceFromQuery(ctx, "enable"),

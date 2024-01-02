@@ -1,4 +1,4 @@
-package imagesec
+package imagesecStore
 
 import (
 	"context"
@@ -422,7 +422,7 @@ func (dal *ImageMetaDao) SearchImage(ctx context.Context, param imagesecModel.Im
 	// 	param.Filter = param.Filter.SetOffset(0)
 	// }
 
-	db = model.AddFilter(db, param.Filter)
+	db = imagesecModel.AddFilter(db, param.Filter)
 	res := make([]*imagesecModel.Image, 0)
 	if err := db.Find(&res).Error; err != nil {
 		return nil, cnt, err
@@ -489,7 +489,7 @@ func (dal *ImageMetaDao) GetOnlineImageUUID(ctx context.Context) ([]uint32, erro
 	defer cancelFunc()
 	ans := make([]uint32, 0)
 	db := dal.db.Get().WithContext(ctx).Table(new(model.TensorRawContainer).TableName())
-	filter := model.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiled("image_uuid").SetSortAsc()
+	filter := imagesecModel.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiled("image_uuid").SetSortAsc()
 
 	var startID uint32
 
@@ -499,7 +499,7 @@ func (dal *ImageMetaDao) GetOnlineImageUUID(ctx context.Context) ([]uint32, erro
 		db = db.Where("image_uuid > ?", startID).Where("status = 0")
 		db = db.Select("image_uuid")
 
-		db = model.AddFilter(db, filter)
+		db = imagesecModel.AddFilter(db, filter)
 		if err := db.Find(&res).Error; err != nil {
 			return ans, err
 		}

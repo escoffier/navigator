@@ -7,7 +7,6 @@ import (
 
 	"gitlab.com/security-rd/go-pkg/logging"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -283,12 +282,12 @@ func (vi *ImageDetectBrief) ChangePolicyName(ctx context.Context) *ImageDetectBr
 
 	la, ok := ctx.Value(AcceptLanguage).(string)
 
-	if ok && la == model.LangZh && po != nil && (po.IsDefault || po.Name == DefaultPolicyNameEN) {
+	if ok && la == LangZh && po != nil && (po.IsDefault || po.Name == DefaultPolicyNameEN) {
 		po.Name = DefaultPolicyNameZH
 	}
 	vi.Policy = po
 
-	if ok && la == model.LangZh && po2 != nil && (po2.IsDefault || po2.Name == DefaultPolicyNameEN) {
+	if ok && la == LangZh && po2 != nil && (po2.IsDefault || po2.Name == DefaultPolicyNameEN) {
 		po2.Name = DefaultPolicyNameZH
 	}
 	vi.SimplePolicy = po2

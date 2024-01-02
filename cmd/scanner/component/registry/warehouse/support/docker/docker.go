@@ -18,7 +18,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -36,7 +36,7 @@ type RegistryV2 struct {
 	Ctx            context.Context
 	Config         RegisterConfig
 	RegistryClient *registry2.Registry // client for pull manifest
-	ImageDal       store.ScannerDalInterface
+	ImageDal       adaptStore.ScannerDalInterface
 }
 
 func (r *RegistryV2) ListRepos() ([]string, error) {

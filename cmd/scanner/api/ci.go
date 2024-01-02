@@ -15,13 +15,13 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd/global"
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/service"
+	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 
 	"github.com/gin-gonic/gin"
 	"gitlab.com/security-rd/go-pkg/logging"
-
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/ci"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -395,13 +395,13 @@ func (c *CiApiSrv) SaveResult(ctx *gin.Context) {
 	// 导出任务
 	if result.NeedRemoteReport {
 		go func() {
-			fileName := fmt.Sprintf("%s_cicd_%s.zip", result.UUID, model.ExportHtml)
-			task := &model.ExportTensorTask{
+			fileName := fmt.Sprintf("%s_cicd_%s.zip", result.UUID, imagesec.ExportHtml)
+			task := &imagesec.ExportTensorTask{
 				ExecuteType: consts.ExportCIReport,
 				Parameter:   result.UUID,
 				FilePath:    fileName,
 				Creator:     consts.ExportCIReport,
-				TaskType:    model.ExportHtml,
+				TaskType:    imagesec.ExportHtml,
 			}
 			if err := c.ExportSrv.CreateExportTask(ctx, task); err != nil {
 				logging.Get().Err(err).Str("cicd-uuid", result.UUID).Msg("cicd-report CreateExportTask")
@@ -601,7 +601,7 @@ func (c *CiApiSrv) GetVulnDetail(ctx *gin.Context) {
 		res.VulninfoApi.Cvss = vuln.Metadata.CVSS
 		res.VulninfoApi.Cnvd = vuln.Metadata.CNVDs
 		res.VulninfoApi.CNNVDs = vuln.Metadata.CNNVDs
-		if util.GetLanguage(ctx) == model.LangZh && len(vuln.Metadata.CNVDs) > 0 {
+		if util.GetLanguage(ctx) == imagesec.LangZh && len(vuln.Metadata.CNVDs) > 0 {
 			res.VulninfoApi.Description = vuln.Metadata.CNVDs[0].Description
 		}
 	}
@@ -635,7 +635,7 @@ func (c *CiApiSrv) GetRecordVulns(ctx *gin.Context) {
 		}
 	}
 
-	filter := model.GetFilter(ctx)
+	filter := imagesec.GetFilter(ctx)
 	if filter.SortFiled == "" {
 		filter.SortFiled = "severity_int"
 	}

@@ -6,18 +6,18 @@ import (
 
 	"gopkg.in/gomail.v2"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
 )
 
 type Option func(srv *ScanReportSrv)
 
-func WithDB(dao store.ScanReportInterface) Option {
+func WithDB(dao adaptStore.ScanReportInterface) Option {
 	return func(srv *ScanReportSrv) {
 		srv.dao = dao
 	}
 }
 
-func WithVulnDal(dao store.VulnDalInterface) Option {
+func WithVulnDal(dao adaptStore.VulnDalInterface) Option {
 	return func(srv *ScanReportSrv) {
 		srv.vulnDal = dao
 	}

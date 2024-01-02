@@ -229,7 +229,7 @@ func (rov *RiskOverView) StatisticsImageAttr(images []*imagesec.ImageBaseRespons
 	}
 }
 
-func (rov *RiskOverView) StatisticsVulnSeverity(vuln model.ExportVulnImage) {
+func (rov *RiskOverView) StatisticsVulnSeverity(vuln imagesec.ExportVulnImage) {
 	switch vuln.Severity {
 	case model.SeverityCriticalInt:
 		rov.VulnSeverity.Critical++

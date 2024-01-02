@@ -16,13 +16,16 @@ const (
 	savApiBinBase           = "savapi"
 	DefaultSavApiPath       = "/usr/local/savapi-sdk-linux64"
 	DefaultSavApiListenAddr = 9180
-	DefaultSavApiLogFile    = "/tmp/avira-server.log"
+	defaultSavApiLogFile    = "/tmp/avira-server.log"
 )
 
 type SavServer struct {
-	ListenPort int64
-	PID        int // 进程执行的 PID
-	ShouldStop bool
+	SavApiBin     string // sav的二进制的路径
+	SavLogFile    string // sav的log路径
+	SavConfigFile string // sav的config路径
+	ListenPort    int64
+	PID           int // 进程执行的 PID
+	ShouldStop    bool
 }
 
 type Option func(s *SavServer)
@@ -34,8 +37,8 @@ func WithListenPort(port int64) Option {
 }
 
 func (s *SavServer) generateDaemonArgs() []string {
-	// cmdStr := fmt.Sprintf("%s -N --tcp=%d -C %s --log-file=%s", savApiBin, s.ListenPort, savApiConf, DefaultSavApiLogFile)
-	cmdStr := fmt.Sprintf("-N --tcp=%d -C %s --log-file=%s", s.ListenPort, savApiConf, DefaultSavApiLogFile)
+	// cmdStr := fmt.Sprintf("%s -N --tcp=%d -C %s --log-file=%s", savApiBin, s.ListenPort, savApiConf, defaultSavApiLogFile)
+	cmdStr := fmt.Sprintf("-N --tcp=%d -C %s --log-file=%s", s.ListenPort, s.SavConfigFile, s.SavLogFile)
 	return strings.Split(cmdStr, " ")
 }
 
@@ -117,12 +120,12 @@ func (s *SavServer) StartServer() {
 				continue
 			}
 		}
-		if s.PID > 0 {
+		if s.PID == 0 {
 			_ = s.KillServer()
 		}
 		// 然后重新启动
 		// cmd := exec.Command("sh", "-c", daemonCmdStr)
-		cmd := exec.Command(savApiBin, s.generateDaemonArgs()...)
+		cmd := exec.Command(s.SavApiBin, s.generateDaemonArgs()...)
 		err := cmd.Start()
 		logging.Get().Info().Strs("cmd", cmd.Args).Msg("start avira service")
 		if err != nil {
@@ -146,16 +149,29 @@ func (s *SavServer) StartServer() {
 			s.PID = 0
 			continue
 		}
+
 	}
 }
 
 func NewSavServer(opts ...Option) *SavServer {
-	s := &SavServer{
-		ListenPort: DefaultSavApiListenAddr,
-		PID:        0,
-	}
+	s := &SavServer{}
 	for _, option := range opts {
 		option(s)
 	}
+	// set default value
+
+	if s.SavApiBin == "" {
+		s.SavApiBin = savApiBin
+	}
+	if s.SavConfigFile == "" {
+		s.SavConfigFile = savApiConf
+	}
+	if s.SavLogFile == "" {
+		s.SavLogFile = defaultSavApiLogFile
+	}
+	if s.ListenPort <= 0 {
+		s.ListenPort = DefaultSavApiListenAddr
+	}
+
 	return s
 }

@@ -10,6 +10,7 @@ import (
 	regSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/service"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/sync"
 	imagesecStream "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/stream"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
@@ -55,7 +56,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	}
 
 	rdb := store.GetRDBInstance()
-	cli, err := store.GetRedisClient(1)
+	cli, err := store.GetRedisClient(consts.TrivyRedisIndex)
 	if err != nil {
 		return nil, err
 	}
@@ -69,10 +70,11 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 
 	registrySrv := regSrv.NewRegistrySrv(registryDal, syncTaskDal, scanInstanceDal, policyDal, scanConfigDal)
 
-	imageScanner, err := imageScanJob.NewRegistryImageScan(mqWriter, *cli)
+	imageScanner, err := imageScanJob.NewRegImageScan(mqWriter, cli)
 	if err != nil {
 		return nil, err
 	}
+
 	handler := imagesecStream.NewHandler(imageScanner, syncSrv, registrySrv)
 
 	sr := imagesecStream.NewRpcStream(handler)

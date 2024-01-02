@@ -15,7 +15,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
 	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
@@ -178,7 +177,7 @@ func (s *RegDispatchSrv) UpdateSyncTask(ctx context.Context) {
 func (s *RegDispatchSrv) dispatchFullSyncTask(ctx context.Context) {
 	ticker := time.NewTicker(time.Minute)
 	defer ticker.Stop()
-	filter := model.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortDesc().SetSortFiledByID()
+	filter := imagesecModel.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortDesc().SetSortFiledByID()
 
 	for {
 		<-ticker.C

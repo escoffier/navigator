@@ -1,4 +1,4 @@
-package imagesec
+package imagesecStore
 
 import (
 	"context"
@@ -12,7 +12,6 @@ import (
 	"gorm.io/gorm/clause"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
@@ -125,7 +124,7 @@ func (dal *DeployDao) SearchDeployRecord(ctx context.Context, param imagesecMode
 		param.Filter = param.Filter.SetOffset(0)
 	}
 
-	db = model.AddFilter(db, param.Filter)
+	db = imagesecModel.AddFilter(db, param.Filter)
 
 	res := make([]*imagesecModel.DeployRecord, 0)
 	if err := db.Find(&res).Error; err != nil {
@@ -182,7 +181,7 @@ func (dal *DeployDao) SearchDeployWhiteImage(ctx context.Context, param imagesec
 		param.Filter = param.Filter.SetOffset(0)
 	}
 
-	db = model.AddFilter(db, param.Filter)
+	db = imagesecModel.AddFilter(db, param.Filter)
 
 	res := make([]imagesecModel.DeployWhiteImage, 0)
 	if err := db.Find(&res).Error; err != nil {

@@ -33,7 +33,7 @@ func GetVulnAVView(lang string) map[string]string {
 		"P": "Physical",
 		"A": "Adjacent", // https://www.first.org/cvss/calculator/3.1
 	}
-	if lang == model.LangEn {
+	if lang == LangEn {
 		return avEn
 	}
 
@@ -50,7 +50,7 @@ func GetVulnUIView(lang string) map[string]string {
 		"N": "None",
 		"R": "Required",
 	}
-	if lang == model.LangEn {
+	if lang == LangEn {
 		return avEn
 	}
 
@@ -69,7 +69,7 @@ func GetVulnAcView(lang string) map[string]string {
 		"L": "Low",
 		"H": "High",
 	}
-	if lang == model.LangEn {
+	if lang == LangEn {
 		return avEn
 	}
 
@@ -88,7 +88,7 @@ func GetVulnPrView(lang string) map[string]string {
 		"L": "Low",
 		"H": "High",
 	}
-	if lang == model.LangEn {
+	if lang == LangEn {
 		return avEn
 	}
 
@@ -107,7 +107,7 @@ func GetVulnCView(lang string) map[string]string {
 		"L": "Low",
 		"H": "High",
 	}
-	if lang == model.LangEn {
+	if lang == LangEn {
 		return avEn
 	}
 
@@ -126,7 +126,7 @@ func GetVulnAView(lang string) map[string]string {
 		"L": "Low",
 		"H": "High",
 	}
-	if lang == model.LangEn {
+	if lang == LangEn {
 		return avEn
 	}
 
@@ -145,7 +145,7 @@ func GetVulnIView(lang string) map[string]string {
 		"L": "Low",
 		"H": "High",
 	}
-	if lang == model.LangEn {
+	if lang == LangEn {
 		return avEn
 	}
 
@@ -162,7 +162,7 @@ func GetVulnSView(lang string) map[string]string {
 		"C": "Enlarge",
 		"U": "Unchanged",
 	}
-	if lang == model.LangEn {
+	if lang == LangEn {
 		return avEn
 	}
 
@@ -461,7 +461,7 @@ func GetSeverityView(lang string) map[string]string {
 		SeverityLow:      SeverityLowView,
 		SeverityUnknown:  SeverityUnknownView,
 	}
-	if lang == model.LangEn {
+	if lang == LangEn {
 		return avEN
 	}
 
@@ -515,7 +515,7 @@ func GetSeverityView2(lang string) []LabelValue {
 		},
 	}
 
-	if lang == model.LangEn {
+	if lang == LangEn {
 		return avEN
 	}
 	return avCH
@@ -534,7 +534,7 @@ func GetVulnClassView(lang string) map[string]string {
 		report.ClassLangPkg: "Application vulnerability",
 		// report.ClassConfig:  "Config vulnerability",
 	}
-	if lang == model.LangEn {
+	if lang == LangEn {
 		return avEn
 	}
 
@@ -593,7 +593,7 @@ func GetVulnCvssAttrKeyView(lang string) map[string]string {
 		VulnCvssKeyS:  VulnCvssKeySViewEN,
 		VulnCvssKeyI:  VulnCvssKeyIViewEN,
 	}
-	if lang == model.LangEn {
+	if lang == LangEn {
 		return dataEN
 	}
 
@@ -617,7 +617,7 @@ func GetVulnCvssAttrValueView(lang string, k string) map[string]string {
 // 漏洞属性
 func GenVulnCVSSV3AttrView(attr map[string]string, lang string) map[string]string {
 	if lang == "" {
-		lang = model.LangZh
+		lang = LangZh
 	}
 	after := make(map[string]string)
 	for k, v := range attr {

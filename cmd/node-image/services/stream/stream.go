@@ -9,7 +9,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/node-image/config"
+	"gitlab.com/piccolo_su/vegeta/cmd/node-image/cmd/config"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/services"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/services/helper"

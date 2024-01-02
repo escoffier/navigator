@@ -1,4 +1,4 @@
-package imagesec
+package imagesecStore
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"gitlab.com/security-rd/go-pkg/databases"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
@@ -76,7 +75,7 @@ func (dal *NodeReportDao) SearchNodeInfo(ctx context.Context, param imagesecMode
 		return nil, 0, err
 	}
 	res := make([]*imagesecModel.NodeInfo, 0)
-	db = model.AddFilter(db, param.Filter)
+	db = imagesecModel.AddFilter(db, param.Filter)
 	err := db.Find(&res).Error
 	return res, cnt, err
 }

@@ -139,6 +139,14 @@ func (r *runner) initDB(c artifact.Option) error {
 	return nil
 }
 
+func (r *runner) closeDB() error {
+	if !r.dbOpen {
+		return nil
+	}
+	err := db.Close()
+	return err
+}
+
 func (r *runner) Report(opt artifact.Option, rp report.Report) error {
 	if err := report.Write(rp, report.Option{
 		AppVersion:         opt.GlobalOption.AppVersion,

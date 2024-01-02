@@ -5,12 +5,13 @@ import (
 	"runtime/debug"
 	"sync"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/node-image/config"
+	"gitlab.com/security-rd/go-pkg/logging"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/node-image/cmd/config"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/services/helper"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 var (

@@ -3,8 +3,6 @@ package imagesec
 import (
 	"fmt"
 	"time"
-
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 type ImageFromType string
@@ -24,6 +22,9 @@ const (
 	DetectScopeTypeCluster = "cluster"
 	DetectScopeTypeReg     = "registry"
 	DetectScopeTypeImage   = "image"
+)
+const (
+	DBTypeVulnTrivy = "trivyVuln"
 )
 
 func (vi ImageFromType) Check() error {
@@ -214,6 +215,7 @@ const (
 	TaskFailedReasonNotFindNodeInfo = "notFindNode"         // 未找到对应的节点
 	TaskFailedReasonNotFindScanner  = "notFindScanInstance" // 未找到对应的扫描器
 	TaskFailedTerminated            = "taskTerminated"      // 任务已被终止
+
 )
 
 var taskReasonEN map[string]string
@@ -247,7 +249,7 @@ func GetTaskReason(reason, lang string) string {
 			TaskFailedTerminated:            "task terminated",
 		}
 	}
-	if lang == model.LangEn {
+	if lang == LangEn {
 		return taskReasonEN[reason]
 	}
 	return taskReasonZH[reason]
@@ -323,4 +325,33 @@ const (
 const (
 	RegAbnormal = "abnormal" // 仓库异常
 	RegNormal   = "normal"   // 仓库正常
+)
+
+const (
+	LangEn = "en"
+	LangZh = "zh"
+)
+
+var OpenLicense = []string{"GPL", "MIT", "Apache License", "BSD", "MPL", "FreeBSD", "ISC"}
+
+const (
+	ExportExcel = "excel"
+	ExportHtml  = "html"
+)
+
+var reasonZHMap = map[int64]string{}
+var reasonENMap = map[int64]string{}
+
+func GetRejectReason(lag string) map[int64]string {
+	if lag == LangZh {
+		return reasonZHMap
+	} else if lag == LangEn {
+		return reasonENMap
+	}
+	return make(map[int64]string)
+}
+
+const (
+	CacheTypeImagePrepare = "imagePrepare"
+	CacheTypVulnOverview  = "vulnOverview"
 )

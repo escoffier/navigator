@@ -20,6 +20,7 @@ type License struct {
 	PolicyDetect     PolicyDetect `gorm:"-" json:"policyDetect"` // 对各个策略的检测结果
 	Filepath         string       `gorm:"-" json:"filepath"`
 	DownloadFilename string       `gorm:"-" json:"downloadFilename"`
+	Layer            string       `gorm:"-" json:"layer"` // 存在于镜像的那个层级
 }
 
 func (vi *License) TableName() string {
@@ -95,6 +96,7 @@ func (vi *License) Serialize() {
 	if vi.UniqueID <= 0 {
 		vi.UniqueID = vi.GenUniqueID()
 	}
+	vi.Content = ""
 }
 
 type LicenseToImage struct {

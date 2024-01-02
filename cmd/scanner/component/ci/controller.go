@@ -12,9 +12,8 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
-	scanVuln "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/bolt-vuln"
 	vulnmatch "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-match"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	scanner_ci "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-ci"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -23,7 +22,7 @@ import (
 type Controller struct {
 	policy  *scanner_ci.CiPolicy
 	matcher *vulnmatch.Matcher
-	dal     store.ScanCiInterface
+	dal     adaptStore.ScanCiInterface
 }
 
 func (c *Controller) HandleTiDb(orgVersion string) ([]byte, error) {
@@ -53,7 +52,7 @@ func (c *Controller) VulnerabilityMatch(artifact scanner_ci.ImageArtifact) (repo
 		Str("uuid", artifact.UUID).
 		Msg("match vuln with image artifact")
 
-	err := c.matcher.MatchVulnerability(artifact.Artifact)
+	res, err := c.matcher.MatchVulnerability(artifact.Artifact)
 	if err != nil {
 		logging.Get().Err(err).
 			Str("image", artifact.ImageName).
@@ -62,7 +61,7 @@ func (c *Controller) VulnerabilityMatch(artifact scanner_ci.ImageArtifact) (repo
 		return report.Results{}, err
 	}
 
-	return c.matcher.Results(), nil
+	return res, nil
 }
 
 func (c *Controller) SaveResult(result scanner_ci.PolicyResult) error {
@@ -87,7 +86,7 @@ func (c *Controller) SaveResult(result scanner_ci.PolicyResult) error {
 
 	err = c.logPostgresPkgs(ctx, result, imageID)
 	if err != nil {
-		logging.Get().Err(err).Msgf("log Ci Pkgs error")
+		logging.Get().Err(err).Msgf("log Ci Pkg error")
 	}
 
 	err = c.logPostgresPkgImages(ctx, result, &scanDetails, imageID)
@@ -300,7 +299,7 @@ func (c *Controller) AddRHSAAndCnnvd(vulnDetails *model.SingleScanDetail, vulnDe
 }
 
 func (c *Controller) arrangeVulnDetails(trivyReport *report.Results, scanDetails *model.ScanDetailScanImage) {
-	vulnQuery := scanVuln.GetSingleBoltVuln()
+	vulnQuery := GetSingleBoltVuln()
 	fixedFlag := 0
 	for i, v := range *trivyReport {
 		mp := make(map[string]*model.NewVulnDetail)
@@ -485,7 +484,7 @@ func (c *Controller) logPostgresVuln(ctx context.Context, result scanner_ci.Poli
 	return nil
 }
 
-func NewCiController(dal store.ScanCiInterface) (*Controller, error) {
+func NewCiController(dal adaptStore.ScanCiInterface) (*Controller, error) {
 	c := &Controller{
 		policy: &scanner_ci.CiPolicy{},
 		dal:    dal,

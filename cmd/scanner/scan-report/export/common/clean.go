@@ -12,24 +12,23 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
 type ClearFileAndRecord struct {
 	FileDir                 string
 	Expiration              int64 // 多少天前过期
-	ExportTaskDal           imagesec.ExportTaskDal
-	IdempotentDal           store.IdempotentDal
+	ExportTaskDal           imagesecStore.ExportTaskDal
+	IdempotentDal           imagesecStore.IdempotentDal
 	ExportTaskTimeoutSecond int64
 }
 
 func NewClearFile(
 	fileDir string,
 	expiration int64,
-	exportTaskDal imagesec.ExportTaskDal,
-	idempotentDal store.IdempotentDal,
+	exportTaskDal imagesecStore.ExportTaskDal,
+	idempotentDal imagesecStore.IdempotentDal,
 ) *ClearFileAndRecord {
 	s := &ClearFileAndRecord{
 		FileDir:       fileDir,

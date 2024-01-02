@@ -1,6 +1,8 @@
 package scannerUtils
 
 import (
+	"context"
+
 	"github.com/rs/zerolog"
 
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -11,6 +13,7 @@ import (
 type LogEvent struct {
 	Module    string
 	Submodule string
+	Ctx       context.Context
 }
 
 type LogEventOption func(*LogEvent)
@@ -24,6 +27,12 @@ func WithModule(value string) LogEventOption {
 func WithSubModule(value string) LogEventOption {
 	return func(c *LogEvent) {
 		c.Submodule = value
+	}
+}
+
+func (vi *LogEvent) WithCtx(ctx context.Context) LogEventOption {
+	return func(c *LogEvent) {
+		c.Ctx = ctx
 	}
 }
 
@@ -45,6 +54,11 @@ func (vi *LogEvent) Info() *zerolog.Event {
 		ev = ev.Str(consts.LogSubModule, vi.Submodule)
 	}
 	return ev
+}
+
+func (vi *LogEvent) Repeat(key string) *zerolog.Event {
+
+	return nil
 }
 
 func (vi *LogEvent) Debug() *zerolog.Event {

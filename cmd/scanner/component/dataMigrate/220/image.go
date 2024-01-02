@@ -16,6 +16,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -31,7 +32,7 @@ type ImageMigrate struct {
 	ScanIssueDal    imagesecStore.ScanIssueDal
 	ScanResultDal   imagesecStore.ScanResultDal
 	PreImageService migrateTypes.ImageService // 原来老表的逻辑
-	ImageDal        store.ImageDal
+	ImageDal        adaptStore.ImageDal
 	ImageMetaDal    imagesecStore.ImageMetaDal
 	PolicyDal       imagesecStore.DetectPolicyDal
 	Log             *scannerUtils.LogEvent
@@ -52,7 +53,7 @@ func GetImageMigrate() (*ImageMigrate, error) {
 	rdbInstance := store.GetRDBInstance()
 	scanResultDal := imagesecStore.NewScanResultDao(rdbInstance)
 
-	imageDal := store.NewScannerOrm(rdbInstance)
+	imageDal := adaptStore.NewScannerOrm(rdbInstance)
 	dataMigrateDal := imagesecStore.NewDataMigrateDao(rdbInstance)
 	scanIssueDal := imagesecStore.NewScanIssueDao(rdbInstance)
 	imageMetaDal := imagesecStore.NewImageMetaDao(rdbInstance)
@@ -80,7 +81,7 @@ func NewImageMate(
 	regDal imagesecStore.RegistryDal,
 	scanResultDal imagesecStore.ScanResultDal,
 	imageService migrateTypes.ImageService, // 原来老表的逻辑
-	imageDal store.ImageDal,
+	imageDal adaptStore.ImageDal,
 	scanIssueDal imagesecStore.ScanIssueDal,
 	imageMetaDal imagesecStore.ImageMetaDal,
 	policyDal imagesecStore.DetectPolicyDal,
@@ -231,7 +232,7 @@ func ToNodeReport(image model.ImageList) imagesecType.NodeReport {
 	return nr
 }
 
-func ToScanResult(data *imagesecModel.ImageWithCorrelateData2, subtaskID int64) imagesecType.ScanResult {
+func ToScanResult(data *imagesecModel.ImageWithCorrelateData2, subtaskID int64) imagesecType.ReportScanResult {
 	sensitiveFiles := make([]imagesecType.SensitiveFile, 0)
 	for _, sens := range data.Sensitive {
 		se := imagesecType.SensitiveFile{
@@ -242,21 +243,24 @@ func ToScanResult(data *imagesecModel.ImageWithCorrelateData2, subtaskID int64) 
 		sensitiveFiles = append(sensitiveFiles, se)
 	}
 
-	avira := make([]imagesecType.ClamAvScanResult, 0)
-
-	for i := range data.Malware {
-		mal := data.Malware[i]
-		ma := imagesecType.ClamAvScanResult{
-			Filename:     mal.Filename, // todo
-			Hash:         mal.Hash,
-			MalwareNames: []string{mal.Name},
-		}
-		avira = append(avira, ma)
-	}
+	// avira := make([]imagesecType.AviraScanResult2, 0)
+	//
+	// for i := range data.Malware {
+	// 	mal := data.Malware[i]
+	// 	ma := imagesecType.AviraScanResult2{
+	// 		Filename:    mal.Filename,
+	// 		MD5:         mal.Hash,
+	// 		Type:        mal.MalwareType,
+	// 		Name:        mal.Name,
+	// 		Description: mal.Description,
+	// 		Layer:       mal.Layer,
+	// 	}
+	// 	avira = append(avira, ma)
+	// }
 
 	webshell := make([]imagesecType.HmWebshell, 0)
 
-	for _, wb := range data.Webshell {
+	for _, wb := range data.WebshellView {
 		mod := strings.Join([]string{wb.Mod.User, wb.Mod.Group, wb.Mod.Perm}, " ")
 		size, _ := strconv.ParseInt(wb.Size, 10, 64)
 		web := imagesecType.HmWebshell{
@@ -272,13 +276,13 @@ func ToScanResult(data *imagesecModel.ImageWithCorrelateData2, subtaskID int64) 
 		webshell = append(webshell, web)
 	}
 
-	res := imagesecType.ScanResult{
+	res := imagesecType.ReportScanResult{
 		IgnoreVulnAndPkg: true,
 		SubTaskID:        subtaskID,
 		OS:               data.Image.OS,
 		Sensitives:       imagesecType.SensitiveFileResults{SensitiveFiles: sensitiveFiles},
-		Malwares:         imagesecType.MalwareResults{ClamAvScanResults: avira},
-		Webshells:        imagesecType.WebshellResults{HmWebshells: webshell},
+		// Malware:          imagesecType.MalwareResults{AviraScanResults: avira},
+		Webshell: imagesecType.WebshellResults{HmWebshells: webshell},
 	}
 	return res
 }
@@ -390,8 +394,8 @@ func (s *ImageMigrate) sendImageToKafka(ctx context.Context, report imagesecType
 		return err
 	}
 	msg := kafka.Message{
-		Topic: model.NodeImageTopic,
-		Key:   []byte(model.NodeImageKey),
+		Topic: consts.NodeImageTopic,
+		Key:   []byte(consts.NodeImageKey),
 		Value: bys,
 	}
 
@@ -403,16 +407,16 @@ func (s *ImageMigrate) sendImageToKafka(ctx context.Context, report imagesecType
 	return nil
 }
 
-func (s *ImageMigrate) sendScanResultToKafka(ctx context.Context, scanResult imagesecType.ScanResult) error {
+func (s *ImageMigrate) sendScanResultToKafka(ctx context.Context, scanResult imagesecType.ReportScanResult) error {
 	sendData, err := json.Marshal(scanResult)
 	if err != nil {
 		s.Log.Err(err).Msg("failed to marshal scanResult")
 		return err
 	}
 	err = s.MqWriter.Write(context.Background(),
-		model.NodeImageScanResultTopic,
+		consts.NodeImageScanResultTopic,
 		kafka.Message{
-			Key:   []byte(model.NodeImageScanResultKey),
+			Key:   []byte(consts.NodeImageScanResultKey),
 			Value: sendData,
 		})
 	if err != nil {
@@ -431,20 +435,19 @@ func (s *ImageMigrate) SyncImageMeta(ctx context.Context, ver string) error {
 			}
 		}()
 
-		ticker := time.NewTicker(time.Minute)
+		ticker := time.NewTicker(2 * time.Minute)
 		defer ticker.Stop()
 		for {
 			<-ticker.C
 			_ = s.syncImageMeta(ctx)
+			ticker.Reset(2 * time.Minute)
 		}
 	}()
 	return nil
 }
 
 func (s *ImageMigrate) syncImageMeta(ctx context.Context) error {
-	s.Log.Info().Msg("Migrate SyncImageMeta start")
-
-	filter := model.EmptyFilter().SetLimit(consts.DefaultMaxLimit)
+	filter := imagesecModel.EmptyFilter().SetLimit(consts.DefaultMaxLimit)
 
 	ticker := time.NewTicker(time.Second * 5)
 	defer ticker.Stop()
@@ -479,7 +482,6 @@ func (s *ImageMigrate) syncImageMeta(ctx context.Context) error {
 			return err
 		}
 		if len(images) == 0 {
-			s.Log.Info().Msg("SyncImageMeta this batch finished")
 			break
 		}
 		for i := range images {
@@ -526,7 +528,7 @@ func (s *ImageMigrate) MigrateExitData(ctx context.Context, ver string) error {
 		lastID = i
 	}
 
-	filter := model.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortAsc().SetSortFiledByID()
+	filter := imagesecModel.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortAsc().SetSortFiledByID()
 
 	ticker := time.NewTicker(time.Second * 5)
 	defer ticker.Stop()

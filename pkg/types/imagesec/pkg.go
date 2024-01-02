@@ -16,5 +16,5 @@ type License struct {
 	Layer    string `json:"layer"` // 所属layer的digest
 	Filename string `json:"filename"`
 	MD5      string `json:"md5"`
-	Content  string `json:"content"`
+	Content  []byte `json:"content"`
 }

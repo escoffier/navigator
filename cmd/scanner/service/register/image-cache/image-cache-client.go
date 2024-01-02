@@ -47,7 +47,7 @@ func (icc *Client) GetManifest(username, password, url, repository, tag string, 
 	if err != nil {
 		return "", err
 	}
-	logging.Get().Info().Msgf("client server addr %s,repo %s,tag %s", icc.serverAddr, rq.Repository, rq.Tag)
+	logging.Get().Debug().Msgf("client server addr %s,repo %s,tag %s", icc.serverAddr, rq.Repository, rq.Tag)
 	req, err := http.NewRequest("POST", icc.serverAddr, bytes.NewBuffer(jsonStr))
 	if err != nil {
 		logging.Get().Err(err).Msg("new req err")

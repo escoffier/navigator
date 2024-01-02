@@ -360,11 +360,10 @@ func MkdirIfNotExist(path string, remove bool) error {
 			return nil
 		} else {
 			// 先删除这个文件再创建
-			logging.GetLogger().Info().Str("filename", path).Msg("file exist remove it")
 			if err := os.Remove(path); err != nil {
 				return err
 			}
-			return os.Mkdir(path, os.ModePerm)
+			return os.MkdirAll(path, os.ModePerm)
 		}
 	}
 	if os.IsNotExist(err) {
@@ -431,14 +430,14 @@ func Unzip(zipFile, destDir, passwd string) error {
 		if f.IsEncrypted() {
 			f.SetPassword(passwd)
 		}
-		path := filepath.Join(destDir, f.Name)
+		// path := filepath.Join(destDir, f.Name)
 		if f.FileInfo().IsDir() {
-			err = os.MkdirAll(path, os.ModePerm)
+			err = os.MkdirAll(destDir, os.ModePerm)
 			if err != nil {
 				return err
 			}
 		} else {
-			if err = os.MkdirAll(filepath.Dir(path), os.ModePerm); err != nil {
+			if err = os.MkdirAll(filepath.Dir(destDir), os.ModePerm); err != nil {
 				return err
 			}
 
@@ -447,7 +446,7 @@ func Unzip(zipFile, destDir, passwd string) error {
 				return err
 			}
 
-			outFile, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
+			outFile, err := os.OpenFile(destDir, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.Mode())
 			if err != nil {
 				_ = inFile.Close()
 				return err

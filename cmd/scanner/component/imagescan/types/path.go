@@ -25,3 +25,12 @@ func GetClamavDBPathInfo() imagesecModel.DBPathInfo {
 	}
 	return pa
 }
+
+func GetTrivyDBPathInfo() imagesecModel.DBPathInfo {
+	pa := imagesecModel.DBPathInfo{
+		WorkVersionFilename: "/opt/vuln/trivy/version",
+		UpdatePath:          "/root/alldb/vuln/trivy/",
+		UpdateUnZipPath:     "/root/alldb/vuln/trivy/",
+	}
+	return pa
+}

@@ -12,11 +12,12 @@ import (
 
 	"gitlab.com/security-rd/go-pkg/logging"
 
-	preinit "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/pre-init"
+	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd/flag"
+	preinit "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/preInit"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/piccolo_su/vegeta/pkg/uuid"
 )
@@ -24,12 +25,13 @@ import (
 // Scanner represents the Vegeta Scanner server.
 type Scanner struct {
 	lifecycle.Service
-	PodID           string // uuid
+	PodID           string // uuid：
 	options         *flag2.ScannerOpts
 	servicesList    map[string]register.ScannerService // save all scanner service
 	ScannerInstance string
 	ClusterKey      string
 	ClusterName     string
+	Log             *scannerUtils.LogEvent
 }
 
 type ClusterKey struct {
@@ -39,7 +41,7 @@ type ClusterKey struct {
 
 func GetCluster(ctx context.Context) (ClusterKey, error) {
 	if os.Getenv("LOCAL_DEBUG") == consts.TrueString {
-		return ClusterKey{}, nil
+		return ClusterKey{Key: "debug-cluster-key", Name: "debug-cluster-name"}, nil
 	}
 
 	clusterURL := os.Getenv("CLUSTER_MANAGER_URL")
@@ -83,7 +85,7 @@ func NewScanner(opts *flag2.ScannerOpts) (*Scanner, error) {
 
 	// init redis client
 	if err := store.InitRedisClient(); err != nil {
-		logging.Get().Err(err).Msgf("connect redis failed,%v,%v", opts.RedisPassword, opts.RedisEndpoint)
+		logging.Get().Err(err).Msgf("connect redis failed")
 		return nil, err
 	}
 
@@ -102,10 +104,11 @@ func NewScanner(opts *flag2.ScannerOpts) (*Scanner, error) {
 		ClusterName:     cluster.Name,
 		options:         opts,
 		servicesList:    make(map[string]register.ScannerService),
+		Log:             scannerUtils.NewLogEvent(scannerUtils.WithModule("NewScanner")),
 	}
 
 	if err := dbInit.Init(context.Background()); err != nil {
-		logging.Get().Err(err).Msg("db init policy err")
+		scanner.Log.Err(err).Msg("can not init scanner db data")
 		return nil, err
 	}
 
@@ -114,7 +117,7 @@ func NewScanner(opts *flag2.ScannerOpts) (*Scanner, error) {
 
 // Run is to run the service.
 func (s *Scanner) Run() func() {
-	logging.Get().Info().Msg("scanner started")
+	s.Log.Info().Msg("scanner started")
 
 	// create all register services
 	s.CreateService()
@@ -126,7 +129,7 @@ func (s *Scanner) Run() func() {
 
 		s.StopServices(context.Background())
 
-		logging.Get().Info().Msg("scanner stopped")
+		s.Log.Info().Msg("scanner stopped")
 	}
 }
 
@@ -139,14 +142,14 @@ func (s *Scanner) CreateService() {
 		}
 		srv, err := register.Open(config)
 		if err != nil {
-			logging.Get().Err(err).Str("type", k).Msg("create service err")
+			s.Log.Err(err).Str("type", k).Msg("create service err")
 			continue
 		}
-		logging.Get().Info().Str("type", k).Msg("create service ok")
+		s.Log.Info().Str("type", k).Msg("create service ok")
 		s.servicesList[k] = srv
 	}
 
-	logging.Get().Info().Msg("all service created")
+	s.Log.Info().Msg("all service created")
 }
 
 func (s *Scanner) StartServices() {
@@ -155,37 +158,37 @@ func (s *Scanner) StartServices() {
 		go func(serviceName string) {
 			defer func() {
 				if r := recover(); r != nil {
-					logging.Get().Error().Msgf("scanner service panic : %v. stack: %s", r, debug.Stack())
+					s.Log.Error().Msgf("scanner service panic : %v. stack: %s", r, debug.Stack())
 				}
 			}()
 
-			logging.Get().Info().Str("serviceName", serviceName).Msg("scanner service ready to start")
+			s.Log.Info().Str("serviceName", serviceName).Msg("scanner service ready to start")
 			err := s.servicesList[serviceName].Start(context.Background())
 			if err != nil {
-				logging.Get().Err(err).Str("serviceName", serviceName).Msg("scanner service run err")
+				s.Log.Err(err).Str("serviceName", serviceName).Msg("scanner service run err")
 				return
 			}
-			logging.Get().Info().Str("serviceName", serviceName).Msg("scanner service start end")
+			s.Log.Info().Str("serviceName", serviceName).Msg("scanner service start end")
 		}(name)
 	}
 
-	logging.Get().Info().Msg("all service started")
+	s.Log.Info().Msg("all service started")
 }
 
 func (s *Scanner) StopServices(ctx context.Context) {
 	for name, srv := range s.servicesList {
 		err := srv.Stop(ctx)
 		if err != nil {
-			logging.Get().Err(err).Str("serviceName", name).Msg("scanner service stop err")
+			s.Log.Err(err).Str("serviceName", name).Msg("scanner service stop err")
 		} else {
-			logging.Get().Info().Str("serviceName", name).Msg("scanner service stop ok")
+			s.Log.Info().Str("serviceName", name).Msg("scanner service stop ok")
 		}
 	}
 }
 
 func (s *Scanner) DumpServices() {
 	for name := range s.servicesList {
-		logging.Get().Info().Str("serviceName", name).Msg("scanner created service")
+		s.Log.Info().Str("serviceName", name).Msg("scanner created service")
 	}
 }
 

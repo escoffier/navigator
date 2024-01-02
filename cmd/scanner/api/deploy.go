@@ -11,7 +11,6 @@ import (
 	deploySrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/deployment"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/i18"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -63,7 +62,7 @@ func (s *DeploySrv) SearchDeployRecord(ctx *gin.Context) {
 		response.JSONError(ctx, response.NewHttpError(http.StatusBadRequest, err))
 		return
 	}
-	body.Filter = model.GetFilterWithDefaultValue(ctx)
+	body.Filter = imagesecModel.GetFilterWithDefaultValue(ctx)
 	body.Filter = body.Filter.SetSortFiled("id").SetSortDesc()
 
 	record, cnt, err := s.deployService.SearchDeployRecord(ctx, body)
@@ -91,7 +90,7 @@ func (s *DeploySrv) CheckDeploy(ctx *gin.Context) {
 		return
 	}
 
-	logging.Get().Info().Interface("body", containerInfo).Msg("CheckDeploy")
+	logging.Get().Debug().Interface("body", containerInfo).Msg("CheckDeploy")
 
 	if len(containerInfo) == 0 {
 		response.JSONError(ctx, fmt.Errorf("not get container info"))
@@ -105,13 +104,13 @@ func (s *DeploySrv) CheckDeploy(ctx *gin.Context) {
 		}
 	}
 	res.Flag = safe
-	logging.Get().Info().Interface("res", res).Msg("CheckDeploy")
+	logging.Get().Debug().Interface("body", containerInfo).Interface("res", res).Msg("CheckDeploy")
 
 	response.JSONOK(ctx, response.WithItem(res))
 }
 
 func (s *DeploySrv) SearchDeployWhiteImage(ctx *gin.Context) {
-	filter := model.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit)
+	filter := imagesecModel.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit)
 	filter = filter.SetSortDesc().SetSortFiled("updated_at")
 
 	imageKeyword := util.GetKeywordFromQuery(ctx, "imageName")

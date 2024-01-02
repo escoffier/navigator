@@ -15,11 +15,15 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 )
 
-type SubScannerHandler struct {
-	UpdateDBService types.UpdateDBService
+type UpdateDBService interface {
+	UpdateDB(ctx context.Context, param imagesecModel.UpdateDbParam) error
 }
 
-func NewSubScannerHandler(updateDBSrv types.UpdateDBService) *SubScannerHandler {
+type SubScannerHandler struct {
+	UpdateDBService UpdateDBService
+}
+
+func NewSubScannerHandler(updateDBSrv UpdateDBService) *SubScannerHandler {
 	return &SubScannerHandler{UpdateDBService: updateDBSrv}
 }
 

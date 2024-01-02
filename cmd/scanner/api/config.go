@@ -2,6 +2,7 @@ package api
 
 import (
 	"fmt"
+	"io"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
@@ -11,7 +12,6 @@ import (
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/i18"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -21,17 +21,20 @@ type ConfigAPISrv struct {
 	sensitiveRuleService   imagesecSrv.SensitiveRuleService
 	scanImageConfigService imagesecSrv.ScanImageConfigService
 	scanResultService      imagescanSrv.ScanResultService
+	DBManager              imagesecSrv.DBUpdateService
 }
 
 func NewConfigAPISrv(
 	sensitiveRuleService imagesecSrv.SensitiveRuleService,
 	scanImageConfigService imagesecSrv.ScanImageConfigService,
 	scanResultService imagescanSrv.ScanResultService,
+	dBManager imagesecSrv.DBUpdateService,
 ) *ConfigAPISrv {
 	return &ConfigAPISrv{
 		sensitiveRuleService:   sensitiveRuleService,
 		scanImageConfigService: scanImageConfigService,
 		scanResultService:      scanResultService,
+		DBManager:              dBManager,
 	}
 }
 
@@ -51,7 +54,7 @@ func (s *ConfigAPISrv) CreateSensitiveRule(ctx *gin.Context) {
 }
 
 func (s *ConfigAPISrv) SearchSensitiveRule(ctx *gin.Context) {
-	filter := model.GetFilter(ctx)
+	filter := imagesecModel.GetFilter(ctx)
 	filter.SortFiled = "created_at"
 	filter.SortBy = consts.SortByDesc
 	ruleType := util.GetKeywordFromQuery(ctx, "ruleType")
@@ -147,7 +150,7 @@ func (s *ConfigAPISrv) GetConstView(ctx *gin.Context) {
 	constType := util.GetKeywordFromQuery(ctx, "constType")
 	view := s.scanImageConfigService.GetConstView(ctx, constType)
 	lang := util.GetLanguage(ctx)
-	if lang == model.LangEn {
+	if lang == imagesecModel.LangEn {
 		response.JSONOK(ctx, response.WithItems(view.EN))
 		return
 	}
@@ -220,4 +223,154 @@ func (s *ConfigAPISrv) SearchLicense(ctx *gin.Context) {
 		return
 	}
 	response.JSONOK(ctx, response.WithItems(li))
+}
+
+func (s *ConfigAPISrv) UpdateVulnDB(ctx *gin.Context) {
+	updater := ctx.Query("updater")
+	checkVersion := util.GetBoolStringFromQuery(ctx, "checkVersion")
+
+	file, err := ctx.FormFile("file")
+	if err != nil {
+		response.JSONError(ctx, i18.CreateI18BadReqErr("未获取到db文件", "not get db file"))
+		return
+	}
+
+	// 打开上传的文件
+	src, err := file.Open()
+	if err != nil {
+		response.JSONError(ctx, i18.CreateI18BadReqErr("打开文件失败", "can not open db file"))
+		return
+	}
+	defer func() { _ = src.Close() }()
+
+	// 将文件内容读取为字节切片 ([]byte)
+	bts, err := io.ReadAll(src)
+	if err != nil {
+		response.JSONError(ctx, i18.CreateI18BadReqErr("读取文件失败", "can not read db file"))
+		return
+	}
+	param := imagesecModel.UpdateDbParam{
+		Updater:      updater,
+		DbType:       consts.TrivyName,
+		Data:         bts,
+		CheckVersion: checkVersion == consts.TrueString,
+	}
+	err = s.DBManager.UpdateVulnDb(ctx, param)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	response.JSONOK(ctx)
+}
+
+func (s *ConfigAPISrv) UpdateAviraDB(ctx *gin.Context) {
+
+	// updater := ctx.Query("updater")
+	// checkVersion := util.GetBoolStringFromQuery(ctx, "checkVersion")
+	//
+	// file, err := ctx.FormFile("file")
+	// if err != nil {
+	// 	response.JSONError(ctx, i18.CreateI18BadReqErr("未获取到db文件", "not get db file"))
+	// 	return
+	// }
+	//
+	// // 打开上传的文件
+	// src, err := file.Open()
+	// if err != nil {
+	// 	response.JSONError(ctx, i18.CreateI18BadReqErr("打开文件失败", "can not open db file"))
+	// 	return
+	// }
+	// defer func() { _ = src.Close() }()
+	//
+	// // 将文件内容读取为字节切片 ([]byte)
+	// bts, err := io.ReadAll(src)
+	// if err != nil {
+	// 	response.JSONError(ctx, i18.CreateI18BadReqErr("读取文件失败", "can not read db file"))
+	// 	return
+	// }
+	// param := imagesecModel.UpdateDbParam{
+	// 	Updater:      updater,
+	// 	DbType:       consts.AviraName,
+	// 	Data:         bts,
+	// 	CheckVersion: checkVersion == consts.TrueString,
+	// }
+	// err = s.DBManager.UpdateAviraDB(ctx, param)
+	// if err != nil {
+	// 	response.JSONError(ctx, err)
+	// 	return
+	// }
+
+	response.JSONOK(ctx)
+}
+
+func (s *ConfigAPISrv) SearchDB(ctx *gin.Context) {
+	dbType := util.GetKeywordFromQuery(ctx, "dbType")
+	filter := imagesecModel.GetFilter(ctx).SetSortFiledByID().SetSortDesc()
+	lis, cnt, err := s.DBManager.SearchScanDb(ctx, imagesecModel.SearchScanDbParam{
+		DBType: dbType,
+		Filter: filter,
+	})
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	// 兼容前端
+	type HistoryResp struct {
+		CompressVersion string `json:"version"`
+		UpdateTime      int64  `json:"updateTime"`
+		DBType          string `json:"dbType"`
+		Updater         string `json:"updater"`
+	}
+	ans := make([]HistoryResp, 0)
+	for i := range lis {
+		ans = append(ans, HistoryResp{
+			CompressVersion: lis[i].DBVersion,
+			UpdateTime:      lis[i].UpdatedAt,
+			DBType:          lis[i].DBType,
+			Updater:         lis[i].Updater,
+		})
+	}
+
+	response.JSONOK(ctx, response.WithItems(ans),
+		response.WithTotalItems(cnt),
+		response.WithItemsPerPage(filter.Limit),
+		response.WithStartIndex(filter.Offset))
+}
+
+func (s *ConfigAPISrv) LatestVersion(ctx *gin.Context) {
+	filter := imagesecModel.GetFilter(ctx)
+	filter = filter.SetSortDesc().SetSortFiled("id").SetLimit(1)
+	// 暂时只查漏洞库，后期要改成查全部
+	lis, cnt, err := s.DBManager.SearchScanDb(ctx, imagesecModel.SearchScanDbParam{
+		DBType: consts.TrivyName,
+		Filter: filter,
+	})
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+
+	// 兼容前端
+	type HistoryResp struct {
+		CompressVersion string `json:"version"`
+		UpdateTime      int64  `json:"updateTime"`
+		DBType          string `json:"dbType"`
+		Updater         string `json:"updater"`
+	}
+	ans := make([]HistoryResp, 0)
+	for i := range lis {
+		ans = append(ans, HistoryResp{
+			CompressVersion: lis[i].DBVersion,
+			UpdateTime:      lis[i].UpdatedAt,
+			DBType:          lis[i].DBType,
+			Updater:         lis[i].Updater,
+		})
+	}
+
+	response.JSONOK(ctx, response.WithItems(ans),
+		response.WithTotalItems(cnt),
+		response.WithItemsPerPage(filter.Limit),
+		response.WithStartIndex(filter.Offset))
 }

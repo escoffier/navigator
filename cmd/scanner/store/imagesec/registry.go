@@ -1,4 +1,4 @@
-package imagesec
+package imagesecStore
 
 import (
 	"context"
@@ -11,7 +11,6 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -50,7 +49,7 @@ func (dal *SyncTaskDao) SearchSyncTask(ctx context.Context, param imagesecModel.
 		db = db.Where("sync_type = ?", param.SyncType)
 	}
 
-	db = model.AddFilter(db, param.Filter)
+	db = imagesecModel.AddFilter(db, param.Filter)
 
 	res := make([]imagesecModel.ImageSyncTask, 0)
 	if err := db.Find(&res).Error; err != nil {
@@ -150,7 +149,7 @@ func (dal *RegistryDao) SearchRegistry(ctx context.Context, param imagesecModel.
 	if err := db.Count(&cnt).Error; err != nil {
 		return nil, 0, err
 	}
-	db = model.AddFilter(db, param.Filter)
+	db = imagesecModel.AddFilter(db, param.Filter)
 
 	res := make([]imagesecModel.Registry, 0)
 	if err := db.Find(&res).Error; err != nil {

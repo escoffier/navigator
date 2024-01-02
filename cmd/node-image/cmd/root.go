@@ -3,18 +3,20 @@ package cmd
 import (
 	"errors"
 	"fmt"
+	"os"
+	"strings"
+
 	"github.com/rs/zerolog"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"gitlab.com/piccolo_su/vegeta/cmd/node-image/config"
-	"gitlab.com/piccolo_su/vegeta/cmd/node-image/opt"
-	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 	"gitlab.com/security-rd/go-pkg/logging"
-	"os"
-	"strings"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/node-image/cmd/config"
+	"gitlab.com/piccolo_su/vegeta/cmd/node-image/cmd/opt"
+	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
 )
 
-// initConfig parse config from yaml file
+// initConfig parse Config from yaml file
 func initConfig(configFile string) (*config.Config, error) {
 	// default config
 	cfg := config.NewDefaultConfig()
@@ -70,6 +72,7 @@ func NewRootCmd() *cobra.Command {
 			option := opt.GetOptionByViper()
 			cfg, err := initConfig(option.ConfigFile)
 			if err != nil {
+				logging.Get().Err(err).Msg("can not parse config file")
 				return err
 			}
 
@@ -85,9 +88,7 @@ func NewRootCmd() *cobra.Command {
 				logging.Get().Err(err).Msg("failed to create enforcer")
 				return err
 			}
-			lifecycle.NewApplication(
-				scanner,
-			).Run()
+			lifecycle.NewApplication(scanner).Run()
 			return nil
 		},
 	}

@@ -22,10 +22,13 @@ const (
 )
 
 const (
-	ClamavName = "clamav"
-	AviraName  = "avira"
-	DBPassword = "tanzhen2020scanner"
-	VersionStr = "version"
+	ClamavName   = "clamav"
+	AviraName    = "avira"
+	TrivyName    = "trivy"
+	DBPassword   = "tanzhen2020scanner"
+	VersionStr   = "version"
+	TrivyDbName  = "trivy.db"
+	CustomDbName = "custom.db"
 
 	DeployGraphDay30  = "day30"
 	DeployGraphDay7   = "day7"
@@ -46,7 +49,21 @@ const (
 	ModuleMigrate       = "migrate"
 	ModuleKafkaReport   = "kafkaReport"
 	ModuleRpcStream     = "rpcStream"
+	ModuleUBUpdate      = "dbUpdate"
 	ModuleRegistryImage = "registryImage"
 	LogModule           = "module"
 	LogSubModule        = "submodule"
+)
+
+const (
+	SubtaskLogName  = "subtask"
+	TaskLogName     = "task"
+	ImageLogName    = "image"
+	RegistryLogName = "registry"
+	NodeLogName     = "node"
+	ScanJobLogName  = "scanJob"
+)
+
+const (
+	DefaultAviraSavServerListenPort = 9200
 )

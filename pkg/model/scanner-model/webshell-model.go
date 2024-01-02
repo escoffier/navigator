@@ -10,12 +10,17 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
-const (
-	WebshellKafkaTopic   = "ivan_scanner_webshell"
-	WebshellKafkaKey     = "ivan_scanner_webshell_key"
-	WebshellKafkaGroupID = "ivan_scanner_webshell_scanner"
-	WebshellSize         = (1 << 20) * 10
-)
+// import (
+//
+//	"context"
+//	"fmt"
+//	"strings"
+//
+//	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+//	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+//	"gitlab.com/piccolo_su/vegeta/pkg/util"
+//
+// )
 
 const (
 	WebshellLevelCertainly = "certainly"
@@ -25,23 +30,6 @@ const (
 var LevelToString = map[int]string{
 	1: WebshellLevelMaybe,
 	2: WebshellLevelCertainly,
-}
-
-type Webshell struct {
-	ID            int64  `gorm:"primaryKey" json:"id"`
-	CreatedAt     int64  `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"`
-	UpdatedAt     int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"`
-	LayerDigest   string `gorm:"column:layer_digest;type:varchar(255)" json:"layerDigest"`
-	FileMd5       string `gorm:"column:file_md5;type:varchar(255)" json:"fileMd5"`
-	FileName      string `gorm:"column:file_name;type:varchar(255)" json:"fileName"`
-	FileType      string `gorm:"column:file_type;type:varchar(64)" json:"fileType"`
-	FileMode      string `gorm:"column:file_mode;type:varchar(64)" json:"fileMode"`
-	FileSize      int    `gorm:"column:file_size" json:"fileSize"`
-	FileModtime   int64  `gorm:"column:file_modtime" json:"fileModtime"`
-	Description   string `gorm:"column:description;type:varchar(255)" json:"description"`
-	Level         string `gorm:"column:level;type:varchar(64)" json:"level"`
-	UniqueID      uint64 `gorm:"column:unique_id" json:"uniqueID,string"`
-	MaliciousData string `gorm:"column:malicious_data" json:"maliciousData"`
 }
 
 func (w *Webshell) GenUniqueVuln() uint64 {
@@ -84,24 +72,6 @@ type WebshellMalicous struct {
 	Offset int64  `json:"Offset"`
 	Data   string `json:"Data"`
 	LineNo int64  `json:"line_no"`
-}
-
-type WebshellFileInfo struct {
-	FileName      string
-	Size          int64
-	Mode          string
-	LayerDigest   string
-	Level         int
-	Md5Hash       string
-	ModeTime      int64
-	Description   string
-	MaliciousData string
-	Ext           string
-	FilePath      string
-	UID           int64
-	GID           int64
-	UName         string
-	GName         string
 }
 
 type WebshellMd5AndLayer struct {

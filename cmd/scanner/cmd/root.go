@@ -15,12 +15,11 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	"k8s.io/klog/v2"
 
-	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
+	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd/flag"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd/global"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service"
 	flag3 "gitlab.com/piccolo_su/vegeta/pkg/flag"
 	"gitlab.com/piccolo_su/vegeta/pkg/lifecycle"
-	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 )
 
 // rootCmd represents the base command when called without any subcommands
@@ -57,19 +56,8 @@ var rootCmd = &cobra.Command{
 			}
 			global.ScannerPodID = scanner.PodID
 			global.ScannerInstance = scanner.ScannerInstance
-			global.ClusterName = scanner.ClusterName
 			global.ClusterKey = scanner.ClusterKey
-			global.PVCPath = ScannerRunOpts.PvcPath
-			global.SubtaskParallel = ScannerRunOpts.ParallelSubTaskNum * ScannerRunOpts.ParallelTaskNum
-
-			vv := scannermodel.ScannerDBVersion{
-				VulnVersion: scannermodel.VulnDBVersion{
-					TrivyVersion:    scannermodel.DBMateData{Version: "123"},
-					CustomDBVersion: scannermodel.DBMateData{Version: "345"},
-				},
-			}
-
-			global.VulnDBVersion = &vv
+			// global.SubtaskParallel = ScannerRunOpts.ParallelSubTaskNum * ScannerRunOpts.ParallelTaskNum
 
 			logging.Get().Info().
 				Str("version", Version).

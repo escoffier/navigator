@@ -9,14 +9,12 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd/global"
 	imagesec2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagesec"
 	registryService "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/service"
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -25,12 +23,12 @@ import (
 type RegistrySrv struct {
 	RegistrySrv     registryService.RegistryService
 	ScannerInstance imagesec2.ScanInstanceService
-	RejectSrv       component.ImageRejectSrv
+	RejectSrv       imagesec2.TrustedImageService
 }
 
 func NewRegistrySrv(
 	registrySrv registryService.RegistryService,
-	rejectSrv component.ImageRejectSrv,
+	rejectSrv imagesec2.TrustedImageService,
 	scannerInstance imagesec2.ScanInstanceService) *RegistrySrv {
 	return &RegistrySrv{RegistrySrv: registrySrv, RejectSrv: rejectSrv, ScannerInstance: scannerInstance}
 }
@@ -185,7 +183,7 @@ func (s *RegistrySrv) SearchRegistry(ctx *gin.Context) {
 	startSyncAt := util.GetInt64FromQuery(ctx, "startTime")
 	endSyncAt := util.GetInt64FromQuery(ctx, "endTime")
 
-	filter := model.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit).SetSortDesc().SetSortFiled("id")
+	filter := imagesec.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit).SetSortDesc().SetSortFiled("id")
 
 	param := imagesec.SearchRegistryParam{
 		RegType:     regType,
@@ -224,7 +222,7 @@ func (s *RegistrySrv) SearchRegistry(ctx *gin.Context) {
 			abn = true
 		}
 
-		if time.Now().Unix()-ins.HeartBeatAt > 5*60 && util.CompareVersion(ins.ScannerVersion, consts.ScannerVersion211) > 0 {
+		if time.Now().Unix()-ins.HeartBeatAt > 5*60 && util.ThanVersion(ins.ScannerVersion, consts.ScannerVersion211) {
 			abn = true
 
 		}

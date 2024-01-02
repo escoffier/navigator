@@ -12,12 +12,13 @@ import (
 
 	"gitlab.com/security-rd/go-pkg/cache"
 	"gitlab.com/security-rd/go-pkg/databases"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
 )
 
 var dbInitOnce sync.Once
 var scannerDB *databases.RDBInstance
-var scannerOrm *ScannerOrm // 还在用
-var ciDao *CiDao           // 还在用
+var ciDao *adaptStore.CiDao // 还在用
 var redisClients = make([]*redis.Client, 2)
 
 func NewRDBInstance() *databases.RDBInstance {
@@ -39,8 +40,7 @@ func NewRDBInstance() *databases.RDBInstance {
 		db.SetDebugMode()
 	}
 	scannerDB = db
-	scannerOrm = NewScannerOrm(scannerDB)
-	ciDao = NewCiDao(scannerDB)
+	ciDao = adaptStore.NewCiDao(scannerDB)
 
 	return scannerDB
 }
@@ -60,8 +60,7 @@ func InitDb(loglevel string) (err error) {
 		if loglevel == "debug" {
 			scannerDB.SetDebugMode()
 		}
-		scannerOrm = NewScannerOrm(scannerDB)
-		ciDao = NewCiDao(scannerDB)
+		ciDao = adaptStore.NewCiDao(scannerDB)
 	})
 
 	return
@@ -78,11 +77,7 @@ func GetRDBInstance() *databases.RDBInstance {
 	}
 }
 
-func GetScannerOrmDb() *ScannerOrm {
-	return scannerOrm
-}
-
-func GetCiDb() ScanCiInterface {
+func GetCiDb() adaptStore.ScanCiInterface {
 	return ciDao
 }
 

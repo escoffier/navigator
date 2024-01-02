@@ -1,4 +1,4 @@
-package imagesec
+package imagesecStore
 
 import (
 	"context"
@@ -14,6 +14,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 // 镜像扫描结果
@@ -45,6 +46,11 @@ type ScanResultDal interface {
 	DeleteOnlineVuln(ctx context.Context, data2 []uint64) error
 
 	CreateWebFrameInfo(ctx context.Context, imageUuid uint32, data []model.WebFrameInfo) error
+
+	CreateScanLayerData(ctx context.Context, data []*imagesecModel.ScanLayerData) error
+	SearchScanLayerData(ctx context.Context, param imagesecModel.SearchScanLayerParam) ([]*imagesecModel.ScanLayerData, error)
+	DeleteScanLayerData(ctx context.Context, param imagesecModel.SearchScanLayerParam) error
+	CreateScanLayerFile(ctx context.Context, data2 []*imagesecModel.LayerFile) error
 }
 
 type ScanResultDao struct {
@@ -166,7 +172,7 @@ func (dal *ScanResultDao) SearchMalware(ctx context.Context, param imagesecModel
 	if err := db.Count(&cnt).Error; err != nil {
 		return nil, 0, err
 	}
-	db = model.AddFilter(db, param.Filter)
+	db = imagesecModel.AddFilter(db, param.Filter)
 
 	if err := db.Find(&res).Error; err != nil {
 		return nil, 0, err
@@ -291,7 +297,7 @@ func (dal *ScanResultDao) SearchWebshell(ctx context.Context, param imagesecMode
 	if err := db.Count(&cnt).Error; err != nil {
 		return nil, 0, err
 	}
-	db = model.AddFilter(db, param.Filter)
+	db = imagesecModel.AddFilter(db, param.Filter)
 
 	if err := db.Find(&res).Error; err != nil {
 		return nil, 0, err
@@ -407,7 +413,7 @@ func (dal *ScanResultDao) SearchSensitive(ctx context.Context, param imagesecMod
 	if err := db.Count(&cnt).Error; err != nil {
 		return nil, 0, err
 	}
-	db = model.AddFilter(db, param.Filter)
+	db = imagesecModel.AddFilter(db, param.Filter)
 
 	if err := db.Find(&res).Error; err != nil {
 		return nil, 0, err
@@ -538,7 +544,7 @@ func (dal *ScanResultDao) SearchPkg(ctx context.Context, param imagesecModel.Sca
 	if err := db.Count(&cnt).Error; err != nil {
 		return nil, 0, err
 	}
-	db = model.AddFilter(db, param.Filter)
+	db = imagesecModel.AddFilter(db, param.Filter)
 
 	if err := db.Find(&res).Error; err != nil {
 		return nil, 0, err
@@ -646,7 +652,7 @@ func (dal *ScanResultDao) SearchImageEnv(ctx context.Context, param imagesecMode
 	if err := db.Count(&cnt).Error; err != nil {
 		return nil, 0, err
 	}
-	db = model.AddFilter(db, param.Filter)
+	db = imagesecModel.AddFilter(db, param.Filter)
 
 	if err := db.Find(&res).Error; err != nil {
 		return nil, 0, err
@@ -773,7 +779,7 @@ func (dal *ScanResultDao) SearchLicense(ctx context.Context, param imagesecModel
 	if err := db.Count(&cnt).Error; err != nil {
 		return nil, 0, err
 	}
-	db = model.AddFilter(db, param.Filter)
+	db = imagesecModel.AddFilter(db, param.Filter)
 
 	if err := db.Find(&res).Error; err != nil {
 		return nil, 0, err
@@ -1008,7 +1014,7 @@ func (dal *ScanResultDao) SearchVuln(ctx context.Context, param imagesecModel.Se
 		return nil, cnt, nil
 	}
 
-	db = model.AddFilter(db, param.Filter)
+	db = imagesecModel.AddFilter(db, param.Filter)
 	if err := db.Find(&res).Error; err != nil {
 		return nil, 0, err
 	}
@@ -1107,4 +1113,275 @@ func (dal *ScanResultDao) DeleteOnlineVuln(ctx context.Context, data2 []uint64) 
 	err := dal.db.Get().WithContext(ctx).Table(tableName).Where("unique_id IN ?", data2).
 		Delete(&imagesecModel.Vuln{OnlineVuln: true}).Error
 	return err
+}
+
+func (dal *ScanResultDao) CreateScanLayerData(ctx context.Context, data2 []*imagesecModel.ScanLayerData) error {
+	data := make([]*imagesecModel.ScanLayerData, 0)
+	layerFiles := make([]*imagesecModel.LayerFile, 0)
+	for i := range data2 {
+		data2[i].Serialize()
+
+		if err := data2[i].Check(); err != nil {
+			logging.Get().Error().Interface("data", data2[i]).Msg("CreateScanLayerData")
+			continue
+		}
+
+		data = append(data, data2[i])
+		layerFiles = append(layerFiles, data2[i].GenLayerFile()...)
+	}
+
+	layers := make([]string, 0)
+	for i := range data {
+		layers = append(layers, data[i].Layer)
+	}
+	if len(data) == 0 || len(layers) == 0 {
+		return nil
+	}
+	tableName := data[0].TableName()
+
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1000)
+	defer cancelFunc()
+
+	dbPre, err := dal.SearchScanLayerData(ctx, imagesecModel.SearchScanLayerParam{Layers: layers})
+	if err != nil {
+		return err
+	}
+
+	createData := make([]*imagesecModel.ScanLayerData, 0)
+	deleteData := make([]int64, 0)
+
+	// find need delete data
+	for i := range dbPre {
+		needDelete := true
+		for j := range data {
+			if dbPre[i].Same(data[j]) {
+				needDelete = false
+				break
+			}
+		}
+		if needDelete {
+			deleteData = append(deleteData, dbPre[i].ID)
+		}
+	}
+
+	for i := range data {
+		needCreate := true
+		for j := range dbPre {
+			if data[i].Same(dbPre[j]) {
+				needCreate = false
+				break
+			}
+		}
+		if needCreate {
+			createData = append(createData, data[i])
+		}
+	}
+
+	if len(deleteData) > 0 {
+		if err := dal.db.Get().WithContext(ctx).Table(tableName).Where("id IN  ? ", deleteData).
+			Delete(&imagesecModel.Malware{}).Error; err != nil {
+			return err
+		}
+	}
+	for i := range createData {
+		da := createData[i]
+		if err := dal.db.Get().WithContext(ctx).Table(tableName).Create(da).Error; err != nil {
+			if strings.Contains(err.Error(), consts.DuplicateKey) {
+				continue
+			} else {
+				return err
+			}
+		}
+	}
+
+	return nil
+}
+
+func (dal *ScanResultDao) SearchScanLayerData(ctx context.Context, param imagesecModel.SearchScanLayerParam) ([]*imagesecModel.ScanLayerData, error) {
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	defer cancelFunc()
+
+	res := make([]*imagesecModel.ScanLayerData, 0)
+	if len(param.Layers) == 0 {
+		return res, nil
+	}
+	layer2 := make([]string, 0)
+	for i := range param.Layers {
+		layer2 = append(layer2, strings.TrimPrefix(param.Layers[i], "sha256:"))
+	}
+
+	mo := &imagesecModel.ScanLayerData{}
+
+	tableName := mo.TableName()
+
+	db := dal.db.Get().WithContext(ctx).Table(tableName)
+	layer2 = util.DuplicateStringSlice(layer2)
+
+	if len(layer2) > 0 {
+		db = db.Where("layer IN  ?", layer2)
+	}
+	if param.Issue != "" {
+		db = db.Where("issue = ?", param.Issue)
+	}
+	if param.FileM5d != "" {
+		sub := dal.db.Get().WithContext(ctx).Model(new(imagesecModel.LayerFile)).Select("layer_unique_id")
+		sub = sub.Where("file_md5 = ?", param.FileM5d)
+		db = db.Where("unique_id IN ( ? )", sub)
+	}
+
+	if err := db.Find(&res).Error; err != nil {
+		return nil, err
+	}
+
+	for i := range res {
+		res[i].Deserialize(nil)
+	}
+
+	if param.AddDetail {
+		all := &imagesecModel.ScanLayerData{}
+		all.SetEmpty()
+
+		lic := make([]uint64, 0)
+		wss := make([]uint64, 0)
+		mal := make([]uint64, 0)
+		ses := make([]uint64, 0)
+		for i := range res {
+			lic = append(lic, res[i].LicenseUnique...)
+			wss = append(wss, res[i].WebshellUnique...)
+			ses = append(ses, res[i].SensitiveUnique...)
+			mal = append(mal, res[i].MalwareUnique...)
+		}
+		if len(lic) > 0 {
+			ans, _, err := dal.SearchLicense(ctx, imagesecModel.ScanResultSearchParam{UniqueIds: lic})
+			if err != nil {
+				return nil, err
+			}
+			all.License = append(all.License, ans...)
+		}
+
+		if len(wss) > 0 {
+			ans, _, err := dal.SearchWebshell(ctx, imagesecModel.ScanResultSearchParam{UniqueIds: wss})
+			if err != nil {
+				return nil, err
+			}
+			all.Webshell = append(all.Webshell, ans...)
+		}
+
+		if len(mal) > 0 {
+			ans, _, err := dal.SearchMalware(ctx, imagesecModel.ScanResultSearchParam{UniqueIds: mal})
+			if err != nil {
+				return nil, err
+			}
+			all.Malware = append(all.Malware, ans...)
+		}
+		if len(ses) > 0 {
+			ans, _, err := dal.SearchSensitive(ctx, imagesecModel.ScanResultSearchParam{UniqueIds: ses})
+			if err != nil {
+				return nil, err
+			}
+			all.Sensitive = append(all.Sensitive, ans...)
+		}
+
+		for i := range res {
+			res[i].Deserialize(all)
+		}
+	}
+
+	return res, nil
+}
+
+func (dal *ScanResultDao) DeleteScanLayerData(ctx context.Context, param imagesecModel.SearchScanLayerParam) error {
+	data, err := dal.SearchScanLayerData(ctx, param)
+	if err != nil {
+		return err
+	}
+
+	mod := &imagesecModel.ScanLayerData{}
+
+	for i := range data {
+		if err := dal.db.Get().WithContext(ctx).Table(mod.TableName()).Where("id +  ? ", data[i].ID).
+			Delete(&imagesecModel.Malware{}).Error; err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func (dal *ScanResultDao) CreateScanLayerFile(ctx context.Context, data2 []*imagesecModel.LayerFile) error {
+	data := make([]*imagesecModel.LayerFile, 0)
+	for i := range data2 {
+		data2[i].Serialize()
+		if err := data2[i].Check(); err != nil {
+			logging.Get().Error().Interface("data", data2[i]).Msg("CreateScanLayerFile")
+			continue
+		}
+
+		data = append(data, data2[i])
+	}
+
+	uniqueIds := make([]uint64, 0)
+	for i := range data {
+		uniqueIds = append(uniqueIds, data[i].UniqueID)
+	}
+	if len(data) == 0 || len(uniqueIds) == 0 {
+		return nil
+	}
+	tableName := data[0].TableName()
+
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1000)
+	defer cancelFunc()
+	dbPre := make([]*imagesecModel.LayerFile, 0)
+	db := dal.db.Get().WithContext(ctx).Model(new(imagesecModel.LayerFile)).Where("unique_id IN ?", uniqueIds)
+	if err := db.Find(&dbPre).Error; err != nil {
+		return err
+	}
+
+	createData := make([]*imagesecModel.LayerFile, 0)
+	deleteData := make([]int64, 0)
+
+	// find need delete data
+	for i := range dbPre {
+		needDelete := true
+		for j := range data {
+			if dbPre[i].Same(data[j]) {
+				needDelete = false
+				break
+			}
+		}
+		if needDelete {
+			deleteData = append(deleteData, dbPre[i].ID)
+		}
+	}
+
+	for i := range data {
+		needCreate := true
+		for j := range dbPre {
+			if data[i].Same(dbPre[j]) {
+				needCreate = false
+				break
+			}
+		}
+		if needCreate {
+			createData = append(createData, data[i])
+		}
+	}
+
+	if len(deleteData) > 0 {
+		if err := dal.db.Get().WithContext(ctx).Table(tableName).Where("id IN  ? ", deleteData).
+			Delete(&imagesecModel.Malware{}).Error; err != nil {
+			return err
+		}
+	}
+	for i := range createData {
+		da := createData[i]
+		if err := dal.db.Get().WithContext(ctx).Table(tableName).Create(da).Error; err != nil {
+			if strings.Contains(err.Error(), consts.DuplicateKey) {
+				continue
+			} else {
+				return err
+			}
+		}
+	}
+	return nil
 }

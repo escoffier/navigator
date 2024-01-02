@@ -7,16 +7,16 @@ import (
 	"strconv"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	scanner_ci "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-ci"
 )
 
 type WhitelistManager struct {
-	dal store.ScanCiInterface
+	dal adaptStore.ScanCiInterface
 }
 
-func NewWhiteList(dal store.ScanCiInterface) WhitelistManager {
+func NewWhiteList(dal adaptStore.ScanCiInterface) WhitelistManager {
 	return WhitelistManager{dal: dal}
 }
 
