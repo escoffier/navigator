@@ -158,12 +158,12 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 		logging.Get().Err(err).Msg("unmarshal message err")
 		return err
 	}
-	logging.Get().Debug().Msgf("kafka offset :%d,time:%v", message.Offset, message.Time)
+	logging.Get().Debug().Msgf("event.type:%s ,kafka offset :%d,time:%v", event.Type, message.Offset, message.Time)
 
 	cbs := w.getOrCreateClusterCallbacks(event.ClusterKey)
 	switch event.Type {
 	case AssetsSync:
-		logging.Get().Info().Msgf("cluster %s synced", string(message.Key))
+		logging.Get().Info().Msgf("cluster synced :%s ", string(message.Key))
 
 		for _, cb := range cbs.callbacks {
 			cb.AfterDataSynced(context.Background(), true, string(message.Key))
@@ -389,6 +389,9 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 		if err != nil {
 			logging.Get().Err(err).Msg("unmarshal raw container err")
 			return err
+		}
+		if rc.LastStopTime.IsZero() {
+			rc.LastStopTime = rc.CreatedAt
 		}
 		for _, cb := range cbs.callbacks {
 			err = cb.OnRawContainer(rc, event.Action)

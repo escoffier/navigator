@@ -368,7 +368,7 @@ func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory 
 
 func (ac *Controller) Run(stopChan <-chan struct{}) {
 	defer ac.queue.ShutDown()
-
+	logging.Get().Info().Msg("wait for synced...")
 	if !cache.WaitForNamedCacheSync("assetsController", stopChan, ac.dpSynced, ac.dsSynced, ac.podSynced, ac.rsSynced,
 		ac.rlSynced, ac.crlSynced, ac.nsSynced, ac.nodeSynced, ac.jbSynced, ac.cjbSynced, ac.rcSynced, ac.ssSynced, ac.hpSynced, ac.ingNetV1Synced, ac.ingNetV1BSynced, ac.ingExtV1BSynced, ac.svcSynced, ac.endSynced,
 		ac.secretSynced, ac.pvSynced, ac.pvcSynced) {
@@ -807,6 +807,7 @@ func (ac *Controller) syncPod(key string) error {
 			PoolInfo: ac.poolInfo,
 		}
 	}
+	logging.Get().Debug().Msgf("debug pod:send msg:%s/%s, action:%s", res.Namespace, res.Name, action)
 	return ac.sendToMainClusterManager(ctx, action, pkgassets.Pods2Watch, res, nil)
 }
 
@@ -1361,7 +1362,7 @@ func (ac *Controller) sendToMq(ctx context.Context, action pkgassets.Action, wat
 }
 
 func (ac *Controller) notifySync() {
-	logging.Get().Info().Msg("notify for syncing")
+	logging.Get().Info().Msg("synced,notify for syncing")
 	err := wait.PollImmediateUntil(3*time.Second, func() (bool, error) {
 		err1 := ac.sendToMq(context.Background(), pkgassets.ActionSync, pkgassets.AssetsSync, nil, nil)
 		if err1 != nil {
@@ -1374,6 +1375,7 @@ func (ac *Controller) notifySync() {
 		logging.Get().Error().Msg("poll sending msg to mq err")
 		return
 	}
+	logging.Get().Info().Msgf("send cluster synced,clusterKey:%s", ac.clusterKey)
 }
 
 func (ac *Controller) addSvc(obj interface{}) {

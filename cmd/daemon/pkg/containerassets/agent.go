@@ -106,7 +106,7 @@ func (a *Agent) HandlerContainerSync(ctx context.Context, clusterKey, nodeName s
 		return
 	}
 
-	logging.Get().Debug().Msgf("handle container sync: %v", string(data))
+	logging.Get().Info().Msgf("handle container sync: %v", string(data))
 	err = a.mqWriter.Write(ctx, "kube-resources", kafka.Message{
 		Key:   []byte(clusterKey),
 		Value: data,
