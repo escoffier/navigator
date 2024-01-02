@@ -181,7 +181,7 @@ func (sp *ImageSearchApiParam) GenDeployActionFlag() uint64 {
 		case DeployActionPass:
 			flag = util.SetBit1(flag, FlagImageDeployPassed)
 		case DeployActionAlarm:
-			flag = util.SetBit1(flag, FlagImageDeployPassed)
+			flag = util.SetBit1(flag, FlagImageDeployAlarm)
 		}
 	}
 	return flag
