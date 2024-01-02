@@ -2,25 +2,24 @@ package api
 
 import (
 	"context"
+	"errors"
 	"net/http"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/api"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
+	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd/flag"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/ci"
-	dbManage "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/db-manage"
 	deployService "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/deployment"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/detect"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
-	aviraengin "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/engin/avira"
-	clamavengin "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/engin/clamav2"
+	scanTrivy "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/engin/trivy"
 	imagescanSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/service"
 	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagesec"
 	regSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/service"
-	scanwebshell "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanner-webshell"
-	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	scanReportService "gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/service"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 )
@@ -40,7 +39,7 @@ type ScannerAPIService struct {
 
 func (s *ScannerAPIService) Start(ctx context.Context) error {
 	if err := s.ginServer.ListenAndServe(); err != nil {
-		if err != http.ErrServerClosed {
+		if !errors.Is(err, http.ErrServerClosed) {
 			logging.GetLogger().Err(err).Msg("scanner api http server listen failed")
 		}
 	}
@@ -65,13 +64,15 @@ func init() {
 }
 
 func newService(config register.ScannerServiceConfig) (register.ScannerService, error) {
-	dal := store.GetScannerOrmDb()
+	redCli, err := store.GetRedisClient(consts.TrivyRedisIndex)
+	if err != nil {
+		return nil, err
+	}
 	rdbInstance := store.GetRDBInstance()
 
 	registryDal := imagesecStore.NewRegistryDao(rdbInstance)
-	vulnDal := store.NewVulnDao(rdbInstance)
-	ciDal := store.NewCiDao(rdbInstance)
-	webshellDal := store.NewWebsehllDao(rdbInstance)
+	vulnDal := adaptStore.NewVulnDao(rdbInstance)
+	ciDal := adaptStore.NewCiDao(rdbInstance)
 	scannerInstanceDal := imagesecStore.NewScannerInstanceDao(rdbInstance)
 	nodeImageDal := imagesecStore.NewImageMetaDao(rdbInstance)
 	nodeReportDal := imagesecStore.NewNodeReportDao(rdbInstance)
@@ -87,19 +88,17 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	sensitiveRuleDal := imagesecStore.NewSensitiveRuleDao(rdbInstance)
 	scannerConfigDal := imagesecStore.NewScanImageConfigDao(rdbInstance)
 	resourceDal := imagesecStore.NewResourceDao(rdbInstance)
-	trustedImageDal := store.NewScannerOrm(rdbInstance)
+	trustedImageDal := adaptStore.NewTrustedImageDao(rdbInstance)
 	syncTaskDal := imagesecStore.NewSyncTaskDao(rdbInstance)
 	exportDal := imagesecStore.NewExportTaskDao(rdbInstance)
-	versionDal := store.NewVersionDao(rdbInstance)
 	imageDal := imagesecStore.NewImageMetaDao(rdbInstance)
 
 	detectPolicyDal := imagesecStore.NewDetectPolicyDao(rdbInstance)
 	deployRecordDal := imagesecStore.NewDeployDao(rdbInstance)
 
-	scanDbMetaDal := imagesecStore.NewScanDbMetaDao(rdbInstance)
-	nodeInfoDal := imagesecStore.NewNodeReportDao(rdbInstance)
 	deployDal := imagesecStore.NewDeployDao(rdbInstance)
 	cacheDal := imagesecStore.NewImageCacheDao(rdbInstance)
+	scanDbMetaDal := imagesecStore.NewScanDbMetaDao(rdbInstance)
 
 	imageSrv := imagemeta.NewImageMetaSrv(
 		nodeImageDal,
@@ -118,24 +117,26 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	)
 
 	vulnSrv := imagescanSrv.NewScanResultSrv(scanResultDal, cacheDal)
-	rejectSvc := component.NewImageRejectSrc(dal)
+	trustedImageSrv := imagesecSrv.NewTrustedImageSrv(trustedImageDal)
 	registrySrv := regSrv.NewRegistrySrv(registryDal, syncTaskDal, scanInstanceDal, policyDal, scannerConfigDal)
-	dbManagerSrv := dbManage.NewDBManageSrv(versionDal, userDal)
+	// dbManagerSrv := dbManage.NewDBManageSrv(versionDal, userDal)
 
 	detectTaskSrv := detect.NewImageDetectTaskSrv(imageSrv, detectTaskDal, policyDal, detectResultDal)
 	policySrv := detect.NewPolicySrv(policyDal, detectTaskSrv, sensitiveRuleDal, userDal)
 	scanInfoSrv := imagesecSrv.NewScanInstanceSrv(imagesecStore.NewScannerInstanceDao(rdbInstance))
-	webshellSrv2 := scanwebshell.NewWebshellComponent(webshellDal)
 	scanTaskSrv := imagescanSrv.NewScanTaskSrv(scanTaskDal, scanTaskPreDal, detectTaskDal, imageSrv, imageDal, scannerConfigDal, imageDal, userDal)
 	scanImageConfigSrv := imagesecSrv.NewScannerConfigSrv(scannerConfigDal)
 	sensitiveRuleSrv := imagesecSrv.NewSensitiveRuleSrv(sensitiveRuleDal, scanImageConfigSrv)
 
 	nodeInfoSrv := imagesecSrv.NewNodeReportSrv(nodeReportDal)
 
-	aviraUpdateSrv := aviraengin.NewAviraUpdateSrv()
-	clamavUpdateSrv := clamavengin.NewClamavUpdateSrv()
+	// aviraUpdateSrv := aviraengin.NewAviraUpdateSrv()
+	// trivyUpdateSrv, err := scanTrivy.NewTrivySrv(scanTrivy.WithRedisCli(redCli))
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	dbUpdateSrv := imagescanSrv.NewDBManagerSrv(aviraUpdateSrv, clamavUpdateSrv, scanDbMetaDal, nodeInfoDal, scanInstanceDal)
+	// dbUpdateSrv := imagescanSrv.NewDBManagerSrv(aviraUpdateSrv, trivyUpdateSrv, scanDbMetaDal, nodeInfoDal, scanInstanceDal)
 	checker := detect.NewImagePolicyCheck()
 
 	deploySrv := deployService.NewDeploySrv(checker, imageDal, detectPolicyDal, scanResultDal, scanTaskDal, imageSrv, deployRecordDal)
@@ -148,27 +149,32 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 		vulnDal,
 	)
 
+	trivyJob, err := scanTrivy.NewTrivySrv(scanTrivy.WithRedisCli(redCli))
+	if err != nil {
+		return nil, err
+	}
+
+	dBManager := imagesecSrv.NewDBUpdateSrv(trivyJob, scanDbMetaDal)
+
 	s := &ScannerAPIService{}
 	s.config.Options = config.Options
 	s.ginServer = &http.Server{
 		Addr: s.config.Options.HTTPListenAddr,
 		Handler: api.SetupGinRouter(
 			imageSrv,
-			rejectSvc,
+			trustedImageSrv,
 			registrySrv,
 			vulnSrv,
 			ci.NewCiComponent(ciDal, userDal),
 			scanInfoSrv,
-			webshellSrv2,
 			exportSrv,
-			dbManagerSrv,
 			policySrv,
 			scanTaskSrv,
 			sensitiveRuleSrv,
 			scanImageConfigSrv,
 			nodeInfoSrv,
-			dbUpdateSrv,
 			deploySrv,
+			dBManager,
 		),
 	}
 

@@ -75,10 +75,10 @@ func (s *DispatchDBSrv) SendToSubScanner(ctx context.Context) error {
 			}
 			for i := range ins {
 				if ins[i].AviraDB != lastDb.AviraDB.DBVersion {
-					_ = s.sendToSubScannerHelper(ctx, lastDb.AviraDB.DBMeta.DBPathInfo, ins[i], pb.ImageSecReqType_AviraDBUpdate)
+					// _ = s.sendToSubScannerHelper(ctx, lastDb.AviraDB.DBMeta.DBPathInfo, ins[i], pb.ImageSecReqType_AviraDBUpdate)
 				}
 				if ins[i].AviraDB != lastDb.ClamavDB.DBVersion {
-					_ = s.sendToSubScannerHelper(ctx, lastDb.AviraDB.DBMeta.DBPathInfo, ins[i], pb.ImageSecReqType_ClamavDBUpdate)
+					// _ = s.sendToSubScannerHelper(ctx, lastDb.AviraDB.DBMeta.DBPathInfo, ins[i], pb.ImageSecReqType_ClamavDBUpdate)
 				}
 			}
 		}
@@ -119,10 +119,10 @@ func (s *DispatchDBSrv) SendToNode(ctx context.Context) error {
 			}
 			for i := range nodes {
 				if nodes[i].AviraDB != lastDb.AviraDB.DBVersion {
-					_ = s.sendToNodeHelper(ctx, lastDb.AviraDB.DBMeta.DBPathInfo, nodes[i], pb.ImageSecReqType_AviraDBUpdate)
+					// _ = s.sendToNodeHelper(ctx, lastDb.AviraDB.DBMeta.DBPathInfo, nodes[i], pb.ImageSecReqType_AviraDBUpdate)
 				}
 				if nodes[i].ClamavDB != lastDb.ClamavDB.DBVersion {
-					_ = s.sendToNodeHelper(ctx, lastDb.AviraDB.DBMeta.DBPathInfo, nodes[i], pb.ImageSecReqType_ClamavDBUpdate)
+					// _ = s.sendToNodeHelper(ctx, lastDb.AviraDB.DBMeta.DBPathInfo, nodes[i], pb.ImageSecReqType_ClamavDBUpdate)
 				}
 			}
 		}

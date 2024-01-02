@@ -17,7 +17,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/export/common"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesec2 "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
@@ -31,7 +31,7 @@ const (
 var ErrESDocumentNotFound = errors.New("es document not found")
 
 type AuditExport struct {
-	exportTaskDal imagesec.ExportTaskDal
+	exportTaskDal imagesecStore.ExportTaskDal
 	Interval      time.Duration
 	exportingMap  *sync.Map // 正在执行的任务
 	fileDir       string    // 文件存储的决对路径
@@ -49,7 +49,7 @@ type Resp struct {
 }
 
 func NewAuditExport(
-	exportTaskDal imagesec.ExportTaskDal,
+	exportTaskDal imagesecStore.ExportTaskDal,
 	interval time.Duration,
 	fileDir string,
 	esCli *pkgelastic.ESClient,
@@ -117,12 +117,12 @@ func (e *AuditExport) Start(ctx context.Context, id int64) error {
 	return nil
 }
 
-func (e *AuditExport) GetTensorTask(ctx context.Context, executeType string, n int64) ([]model.ExportTensorTask, error) {
+func (e *AuditExport) GetTensorTask(ctx context.Context, executeType string, n int64) ([]imagesec2.ExportTensorTask, error) {
 	task, _, err := e.exportTaskDal.SearchExportTask(ctx, imagesec2.SearchExportTaskParam{
 		ExecuteType: []string{executeType},
 		Finished:    consts.FalseString,
 		Failure:     consts.FalseString,
-		Filter:      &model.Filter{Limit: n},
+		Filter:      &imagesec2.Filter{Limit: n},
 	})
 	if err != nil {
 		logging.Get().Err(err).Str("ExecuteType", executeType).Msg("GetTensorTask")
@@ -131,7 +131,7 @@ func (e *AuditExport) GetTensorTask(ctx context.Context, executeType string, n i
 	return task, nil
 }
 
-func (e *AuditExport) genFileName(_ context.Context, task model.ExportTensorTask) (string, error) {
+func (e *AuditExport) genFileName(_ context.Context, task imagesec2.ExportTensorTask) (string, error) {
 	fileName := fmt.Sprintf("navi-audit-%d-%d", task.ID, task.CreatedAt.Unix())
 	return fileName, nil
 }
@@ -171,9 +171,9 @@ func (e *AuditExport) Failure(ctx context.Context, id int64, msg string) error {
 	return nil
 }
 
-func (e *AuditExport) Export(ctx context.Context, task model.ExportTensorTask) chan *excelize.File {
+func (e *AuditExport) Export(ctx context.Context, task imagesec2.ExportTensorTask) chan *excelize.File {
 	out := make(chan *excelize.File, 1)
-	go func(task model.ExportTensorTask) {
+	go func(task imagesec2.ExportTensorTask) {
 		defer func() {
 			if r := recover(); r != nil {
 				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("AuditExport")

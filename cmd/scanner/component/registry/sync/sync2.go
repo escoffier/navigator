@@ -9,6 +9,7 @@ import (
 	"github.com/segmentio/kafka-go"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecTypes "gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -50,8 +51,8 @@ func (s *RegSyncSrv) createImageExtender(ctx context.Context, image warehouse.Im
 	}
 
 	msg := kafka.Message{
-		Topic: model.NodeImageTopic,
-		Key:   []byte(model.NodeImageKey),
+		Topic: consts.NodeImageTopic,
+		Key:   []byte(consts.NodeImageKey),
 		Value: bys,
 	}
 

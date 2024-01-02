@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
 type ExportTensorTaskView struct {
@@ -26,7 +26,7 @@ type ExportTensorTaskView struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-func ModelToView(data model.ExportTensorTask, lang string) ExportTensorTaskView {
+func ModelToView(data imagesec.ExportTensorTask, lang string) ExportTensorTaskView {
 
 	task := ExportTensorTaskView{
 		ID:          data.ID,

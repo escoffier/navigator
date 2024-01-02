@@ -1,4 +1,4 @@
-package imagesec
+package imagesecStore
 
 import (
 	"context"
@@ -8,7 +8,6 @@ import (
 	"gitlab.com/security-rd/go-pkg/databases"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
@@ -40,7 +39,7 @@ func (dal *DataMigrateDao) SearchDataMigrate(ctx context.Context, param imagesec
 		db = db.Where("soft_version LIKE  ?", fmt.Sprintf("%%%s%%", param.SoftVersion))
 	}
 	param.Filter = param.Filter.SetMaxLimit(consts.DefaultMaxLimit)
-	db = model.AddFilter(db, param.Filter)
+	db = imagesecModel.AddFilter(db, param.Filter)
 	ans := make([]imagesecModel.DataMigrate, 0)
 	err := db.Find(&ans).Error
 	return ans, err

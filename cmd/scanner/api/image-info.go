@@ -36,7 +36,7 @@ func (s *ImageInfoAPI) GetBaseImages(ctx *gin.Context) {
 	imageUniqueID := util.GetUint64FromQuery(ctx, "imageUniqueID")
 	imageKeyword := util.GetKeywordFromQuery(ctx, "imageKeyword")
 
-	filter := model.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit)
+	filter := imagesecModel.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit)
 
 	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageFromType:   imageFromType,
@@ -67,7 +67,7 @@ func (s *ImageInfoAPI) GetAppImages(ctx *gin.Context) {
 	imageUniqueID := util.GetUint64FromQuery(ctx, "imageUniqueID")
 	imageKeyword := util.GetKeywordFromQuery(ctx, "imageKeyword")
 
-	filter := model.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit)
+	filter := imagesecModel.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit)
 
 	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageFromType:  imageFromType,
@@ -93,7 +93,7 @@ func (s *ImageInfoAPI) GetAppImages(ctx *gin.Context) {
 func (s *ImageInfoAPI) GetLicense(ctx *gin.Context) {
 	param := GetScanResultSearchParamFromCtx(ctx)
 	param.LicenseSearch = util.GetStringSliceFromQuery(ctx, "name")
-	filter := model.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit)
+	filter := imagesecModel.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit)
 
 	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageFromType:         param.ImageFromType,
@@ -236,7 +236,7 @@ func (s *ImageInfoAPI) SearchImageWithScan(ctx *gin.Context) {
 	if imageFromType != "" {
 		body.ImageFromType = imageFromType
 	}
-	body.Filter = model.GetFilterWithDefaultValue(ctx)
+	body.Filter = imagesecModel.GetFilterWithDefaultValue(ctx)
 
 	// trick 的做法：按 风险-安全-未知这个顺序排序
 	body.Filter = body.Filter.SetSortFiled("flag").SetSortDesc()
@@ -296,7 +296,7 @@ func (s *ImageInfoAPI) SearchAssetsImage(ctx *gin.Context) {
 
 	_, cnt1, err := s.ImageSrv.ListImageWithScanInfo(ctx, imagesecModel.ImageSearchApiParam{
 		UUIDs:  uuid,
-		Filter: model.EmptyFilter().SetLimit(1)},
+		Filter: imagesecModel.EmptyFilter().SetLimit(1)},
 	)
 	if err != nil {
 		response.JSONError(ctx, scani18.SearchImage(err))
@@ -385,7 +385,7 @@ func (s *ImageInfoAPI) SearchImages(ctx *gin.Context) {
 	imageKeyword := util.GetKeywordFromQuery(ctx, "search")
 	uuids := util.GetUint32SliceFromQuery(ctx, "uuids")
 
-	filter := model.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit)
+	filter := imagesecModel.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit)
 	param := imagesecModel.ImageSearchApiParam{
 		ImageFromType: imagesecModel.ImageFromRegistry,
 		ImageKeyword:  imageKeyword,
@@ -419,7 +419,7 @@ func (s *ImageInfoAPI) VerifyExistence(ctx *gin.Context) {
 	imageKeyword := util.GetKeywordFromQuery(ctx, "search")
 	uuids := util.GetUint32SliceFromQuery(ctx, "uuids")
 
-	filter := model.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit)
+	filter := imagesecModel.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit)
 	param := imagesecModel.ImageSearchApiParam{
 		ImageKeyword: imageKeyword,
 		UUIDs:        uuids,
@@ -461,7 +461,7 @@ func (s *ImageInfoAPI) ExistenceCount(ctx *gin.Context) {
 		All  int `json:"all"`
 	}
 
-	filter := model.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit)
+	filter := imagesecModel.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit)
 	param := imagesecModel.ImageSearchApiParam{
 		ImageFromType: imagesecModel.ImageFromNode,
 		ImageKeyword:  imageKeyword,
@@ -608,7 +608,7 @@ func (s *ImageInfoAPI) SearchResources(ctx *gin.Context) {
 		WebshellMD5:   webshellMD5,
 		MalwareMD5:    malwareMD5,
 		SensitiveMD5:  sensitiveMD5,
-		Filter:        model.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit),
+		Filter:        imagesecModel.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit),
 	}
 
 	ans, cnt, err := s.ImageSrv.SearchResources(ctx, param)
@@ -729,7 +729,7 @@ func (s *ImageInfoAPI) GetImageByVuln(ctx *gin.Context) {
 	}
 	vulnUniqueID := util.GenerateUUID64(fmt.Sprintf(consts.UniqueVulnFamat, vulnName, pkgName, pkgVersion))
 	logging.Get().Info().Str("vuln", fmt.Sprintf("%s-%s-%s", vulnName, pkgName, pkgVersion)).Uint64("vulnUniqueID", vulnUniqueID)
-	filter := model.EmptyFilter().SetDefault().SetLimit(consts.DefaultMaxLimit)
+	filter := imagesecModel.EmptyFilter().SetDefault().SetLimit(consts.DefaultMaxLimit)
 	res, cnt, err := s.ImageSrv.ListImageWithScanInfo(ctx, imagesecModel.ImageSearchApiParam{
 		VulnUniqueID: vulnUniqueID,
 		Filter:       filter,

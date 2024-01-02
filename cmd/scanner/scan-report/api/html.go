@@ -166,7 +166,7 @@ func (s *ExportHtmlApiSrv) GetExportHtmlDriver(ctx *gin.Context, taskID int64) (
 	if err != nil {
 		return nil, err
 	}
-	if task.TaskType != model.ExportHtml {
+	if task.TaskType != imagesec.ExportHtml {
 		return nil, fmt.Errorf("not html export")
 	}
 	dir, ok := s.ExportHtmlDriver[task.ExecuteType]

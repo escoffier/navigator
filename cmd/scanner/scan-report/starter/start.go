@@ -19,7 +19,7 @@ import (
 	excel2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/export/excel"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/export/html"
 	scanreport2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/scan-report"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 )
 
@@ -59,8 +59,8 @@ type Config struct {
 func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 	// 周期报告的逻辑，不敢动
 	scanReportServer := scanreport2.NewScanReportSrv(
-		scanreport2.WithDB(store.NewScannerOrm(config.Rdb)),
-		scanreport2.WithVulnDal(store.NewVulnDao(config.Rdb)),
+		scanreport2.WithDB(adaptStore.NewScannerOrm(config.Rdb)),
+		scanreport2.WithVulnDal(adaptStore.NewVulnDao(config.Rdb)),
 		scanreport2.WithInternal(config.Internal),
 		scanreport2.WithBatchSize(config.BatchSize),
 		scanreport2.WithEmailDialer(config.EmailHost, int(config.EmailPort), config.EmailUser, config.EmailPasswd),
@@ -68,10 +68,10 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 
 	exportTaskDal := imagesecStore.NewExportTaskDao(config.Rdb)
 	resourceDal := imagesecStore.NewResourceDao(config.Rdb)
-	trustedImageDal := store.NewScannerOrm(config.Rdb)
+	trustedImageDal := adaptStore.NewTrustedImageDao(config.Rdb)
 	registryDal := imagesecStore.NewRegistryDao(config.Rdb)
 	scanResultDal := imagesecStore.NewScanResultDao(config.Rdb)
-	idempotentDal := store.NewIdempotentDao(config.Rdb)
+	idempotentDal := imagesecStore.NewIdempotentDao(config.Rdb)
 	imageDal := imagesecStore.NewImageMetaDao(config.Rdb)
 	nodeReportDal := imagesecStore.NewNodeReportDao(config.Rdb)
 	scanInstanceDal := imagesecStore.NewScannerInstanceDao(config.Rdb)

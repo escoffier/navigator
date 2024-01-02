@@ -185,7 +185,7 @@ func (h *HarborV1) ListRepoTags(repo string) ([]Tag, error) {
 
 func (h *HarborV1) ListAuditLogWithPage(op string, time string, projectID int, page int, pageSize int) ([]AuditLog, error) {
 	url := fmt.Sprintf("%s/%s/projects/%d/logs?begin_timestamp=%s&operation=%s&page=%d&page_size=%d", h.config.URL, APIVersion, projectID, time, op, page, pageSize)
-	logging.GetLogger().Info().Str("url", url).Msg("ListAuditLogWithPage")
+	logging.GetLogger().Debug().Str("url", url).Msg("ListAuditLogWithPage")
 	data, err := h.reqHarbor(url)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("req harbor project %d AuditLog err", projectID)

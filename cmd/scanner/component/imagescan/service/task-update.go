@@ -8,7 +8,6 @@ import (
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
@@ -70,12 +69,11 @@ func (s *ScanTaskSrv) UpdateTaskFinished(ctx context.Context) error {
 			<-ticker.C
 			tasks, _, err := s.taskDal.SearchScanTask(ctx, imagesecModel.SearchTaskParam{
 				ScanStatusStr: []string{imagesecModel.TaskStatusInprogressStr},
-				Filter:        model.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiledByID().SetSortAsc(),
+				Filter:        imagesecModel.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiledByID().SetSortAsc(),
 			})
 
 			if err != nil {
 				s.Log.Err(err).Msg("UpdateTaskFinished SearchScanTask")
-				ticker.Reset(time.Minute * 5)
 				continue
 			}
 			finishedTask := 0
@@ -91,7 +89,6 @@ func (s *ScanTaskSrv) UpdateTaskFinished(ctx context.Context) error {
 				group, err := s.taskDal.GroupScanSubtask(ctx, imagesecModel.SearchTaskParam{TaskID: task.ID})
 				if err != nil {
 					s.Log.Err(err).Msg("ContinueUpdateScanTask GroupScanSubtask")
-					ticker.Reset(time.Minute * 5)
 					continue
 				}
 
@@ -103,7 +100,6 @@ func (s *ScanTaskSrv) UpdateTaskFinished(ctx context.Context) error {
 						Where:   fmt.Sprintf("status < %d", imagesecModel.TaskStatusPause),
 					}); err != nil {
 						s.Log.Err(err).Msg("ContinueUpdateScanTask UpdateScanTask")
-						ticker.Reset(time.Minute * 5)
 						continue
 					}
 				}
@@ -132,18 +128,17 @@ func (s *ScanTaskSrv) UpdateTaskReady(ctx context.Context) error {
 
 			tasks, _, err := s.taskDal.SearchScanTask(ctx, imagesecModel.SearchTaskParam{
 				ScanStatusStr: []string{imagesecModel.TaskStatusNotReadyStr},
-				Filter:        model.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiledByID().SetSortAsc(),
+				Filter:        imagesecModel.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiledByID().SetSortAsc(),
 			})
 
 			if err != nil {
 				s.Log.Err(err).Msg("UpdateTaskFinished SearchScanTask")
-				ticker.Reset(time.Minute * 5)
 				continue
 			}
 			readyTask := 0
 			for i := range tasks {
 				_, cnt1, err := s.taskDal.SearchScanSubtask(ctx, imagesecModel.SearchTaskParam{TaskID: tasks[i].ID,
-					Filter: model.EmptyFilter().SetLimit(1)})
+					Filter: imagesecModel.EmptyFilter().SetLimit(1)})
 				if err != nil {
 					s.Log.Err(err).Msg("UpdateTaskReady SearchScanSubtask")
 					continue
@@ -151,7 +146,7 @@ func (s *ScanTaskSrv) UpdateTaskReady(ctx context.Context) error {
 
 				time.Sleep(time.Minute * 1)
 				_, cnt2, err := s.taskDal.SearchScanSubtask(ctx, imagesecModel.SearchTaskParam{TaskID: tasks[i].ID,
-					Filter: model.EmptyFilter().SetLimit(1)})
+					Filter: imagesecModel.EmptyFilter().SetLimit(1)})
 				if err != nil {
 					s.Log.Err(err).Msg("UpdateTaskReady SearchScanSubtask")
 					continue
@@ -172,7 +167,6 @@ func (s *ScanTaskSrv) UpdateTaskReady(ctx context.Context) error {
 					Where:   fmt.Sprintf("status < %d", imagesecModel.TaskStatusPending),
 				}); err != nil {
 					s.Log.Err(err).Msg("UpdateTaskReady UpdateScanTask")
-					ticker.Reset(time.Minute * 5)
 					continue
 				}
 			}
@@ -188,7 +182,7 @@ func (s *ScanTaskSrv) UpdateTaskSendFinished(ctx context.Context) error {
 
 	tasks, _, err := s.taskDal.SearchScanTask(ctx, imagesecModel.SearchTaskParam{
 		Where:  fmt.Sprintf("status < %d and status > %d", imagesecModel.TaskStatusSendFinished, imagesecModel.TaskStatusNotReady),
-		Filter: model.EmptyFilter().SetLimit(consts.DefaultPerPage).SetSortFiledByID().SetSortDesc(),
+		Filter: imagesecModel.EmptyFilter().SetLimit(consts.DefaultPerPage).SetSortFiledByID().SetSortDesc(),
 	})
 
 	if err != nil {
@@ -243,7 +237,6 @@ func (s *ScanTaskSrv) UpdateSubtaskTimeout(ctx context.Context) error {
 			conf1, err := s.scanConfigDal.GetScanImageConfig(ctx, imagesecModel.ConfigTypeNodeScanImage)
 			if err != nil {
 				s.Log.Err(err).Msg("ContinueUpdateScanSubtask GetScanImageConfig")
-				ticker.Reset(time.Minute * 5)
 				continue
 			}
 			nodeScanConfig := conf1.ImageScanConfig
@@ -251,7 +244,6 @@ func (s *ScanTaskSrv) UpdateSubtaskTimeout(ctx context.Context) error {
 			config2, err := s.scanConfigDal.GetScanImageConfig(ctx, imagesecModel.ConfigTypeRegScanImage)
 			if err != nil {
 				s.Log.Err(err).Msg("ContinueUpdateScanSubtask GetScanImageConfig")
-				ticker.Reset(time.Minute * 5)
 				continue
 			}
 			regScanConfig := config2.ImageScanConfig
@@ -269,7 +261,6 @@ func (s *ScanTaskSrv) UpdateSubtaskTimeout(ctx context.Context) error {
 			})
 			if err != nil {
 				s.Log.Err(err).Msg("ContinueUpdateScanSubtask get scan task")
-				ticker.Reset(time.Minute * 5)
 				continue
 			}
 			timeoutSubtask := 0
@@ -282,7 +273,6 @@ func (s *ScanTaskSrv) UpdateSubtaskTimeout(ctx context.Context) error {
 
 				if err != nil {
 					s.Log.Err(err).Msg("UpdateSubtaskTimeout SearchScanSubtask")
-					ticker.Reset(time.Minute * 5)
 					continue
 				}
 				imageFromType := task.ImageFromType
@@ -390,7 +380,7 @@ func (s *ScanTaskSrv) UpdateSubTaskPause(ctx context.Context, taskID int64) erro
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	filter := model.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiledByID().SetSortAsc()
+	filter := imagesecModel.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiledByID().SetSortAsc()
 
 	var startId int64
 
@@ -444,7 +434,7 @@ func (s *ScanTaskSrv) UpdateSubTaskPending(ctx context.Context, taskID int64) er
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	filter := model.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiledByID().SetSortAsc()
+	filter := imagesecModel.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiledByID().SetSortAsc()
 
 	var startId int64
 
@@ -499,7 +489,7 @@ func (s *ScanTaskSrv) UpdateSubTaskTerminate(ctx context.Context, taskID int64) 
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 
-	filter := model.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiledByID().SetSortAsc()
+	filter := imagesecModel.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiledByID().SetSortAsc()
 
 	var startId int64
 

@@ -7,23 +7,23 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"path/filepath"
-
-	"github.com/jinzhu/copier"
-
 	// "io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/jinzhu/copier"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/events"
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	json "github.com/json-iterator/go"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
 	"gitlab.com/security-rd/go-pkg/logging"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
 )
 
 const (
@@ -422,7 +422,9 @@ func NewDockerDriver(config container.RuntimeConfig) (container.Runtime, error) 
 	if len(uri) == 0 {
 		uri = "unix:///var/run/docker.sock"
 	}
-
+	if err := container.IsUnixSockFile(uri); err != nil {
+		return nil, err
+	}
 	// docker client
 	dockerCli, err := client.NewClientWithOpts(client.FromEnv, client.WithHost(uri), client.WithAPIVersionNegotiation())
 	if err != nil {

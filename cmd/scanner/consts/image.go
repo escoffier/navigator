@@ -21,4 +21,6 @@ const (
 
 	DefaultSubtaskCntBySingeTask = 400
 	SyncScanTaskCheckInterval    = 2 * 60 * 1000
+
+	TrivyRedisIndex = 1
 )

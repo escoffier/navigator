@@ -134,7 +134,7 @@ func (s *ClamavSrv) GenEnginChan(ctx context.Context) {
 			s.ClamavEngin = engin
 
 			if err := s.ClamavEngin.ReloadDB(s.WorkDBPathInfo.WorkPath); err != nil {
-				logging.Get().Err(err).Str("module", "imagescan").Str("MalwareEnginName", s.MalwareEnginName).Msg("ReloadDB")
+				logging.Get().Err(err).Str("module", "imagescan").Str("EnginName", s.MalwareEnginName).Msg("ReloadDB")
 				<-ticker.C
 				continue
 			}
@@ -173,7 +173,7 @@ func (s *ClamavSrv) ScanFile(_ context.Context, filename string) ([]imagesecMode
 
 	file, err := engin.ScanFile(filename)
 	if err != nil {
-		logging.Get().Err(err).Str("module", "imagescan").Str("MalwareEnginName", s.MalwareEnginName).Msg("ScanFile")
+		logging.Get().Err(err).Str("module", "imagescan").Str("EnginName", s.MalwareEnginName).Msg("ScanFile")
 		return nil, err
 	}
 	res := make([]imagesecModel.Malware, 0)
@@ -182,7 +182,7 @@ func (s *ClamavSrv) ScanFile(_ context.Context, filename string) ([]imagesecMode
 	return res, nil
 }
 
-func (s *ClamavSrv) UpdateDB(ctx context.Context, param imagesecModel.UpdateDbParam) (*imagesecModel.ScanDbMeta, error) {
+func (s *ClamavSrv) UpdateDB(ctx context.Context, param imagesecModel.UpdateDbParam) (*imagesecModel.ScanConfigDB, error) {
 
 	pa := types.GetClamavDBPathInfo()
 	pa = pa.DeepCopy()
@@ -210,20 +210,13 @@ func (s *ClamavSrv) UpdateDB(ctx context.Context, param imagesecModel.UpdateDbPa
 	// s.LastDBPathInfo = pa
 	// s.LastVersion = version
 
-	dbMeta := &imagesecModel.ScanDbMeta{
+	dbMeta := &imagesecModel.ScanConfigDB{
 		DBType:    consts.AviraName,
 		DBVersion: version.Version,
-		Enable:    true,
 		DBMeta: imagesecModel.DBMeta{
-			DBVersion:     version.Version,
-			DBComment:     "",
-			DBHash:        version.Hash,
-			EngineHash:    "",
-			EngineVersion: "",
-			EngineComment: "",
-			Enable:        true,
-			Updater:       param.Updater,
-			DBPathInfo:    pa,
+			DBVersion: version.Version,
+			DBComment: "",
+			DBHash:    version.Hash,
 		},
 	}
 

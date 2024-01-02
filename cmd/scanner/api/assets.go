@@ -1,5 +1,6 @@
 package api
 
+// 中移定制化的需求
 type ImageAssets struct {
 	Args              []string          `json:"args"`
 	ClusterName       string            `json:"clusterName"`

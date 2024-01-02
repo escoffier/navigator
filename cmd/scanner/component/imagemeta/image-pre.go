@@ -7,6 +7,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -15,20 +16,20 @@ import (
 )
 
 type PreRegImageSrv struct {
-	imageDal      store.ImageDal
+	imageDal      adaptStore.ImageDal
 	registryDal   imagesecStore.RegistryDal
-	vulnDal       store.VulnDalInterface
-	scanResultDal store.ImageScanResultDal
+	vulnDal       adaptStore.VulnDalInterface
+	scanResultDal adaptStore.ImageScanResultDal
 	Log           *scannerUtils.LogEvent
 }
 
 // 只做数据迁移及兼容老数据，就不管什么服务依赖了
 func NewPreLibImageSrv() *PreRegImageSrv {
 	db := store.GetRDBInstance()
-	imageDal := store.NewScannerOrm(db)
+	imageDal := adaptStore.NewScannerOrm(db)
 	registryDal := imagesecStore.NewRegistryDao(db)
-	vulnDal := store.NewVulnDao(db)
-	scanResultDal := store.NewImageScanResultDao(db)
+	vulnDal := adaptStore.NewVulnDao(db)
+	scanResultDal := adaptStore.NewImageScanResultDao(db)
 
 	return &PreRegImageSrv{
 		imageDal:      imageDal,
@@ -67,7 +68,7 @@ func (s *PreRegImageSrv) GetImageCorrelateData(ctx context.Context, imageID int6
 
 	ans.ImageList = image
 
-	daoParam := store.SearchImageScanResultParam{ImageID: imageID}
+	daoParam := adaptStore.SearchImageScanResultParam{ImageID: imageID}
 
 	// 2.11版本之前，没有拆分
 	imageData, err := s.scanResultDal.SearchScanImage(ctx, imagesecModel.ScanResultSearchParam{ImageID: imageID})
@@ -89,7 +90,7 @@ func (s *PreRegImageSrv) GetImageCorrelateData(ctx context.Context, imageID int6
 	ans.Webshell = append(ans.Webshell, webshell...)
 
 	// 查询该镜像的所有漏洞，更详细的查询请使用VulnServiceInterface
-	vuln, _, err := s.vulnDal.SearchVuln(ctx, store.SearchVulnParam{ImageIds: []int64{imageID}}, nil)
+	vuln, _, err := s.vulnDal.SearchVuln(ctx, adaptStore.SearchVulnParam{ImageIds: []int64{imageID}}, nil)
 	if err != nil {
 		s.Log.Err(err).Int64("ImageID", imageID).Msg("ImageWithCorrelateData SearchVuln")
 	}

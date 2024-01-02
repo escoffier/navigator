@@ -30,6 +30,12 @@ type NodeInfo struct {
 	ClusterKey string `json:"clusterKey"` // 集群cluster key
 	Ip         string `json:"ip"`         // 节点ip
 	HostName   string `json:"hostName"`   // 节点hostname
+	Cri        string `json:"cri"`        // 节点上cri的类型
+}
+
+func (vi *NodeInfo) LogStr() string {
+	ss := fmt.Sprintf("%s-%s-%s", vi.HostName, vi.ClusterKey, vi.Ip)
+	return ss
 }
 
 type RegInfo struct {
@@ -38,4 +44,9 @@ type RegInfo struct {
 	Name     string `json:"name"`
 	Username string `json:"username"`
 	Password string `json:"password"`
+}
+
+func (vi *RegInfo) LogStr() string {
+	ss := fmt.Sprintf("%d-%s-%s", vi.RegID, vi.Name, vi.Username)
+	return ss
 }

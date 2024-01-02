@@ -8,15 +8,15 @@ import (
 	"github.com/go-redis/redis/v8"
 	"gitlab.com/security-rd/go-pkg/logging"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 )
 
 type UpdateTaskSrv struct {
-	ExportTaskDal imagesec.ExportTaskDal
+	ExportTaskDal imagesecStore.ExportTaskDal
 	RedisCli      *redis.Client
 }
 
-func NewUpdateTaskSrv(exportTaskDal imagesec.ExportTaskDal, redisCli *redis.Client) *UpdateTaskSrv {
+func NewUpdateTaskSrv(exportTaskDal imagesecStore.ExportTaskDal, redisCli *redis.Client) *UpdateTaskSrv {
 	return &UpdateTaskSrv{ExportTaskDal: exportTaskDal, RedisCli: redisCli}
 }
 

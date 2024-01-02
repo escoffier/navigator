@@ -13,7 +13,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -118,7 +117,7 @@ func (s *Detector) Start(ctx context.Context) {
 				s.Log.Error().Str("stack", string(debug.Stack())).Msg("recover")
 			}
 		}()
-		ticker := time.NewTicker(30 * time.Second)
+		ticker := time.NewTicker(time.Minute * 2)
 		defer ticker.Stop()
 		for {
 			<-ticker.C
@@ -132,123 +131,133 @@ func (s *Detector) DetectImage(ctx context.Context) {
 
 	defer close(s.updateImageChan)
 
-	taskChan := s.GenTaskChan(ctx)
+	taskChan1 := s.GenCommonTaskChan(ctx)
+	taskChan2 := s.GenScanTaskChan(ctx)
+	for {
+		select {
+		case task1 := <-taskChan1:
+			_ = s.detectTask(ctx, task1)
+		case task2 := <-taskChan2:
+			_ = s.detectTask(ctx, task2)
+		}
+	}
+}
 
-	for task := range taskChan {
-		s.Log.Debug().Int64("taskID", task.ID).Msg("get task")
+func (s *Detector) detectTask(ctx context.Context, task *imagesecModel.ImageDetectTask) error {
+	s.Log.Debug().Int64("taskID", task.ID).Msg("get task")
 
-		if err := s.UpdateTask(ctx, task.ID, getStartUpdater()); err != nil {
-			s.Log.Err(err).Int64("taskID", task.ID).Msg("UpdateTask")
+	if err := s.UpdateTask(ctx, task.ID, getStartUpdater()); err != nil {
+		s.Log.Err(err).Int64("taskID", task.ID).Msg("UpdateTask")
+		return err
+	}
+
+	subtaskChan := s.GenSubtaskChan(ctx, task)
+
+	for subData := range subtaskChan {
+		s.Log.Debug().Int64("taskID", task.ID).Interface("subData", subData).
+			Msg("get subData")
+		for i := range subData.SubtaskIds {
+			_ = s.UpdateDetectSubTask(ctx, subData.SubtaskIds[i], getStartUpdater())
+		}
+		resultAll := make(map[string]map[uint64]*imagesecModel.ImageDetectResult)
+
+		imageData, err := s.GetImageData(ctx, subData.ImageUniqueID)
+		if err != nil {
+			_ = s.updateScanSubtask(ctx, task.ScanSubTaskID, imagesecModel.TaskStatusDetectFinished)
+			for i := range subData.SubtaskIds {
+				_ = s.UpdateDetectSubTask(ctx, subData.SubtaskIds[i], getEndUpdater(err))
+			}
+			s.Log.Err(err).Uint64("ImageUniqueID", subData.ImageUniqueID).
+				Msg("GetImageData")
 			continue
 		}
-
-		subtaskChan := s.GenSubtaskChan(ctx, task)
-
-		for subData := range subtaskChan {
-			s.Log.Debug().Int64("taskID", task.ID).Interface("subData", subData).
-				Msg("get subData")
-			for i := range subData.SubtaskIds {
-				_ = s.UpdateDetectSubTask(ctx, subData.SubtaskIds[i], getStartUpdater())
+		if len(allPolicy) == 0 {
+			param1 := imagesecModel.SearchSecurityPolicyParam{
+				Deleted: consts.FalseString,
 			}
-			resultAll := make(map[string]map[uint64]*imagesecModel.ImageDetectResult)
-
-			imageData, err := s.GetImageData(ctx, subData.ImageUniqueID)
+			allPolicy1, _, err := s.policySrv.SearchPolicy(ctx, param1)
 			if err != nil {
-				_ = s.updateScanSubtask(ctx, task.ScanSubTaskID, imagesecModel.TaskStatusDetectFinished)
-				for i := range subData.SubtaskIds {
-					_ = s.UpdateDetectSubTask(ctx, subData.SubtaskIds[i], getEndUpdater(err))
-				}
 				s.Log.Err(err).Uint64("ImageUniqueID", subData.ImageUniqueID).
-					Msg("GetImageData")
+					Msg("SearchPolicy")
 				continue
 			}
-			if len(allPolicy) == 0 {
-				param1 := imagesecModel.SearchSecurityPolicyParam{
-					Deleted: consts.FalseString,
-				}
-				allPolicy1, _, err := s.policySrv.SearchPolicy(ctx, param1)
-				if err != nil {
-					s.Log.Err(err).Uint64("ImageUniqueID", subData.ImageUniqueID).
-						Msg("SearchPolicy")
-					continue
-				}
-				allPolicy = allPolicy1
-			}
-
-			policy := make([]*imagesecModel.SecurityPolicy, 0)
-			for i := range allPolicy {
-				bas := imageData.ToImageBaseResponse()
-				if NeedDetectImage(&bas, allPolicy[i]) {
-					policy = append(policy, allPolicy[i])
-				}
-			}
-
-			detectResults := make(map[string][]*imagesecModel.ImageDetectResult)
-			// 如果策略有变动，就需要把原来的数据删除，所以这里全量增加
-			for dt := range GetChecker() {
-				detectResults[dt] = make([]*imagesecModel.ImageDetectResult, 0)
-			}
-
-			briefs := make([]*imagesecModel.ImageDetectBrief, 0)
-
-			s.Log.Debug().Int("policyCnt", len(policy)).Msg("NeedDetectImage find policy")
-
-			for i := range policy {
-				po := policy[i]
-				result := s.checker.Check(ctx, imageData, po)
-				resultAll = MergeDetectResult(resultAll, result)
-
-				for dt, data := range result {
-					if detectResults[dt] == nil {
-						detectResults[dt] = make([]*imagesecModel.ImageDetectResult, 0)
-					}
-					detectResults[dt] = append(detectResults[dt], data...)
-				}
-				bre := &imagesecModel.ImageDetectBrief{
-					ImageUniqueID: imageData.Image.UniqueID,
-					Flag:          imagesecModel.GetDetectBriefFlag(result),
-					Policy:        po,
-				}
-				briefs = append(briefs, bre)
-			}
-
-			err = s.detectResultDal.CreateDetectBrief(ctx, imageData.Image.UniqueID, briefs)
-			if err != nil {
-				s.Log.Err(err).Uint64("ImageUniqueID", subData.ImageUniqueID).Msg("CreateDetectBrief")
-			}
-
-			for dt, res := range detectResults {
-				if err := s.detectResultDal.CreateDetectResult(ctx, imagesecModel.CreateDetectResultParam{
-					ImageUniqueID: imageData.Image.UniqueID,
-					DetectType:    dt,
-					Data:          res,
-				}); err != nil {
-					s.Log.Err(err).Uint64("ImageUniqueID", subData.ImageUniqueID).
-						Msg("CreateDetectResult")
-					continue
-				}
-			}
-
-			up := UpdateImage{
-				ImageUniqueID: imageData.Image.UniqueID,
-				ImageFromType: imageData.Image.ImageFromType,
-				CreateAt:      time.Now().UnixMilli(),
-				DetectResult:  resultAll,
-			}
-
-			go func() { s.updateImageChan <- up }()
-
-			for _, subID := range subData.SubtaskIds {
-				_ = s.UpdateDetectSubTask(ctx, subID, getEndUpdater(nil))
-			}
-
-			s.Log.Debug().Int64("taskID", task.ID).
-				Uint64("imageUniqueID", subData.ImageUniqueID).Str("imageName", imageData.Image.GetImageName()).
-				Msg("finished detect image")
+			allPolicy = allPolicy1
 		}
-		// 更新的扫描任务,因为一个扫描的任务的检测任务最多只有一个子任务，所以这样写不会出错
-		_ = s.updateScanSubtask(ctx, task.ScanSubTaskID, imagesecModel.TaskStatusDetectFinished)
+
+		policy := make([]*imagesecModel.SecurityPolicy, 0)
+		for i := range allPolicy {
+			bas := imageData.ToImageBaseResponse()
+			if NeedDetectImage(&bas, allPolicy[i]) {
+				policy = append(policy, allPolicy[i])
+			}
+		}
+
+		detectResults := make(map[string][]*imagesecModel.ImageDetectResult)
+		// 如果策略有变动，就需要把原来的数据删除，所以这里全量增加
+		for dt := range GetChecker() {
+			detectResults[dt] = make([]*imagesecModel.ImageDetectResult, 0)
+		}
+
+		briefs := make([]*imagesecModel.ImageDetectBrief, 0)
+
+		s.Log.Debug().Int("policyCnt", len(policy)).Msg("NeedDetectImage find policy")
+
+		for i := range policy {
+			po := policy[i]
+			result := s.checker.Check(ctx, imageData, po)
+			resultAll = MergeDetectResult(resultAll, result)
+
+			for dt, data := range result {
+				if detectResults[dt] == nil {
+					detectResults[dt] = make([]*imagesecModel.ImageDetectResult, 0)
+				}
+				detectResults[dt] = append(detectResults[dt], data...)
+			}
+			bre := &imagesecModel.ImageDetectBrief{
+				ImageUniqueID: imageData.Image.UniqueID,
+				Flag:          imagesecModel.GetDetectBriefFlag(result),
+				Policy:        po,
+			}
+			briefs = append(briefs, bre)
+		}
+
+		err = s.detectResultDal.CreateDetectBrief(ctx, imageData.Image.UniqueID, briefs)
+		if err != nil {
+			s.Log.Err(err).Uint64("ImageUniqueID", subData.ImageUniqueID).Msg("CreateDetectBrief")
+		}
+
+		for dt, res := range detectResults {
+			if err := s.detectResultDal.CreateDetectResult(ctx, imagesecModel.CreateDetectResultParam{
+				ImageUniqueID: imageData.Image.UniqueID,
+				DetectType:    dt,
+				Data:          res,
+			}); err != nil {
+				s.Log.Err(err).Uint64("ImageUniqueID", subData.ImageUniqueID).
+					Msg("CreateDetectResult")
+				continue
+			}
+		}
+
+		up := UpdateImage{
+			ImageUniqueID: imageData.Image.UniqueID,
+			ImageFromType: imageData.Image.ImageFromType,
+			CreateAt:      time.Now().UnixMilli(),
+			DetectResult:  resultAll,
+		}
+
+		go func() { s.updateImageChan <- up }()
+
+		for _, subID := range subData.SubtaskIds {
+			_ = s.UpdateDetectSubTask(ctx, subID, getEndUpdater(nil))
+		}
+
+		s.Log.Debug().Int64("taskID", task.ID).
+			Uint64("imageUniqueID", subData.ImageUniqueID).Str("imageName", imageData.Image.GetImageName()).
+			Msg("finished detect image")
 	}
+	// 更新的扫描任务,因为一个扫描的任务的检测任务最多只有一个子任务，所以这样写不会出错
+	_ = s.updateScanSubtask(ctx, task.ScanSubTaskID, imagesecModel.TaskStatusDetectFinished)
+	return nil
 }
 
 func (s *Detector) GenSubtaskChan(ctx context.Context, task *imagesecModel.ImageDetectTask) chan SubtaskData {
@@ -261,7 +270,7 @@ func (s *Detector) GenSubtaskChan(ctx context.Context, task *imagesecModel.Image
 		}()
 
 		// 检测一批之后，让出调度
-		filter := &model.Filter{Limit: consts.DefaultPerPage, SortFiled: "id", SortBy: consts.SortByAsc}
+		filter := &imagesecModel.Filter{Limit: consts.DefaultPerPage, SortFiled: "id", SortBy: consts.SortByAsc}
 		defer close(out)
 
 		subtask, _, err := s.detectTaskDal.SearchDetectSubtask(ctx, imagesecModel.SearchTaskParam{
@@ -326,16 +335,16 @@ func (s *Detector) GenSubtaskChan(ctx context.Context, task *imagesecModel.Image
 	return out
 }
 
-func (s *Detector) GenTaskChan(ctx context.Context) chan *imagesecModel.ImageDetectTask {
+func (s *Detector) GenCommonTaskChan(ctx context.Context) chan *imagesecModel.ImageDetectTask {
 	out := make(chan *imagesecModel.ImageDetectTask)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				s.Log.Error().Str("stack", string(debug.Stack())).Msg("GenTaskChan")
+				s.Log.Error().Str("stack", string(debug.Stack())).Msg("GenCommonTaskChan")
 			}
 		}()
 
-		ticker := time.NewTicker(time.Millisecond * 10)
+		ticker := time.NewTicker(time.Second)
 		defer close(out)
 		defer ticker.Stop()
 
@@ -348,33 +357,79 @@ func (s *Detector) GenTaskChan(ctx context.Context) chan *imagesecModel.ImageDet
 			Desc:   false,
 		}
 
-		filter := &model.Filter{Limit: consts.DefaultPerPage, OrderByColumns: []clause.OrderByColumn{priorityOrder, idOrder}}
+		filter := &imagesecModel.Filter{Limit: consts.DefaultPerPage, OrderByColumns: []clause.OrderByColumn{priorityOrder, idOrder}}
 		for {
 			<-ticker.C
 
 			runTasks, _, err := s.detectTaskDal.SearchDetectTask(ctx, imagesecModel.SearchTaskParam{
-				// 不对分开查，因为扫描的任务要优先执行
 				ScanStatus: []int64{imagesecModel.TaskStatusInprogress, imagesecModel.TaskStatusPending},
 				Filter:     filter,
 			})
 
 			if err != nil {
-				ticker.Reset(10 * time.Second)
+				time.Sleep(time.Minute)
 				s.Log.Err(err).Msg("SearchDetectTask")
 				continue
 			}
 
 			if len(runTasks) == 0 {
-				ticker.Reset(5 * time.Second)
+				time.Sleep(time.Second * 30)
 				continue
 			}
 
-			s.Log.Info().Int("taskCnt", len(runTasks)).
-				Msg("SearchDetectTask")
-
 			for i := range runTasks {
+				if runTasks[i].ScanSubTaskID > 0 {
+					// 优先保证扫描任务的检测
+					time.Sleep(time.Second * 30)
+					break
+				}
 				out <- runTasks[i]
 			}
+			s.Log.Info().Int("taskCnt", len(runTasks)).Msg("SearchDetectTask")
+		}
+	}()
+
+	return out
+}
+
+func (s *Detector) GenScanTaskChan(ctx context.Context) chan *imagesecModel.ImageDetectTask {
+	out := make(chan *imagesecModel.ImageDetectTask)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				s.Log.Error().Str("stack", string(debug.Stack())).Msg("GenCommonTaskChan")
+			}
+		}()
+
+		ticker := time.NewTicker(time.Second)
+		defer close(out)
+		defer ticker.Stop()
+
+		filter := imagesecModel.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortAsc().SetSortFiledByID()
+		for {
+			<-ticker.C
+			runTasks, _, err := s.detectTaskDal.SearchDetectTask(ctx, imagesecModel.SearchTaskParam{
+				ScanStatus: []int64{imagesecModel.TaskStatusInprogress, imagesecModel.TaskStatusPending},
+				Priority:   imagesecModel.DetectPriorityScan,
+				Filter:     filter,
+			})
+
+			if err != nil {
+				time.Sleep(5 * time.Minute)
+				s.Log.Err(err).Msg("GenScanTaskChan")
+				continue
+			}
+
+			if len(runTasks) == 0 {
+				time.Sleep(time.Second * 30)
+			}
+
+			for i := range runTasks {
+				if runTasks[i].ScanSubTaskID > 0 {
+					out <- runTasks[i]
+				}
+			}
+			s.Log.Info().Int("taskCnt", len(runTasks)).Msg("GenScanTaskChan")
 		}
 	}()
 
@@ -447,7 +502,7 @@ func (s *Detector) UpdateDetectTaskFinished(ctx context.Context) error {
 
 	tasks, _, err := s.detectTaskDal.SearchDetectTask(ctx, imagesecModel.SearchTaskParam{
 		ScanStatus: []int64{imagesecModel.TaskStatusInprogress},
-		Filter:     model.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiled("priority").SetSortDesc(),
+		Filter:     imagesecModel.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiled("priority").SetSortDesc(),
 	})
 
 	if err != nil {
@@ -586,9 +641,9 @@ func (s *Detector) updateScanSubtask(ctx context.Context, scanSubtaskID int64, s
 	}
 
 	updater := map[string]interface{}{
-		"status":      imagesecModel.TaskStatusDetectFinished,
-		"status_str":  imagesecModel.ScanStatusToStr(imagesecModel.TaskStatusDetectFinished),
-		"finished_at": time.Now().UnixMilli(),
+		"updated_at": time.Now().Unix(),
+		"status":     imagesecModel.TaskStatusDetectFinished,
+		"status_str": imagesecModel.ScanStatusToStr(imagesecModel.TaskStatusDetectFinished),
 	}
 	if status != imagesecModel.TaskStatusDetectFinished {
 		updater["status"] = imagesecModel.TaskStatusFailed

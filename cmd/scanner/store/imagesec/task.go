@@ -1,4 +1,4 @@
-package imagesec
+package imagesecStore
 
 import (
 	"context"
@@ -134,7 +134,7 @@ func (dal *ScanTaskDao) SearchScanTask(ctx context.Context, param imagesecModel.
 		return nil, cnt, err
 	}
 
-	db = model.AddFilter(db, param.Filter)
+	db = imagesecModel.AddFilter(db, param.Filter)
 	res := make([]*imagesecModel.ImageScanTask, 0)
 	if err := db.Find(&res).Error; err != nil {
 		return nil, 0, err
@@ -248,7 +248,7 @@ func (dal *ScanTaskDao) SearchScanSubtask(ctx context.Context, param imagesecMod
 		return nil, cnt, err
 	}
 
-	db = model.AddFilter(db, param.Filter)
+	db = imagesecModel.AddFilter(db, param.Filter)
 	res := make([]*imagesecModel.ImageScanSubTask, 0)
 	err := db.Find(&res).Error
 	if err != nil {
@@ -379,7 +379,7 @@ func (dal *ScanTaskPreDao) SearchScanSubtask(ctx context.Context, param imagesec
 	if param.StartID > 0 {
 		db = db.Where("id > ?", param.StartID)
 	}
-	db = model.AddFilter(db, param.Filter)
+	db = imagesecModel.AddFilter(db, param.Filter)
 	res := make([]*model.SubTask, 0)
 	err := db.Find(&res).Error
 	return res, err

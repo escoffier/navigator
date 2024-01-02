@@ -13,6 +13,7 @@ ld-preload/
 venv/
 *.pyc
 hm-linux.tgz
+savapi-sdk-linux64.tgz
 settings.json
 tensor-compliance-check/
 

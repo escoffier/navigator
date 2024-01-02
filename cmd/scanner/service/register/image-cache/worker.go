@@ -141,7 +141,7 @@ func (w *Worker) doTask(wg *sync.WaitGroup) {
 			continue
 		}
 
-		logging.Get().Info().Msgf("worker %d get task url: %v, refCount:%v ,username:%v", w.id, task.url, task.refCount, task.username)
+		logging.Get().Debug().Msgf("worker %d get task url: %v, refCount:%v ,username:%v", w.id, task.url, task.refCount, task.username)
 
 		if w.rc == nil {
 			// create registry client
@@ -221,7 +221,7 @@ func (w *Worker) doManifestTask(wg *sync.WaitGroup) {
 	for { // nolint
 		select {
 		case task := <-w.llms.manifestList:
-			logging.Get().Info().Msg("get manifest task")
+			logging.Get().Debug().Msg("get manifest task")
 			w.saveManifest(task)
 		}
 	}

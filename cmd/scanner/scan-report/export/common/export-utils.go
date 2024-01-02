@@ -205,7 +205,7 @@ func GenVulnInfo(image imagesecModel.ImageBaseResponse, vuln imagesecModel.VulnV
 		getVulnIsKernel(vuln),
 	}
 	// 英文环境下，不导出：CnnvdFixSuggestion
-	if lang == model.LangEn {
+	if lang == imagesecModel.LangEn {
 		info = append(info[:19], info[20:]...)
 	}
 
@@ -325,7 +325,7 @@ func GenImageBaseInfo(im imagesecModel.ImageBaseResponse, lang string) []string 
 		IsBaseImage(im.Flag),
 	}
 	if util.ExistBit1(im.Flag, imagesecModel.FlagImageNotMaintained) {
-		if lang == model.LangEn {
+		if lang == imagesecModel.LangEn {
 			info[10] = fmt.Sprintf("%s(%s)", im.GetOSView(), "This system is notmaintained, may cause inaccurate vulnerability scan results, "+
 				"it is recommended to upgrade as soon as possible")
 		} else {
@@ -406,13 +406,13 @@ func GenImageBaseInfoMeta(lang string) types.ExcelMeta {
 			"Remediation",
 		},
 	}
-	if lang == model.LangEn {
+	if lang == imagesecModel.LangEn {
 		return dataEN
 	}
 	return dataZH
 }
 
-func GetImageSheetInfo(task model.ExportTensorTask) []types.ExcelMeta {
+func GetImageSheetInfo(task imagesecModel.ExportTensorTask) []types.ExcelMeta {
 
 	sheets := make([]types.ExcelMeta, 8)
 	sheets[0] = GenImageBaseInfoMeta(task.Lang)
@@ -506,7 +506,7 @@ func GenImageVulnInfoMeta(lang string) types.ExcelMeta {
 		},
 	}
 
-	if lang == model.LangEn {
+	if lang == imagesecModel.LangEn {
 		return dataEN
 	}
 	return dataZH
@@ -528,7 +528,7 @@ func GenImageSensitiveFileInfoMeta(lang string) types.ExcelMeta {
 			"Image Name", "Source Repository", "Name", "Path", "Type",
 		},
 	}
-	if lang == model.LangEn {
+	if lang == imagesecModel.LangEn {
 		return dataEN
 	}
 
@@ -548,10 +548,10 @@ func GenImageVirusInfoMeta(lang string) types.ExcelMeta {
 		SheetName: "Trojan Virus",
 
 		Header: []string{
-			"Image Name", "Source Repository", "Trojan Virus", "Filename", "UnzipPath",
+			"Image Name", "Source Repository", "Trojan Virus", "Filename", "LayerFilePath",
 		},
 	}
-	if lang == model.LangEn {
+	if lang == imagesecModel.LangEn {
 		return dataEN
 	}
 
@@ -560,7 +560,7 @@ func GenImageVirusInfoMeta(lang string) types.ExcelMeta {
 
 func GenImageWebshellInfoMeta(lang string) types.ExcelMeta {
 	dataZH := types.ExcelMeta{
-		SheetName: "Webshell",
+		SheetName: "WebshellView",
 
 		Header: []string{
 			"镜像名称", "来源仓库", "文件名", "路径", "风险程度", "代码段",
@@ -568,13 +568,13 @@ func GenImageWebshellInfoMeta(lang string) types.ExcelMeta {
 	}
 
 	dataEN := types.ExcelMeta{
-		SheetName: "Webshell",
+		SheetName: "WebshellView",
 
 		Header: []string{
-			"Image Name", "Source Repository", "Filename", "UnzipPath", "Risk level", "Code",
+			"Image Name", "Source Repository", "Filename", "LayerFilePath", "Risk level", "Code",
 		},
 	}
-	if lang == model.LangEn {
+	if lang == imagesecModel.LangEn {
 		return dataEN
 	}
 
@@ -597,7 +597,7 @@ func GenImageEnvInfoMeta(lang string) types.ExcelMeta {
 			"Image Name", "Source Repository", "Variable Name", "Variable Value", "Attribute",
 		},
 	}
-	if lang == model.LangEn {
+	if lang == imagesecModel.LangEn {
 		return dataEN
 	}
 
@@ -620,7 +620,7 @@ func GenImageResourcesInfoMeta(lang string) types.ExcelMeta {
 			"Image Name", "Source Repository", "Pod Name", "Associated Resources", "Namespace", "Cluster",
 		},
 	}
-	if lang == model.LangEn {
+	if lang == imagesecModel.LangEn {
 		return dataEN
 	}
 
@@ -643,7 +643,7 @@ func GenImageTypeInfoMeta(lang string) types.ExcelMeta {
 			"Image Name", "Source Repository",
 		},
 	}
-	if lang == model.LangEn {
+	if lang == imagesecModel.LangEn {
 		return dataEN
 	}
 

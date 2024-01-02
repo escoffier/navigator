@@ -13,7 +13,7 @@ type NodeInfoQueue struct {
 	scanVersionDal imagesecStore.ScanDbMetaDal
 }
 
-func (s *NodeInfoQueue) GenDBChan(ctx context.Context) chan imagesecModel.ScanDbMeta {
+func (s *NodeInfoQueue) GenDBChan(ctx context.Context) chan imagesecModel.ScanConfigDB {
 	return nil
 }
 

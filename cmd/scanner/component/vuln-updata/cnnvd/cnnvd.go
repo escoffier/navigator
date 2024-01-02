@@ -54,8 +54,8 @@ func (c *UpdateSrv) Updata(wg *sync.WaitGroup) {
 }
 
 type VulnerabilityInfo struct {
-	Number        string `json:"number" bson:"number"`
-	RefLink       string `json:"referenceLink" bson:"referenceLink"`
+	Number        string `json:"number"`
+	RefLink       string `json:"referenceLink"`
 	FixSuggestion string `json:"fix_suggestion"`
 	// TODO other fields once we obtain the CNNVD database?
 }

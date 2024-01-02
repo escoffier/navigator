@@ -9,6 +9,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 )
 
@@ -46,7 +47,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	nodeScanResultDal := imagesecStore.NewScanResultDao(rdbInstance)
 	nodeImageDal := imagesecStore.NewImageMetaDao(rdbInstance)
 	resourceDal := imagesecStore.NewResourceDao(rdbInstance)
-	trustedImageDal := store.NewScannerOrm(rdbInstance)
+	trustedImageDal := adaptStore.NewTrustedImageDao(rdbInstance)
 	scanInstanceDal := imagesecStore.NewScannerInstanceDao(rdbInstance)
 	policyDal := imagesecStore.NewDetectPolicyDao(rdbInstance)
 	detectResultDal := imagesecStore.NewImageDetectResultDao(rdbInstance)

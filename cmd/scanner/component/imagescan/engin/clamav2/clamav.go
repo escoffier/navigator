@@ -13,7 +13,7 @@ import (
 type ClamavSrv struct {
 }
 
-func (s *ClamavSrv) UpdateDB(ctx context.Context, param imagesecModel.UpdateDbParam) (*imagesecModel.ScanDbMeta, error) {
+func (s *ClamavSrv) UpdateDB(ctx context.Context, param imagesecModel.UpdateDbParam) (*imagesecModel.ScanConfigDB, error) {
 	logging.Get().Info().Str("module", "imagescan").Msg("not implement")
 	return nil, fmt.Errorf("not implement")
 }

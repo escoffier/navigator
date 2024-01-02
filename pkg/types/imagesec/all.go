@@ -2,6 +2,7 @@ package imagesec
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
@@ -15,12 +16,18 @@ type ImageMeta struct {
 	Digests   []string `json:"digests"`   // 镜像digest,如果镜像为本地构建，可能为空.e.g.nginx@sha256:xxx
 	RepoTags  []string `json:"repoTags"`  // 镜像repo，如 library/dev。数组.若一个镜像多次本地构建，则历史镜像的repoTags信息为空
 	Os        string   `json:"os"`        // 镜像操作系统信息，如：ubuntu:20.04
+	Namespace string   `json:"namespace"` // 镜像所在的 namespace
 	Size      int64    `json:"size"`      // 镜像大小,byte
 	Layers    []Layer  `json:"layers"`    // layer信息,docker 通过history api获取
 	ENVS      []string `json:"envs"`      // 镜像的环境变量
 	User      string   `json:"user"`      // 镜像的user
 	Created   string   `json:"created"`   // RFC 3339 format with nano-seconds.e.g."2022-02-04T21:20:12.497794809Z"
 	PullCount int64    `json:"pullCount"` // 镜像的下载次数
+}
+
+func (vi *ImageMeta) LogStr() string {
+	na := strings.Join(vi.RepoTags, ",")
+	return na
 }
 
 // Layer 镜像层级，兼顾docker history结果和registry的layer
@@ -44,11 +51,33 @@ type NodeReport struct {
 	ReportDBVersion ReportDBVersion `json:"reportDBVersion"`
 }
 
+func (v *NodeReport) LogStr() string {
+	ans := make([]string, 0)
+	ans = append(ans, fmt.Sprintf("uuid=%s", v.UUID))
+	if v.NodeInfo.ClusterKey != "" {
+		ans = append(ans, fmt.Sprintf("nodeInfo=%v", v.NodeInfo))
+	}
+	if v.RegInfo.RegID > 0 {
+		ans = append(ans, fmt.Sprintf("regInfo=%v", v.RegImages))
+	}
+	for i := range v.NodeImages {
+		im := v.NodeImages[i]
+		ans = append(ans, fmt.Sprintf("repoTags=%s", strings.Join(im.RepoTags, ";")))
+		ans = append(ans, fmt.Sprintf("Digests=%s", strings.Join(im.Digests, ";")))
+	}
+	for i := range v.RegImages {
+		im := v.RegImages[i]
+		ans = append(ans, fmt.Sprintf("repoTags=%s", strings.Join(im.RepoTags, ";")))
+		ans = append(ans, fmt.Sprintf("Digests=%s", strings.Join(im.Digests, ";")))
+	}
+	return strings.Join(ans, ";")
+}
+
 // ScanSubTask 节点镜像 扫描任务的子任务，即单个镜像
 type ScanSubTask struct {
 	TaskID         int64         `json:"taskID"`    // 任务id
 	SubTaskID      int64         `json:"subTaskID"` // 子任务id,因为任务可以重新调度,所以不能使用 SubTaskID 来确认一次唯一的扫描任务
-	ImageFromType  string        `json:"-"`
+	ImageFromType  string        `json:"imageFromType"`
 	NodeInfo       NodeInfo      `json:"nodeInfo"`      // 镜像所属节点，用于校验
 	NodeImageMeta  ImageMeta     `json:"nodeImageMeta"` // 节点镜像元数据
 	RegImageMeta   ScanImageMeta `json:"regImageMeta"`  // 仓库镜像元数据
@@ -57,21 +86,32 @@ type ScanSubTask struct {
 	SensitiveRules []string      `json:"sensitiveRules"` // 扫描所用的敏感文件规则规则（不包含默认敏感文件规则）
 	UniqueID       string        `json:"uuid"`           // 生成方式 taskID+SubtaskID+time.Now().UnixMilli()
 	ScanTimeout    int64         `json:"scanTimeout"`    // 单位 秒
-	DeepScan       bool          `json:"deepScan"`
+
+	WebshellCache  LayerInCache `json:"webshellCache"`
+	LicenseCache   LayerInCache `json:"licenseCache"`
+	SensitiveCache LayerInCache `json:"sensitiveCache"`
+	MalwareCache   LayerInCache `json:"malwareCache"`
+	DeepScan       bool         `json:"deepScan"`
+}
+
+type LayerInCache map[string]bool
+
+func (vi LayerInCache) In(ly string) bool {
+	if vi == nil {
+		return false
+	}
+	return vi[ly]
 }
 
 func (vi *ScanSubTask) LogStr() string {
-	s := fmt.Sprintf("taskID=%d subtaskID=%d deepScan=%t", vi.TaskID, vi.SubTaskID, vi.DeepScan)
+	s := fmt.Sprintf("task:%d-%d-%t", vi.TaskID, vi.SubTaskID, vi.DeepScan)
 	// 说明是节点镜像
 	if vi.NodeInfo.ClusterKey != "" {
-		s1 := fmt.Sprintf("clusterKey=%s hostName=%s imageName=%q", vi.NodeInfo.ClusterKey, vi.NodeInfo.HostName, vi.NodeImageMeta.RepoTags)
-		s = fmt.Sprintf("%s %s", s, s1)
+		s = fmt.Sprintf("%s,node:%s,image:%s", s, vi.NodeInfo.LogStr(), vi.NodeImageMeta.LogStr())
 	}
 	// 说明是仓库镜像
 	if vi.RegInfo.Username != "" {
-		s1 := fmt.Sprintf("regUsername=%s imageName=%s scanInstance=%s",
-			vi.RegInfo.Username, vi.RegImageMeta.ImageName(), vi.ScanInstance.ClusterName)
-		s = fmt.Sprintf("%s %s", s, s1)
+		s = fmt.Sprintf("%s,reg:%s,image:%s", s, vi.RegInfo.LogStr(), vi.RegImageMeta.ImageName())
 	}
 
 	return s
@@ -82,33 +122,60 @@ func (vi *ScanSubTask) GenUniqueID() string {
 	return vi.UniqueID
 }
 
-// VulnResult 软件包和漏洞.参考trivy的结果.注意软件包信息从这里提取,即使没有漏洞
-type VulnResult struct {
-	Scanned         bool                 `json:"scanned"`
-	Target          string               `json:"target"`          // imageName,Java,PHP...
-	Class           string               `json:"class"`           // os-pkgs,lang-pkgs
-	Type            string               `json:"type"`            // e.g. bundler and pipenv,jar
-	Packages        []Package            `json:"packages"`        // 每类的pkgs
-	Vulnerabilities VulnerabilityResults `json:"vulnerabilities"` // 漏洞扫描结果
+// ReportScanResult 镜像扫描结果.trivy的扫描结果为一个数组，我们会把结果扁平化放到此结构体里。
+type ReportScanResult struct {
+	UUID             string                  `json:"uuid"`      // 每次扫描任务的唯一标识
+	TaskID           int64                   `json:"taskID"`    // 对应的扫描任务id
+	SubTaskID        int64                   `json:"subTaskID"` // 对应的子任务id
+	ImageUniqueID    uint64                  `json:"imageUniqueID"`
+	OS               types.OS                `json:"os"`
+	Sensitives       SensitiveFileResults    `json:"sensitives"`        // 敏感文件
+	Malware          MalwareResults          `json:"malware"`           // 恶意软件扫描结果
+	Webshell         WebshellResults         `json:"webshell"`          // webshell 扫描结果
+	License          []License               `json:"license,omitempty"` // 镜像使用的license 名
+	WebFrameInfo     WebFrameInfo            `json:"webFrameInfo,omitempty"`
+	StatusStr        string                  `json:"statusStr,omitempty"`
+	Msg              string                  `json:"msg,omitempty"`
+	OriginArtifact   []ftypes.ArtifactDetail `json:"originArtifact,omitempty"` // irene扫描结果中的artifact。scanner利用这里的软件包信息做漏洞匹配.为了方便而设置，和vulnResult相比有冗余数据
+	Errors           []error                 `json:"-"`
+	SaveFileToKafka  []SaveFileToKafka       `json:"-"`
+	MalwareCache     []CacheScan             `json:"malwareCache,omitempty"`
+	SensitiveCache   []CacheScan             `json:"sensitiveCache,omitempty"`
+	LicenseCache     []CacheScan             `json:"licenseCache,omitempty"`
+	WebshellCache    []CacheScan             `json:"webshellCache,omitempty"`
+	IgnoreVulnAndPkg bool                    `json:"ignoreVulnAndPkg"`
 }
 
-// ScanResult 镜像扫描结果.trivy的扫描结果为一个数组，我们会把结果扁平化放到此结构体里。
-type ScanResult struct {
-	UUID             string                `json:"uuid"`      // 每次扫描任务的唯一标识
-	TaskID           int64                 `json:"taskID"`    // 对应的扫描任务id
-	SubTaskID        int64                 `json:"subTaskID"` // 对应的子任务id
-	ImageUniqueID    uint64                `json:"imageUniqueID"`
-	OS               types.OS              `json:"os"`
-	VulnResults      []VulnResult          `json:"vulnResults"` // 漏洞和软件包信息
-	Sensitives       SensitiveFileResults  `json:"sensitives"`  // 敏感文件
-	Malwares         MalwareResults        `json:"malwares"`    // 恶意软件扫描结果
-	Webshells        WebshellResults       `json:"webshells"`   // webshell 扫描结果
-	License          []License             `json:"license"`     // 镜像使用的license 名
-	WebFrameInfo     WebFrameInfo          `json:"webFrameInfo"`
-	StatusStr        string                `json:"statusStr"`
-	Msg              string                `json:"msg"`
-	IgnoreVulnAndPkg bool                  `json:"IgnoreVulnAndPkg"` //  忽略漏洞的数据
-	OriginArtifact   ftypes.ArtifactDetail `json:"originArtifact"`   // irene扫描结果中的artifact。scanner利用这里的软件包信息做漏洞匹配.为了方便而设置，和vulnResult相比有冗余数据
+type CacheScan struct {
+	Issue      string `json:"issue"`      // 结果类型
+	CanInCache bool   `json:"canInCache"` // 扫描上报结果标识扫描没有出错，可以保存进入缓存，以供后续扫描所用
+	InCache    bool   `json:"inCache"`    // 扫描上报结果标识已在缓存中，保存镜像结果时需要查询该缓存
+	Layer      string `json:"layer"`
+}
+
+type ScanJobResult struct {
+	OS              types.OS                `json:"os"`
+	Sensitive       []SensitiveFile         `json:"sensitiveFiles"`
+	ClamAvScan      []ClamAvScanResult      `json:"clamAvScan"`
+	AviraScan       []AviraScanResult2      `json:"aviraScan"`
+	Webshell        []HmWebshell            `json:"webshell"`
+	License         []License               `json:"license"`
+	OriginArtifact  []ftypes.ArtifactDetail `json:"originArtifact"`
+	InCache         bool                    `json:"inCache"` // 下发任务时已说明结果存在于缓存中，保存镜像扫描结果时需要先查询缓存
+	Scanned         bool                    `json:"scanned"` // 是否扫描过
+	Errors          []error                 `json:"-"`
+	SaveFileToKafka []SaveFileToKafka       `json:"-"`
+	Layer           string                  `json:"layer"`
+	Issue           string                  `json:"issue"`
+}
+
+func (vi *ReportScanResult) LogStr() string {
+	s1 := fmt.Sprintf("task:%d-%d-%d", vi.TaskID, vi.SubTaskID, vi.ImageUniqueID)
+	// 说明是节点镜像
+	s2 := fmt.Sprintf("ses:%d,webshell:%d,mal:%d,license:%d,artiface:%d,files:%d,status:%s,msg:%s",
+		len(vi.Sensitives.SensitiveFiles), len(vi.Webshell.HmWebshells), len(vi.Malware.AviraScanResults),
+		len(vi.License), len(vi.OriginArtifact), len(vi.SaveFileToKafka), vi.StatusStr, vi.Msg)
+	return fmt.Sprintf("%s,%s", s1, s2)
 }
 
 // SyncScannedResult used for sync scanned result to all cluster's node
@@ -125,4 +192,30 @@ type ScanResultWithVersion struct {
 	ClamAvDBVersion                ClamAvDBVersion                `json:"clamAvDBVersion"`
 	ClamAvEngineVersion            ClamAvEngineVersion            `json:"clamAvEngineVersion"`
 	HmEngineVersion                HmEngineVersion                `json:"hmEngineVersion"`
+}
+
+type SaveFileToKafka struct {
+	Layer    string `json:"layer"`
+	FileMd5  string `json:"fileMd5"`
+	Data     []byte `json:"data"`
+	Filename string `json:"filename"` // 只是用于打日志，文件上传保存的文件名都是使用digest
+}
+
+func (vi *SaveFileToKafka) Check() error {
+	// 节点镜像暂时不支持
+	if vi.Layer == "" {
+		return fmt.Errorf("not get layer")
+	}
+	if vi.FileMd5 == "" {
+		return fmt.Errorf("not get file md5")
+	}
+	if len(vi.Data) == 0 {
+		return fmt.Errorf("file is empty")
+	}
+	return nil
+}
+
+func (vi *SaveFileToKafka) LopStr() string {
+	s := fmt.Sprintf("filename=%s,layer=%s,fileMd5=%s,data=%d", vi.Filename, vi.Layer, vi.FileMd5, len(vi.Data))
+	return s
 }

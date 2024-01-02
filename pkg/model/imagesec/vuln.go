@@ -10,7 +10,6 @@ import (
 	"scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -137,12 +136,14 @@ func (vi *Vuln) GenFlag() uint64 {
 }
 
 func (vi *Vuln) Check() error {
-	if vi.Name == "" || vi.PkgName == "" || vi.PkgVersion == "" {
+	if vi.Name == "" || vi.PkgName == "" {
 		return fmt.Errorf("not get name or pkg info")
 	}
-	if len(vi.CVSS) == 0 {
-		return fmt.Errorf("not get cvss")
-	}
+	// 有些漏洞库的漏洞是没有 cvss 的
+	// https://www.debian.org/lts/security/2023/dla-3357-2
+	// if len(vi.CVSS) == 0 {
+	// 	return fmt.Errorf("not get cvss")
+	// }
 	return nil
 }
 
@@ -523,10 +524,10 @@ func (vi *VulnView) Simplify() *VulnView {
 }
 
 func (vi *VulnView) AdaptI18(ctx context.Context) {
-	lang := model.LangZh
+	lang := LangZh
 
-	if lan, ok := ctx.Value(AcceptLanguage).(string); ok && lan == model.LangEn {
-		lang = model.LangEn
+	if lan, ok := ctx.Value(AcceptLanguage).(string); ok && lan == LangEn {
+		lang = LangEn
 	}
 	vi.SeverityView = GetSeverityView(lang)[strings.ToUpper(vi.Severity)]
 	vi.ClassView = GetVulnClassView(lang)[vi.Class]
@@ -534,10 +535,10 @@ func (vi *VulnView) AdaptI18(ctx context.Context) {
 	vi.AttrValueView = GenVulnCVSSV3AttrView(vi.Attr, lang)
 	vi.AttackPathView = vi.AttrValueView[VulnCvssKeyAV]
 
-	if lang == model.LangZh {
+	if lang == LangZh {
 		vi.Description = vi.DescriptionZh
 	}
-	if lang == model.LangEn {
+	if lang == LangEn {
 		vi.Description = vi.DescriptionEn
 	}
 }

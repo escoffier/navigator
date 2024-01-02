@@ -1,4 +1,4 @@
-package imagesec
+package imagesecStore
 
 import (
 	"context"

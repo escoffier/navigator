@@ -23,7 +23,7 @@ func (s *ScanResultSrv) VulnOverview(ctx context.Context, param imagesecModel.Vu
 }
 
 func (s *ScanResultSrv) vulnStatistic(ctx context.Context) (*imagesecModel.VulnOverview, error) {
-	s.Log.Info().Msg("vulnOverviewHelper start")
+	s.Log.Debug().Msg("vulnOverviewHelper start")
 	res := &imagesecModel.VulnOverview{
 		VulnTotal: 0,
 		Severity:  imagesecModel.SeverityCount{},
@@ -38,7 +38,7 @@ func (s *ScanResultSrv) vulnStatistic(ctx context.Context) (*imagesecModel.VulnO
 			s.Log.Err(err).Msg("vulnOverviewHelper SearchVuln")
 			continue
 		}
-		addVulnOver(res, sev, cnt)
+		AddVulnOver(res, sev, cnt)
 	}
 
 	s.Log.Info().Interface("overview", s.vulnOverview.Get()).
@@ -76,4 +76,20 @@ func (s *ScanResultSrv) vulnOverviewHelper(ctx context.Context) {
 			<-ticker.C
 		}
 	}()
+}
+
+func AddVulnOver(res *imagesecModel.VulnOverview, severity int, cnt int64) {
+	res.VulnTotal += cnt
+	switch severity {
+	case imagesecModel.SeverityCriticalInt:
+		res.Severity.Critical = cnt
+	case imagesecModel.SeverityHighInt:
+		res.Severity.High = cnt
+	case imagesecModel.SeverityMediumInt:
+		res.Severity.Medium = cnt
+	case imagesecModel.SeverityLowInt:
+		res.Severity.Low = cnt
+	case imagesecModel.SeverityUnknownInt:
+		res.Severity.Unknown = cnt
+	}
 }

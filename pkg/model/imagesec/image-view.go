@@ -29,7 +29,6 @@ type ImageSearchApiParam struct {
 	VulnStatic             []string `json:"vulnStatic"`      // 镜像漏洞统计
 	ImageIds               []int64  `json:"imageIds"`        // 镜像ID列表
 	ImageID                int64    `json:"imageID"`         // 镜像ID
-	ScanStatus             []string `json:"scanStatus"`      // 扫描状态
 	JustReturnImage        bool     `json:"justReturnImage"` // 只需要镜像信息，不需要镜像关联信息
 	ReturnMalicious        bool     `json:"returnMalicious"` // 是否返回恶义文件
 	UUIDs                  []uint32 `json:"uuids"`           // 镜像uuid
@@ -58,7 +57,7 @@ type ImageSearchApiParam struct {
 
 	AssociateParam ImageAssociateParam `json:"associateParam"`
 	Fields         []string            `json:"fields"`
-	Filter         *model.Filter
+	Filter         *Filter
 }
 
 func (sp *ImageSearchApiParam) ToImageDalParam() ImageDalParam {
@@ -352,7 +351,7 @@ type RelatedSearchParam struct {
 	SensitiveMd5 string `json:"sensitiveMd5"`
 	MalwareMd5   string `json:"malwareMd5"`
 	ImageKeyword string `json:"imageKeyword"`
-	Filter       *model.Filter
+	Filter       *Filter
 }
 
 func (vi *RelatedSearchParam) Check() error {
@@ -389,7 +388,7 @@ type ScanResultSearchParam struct {
 	Fields              []string // 数据库中查询的字段
 	SecurityPolicyIds   []int64  `json:"securityPolicyIds"` // 检测策略ID
 
-	Filter *model.Filter
+	Filter *Filter
 }
 
 func (vi *ScanResultSearchParam) Check() error {
@@ -458,7 +457,8 @@ type ImageWithCorrelateData2 struct {
 	ImageBaseResponse ImageBaseResponse
 	Sensitive         []*SensitiveFile
 	SensitiveCnt      int64
-	Webshell          []*WebshellView
+	WebshellView      []*WebshellView // 前端展示
+	Webshell          []*Webshell
 	WebshellCnt       int64
 	Env               []*ImageEnv
 	EnvCnt            int64
@@ -647,26 +647,26 @@ func (iws *ImageWithCorrelateData2) ExceptionFilter(param ScanResultSearchParam)
 
 	if param.ExceptionWebshell == TrueString || param.DeployAction != "" {
 		data := make([]*WebshellView, 0)
-		for i := range iws.Webshell {
+		for i := range iws.WebshellView {
 			add := true
-			if !iws.Webshell[i].PolicyDetect.Exception && param.ExceptionWebshell == TrueString {
+			if !iws.WebshellView[i].PolicyDetect.Exception && param.ExceptionWebshell == TrueString {
 				add = false
 			}
-			if param.DeployAction != "" && iws.Webshell[i].PolicyDetect.DeployAction != param.DeployAction {
+			if param.DeployAction != "" && iws.WebshellView[i].PolicyDetect.DeployAction != param.DeployAction {
 				add = false
 			}
 			if add {
-				data = append(data, iws.Webshell[i])
+				data = append(data, iws.WebshellView[i])
 			}
 		}
-		iws.Webshell = data
+		iws.WebshellView = data
 		iws.WebshellCnt = int64(len(data))
 	}
 	return iws
 }
 
 // 程序中分页
-func (iws *ImageWithCorrelateData2) AddFilter(filter *model.Filter) *ImageWithCorrelateData2 {
+func (iws *ImageWithCorrelateData2) AddFilter(filter *Filter) *ImageWithCorrelateData2 {
 	if filter == nil || filter.Limit <= 0 {
 		return iws
 	}
@@ -679,10 +679,10 @@ func (iws *ImageWithCorrelateData2) AddFilter(filter *model.Filter) *ImageWithCo
 		iws.Sensitive = iws.Sensitive[start:util.MinInt(end, len(iws.Sensitive))]
 	}
 
-	if len(iws.Webshell) <= start {
-		iws.Webshell = make([]*WebshellView, 0)
+	if len(iws.WebshellView) <= start {
+		iws.WebshellView = make([]*WebshellView, 0)
 	} else {
-		iws.Webshell = iws.Webshell[start:util.MinInt(end, len(iws.Webshell))]
+		iws.WebshellView = iws.WebshellView[start:util.MinInt(end, len(iws.WebshellView))]
 	}
 
 	if len(iws.Env) <= start {
@@ -810,8 +810,8 @@ func (iws *ImageWithCorrelateData2) GenSensitiveFileSuggest() ImageSuggest {
 func (iws *ImageWithCorrelateData2) GenWebshellSuggest() ImageSuggest {
 	files := make([]string, 0)
 
-	for i := range iws.Webshell {
-		wb := iws.Webshell[i]
+	for i := range iws.WebshellView {
+		wb := iws.WebshellView[i]
 		files = append(files, wb.GenFullFilename())
 	}
 	files = util.DuplicateStringSlice(files)
@@ -1003,7 +1003,7 @@ func (iws *ImageWithCorrelateData2) GetRiskScore() int64 {
 
 	riskScore := 100 - (CalculateVulnScore(iws.Vuln) +
 		CalculateSensitiveScore(int64(len(iws.Sensitive))) +
-		util.MinInt64(CalculateWebshellScore(int64(len(iws.Webshell)))+CalculateMalwareScore(int64(len(iws.Malware))),
+		util.MinInt64(CalculateWebshellScore(int64(len(iws.WebshellView)))+CalculateMalwareScore(int64(len(iws.Malware))),
 			model.MaxWebshellAndVirusScore))
 
 	// 又改啦，没有扫描过的100分
@@ -1084,8 +1084,8 @@ func (iws *ImageWithCorrelateData2) ToSecurityIssueOverview1() SecurityOverview 
 			break
 		}
 	}
-	for i := range iws.Webshell {
-		if iws.Webshell[i].PolicyDetect.Exception {
+	for i := range iws.WebshellView {
+		if iws.WebshellView[i].PolicyDetect.Exception {
 			ans.Webshell = ImageUnsafeString
 			break
 		}
@@ -1221,8 +1221,8 @@ func (iws *ImageWithCorrelateData2) ToSecurityIssueStatistic() SecurityStatistic
 			risk.Vuln++
 		}
 	}
-	for i := range iws.Webshell {
-		if iws.Webshell[i].PolicyDetect.Exception {
+	for i := range iws.WebshellView {
+		if iws.WebshellView[i].PolicyDetect.Exception {
 			risk.Webshell++
 		}
 	}
@@ -1335,8 +1335,8 @@ func (iws *ImageWithCorrelateData2) ToImageBaseResponse() ImageBaseResponse {
 	if len(iws.ScanSubTask) > 0 {
 		baseResponse.LastScanAt = iws.ScanSubTask[0].FinishedAt
 	}
-	baseResponse.SecurityIssueView = baseResponse.GetSecurityIssueViewView(model.LangZh)
-	baseResponse.ImageAttrView = baseResponse.GetImageAttrView(model.LangZh)
+	baseResponse.SecurityIssueView = baseResponse.GetSecurityIssueViewView(LangZh)
+	baseResponse.ImageAttrView = baseResponse.GetImageAttrView(LangZh)
 
 	// 把容器名加上
 	for i := range iws.Container {
@@ -1404,8 +1404,8 @@ func (iws *ImageWithCorrelateData2) AddDetectResult() {
 	for i := range iws.Sensitive {
 		iws.Sensitive[i].PolicyDetect.AddPolicyDetect(iws.Sensitive[i].UniqueID, iws.DetectResult[DetectTypeSensRule])
 	}
-	for i := range iws.Webshell {
-		iws.Webshell[i].PolicyDetect.AddPolicyDetect(iws.Webshell[i].UniqueID, iws.DetectResult[DetectTypeWebshellRule])
+	for i := range iws.WebshellView {
+		iws.WebshellView[i].PolicyDetect.AddPolicyDetect(iws.WebshellView[i].UniqueID, iws.DetectResult[DetectTypeWebshellRule])
 	}
 	for i := range iws.Malware {
 		iws.Malware[i].PolicyDetect.AddPolicyDetect(iws.Malware[i].UniqueID, iws.DetectResult[DetectTypeMalwareRule])
@@ -1440,8 +1440,8 @@ func (iws *ImageWithCorrelateData2) AddDeployDetect() {
 	for i := range iws.Sensitive {
 		iws.Sensitive[i].PolicyDetect.AddDeployDetect(iws.Sensitive[i].UniqueID, iws.DeployRecord.SensitiveIssue)
 	}
-	for i := range iws.Webshell {
-		iws.Webshell[i].PolicyDetect.AddDeployDetect(iws.Webshell[i].UniqueID, iws.DeployRecord.WebshellIssue)
+	for i := range iws.WebshellView {
+		iws.WebshellView[i].PolicyDetect.AddDeployDetect(iws.WebshellView[i].UniqueID, iws.DeployRecord.WebshellIssue)
 	}
 	for i := range iws.Malware {
 		iws.Malware[i].PolicyDetect.AddDeployDetect(iws.Malware[i].UniqueID, iws.DeployRecord.MalwareIssue)
@@ -1489,7 +1489,6 @@ type ImageBaseResponse struct {
 	BootUser          string               `json:"bootUser"`   // 启动用户
 	RiskScore         int64                `json:"riskScore"`
 	Suggests          []ImageSuggest       `json:"suggests"`
-	ScanStatus        string               `json:"scanStatus"`
 	LastScanAt        int64                `json:"lastScanAt"` // 扫描完成时间戳(单位毫秒)
 	RegistryID        int64                `json:"registryId"`
 	RegistryName      string               `json:"registryName"`
@@ -1534,18 +1533,18 @@ func (vi *ImageBaseResponse) FullNull() {
 }
 
 func (vi *ImageBaseResponse) AdaptI18(ctx context.Context) {
-	lang := model.LangZh
+	lang := LangZh
 
-	if la, ok := ctx.Value(AcceptLanguage).(string); ok && la == model.LangEn {
-		lang = model.LangEn
+	if la, ok := ctx.Value(AcceptLanguage).(string); ok && la == LangEn {
+		lang = LangEn
 	}
 
-	if lang == model.LangEn {
+	if lang == LangEn {
 		for i := range vi.Suggests {
 			vi.Suggests[i].Title = SuggestEnTile()[vi.Suggests[i].Title]
 		}
 	}
-	if lang == model.LangZh {
+	if lang == LangZh {
 		for i := range vi.TotalPolicy {
 			if vi.TotalPolicy[i].Name == DefaultPolicyNameEN {
 				vi.TotalPolicy[i].Name = DefaultPolicyNameZH
@@ -1585,12 +1584,12 @@ func (vi *ImageBaseResponse) GetOSView() string {
 
 func (vi *ImageBaseResponse) GetImageAttrView(lang string) []string {
 	if lang == "" {
-		lang = model.LangZh
+		lang = LangZh
 	}
 	ans := make([]string, 0)
 
 	if vi.ImageAttr.ImageType == BaseImageTypeString {
-		if lang == model.LangZh {
+		if lang == LangZh {
 			ans = append(ans, "基础镜像")
 		} else {
 			ans = append(ans, "Base Image")
@@ -1598,7 +1597,7 @@ func (vi *ImageBaseResponse) GetImageAttrView(lang string) []string {
 	}
 
 	if vi.ImageAttr.ImageType == AppImageTypeString {
-		if lang == model.LangZh {
+		if lang == LangZh {
 			ans = append(ans, "应用镜像")
 		} else {
 			ans = append(ans, "App Image")
@@ -1645,7 +1644,7 @@ func (vi *ImageBaseResponse) GetSecurityIssueViewView(lang string) []string {
 
 	for i := range vi.SecurityIssue {
 		si := vi.SecurityIssue[i]
-		if lang == model.LangEn {
+		if lang == LangEn {
 			ans = append(ans, si.LabelEN)
 		} else {
 			ans = append(ans, si.LabelZH)
@@ -1769,4 +1768,11 @@ type ContainerResources struct {
 	Namespace    string `json:"namespace"`
 	ClusterKey   string `json:"clusterKey"`
 	ClusterName  string `json:"clusterName"`
+}
+
+type ImageSummary struct {
+	Namespace   string   `json:"namespace"`
+	ID          string   `json:"id"`
+	RepoDigests []string `json:"repoDigests"`
+	RepoTags    []string `json:"repoTags"`
 }

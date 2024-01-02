@@ -8,9 +8,9 @@ import (
 	"path/filepath"
 	"strings"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd/global"
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
@@ -26,7 +26,6 @@ type ScanResultService interface {
 	VulnOverview(ctx context.Context, param imagesecModel.VulnOverviewParam) (*imagesecModel.VulnOverview, error) // 默认查在线
 	GetWebshellContent(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]imagesecModel.WebshellContent, error)
 	SearchWebshell(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]*imagesecModel.WebshellView, int64, error)
-
 	GetWebshellFile(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]byte, *imagesecModel.WebshellView, error)
 	GetSensitiveFile(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]byte, *imagesecModel.SensitiveFile, error)
 	GetMalwareFile(ctx context.Context, param imagesecModel.ScanResultSearchParam) ([]byte, *imagesecModel.Malware, error)
@@ -229,7 +228,7 @@ func (s *ScanResultSrv) GetWebshellFile(ctx context.Context, param imagesecModel
 		return nil, nil, fmt.Errorf("file has cleaned")
 	}
 	// 这里不直接返回是因为：windows会报木马病毒，然后自动删除
-	data, err := ZipFile(ZipFileMate{MD5: ws.MD5, Filename: ws.Filename})
+	data, err := scannerUtils.ZipFile(scannerUtils.ZipFileMate{MD5: ws.MD5, Filename: ws.Filename})
 	if err != nil {
 		s.Log.Err(err).Str("file", filename).Msg("GetWebshellFile read file")
 		return nil, nil, err
@@ -262,7 +261,7 @@ func (s *ScanResultSrv) GetSensitiveFile(ctx context.Context, param imagesecMode
 		return nil, nil, scani18.NotGetFile(nil)
 	}
 	// 这里不直接返回是因为：windows会报木马病毒，然后自动删除
-	data, err := ZipFile(ZipFileMate{MD5: ws.MD5, Filename: ws.Filename})
+	data, err := scannerUtils.ZipFile(scannerUtils.ZipFileMate{MD5: ws.MD5, Filename: ws.Filename})
 	if err != nil {
 		s.Log.Err(err).Str("file", filename).Msg("GetSensitiveFile read file")
 		return nil, nil, scani18.NotGetFile(err)
@@ -297,7 +296,7 @@ func (s *ScanResultSrv) GetMalwareFile(ctx context.Context, param imagesecModel.
 		return nil, nil, scani18.NotGetFile(nil)
 	}
 	// 这里不直接返回是因为：windows会报木马病毒，然后自动删除
-	data, err := ZipFile(ZipFileMate{MD5: ws.Hash, Filename: ws.Filename})
+	data, err := scannerUtils.ZipFile(scannerUtils.ZipFileMate{MD5: ws.Hash, Filename: ws.Filename})
 	if err != nil {
 		s.Log.Err(err).Str("file", filename).Msg("GetMalwareFile read file")
 		return nil, ws, scani18.NotGetFile(err)
@@ -330,7 +329,7 @@ func (s *ScanResultSrv) GetLicenseFile(ctx context.Context, param imagesecModel.
 		return nil, nil, scani18.NotGetFile(nil)
 	}
 	// 这里不直接返回是因为：windows会报木马病毒，然后自动删除
-	data, err := ZipFile(ZipFileMate{MD5: ws.MD5, Filename: ws.Filename})
+	data, err := scannerUtils.ZipFile(scannerUtils.ZipFileMate{MD5: ws.MD5, Filename: ws.Filename})
 	if err != nil {
 		s.Log.Err(err).Str("file", filename).Msg("GetLicenseFile read file")
 		return nil, ws, scani18.NotGetFile(err)

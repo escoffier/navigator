@@ -1,4 +1,4 @@
-package imagesec
+package imagesecStore
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
@@ -146,7 +145,7 @@ func (dal *ImageDetectResultDao) SearchDetectResult(ctx context.Context, param i
 	if len(param.Fields) > 0 {
 		db = db.Select(param.Fields)
 	}
-	db = model.AddFilter(db, param.Filter)
+	db = imagesecModel.AddFilter(db, param.Filter)
 	res := make([]*imagesecModel.ImageDetectResult, 0)
 	err := db.Find(&res).Error
 
@@ -179,7 +178,7 @@ func (dal *ImageDetectResultDao) SearchDetectBrief(ctx context.Context, param im
 	if param.LastID > 0 {
 		db = db.Where("id > ?", param.LastID)
 	}
-	db = model.AddFilter(db, param.Filter)
+	db = imagesecModel.AddFilter(db, param.Filter)
 
 	res := make([]*imagesecModel.ImageDetectBrief, 0)
 	if err := db.Find(&res).Error; err != nil {
@@ -407,7 +406,7 @@ func (dal *DetectTaskDao) UpdateDetectTask(ctx context.Context, param imagesecMo
 	if err := param.Check(); err != nil {
 		return err
 	}
-	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
+	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*5)
 	defer cancelFunc()
 	db := dal.db.Get().WithContext(cancelCtx).Table(new(imagesecModel.ImageDetectTask).TableName())
 	db = db.Where("id = ?", param.ID)
@@ -422,7 +421,7 @@ func (dal *DetectTaskDao) SearchDetectTask(ctx context.Context, param imagesecMo
 
 	param.Serialize()
 
-	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
+	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	m := imagesecModel.ImageDetectTask{}
 	db := dal.db.Get().WithContext(cancelCtx).Table(m.TableName())
@@ -431,6 +430,9 @@ func (dal *DetectTaskDao) SearchDetectTask(ctx context.Context, param imagesecMo
 	}
 	if param.TaskID > 0 {
 		db = db.Where("id = ?", param.TaskID)
+	}
+	if param.Priority > 0 {
+		db = db.Where("priority = ?", param.Priority)
 	}
 	if param.Started == consts.TrueString {
 		db = db.Where("started_at > 0 ")
@@ -458,7 +460,7 @@ func (dal *DetectTaskDao) SearchDetectTask(ctx context.Context, param imagesecMo
 		return nil, cnt, err
 	}
 
-	db = model.AddFilter(db, param.Filter)
+	db = imagesecModel.AddFilter(db, param.Filter)
 	res := make([]*imagesecModel.ImageDetectTask, 0)
 	err := db.Find(&res).Error
 	return res, cnt, err
@@ -541,7 +543,7 @@ func (dal *DetectTaskDao) SearchDetectSubtask(ctx context.Context, param imagese
 		return nil, cnt, err
 	}
 
-	db = model.AddFilter(db, param.Filter)
+	db = imagesecModel.AddFilter(db, param.Filter)
 	res := make([]*imagesecModel.ImageDetectSubTask, 0)
 	err := db.Find(&res).Error
 	if err != nil {

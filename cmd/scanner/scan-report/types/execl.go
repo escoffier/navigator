@@ -3,7 +3,6 @@ package types
 import (
 	"context"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
@@ -30,7 +29,7 @@ type ExcelExportService interface {
 	RunExport(ctx context.Context, executeType string, imageChanFunc GenImageChanFunc, convertDataFunc ConvertDataFunc)
 }
 
-type GenImageChanFunc func(ctx context.Context, task model.ExportTensorTask) chan imagesecModel.Image
+type GenImageChanFunc func(ctx context.Context, task imagesecModel.ExportTensorTask) chan imagesecModel.Image
 
 type ConvertDataFunc func(res map[SheetName]chan []string, lang string) map[SheetName]chan []string
 
@@ -70,7 +69,7 @@ type ExcelDataWithMeta struct {
 	ExcelExportImageData ExcelExportImageData
 	Filepath             string
 	ExcelMeta            []ExcelMeta
-	ExportTask           model.ExportTensorTask
+	ExportTask           imagesecModel.ExportTensorTask
 }
 
 type SheetName string

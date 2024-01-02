@@ -3,6 +3,7 @@ package tasks
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -13,14 +14,16 @@ import (
 	"sync"
 
 	json "github.com/json-iterator/go"
+	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/node-image/cmd/config"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/services/types"
+	consts2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	scanner_ci "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-ci"
 
 	"github.com/rs/zerolog"
-
-	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 
 	"github.com/segmentio/kafka-go"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -28,10 +31,8 @@ import (
 	"golang.org/x/sync/semaphore"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/global"
-	"gitlab.com/piccolo_su/vegeta/cmd/node-image/config"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/services"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/services/helper"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -162,9 +163,9 @@ func (m *ScanTaskManager) makeScanCmd(imageName string, subtask imagesec.ScanSub
 
 	// default scan cmd without malware and webshell opt
 	cmdStr := fmt.Sprintf(" local-scan %s -i %s --parse-pkgs-only --cache-dir %s --policy-file-name %s "+
-		"--output %s -t %d --mount-prefix %s ",
+		"--output %s -t %d --mount-prefix %s --namespace %s ",
 		m.ScanCommOpt(), imageName, cachePath, policyPath,
-		m.scanOutputFile(subtask), m.getTimeOutOpt(), m.runtimeConfig.ScanConfig.MountPrefix)
+		m.scanOutputFile(subtask), m.getTimeOutOpt(), m.runtimeConfig.ScanConfig.MountPrefix, subtask.NodeImageMeta.Namespace)
 
 	if m.shouldDeepScan() {
 		cmdStr = fmt.Sprintf("%s %s", cmdStr, m.deepScanOption())
@@ -175,10 +176,11 @@ func (m *ScanTaskManager) makeScanCmd(imageName string, subtask imagesec.ScanSub
 	return arr
 }
 
-func (m *ScanTaskManager) transformWebshellToUpload(res *scanner_ci.PolicyResult) []scannermodel.WebshellSaveInfo {
-	uploadWebshell := make([]scannermodel.WebshellSaveInfo, 0)
+func (m *ScanTaskManager) transformWebshellToUpload(res *scanner_ci.PolicyResult) []imagesec.SaveFileToKafka {
+	uploadWebshell := make([]imagesec.SaveFileToKafka, 0)
 	for _, v := range res.WebshellResults.HmWebshells {
-		saveInfo := scannermodel.WebshellSaveInfo{
+
+		saveInfo := imagesec.SaveFileToKafka{
 			FileMd5:  v.MD5,
 			Filename: v.Filename,
 		}
@@ -187,7 +189,7 @@ func (m *ScanTaskManager) transformWebshellToUpload(res *scanner_ci.PolicyResult
 	return uploadWebshell
 }
 
-func (m *ScanTaskManager) uploadWebshellFile(res []scannermodel.WebshellSaveInfo) error {
+func (m *ScanTaskManager) uploadWebshellFile(res []imagesec.SaveFileToKafka) error {
 	for _, v := range res {
 		data, err := os.ReadFile(v.Filename)
 		if err != nil {
@@ -200,11 +202,13 @@ func (m *ScanTaskManager) uploadWebshellFile(res []scannermodel.WebshellSaveInfo
 			logging.Get().Err(err).Str("file", v.Filename).Msg("failed to marshal webshell file data")
 			continue
 		}
+		saveByte = scannerUtils.ZipByteSlice(saveByte)
+
 		if err = m.mqWriter.Write(
 			context.Background(),
-			scannermodel.WebshellKafkaTopic,
+			consts2.WebshellKafkaTopic,
 			kafka.Message{
-				Topic: scannermodel.WebshellKafkaTopic,
+				Topic: consts2.WebshellKafkaTopic,
 				Key:   []byte("node-image-webshell"),
 				Value: saveByte,
 			}); err != nil {
@@ -257,24 +261,22 @@ func (m *ScanTaskManager) syncResult(t imagesec.ScanSubTask) error {
 	scanResult.TaskID = t.TaskID
 	scanResult.SubTaskID = t.SubTaskID
 	// 后续优化
-	scanResult.Malwares.Scanned = true
-	scanResult.Webshells.Scanned = true
+	scanResult.Malware.Scanned = true
+	scanResult.Webshell.Scanned = true
 	if tmpRes.ExitCode == 0 {
 		scanResult.StatusStr = imagesecModel.TaskStatusScanFinishedStr
 	} else {
 		scanResult.StatusStr = imagesecModel.TaskStatusFailedStr
 		scanResult.Msg = tmpRes.ExistMsg
 	}
-	scanResult.Webshells.Scanned = true
-	scanResult.Malwares.Scanned = true
+	scanResult.Webshell.Scanned = true
+	scanResult.Malware.Scanned = true
 
 	logging.Get().Debug().
 		Int64("subTaskID", t.SubTaskID).
-		Int("aviraMalwareCnt", len(scanResult.Malwares.AviraScanResults)).
-		Int("pkgCnt", len(scanResult.VulnResults)).
+		Int("aviraMalwareCnt", len(scanResult.Malware.AviraScanResults)).
 		Int("sensitiveCnt", len(scanResult.Sensitives.SensitiveFiles)).
-		Int("vulnCnt", len(scanResult.VulnResults)).
-		Int("webshellCnt", len(scanResult.Webshells.HmWebshells)).
+		Int("webshellCnt", len(scanResult.Webshell.HmWebshells)).
 		Msg("result info")
 
 	// send to kafka
@@ -283,7 +285,9 @@ func (m *ScanTaskManager) syncResult(t imagesec.ScanSubTask) error {
 		logging.Get().Err(err).Int64("subTaskID", t.SubTaskID).Msg("failed to marshal")
 		return err
 	}
-	err = m.mqWriter.Write(context.Background(), model.NodeImageScanResultTopic, kafka.Message{
+	sendData = scannerUtils.ZipByteSlice(sendData)
+
+	err = m.mqWriter.Write(context.Background(), consts2.NodeImageScanResultTopic, kafka.Message{
 		Key:   []byte("node-image-result"),
 		Value: sendData,
 	})
@@ -305,7 +309,8 @@ func (m *ScanTaskManager) checkResultFile(err error, t imagesec.ScanSubTask) err
 	logging.Get().Debug().Int64("subTaskID", t.SubTaskID).Msg("make a fake result file because irene run err.")
 
 	exitCode := scanner_ci.CiPolicyResultCodeException
-	if exitErr, ok := err.(*exec.ExitError); ok {
+	var exitErr *exec.ExitError
+	if errors.As(err, &exitErr) {
 		exitCode = exitErr.ExitCode()
 	}
 	tmpRes := scanner_ci.PolicyResult{
@@ -566,51 +571,52 @@ func (m *ScanTaskManager) Run() error {
 	return fmt.Errorf("node image task service exit")
 }
 
-func (m *ScanTaskManager) transformResult(result *scanner_ci.PolicyResult) imagesec.ScanResult {
-	res := imagesec.ScanResult{}
+func (m *ScanTaskManager) transformResult(result *scanner_ci.PolicyResult) imagesec.ReportScanResult {
+	res := imagesec.ReportScanResult{OriginArtifact: make([]ftypes.ArtifactDetail, 0)}
 	if result.Artifact.Artifact.OS != nil {
 		res.OS = *result.Artifact.Artifact.OS
 	}
-	res.OriginArtifact = result.Artifact.Artifact
+	res.OriginArtifact = append(res.OriginArtifact, result.Artifact.Artifact)
 
-	for _, r := range result.Vulnerabilities.Results {
-
-		// base info
-		vulnRes := imagesec.VulnResult{}
-		vulnRes.Type = r.Type
-		vulnRes.Class = string(r.Class)
-		vulnRes.Target = r.Target
-
-		logging.Get().Debug().Int("packageNum", len(r.Packages)).Msg("transform res")
-		for _, v := range r.Packages {
-			pkg := imagesec.Package{
-				Name:       v.Name,
-				Version:    v.Version,
-				SrcName:    v.SrcName,
-				SrcVersion: v.SrcVersion,
-				License:    v.License,
-				FilePath:   v.FilePath,
-				DependsOn:  nil, // todo: need high version fanal
-			}
-			vulnRes.Packages = append(vulnRes.Packages, pkg)
-		}
-
-		// extract vulns
-		for _, v := range r.Vulnerabilities {
-			vulnBrief := imagesec.VulnerabilityBrief{
-				Severity:         v.Severity,
-				Class:            string(r.Class),
-				ID:               v.VulnerabilityID,
-				PkgName:          v.PkgName,
-				InstalledVersion: v.InstalledVersion,
-				FixedVersion:     v.FixedVersion,
-				Layer:            v.Layer.Digest,
-			}
-			vulnRes.Vulnerabilities.Vulnerabilities = append(vulnRes.Vulnerabilities.Vulnerabilities, vulnBrief)
-		}
-
-		res.VulnResults = append(res.VulnResults, vulnRes)
-	}
+	// for _, r := range result.Vulnerabilities.Results {
+	//
+	// 	// base info
+	// 	pkgRes := imagesec.PkgResult{}
+	// 	pkgRes.Type = r.Type
+	// 	pkgRes.Class = string(r.Class)
+	// 	pkgRes.Target = r.Target
+	//
+	// 	logging.Get().Debug().Int("packageNum", len(r.Packages)).Msg("transform res")
+	// 	for _, v := range r.Packages {
+	// 		pkg := imagesec.Package{
+	// 			Name:       v.Name,
+	// 			Version:    v.Version,
+	// 			SrcName:    v.SrcName,
+	// 			SrcVersion: v.SrcVersion,
+	// 			License:    v.License,
+	// 			FilePath:   v.FilePath,
+	// 			DependsOn:  nil, // todo: need high version fanal
+	// 		}
+	// 		pkgRes.Packages = append(pkgRes.Packages, pkg)
+	// 	}
+	//
+	// 	// 主集群中，通过软件包匹配漏洞
+	// 	// extract vulns
+	// 	// for _, v := range r.Vulnerabilities {
+	// 	// 	vulnBrief := imagesec.VulnerabilityBrief{
+	// 	// 		Severity:         v.Severity,
+	// 	// 		Class:            string(r.Class),
+	// 	// 		ID:               v.VulnerabilityID,
+	// 	// 		PkgName:          v.PkgName,
+	// 	// 		InstalledVersion: v.InstalledVersion,
+	// 	// 		FixedVersion:     v.FixedVersion,
+	// 	// 		Layer:            v.Layer.Digest,
+	// 	// 	}
+	// 	// 	pkgRes.Vulnerabilities.Vulnerabilities = append(pkgRes.Vulnerabilities.Vulnerabilities, vulnBrief)
+	// 	// }
+	//
+	// 	res.Pkg = append(res.Pkg, pkgRes)
+	// }
 
 	// sensitive file
 	for _, r := range result.MatchSensitiveFiles.DefaultFiles {
@@ -621,16 +627,16 @@ func (m *ScanTaskManager) transformResult(result *scanner_ci.PolicyResult) image
 	}
 
 	// malware
-	res.Malwares = result.MalwareResults
+	res.Malware = result.MalwareResults
 	in := helper.GetAviraDBVersion()
-	res.Malwares.AviraEngineVersion = imagesec.AviraEngineVersion{
+	res.Malware.AviraEngineVersion = imagesec.AviraEngineVersion{
 		Hash:    in.WorkVersion.Hash,
 		Version: in.WorkVersion.Version,
 		Comment: in.WorkVersion.Comment,
 	}
 
 	// webshell
-	res.Webshells = result.WebshellResults
+	res.Webshell = result.WebshellResults
 
 	return res
 }

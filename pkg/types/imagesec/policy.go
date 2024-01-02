@@ -38,7 +38,6 @@ type MalwareRule struct {
 }
 
 type Malware struct {
-	Filename    string `json:"filename"`    // 文件名
 	Hash        string `json:"hash"`        // hash值
 	MalwareName string `json:"malwareName"` // 恶意软件名字
 	Layer       string `json:"layer"`

@@ -7,7 +7,7 @@ RUN sed -i "s!archive.ubuntu.com/!${MIRROR_SOURCE}/!g" /etc/apt/sources.list \
     && sed -i "s!ports.ubuntu.com/!${MIRROR_SOURCE}/!g" /etc/apt/sources.list \
     && apt-get update -y \
     && apt-get full-upgrade -y \
-    && apt-get install -y libclamav-dev libgpgme-dev libdevmapper1.02.1 iptables language-pack-zh-han* \
+    && apt-get install -y libclamav-dev libgpgme-dev vim libdevmapper1.02.1 iptables language-pack-zh-han* \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
@@ -30,6 +30,9 @@ ADD  clamav/clamav.tgz /var/lib/
 
 # avira
 ADD avira/savapi-sdk-linux64.tgz /usr/local
+# add hm
+ADD hm/hm-linux.tgz /opt/webshell/hm
+
 COPY configs/node-image/savapi.conf /etc/savapi/savapi.conf
 
 ENTRYPOINT ["/var/lib/tensor/entrypoint.sh"]

@@ -9,8 +9,8 @@ import (
 
 	"github.com/google/uuid"
 
-	nodeImageTask "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/dispatch/dequeuers/node-image-scan"
-	regImageTask "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/dispatch/dequeuers/reg-image-scan"
+	nodeImageTask "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/dispatch/dequeuers/nodeImage"
+	regImageTask "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/dispatch/dequeuers/regImage"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/types"
 	imagesecStream "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/stream"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -33,6 +33,7 @@ type TaskDispatcher struct {
 	nodeInfoDal        imagesecStore.NodeInfoDal
 	scannerInstanceDal imagesecStore.ScanInstanceDal
 	sensitiveRuleDal   imagesecStore.SensitiveRuleDal
+	scanResultDal      imagesecStore.ScanResultDal
 	scanImageConfigDal imagesecStore.ScanImageConfigDal
 	Log                *scannerUtils.LogEvent
 }
@@ -44,6 +45,7 @@ func NewImageScanTaskDispatcher(
 	scannerInstanceDal imagesecStore.ScanInstanceDal,
 	sensitiveRuleDal imagesecStore.SensitiveRuleDal,
 	scanImageConfigDal imagesecStore.ScanImageConfigDal,
+	scanResultDal imagesecStore.ScanResultDal,
 ) *TaskDispatcher {
 	return &TaskDispatcher{
 		taskDal:            taskDal,
@@ -52,6 +54,7 @@ func NewImageScanTaskDispatcher(
 		scannerInstanceDal: scannerInstanceDal,
 		sensitiveRuleDal:   sensitiveRuleDal,
 		scanImageConfigDal: scanImageConfigDal,
+		scanResultDal:      scanResultDal,
 		Log: scannerUtils.NewLogEvent(
 			scannerUtils.WithSubModule("ScanTaskDispatcher"),
 			scannerUtils.WithModule(consts.ModuleImageScan),
@@ -97,7 +100,7 @@ func (s *TaskDispatcher) PublishNodeImageSubtaskHelper(ctx context.Context, subT
 		}
 		req.MsgID = s.GenReqID(req)
 
-		s.Log.Info().Interface("reg", req).Msg("Dispatcher sendMsg")
+		s.Log.Info().Str("reg", ReqLogStr(req)).Msg("Dispatcher sendMsg")
 
 		if err := s.DoSendSubtaskRpc(ctx, req); err != nil {
 			s.Log.Err(err).Str("msgID", req.MsgID).Int64("taskID", subtask.TaskID).
@@ -153,7 +156,7 @@ func (s *TaskDispatcher) PublishRegImageSubtaskHelper(ctx context.Context, subTa
 		}
 		req.MsgID = s.GenReqID(req)
 
-		s.Log.Debug().Interface("reg", req).Msg("Dispatcher sendMsg")
+		s.Log.Debug().Str("reg", ReqLogStr(req)).Msg("Dispatcher sendMsg")
 
 		if err := s.DoSendSubtaskRpc(ctx, req); err != nil {
 			s.Log.Err(err).Str("msgID", req.MsgID).Int64("taskID", subtask.TaskID).
@@ -168,12 +171,11 @@ func (s *TaskDispatcher) PublishRegImageSubtaskHelper(ctx context.Context, subTa
 			continue
 		}
 
-		up := types.UpdateSubTask{SubtaskID: subtask.SubTaskID, Status: imagesecModel.TaskStatusSendFinished}
+		up := types.UpdateSubTask{SubtaskID: subtask.SubTaskID, Status: imagesecModel.TaskStatusSendFinished, ScanUUID: subtask.ScanInstance.ScannerPodID}
 
 		go func() { upChan <- up }()
 
-		s.Log.Info().Str("msgID", req.MsgID).Int64("taskID", subtask.TaskID).
-			Int64("subtaskID", subtask.SubTaskID).Msg("Dispatcher publish scan subtask succeed")
+		s.Log.Info().Str("msgID", req.MsgID).Str("subtask", subtask.LogStr()).Msg("Dispatcher publish scan subtask succeed")
 	}
 }
 
@@ -200,7 +202,10 @@ func (s *TaskDispatcher) PublishSubtask(ctx context.Context) error {
 		s.PublishNodeImageSubtaskHelper(ctx, subtaskChan, upSubtaskChan)
 	}(scanNodeImageQueue)
 
-	scanRegImageQueue := regImageTask.NewScanLibImageQueue(s.taskDal, s.nodeImageSrv, s.scannerInstanceDal, s.sensitiveRuleDal, s.scanImageConfigDal)
+	scanRegImageQueue := regImageTask.NewScanRegImageQueue(
+		s.taskDal, s.nodeImageSrv, s.scannerInstanceDal,
+		s.sensitiveRuleDal, s.scanImageConfigDal, s.scanResultDal)
+
 	go func(dequeue types.ScanImageTaskDequeue) {
 		defer func() {
 			if err := recover(); err != nil {
@@ -238,7 +243,7 @@ func (s *TaskDispatcher) DoSendSubtaskRpc(ctx context.Context, req *pb.ImageSecR
 	for {
 		select {
 		case <-timeOutCxt.Done():
-			s.Log.Error().Interface("reg", req).Msg("send scan subtask to rpc")
+			s.Log.Error().Str("reg", ReqLogStr(req)).Msg("send scan subtask to rpc")
 			return fmt.Errorf("time out")
 		case res := <-s.sendRpcTask(timeOutCxt, req):
 			return res
@@ -269,4 +274,9 @@ func (s *TaskDispatcher) sendScanSubtask(ctx context.Context, req *pb.ImageSecRe
 
 func (s *TaskDispatcher) GenReqID(req *pb.ImageSecReq) string {
 	return fmt.Sprintf("%s-%s", req.ImageSecReqType.String(), uuid.New().String())
+}
+
+func ReqLogStr(reg *pb.ImageSecReq) string {
+	ss := fmt.Sprintf("ClusterKey:%s,MsgID:%s,NodeName:%s", reg.ClusterKey, reg.MsgID, reg.NodeName)
+	return ss
 }

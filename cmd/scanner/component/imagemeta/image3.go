@@ -8,11 +8,10 @@ import (
 	"regexp"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd/global"
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/global"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -232,9 +231,9 @@ func (s *ImageInfoMetaSrv) addWebshellData(ctx context.Context,
 		}
 		ans.WebshellCnt = webshellCnt
 
-		ans.Webshell = make([]*imagesecModel.WebshellView, len(webshell))
+		ans.WebshellView = make([]*imagesecModel.WebshellView, len(webshell))
 		for i := range webshell {
-			ans.Webshell[i] = webshell[i].ToWebshellView()
+			ans.WebshellView[i] = webshell[i].ToWebshellView()
 		}
 	}
 	return nil
@@ -307,8 +306,8 @@ func (s *ImageInfoMetaSrv) addFinishedSubtaskData(ctx context.Context,
 	if param.SubtaskEnable && ans.Image.UniqueID > 0 {
 		subtaskParam := imagesecModel.SearchTaskParam{
 			ImageUniqueID: ans.Image.UniqueID,
-			ScanStatus:    []int64{imagesecModel.TaskStatusDetectFinished},
-			Filter:        model.EmptyFilter().SetSortDesc().SetSortFiledByID().SetLimit(1)}
+			ScanStatus:    []int64{imagesecModel.TaskStatusDetectFinished, imagesecModel.TaskStatusScanFinished},
+			Filter:        imagesecModel.EmptyFilter().SetSortDesc().SetSortFiledByID().SetLimit(1)}
 
 		subtasks, cnt, err := s.scanTaskDal.SearchScanSubtask(ctx, subtaskParam)
 
@@ -406,7 +405,7 @@ func (s *ImageInfoMetaSrv) addTrustedData(ctx context.Context,
 
 	imageID := ans.Image.ID
 	image := ans.Image
-	trustedImage, err := s.trustedDal.SearchTrustedImage(ctx, store.SearchTrustedImageParam{Digests: []string{image.Digest}})
+	trustedImage, err := s.trustedDal.SearchTrustedImage(ctx, adaptStore.SearchTrustedImageParam{Digests: []string{image.Digest}})
 	if err != nil {
 		s.Log.Err(err).Int64("imageID", imageID).
 			Str("imageName", ans.Image.GetImageName()).Msg("ImageWithCorrelateData addTrustedData")
@@ -652,12 +651,12 @@ func (s *ImageInfoMetaSrv) addCheckDownloadable(ctx context.Context,
 			ans.Malware[i].DownloadFilename = ""
 		}
 	}
-	for i := range ans.Webshell {
-		md5 := ans.Webshell[i].MD5
+	for i := range ans.WebshellView {
+		md5 := ans.WebshellView[i].MD5
 		filename := filepath.Join(global.ScannerOpts.PvcPath, consts.WebshellFileDir, md5)
 		stat, err := os.Stat(filename)
 		if err != nil || stat.IsDir() {
-			ans.Webshell[i].DownloadFilename = ""
+			ans.WebshellView[i].DownloadFilename = ""
 		}
 	}
 	return nil
@@ -722,7 +721,7 @@ func (s *ImageInfoMetaSrv) GetImageForDeploy(ctx context.Context, param imagesec
 		subtaskParam := imagesecModel.SearchTaskParam{
 			ImageUniqueID: image.UniqueID,
 			ScanStatus:    []int64{imagesecModel.TaskStatusDetectFinished},
-			Filter:        model.EmptyFilter().SetSortDesc().SetSortFiledByID().SetLimit(1)}
+			Filter:        imagesecModel.EmptyFilter().SetSortDesc().SetSortFiledByID().SetLimit(1)}
 
 		subtasks, _, err := s.scanTaskDal.SearchScanSubtask(ctx, subtaskParam)
 		if err != nil {

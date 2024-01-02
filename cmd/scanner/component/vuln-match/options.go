@@ -12,8 +12,7 @@ import (
 )
 
 const (
-	Severities       = "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
-	DefaultCachePath = "/root/alldb/node"
+	Severities = "UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL"
 )
 
 type MatcherOption func(m *Matcher)
@@ -51,11 +50,11 @@ func InitOption() artifact.Option {
 func splitSeverity(severity string) []dbTypes.Severity {
 	var severities []dbTypes.Severity
 	for _, s := range strings.Split(severity, ",") {
-		severity, err := dbTypes.NewSeverity(s)
+		sev, err := dbTypes.NewSeverity(s)
 		if err != nil {
 			log.Logger.Warnf("unknown severity option: %s", err)
 		}
-		severities = append(severities, severity)
+		severities = append(severities, sev)
 	}
 	return severities
 }

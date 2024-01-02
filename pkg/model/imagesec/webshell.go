@@ -25,8 +25,9 @@ type Webshell struct {
 	Description string `gorm:"column:description" json:"description"` // 描述。如php一句话木马
 	Version     uint64 `gorm:"column:version" json:"version"`
 
-	CreatedAt int64 `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"`
-	UpdatedAt int64 `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"`
+	Layer     string `gorm:"-" json:"layer"` // 存在于镜像的那个层级
+	CreatedAt int64  `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"`
+	UpdatedAt int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"`
 }
 
 type WebshellToImage struct {
@@ -58,8 +59,7 @@ type WebshellView struct {
 	DownloadFilename string         `json:"downloadFilename"`
 	CreatedAt        int64          `json:"createdAt"`
 	UpdatedAt        int64          `json:"updatedAt"`
-
-	PolicyDetect PolicyDetect `json:"policyDetect"` // 对各个策略的检测结果
+	PolicyDetect     PolicyDetect   `json:"policyDetect"` // 对各个策略的检测结果
 }
 
 func (vi *WebshellView) CodeContent() string {
@@ -428,10 +428,4 @@ type MaybeWebshell struct {
 
 func (MaybeWebshell) TableName() string {
 	return "tbl_s"
-}
-
-type WebshellKafkaInfo struct {
-	FileMd5  string `json:"fileMd5"`
-	Data     []byte `json:"data"`
-	Filename string `json:"filename"`
 }

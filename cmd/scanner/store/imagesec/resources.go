@@ -1,4 +1,4 @@
-package imagesec
+package imagesecStore
 
 import (
 	"context"
@@ -103,7 +103,7 @@ func (dal *ResourceDao) SearchResources(ctx context.Context, param imagesec.Sear
 		return nil, 0, err
 	}
 
-	db = model.AddFilter(db, param.Filter)
+	db = imagesec.AddFilter(db, param.Filter)
 
 	if err := db.Find(&res).Error; err != nil {
 		return nil, 0, err

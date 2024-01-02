@@ -8,7 +8,6 @@ import (
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -22,7 +21,7 @@ type SearchSecurityPolicyParam struct {
 	NotCount    bool
 	ImageDetect *ImageDetectSearchParam
 	DeployMod   []string
-	Filter      *model.Filter
+	Filter      *Filter
 	Deleted     string
 	Filed       []string
 	Enable      []string
@@ -48,7 +47,7 @@ type SearchDetectResultParam struct {
 	PolicyID      int64
 	Ids           []int64
 	StartID       int64
-	Filter        *model.Filter
+	Filter        *Filter
 	Fields        []string // 只想要的字端
 }
 
@@ -70,7 +69,7 @@ type SearchDetectBriefParam struct {
 	PolicyIds     []int64
 	Ids           []int64
 	LastID        int64
-	Filter        *model.Filter
+	Filter        *Filter
 	NeedPolicy    bool
 	Fields        []string // 只想要的字端
 }
@@ -172,7 +171,7 @@ type ImageDalParam struct {
 	StartTime              int64
 	EndTime                int64
 
-	Filter *model.Filter
+	Filter *Filter
 }
 
 func (vi *SearchImageParam) Check() error {
@@ -244,7 +243,7 @@ func (vi *CreateSensitiveToImageParam) Check() error {
 		return fmt.Errorf("model is nil")
 	}
 	if vi.ImageUniqueID <= 0 {
-		return fmt.Errorf("not get ImageID")
+		return fmt.Errorf("not get ImageUniqueID")
 	}
 
 	for i := range vi.Data {
@@ -320,7 +319,7 @@ func (vi *CreateWebshellToImageParam) Check() error {
 
 type SearchIssueImageParam struct {
 	TargetUniqueID uint64
-	Filter         *model.Filter
+	Filter         *Filter
 }
 
 type CreateLicenseToImageParam struct {
@@ -427,7 +426,7 @@ type SearchTaskParam struct {
 	Where            string
 	Fields           []string // 只想要的字端
 	IsSearchSubtask  bool
-	Filter           *model.Filter
+	Filter           *Filter
 }
 
 func (vi *SearchTaskParam) Serialize() {
@@ -501,7 +500,7 @@ type SearchScanVersionParam struct {
 	Enable   string
 	Keyword  string
 	DBType   string
-	Filter   *model.Filter
+	Filter   *Filter
 }
 
 type ApiSearchVulnParam struct {
@@ -534,7 +533,7 @@ type ApiSearchVulnParam struct {
 	JustReturnCount  bool
 	NotReturnCount   bool
 
-	Filter *model.Filter
+	Filter *Filter
 }
 
 type SearchVulnPkgParam struct {
@@ -578,9 +577,17 @@ type SearchVulnDalParam struct {
 	ClassTypeFlag     uint64
 	AttackPathFlag    uint64
 
-	Filter          *model.Filter
+	Filter          *Filter
 	JustReturnCount bool
 	NotReturnCount  bool
+}
+
+type SearchScanLayerParam struct {
+	Layers    []string
+	Issue     string
+	FileM5d   string
+	AddDetail bool // 需要查询出具体的数据
+	Filter    *Filter
 }
 
 func (vi ApiSearchVulnParam) ToDaoSearchVulnParam() SearchVulnDalParam {
@@ -678,7 +685,7 @@ type SearchNodeInfoParam struct {
 	Ids       []int64
 	UniqueIds []uint64
 	Keyword   string
-	Filter    *model.Filter
+	Filter    *Filter
 }
 
 type SearchSensitiveRuleParam struct {
@@ -687,13 +694,13 @@ type SearchSensitiveRuleParam struct {
 	Enable    string
 	Default   string
 	Filed     []string
-	Filter    *model.Filter
+	Filter    *Filter
 }
 
 type SearchDataMigrateParam struct {
 	SoftVersion string
 	Model       string
-	Filter      *model.Filter
+	Filter      *Filter
 }
 
 type ImageGroupParam struct {
@@ -736,14 +743,14 @@ type SearchResourceParam struct {
 	MalwareMD5    string
 	SensitiveMD5  string
 	Fields        []string
-	Filter        *model.Filter
+	Filter        *Filter
 }
 
 type SearchDeployWhiteImageParam struct {
 	ImageKeyword    string `json:"imageKeyword"`
 	ExpirationStart int64  `json:"expirationStart"`
 	ExpirationEnd   int64  `json:"expirationEnd"`
-	Filter          *model.Filter
+	Filter          *Filter
 }
 
 type DeployDeployOverviewParam struct {

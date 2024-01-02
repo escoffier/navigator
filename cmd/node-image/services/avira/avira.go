@@ -6,11 +6,12 @@ import (
 	"os/exec"
 	"runtime/debug"
 	"sync"
+	"time"
 
 	"gitlab.com/security-rd/go-pkg/logging"
 	"k8s.io/utils/strings/slices"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/node-image/config"
+	"gitlab.com/piccolo_su/vegeta/cmd/node-image/cmd/config"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/services"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/services/helper"
@@ -64,6 +65,7 @@ func (s *SavServer) Run() error {
 			logging.Get().Info().Msg("start avira server succeed")
 		}()
 	}
+	time.Sleep(time.Minute) // 等待小红伞启动
 	// 持续等待接受事件
 	s.notifyEvent(context.Background(), savServer)
 

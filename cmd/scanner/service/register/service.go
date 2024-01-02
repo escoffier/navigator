@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/flag"
+	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd/flag"
 )
 
 type ScannerServiceConfig struct {

@@ -474,7 +474,7 @@ type DeploySearchApiParam struct {
 	MalwareMD5             string             `json:"malwareMD5"`
 	SensitiveMD5           string             `json:"sensitiveMD5"`
 	DeployAction           []string           `json:"deployAction"` // 部署上线特有
-	Filter                 *model.Filter
+	Filter                 *Filter
 }
 
 func GetDeployAction(lang string) map[string]string {
@@ -489,7 +489,7 @@ func GetDeployAction(lang string) map[string]string {
 		DeployActionAlarm: DeployActionAlarm,
 		DeployActionBlock: DeployActionBlock,
 	}
-	if lang == model.LangEn {
+	if lang == LangEn {
 		return avEn
 	}
 

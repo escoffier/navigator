@@ -1,9 +1,21 @@
 package scannerUtils
 
 import (
+	"archive/zip"
+	"bytes"
+	"crypto/md5"
+	"encoding/hex"
+	"fmt"
+	"io"
 	"math"
+	"os"
+	"path/filepath"
 	"regexp"
+	"strings"
 	"sync"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd/global"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 )
 
 var (
@@ -90,4 +102,111 @@ func stripOuter(input string, substring string) string {
 	exp := `^` + substring + `|` + substring + `$`
 	reg := cache.Get(exp)
 	return reg.ReplaceAllString(input, "")
+}
+
+type ZipFileMate struct {
+	MD5      string `json:"md5"`
+	Filename string `json:"filename"`
+	Data     []byte
+}
+
+func ZipFile(wb ZipFileMate) ([]byte, error) {
+
+	filename := filepath.Join(global.ScannerOpts.PvcPath, consts.WebshellFileDir, wb.MD5)
+
+	content, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, err
+	}
+	b := new(bytes.Buffer)
+	zw := zip.NewWriter(b)
+
+	hdr := zip.FileHeader{Name: wb.Filename}
+	w, err := zw.CreateHeader(&hdr)
+	if err != nil {
+		return nil, err
+	}
+
+	reader := bytes.NewReader(content)
+	_, err = io.Copy(w, reader)
+	if err != nil {
+		return nil, err
+	}
+	if err := zw.Flush(); err != nil {
+		return nil, err
+	}
+	if err := zw.Close(); err != nil {
+		return nil, err
+	}
+
+	return b.Bytes(), nil
+}
+
+func ZipLicenseFile(wb ZipFileMate) ([]byte, error) {
+
+	b := new(bytes.Buffer)
+	zw := zip.NewWriter(b)
+
+	hdr := zip.FileHeader{Name: wb.Filename}
+	w, err := zw.CreateHeader(&hdr)
+	if err != nil {
+		return nil, err
+	}
+
+	reader := bytes.NewReader(wb.Data)
+	_, err = io.Copy(w, reader)
+	if err != nil {
+		return nil, err
+	}
+	if err := zw.Flush(); err != nil {
+		return nil, err
+	}
+	if err := zw.Close(); err != nil {
+		return nil, err
+	}
+
+	return b.Bytes(), nil
+}
+
+func GenDigest(dig string) string {
+	if strings.Contains(dig, "sha256:") {
+		return dig
+	}
+	return fmt.Sprintf("sha256:%s", dig)
+}
+
+func GetSimDigest(di string) string {
+	return strings.ReplaceAll(di, "sha256:", "")
+}
+
+func GetFileMd5(fi string) string {
+
+	// 打开文件
+	f, err := os.Open(fi)
+	if err != nil {
+		return ""
+	}
+	defer func() { _ = f.Close() }()
+
+	// 计算 MD5 值
+	h := md5.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return ""
+	}
+	md5Str := hex.EncodeToString(h.Sum(nil))
+	return md5Str
+}
+
+func GetContentMd5(data []byte) string {
+	hash := md5.Sum(data)
+	md5String := hex.EncodeToString(hash[:])
+	return md5String
+}
+
+func GetFileContent(fi string) ([]byte, error) {
+	content, err := os.ReadFile(fi)
+	if err != nil {
+		return nil, err
+	}
+	return content, nil
 }

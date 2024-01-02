@@ -9,7 +9,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/node-image/config"
+	"gitlab.com/piccolo_su/vegeta/cmd/node-image/cmd/config"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/services/helper"
 	"gitlab.com/piccolo_su/vegeta/cmd/node-image/services/types"

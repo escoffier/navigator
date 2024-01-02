@@ -1,4 +1,4 @@
-package imagesec
+package imagesecStore
 
 import (
 	"context"
@@ -9,7 +9,6 @@ import (
 	"gitlab.com/security-rd/go-pkg/databases"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
@@ -68,7 +67,7 @@ func (dal *SensitiveRuleDao) SearchSensitiveRule(ctx context.Context, param imag
 		return nil, 0, err
 	}
 
-	db = model.AddFilter(db, param.Filter)
+	db = imagesecModel.AddFilter(db, param.Filter)
 	err := db.Find(&res).Error
 
 	return res, cnt, err

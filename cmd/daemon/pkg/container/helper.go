@@ -1,43 +1,38 @@
 package container
 
 import (
+	"fmt"
 	"os"
 	"strings"
-
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
-func isUnixSockFile(filename string) bool {
+func IsUnixSockFile(filename string) error {
 	if strings.HasPrefix(filename, "unix://") {
 		filename = filename[len("unix://"):]
 	}
 
 	info, err := os.Stat(filename)
 	if err != nil {
-		return false
+		return fmt.Errorf("not find sockerfile:%s", filename)
 	}
-	return (info.Mode() & os.ModeSocket) != 0
+	if (info.Mode() & os.ModeSocket) == 0 {
+		return fmt.Errorf("not docker file:%s", filename)
+	}
+	return nil
 }
 
 func CreateRuntimeCli() (Runtime, error) {
-	var rt Runtime
-	var err error
-	dockerHost := os.Getenv("DOCKER_SOCKET_ADDR")
-	if dockerHost == "" {
-		dockerHost = defaultDockerSocket
+	if rt, err := Open(RuntimeConfig{Type: "docker"}); err == nil {
+		return rt, nil
 	}
-	if isUnixSockFile(dockerHost) {
-		rt, err = Open(RuntimeConfig{Type: "docker"})
-		if err != nil {
-			logging.Get().Err(err).Str("runtimeType", "docker").Msg("Open runtime")
-			return nil, err
-		}
-	} else {
-		rt, err = Open(RuntimeConfig{Type: "containerd"})
-		if err != nil {
-			logging.Get().Err(err).Str("runtimeType", "containerd").Msg("Open runtime")
-			return nil, err
-		}
+
+	if rt, err := Open(RuntimeConfig{Type: "containerd"}); err == nil {
+		return rt, nil
 	}
-	return rt, nil
+
+	if rt, err := Open(RuntimeConfig{Type: "crio"}); err == nil {
+		return rt, nil
+	}
+
+	return nil, fmt.Errorf("not support cri type")
 }

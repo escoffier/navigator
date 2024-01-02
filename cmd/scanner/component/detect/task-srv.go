@@ -8,7 +8,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -91,7 +90,7 @@ func (s *ImageDetectTaskSrv) DeleteDetectData(ctx context.Context, param imagese
 }
 
 func (s *ImageDetectTaskSrv) deleteDetectSubtask(ctx context.Context, policyID int64) error {
-	filter := model.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiledByID().SetSortAsc()
+	filter := imagesecModel.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiledByID().SetSortAsc()
 	param := imagesecModel.SearchTaskParam{
 		PolicyID: policyID,
 		Filter:   filter,
@@ -177,7 +176,7 @@ func (s *ImageDetectTaskSrv) CreateDetectSubtask(
 		all = append(all, policy)
 	}
 
-	filter := &model.Filter{
+	filter := &imagesecModel.Filter{
 		SortBy:    consts.SortByAsc,
 		SortFiled: "id",
 		Limit:     consts.DefaultMaxLimit,
@@ -185,7 +184,7 @@ func (s *ImageDetectTaskSrv) CreateDetectSubtask(
 	for {
 		imageSearchParam.StartID = startId
 		imageSearchParam.Filter = filter
-		assParam := imagesecModel.ImageAssociateParam{RegistryEnable: true, NodeInfoEnable: true}
+		assParam := imagesecModel.ImageAssociateParam{RegistryEnable: true, NodeInfoEnable: true, SubtaskEnable: true}
 		imageSearchParam.AssociateParam = assParam
 
 		images, _, err := s.imageSrv.ListImageWithScanInfo(ctx, imageSearchParam)
@@ -204,6 +203,11 @@ func (s *ImageDetectTaskSrv) CreateDetectSubtask(
 
 		for i := range images {
 			im := images[i]
+			if im.LastScanAt <= 0 {
+				s.Log.Info().Str("image", im.GetImageName()).Msg("not scanner not add detect task")
+				// 2.21的新改动，如果不是扫描之后的检测，就只会检测已扫描的扫描之后才做检测
+				continue
+			}
 			// 把这个镜像相关的所有策略都找出来，重新加
 			// 可以这样做的原因是：在扫描时，会同时把同一个镜像的所有策略找到一起检测
 			added := FindNeedAddPolicy(im, all)

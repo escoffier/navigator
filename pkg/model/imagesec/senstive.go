@@ -19,6 +19,7 @@ type SensitiveFile struct {
 	UpdatedAt     int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
 
 	DownloadFilename string       `gorm:"-" json:"downloadFilename"` // 下载的文件名，如果为空，说明文件不存在等，不能下载
+	Layer            string       `gorm:"-" json:"layer"`            // 存在于镜像的那个层级
 	PolicyDetect     PolicyDetect `gorm:"-" json:"policyDetect"`     // 对各个策略的检测结果
 }
 

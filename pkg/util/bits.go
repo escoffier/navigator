@@ -3,8 +3,7 @@ package util
 import (
 	"strconv"
 	"strings"
-
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"unicode"
 )
 
 // value从右到左的第flag位设置成0
@@ -81,9 +80,6 @@ func MinInt64(data ...int64) int64 {
 // 版本号格式是：2.11.1-amd ，可能有字母，所以只取 - 之前的比较
 func CompareVersion(version1 string, version2 string) int {
 	// 本地prod 环境中会使用 latest 版本号
-	if version1 == consts.ScannerVersionLatest {
-		return 1
-	}
 	split3 := strings.Split(version1, "-")
 	if len(split3) > 0 {
 		version1 = split3[0]
@@ -126,8 +122,14 @@ func ThanVersion(version1 string, version2 string) bool {
 	if strings.Contains(version1, "testcn") {
 		return true
 	}
-	// 1.19之前的版本，数据库中没有保存这个值
+	// 2.19之前的版本，数据库中没有保存这个值
 	if version1 == "" {
+		return false
+	}
+
+	// 如果 version1不是以数据开头的，都认为是最新的
+	firstChar := rune(version1[0])
+	if !unicode.IsDigit(firstChar) {
 		return false
 	}
 

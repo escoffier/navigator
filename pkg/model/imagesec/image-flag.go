@@ -2,47 +2,41 @@ package imagesec
 
 // 镜像表中Flag
 const (
-	FlagHasExceptionVuln       = 0
-	FlagHasExceptionMalware    = 1
-	FlagHasExceptionSensitive  = 2
-	FlagHasExceptionWebshell   = 3
-	FlagHasExceptionPKG        = 4
-	FlagHasExceptionEnv        = 5
-	FlagDetectExceptionBoot    = 6 // root启动(检测问题)
-	FlagHasExceptionPkgLicense = 7
-	FlagHasFixedVuln           = 8
-	FlagAppImage               = 9  // 应用镜像(本身属性)
-	FlagBaseImage              = 10 // 基础镜像(本身属性)
-	FlagHasExceptionLicense    = 11 // 含有不合规的 license 文件
-
+	FlagHasExceptionVuln        = 0
+	FlagHasExceptionMalware     = 1
+	FlagHasExceptionSensitive   = 2
+	FlagHasExceptionWebshell    = 3
+	FlagHasExceptionPKG         = 4
+	FlagHasExceptionEnv         = 5
+	FlagDetectExceptionBoot     = 6 // root启动(检测问题)
+	FlagHasExceptionPkgLicense  = 7
+	FlagHasFixedVuln            = 8
+	FlagAppImage                = 9  // 应用镜像(本身属性)
+	FlagBaseImage               = 10 // 基础镜像(本身属性)
+	FlagHasExceptionLicense     = 11 // 含有不合规的 license 文件
 	FlagImageDetectNotExitINReg = 12 // 镜像不在仓库内(问题)
 	// 部署上线特有
 	FlagImageNotScanned      = 13
 	FlagImageDetectUnTrusted = 14 // 镜像不可信 (问题)
 	FlagNotExitBaseImage     = 15 // (问题)
 	FlagImageDeployWhite     = 16
-
-	FlagImageNotMaintained = 17 // os不再维护
-	FlagImageTrusted       = 18 // 可信息镜像(本身属性)
-	FlagImageUnTrusted     = 19 // 不可信息镜像(本身属性)
-
-	FlagImageExceptionBoot = 20 // root启动(本身属性)
-
-	FlagImageOnline        = 23 // 镜像在线
-	FlagImageNotOnline     = 24 // 镜像离线
-	FlagImageHasFixSuggest = 25 // 镜像有可修复建议
-	FlagImageNotInRegistry = 26 // 镜像不在仓库内(本身的属性)
-	FlagImageInRegistry    = 27 // 镜像在仓库内(本身的属性)
-
+	FlagImageNotMaintained   = 17 // os不再维护
+	FlagImageTrusted         = 18 // 可信息镜像(本身属性)
+	FlagImageUnTrusted       = 19 // 不可信息镜像(本身属性)
+	FlagImageExceptionBoot   = 20 // root启动(本身属性)
+	FlagImageOnline          = 23 // 镜像在线
+	FlagImageNotOnline       = 24 // 镜像离线
+	FlagImageHasFixSuggest   = 25 // 镜像有可修复建议
+	FlagImageNotInRegistry   = 26 // 镜像不在仓库内(本身的属性)
+	FlagImageInRegistry      = 27 // 镜像在仓库内(本身的属性)
 	FlagImageHasUnknownVun   = 28
 	FlagImageHasLowVuln      = 29
 	FlagImageHasMediumVuln   = 30
 	FlagImageHasHighVuln     = 31
 	FlagImageHasCriticalVuln = 32 // 镜像存在高危漏洞
-
-	FlagImageDeployBlock  = 33 // 部署上线状态
-	FlagImageDeployAlarm  = 34
-	FlagImageDeployPassed = 35
+	FlagImageDeployBlock     = 33 // 部署上线状态
+	FlagImageDeployAlarm     = 34
+	FlagImageDeployPassed    = 35
 
 	// 2.19的需求，需要对镜像安全状态排序
 	FlagImageSafeUnknown = 61 // 镜像的安全状态:未知（默认状态）

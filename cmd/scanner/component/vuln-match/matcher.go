@@ -9,8 +9,6 @@ import (
 	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/commands/artifact"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
-
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component"
 )
 
 type Matcher struct {
@@ -19,17 +17,13 @@ type Matcher struct {
 	res    report.Report
 }
 
-func (m *Matcher) MatchVulnerability(artifactDetail ftypes.ArtifactDetail) error {
-	trivyServer := component.MustGetTrivyServer()
-	trivyServer.Trivy.RLock()
-	defer trivyServer.Trivy.RUnlock()
-
-	logging.Get().Debug().Msg("get trivy server ok")
-
+func (m *Matcher) MatchVulnerability(artifactDetail ftypes.ArtifactDetail) (report.Results, error) {
+	// logging.Get().Debug().Msg("get trivy server ok")
+	res := make(report.Results, 0)
 	rp, err := m.runner.ScanFilesystem(context.Background(), m.option, artifactDetail)
 	if err != nil {
 		logging.Get().Err(err).Msg("scan vulnerability filed")
-		return err
+		return res, err
 	}
 
 	// fill vulnerability detail
@@ -40,9 +34,9 @@ func (m *Matcher) MatchVulnerability(artifactDetail ftypes.ArtifactDetail) error
 	}
 
 	m.res = rp
-	logging.Get().Debug().Interface("vulns", m.res).Msg("match result")
+	logging.Get().Debug().Interface("vulns", rp).Msg("match result")
 
-	return nil
+	return rp.Results, nil
 }
 
 func (m *Matcher) Option() artifact.Option {

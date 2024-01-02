@@ -33,7 +33,6 @@ func (s *SavClient) GetProductID() string {
 	return value
 }
 
-// FIXME 测试该处可能一直卡死
 func (s *SavClient) ScanFile(filePath string) ([]Malware, error) {
 	logging.Get().Debug().Str("file", filePath).Msg("SavClient start scan")
 
@@ -232,7 +231,7 @@ func (s *SavClient) readRsp() (string, error) {
 }
 
 func (s *SavClient) ConnServer() error {
-	logging.Get().Info().Msgf("SavClient start connect,%s,%s", s.serverSchema, s.serverUrl)
+	logging.Get().Debug().Msgf("SavClient start connect,%s,%s", s.serverSchema, s.serverUrl)
 	conn, err := net.Dial(s.serverSchema, s.serverUrl)
 	if err != nil {
 		logging.Get().Err(err).Msg("connect failed")
@@ -245,7 +244,7 @@ func (s *SavClient) ConnServer() error {
 	if err != nil {
 		return err
 	}
-	logging.Get().Info().Str("rsp", rsp).Msg("connect rsp")
+	logging.Get().Debug().Str("rsp", rsp).Msg("connect rsp")
 
 	data := fmt.Sprintf("SET PRODUCT %s", s.GetProductID())
 	err = s.send([]byte(data))
@@ -258,7 +257,7 @@ func (s *SavClient) ConnServer() error {
 	if err != nil {
 		return err
 	}
-	logging.Get().Info().Str("rsp", rsp).Msg("set product id")
+	logging.Get().Debug().Str("rsp", rsp).Msg("set product id")
 
 	return nil
 }
@@ -292,7 +291,7 @@ func NewSavClient(serverAddr string) (*SavClient, error) {
 	}
 	s.serverSchema = arr[0]
 	s.serverUrl = strings.Join(arr[1:], ":")
-	logging.Get().Info().Str("schema", s.serverSchema).Str("url", s.serverUrl).Msg("NewSavClient")
+	logging.Get().Debug().Str("schema", s.serverSchema).Str("url", s.serverUrl).Msg("NewSavClient")
 
 	// connect to server
 	if err := s.ConnServer(); err != nil {

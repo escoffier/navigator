@@ -11,41 +11,40 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	types2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/types"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
+	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	scanner_ci "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-ci"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
 type ExportTaskInterface interface {
-	CreateExportTask(ctx context.Context, data *model.ExportTensorTask) error
-	SearchExportTask(ctx context.Context, param types2.SearchExportTaskParam, filter *model.Filter) ([]model.ExportTensorTask, int64, error)
-	GetExportTask(ctx context.Context, param types2.GetExportTaskParam) (*model.ExportTensorTask, error)
+	CreateExportTask(ctx context.Context, data *imagesecModel.ExportTensorTask) error
+	SearchExportTask(ctx context.Context, param types2.SearchExportTaskParam, filter *imagesecModel.Filter) ([]imagesecModel.ExportTensorTask, int64, error)
+	GetExportTask(ctx context.Context, param types2.GetExportTaskParam) (*imagesecModel.ExportTensorTask, error)
 	UpdateExportTask(ctx context.Context, id int64, updater map[string]interface{}) error
 	CreateSearchImage(ctx context.Context, taskID int64, param imagesecModel.ImageSearchApiParam) error
-	GetTaskSchedule(ctx context.Context, task model.ExportTensorTask) (ExportSchedule, error)
+	GetTaskSchedule(ctx context.Context, task imagesecModel.ExportTensorTask) (ExportSchedule, error)
 	CreateCiExportData(ctx context.Context, taskID int64, data scanner_ci.PolicyResult) error // cicd导出报告，写入准备数据
 	ListImageWithScanInfo(ctx context.Context, param imagesecModel.ImageSearchApiParam) ([]*imagesecModel.ImageBaseResponse, int64, error)
 	PrepareHtmlImage(ctx context.Context, exportTaskID, scanTaskID int64, param *imagesecModel.ImageSearchApiParam) error
 }
 
 type ExportTaskSrv struct {
-	ExportDal   imagesec.ExportTaskDal
+	ExportDal   imagesecStore.ExportTaskDal
 	ImageSrv    types2.ImageSrvInterface
 	ScanTaskSrv types2.ScanTaskService
 	RedisCli    *redis.Client
-	VulnDal     store.VulnDalInterface
+	VulnDal     adaptStore.VulnDalInterface
 }
 
 func NewExportTaskSrv(
-	exportDal imagesec.ExportTaskDal,
+	exportDal imagesecStore.ExportTaskDal,
 	imageSrv types2.ImageSrvInterface,
 	nodeScanTaskSrv types2.ScanTaskService,
 	redisCli *redis.Client,
-	vulnDal store.VulnDalInterface,
+	vulnDal adaptStore.VulnDalInterface,
 ) *ExportTaskSrv {
 	return &ExportTaskSrv{
 		ExportDal:   exportDal,
@@ -71,7 +70,7 @@ type ExportSchedule struct {
 	Finished int64
 }
 
-func (s *ExportTaskSrv) GetTaskSchedule(ctx context.Context, task model.ExportTensorTask) (ExportSchedule, error) {
+func (s *ExportTaskSrv) GetTaskSchedule(ctx context.Context, task imagesecModel.ExportTensorTask) (ExportSchedule, error) {
 
 	cmd1 := s.RedisCli.Get(ctx, task.GenRedisAllKey())
 	if cmd1.Err() != nil && cmd1.Err() != redis.Nil {
@@ -101,7 +100,7 @@ func (s *ExportTaskSrv) UpdateExportTask(ctx context.Context, id int64, updater 
 	return nil
 }
 
-func (s *ExportTaskSrv) CreateExportTask(ctx context.Context, data *model.ExportTensorTask) error {
+func (s *ExportTaskSrv) CreateExportTask(ctx context.Context, data *imagesecModel.ExportTensorTask) error {
 	if err := data.Check(); err != nil {
 		return err
 	}
@@ -114,8 +113,8 @@ func (s *ExportTaskSrv) CreateExportTask(ctx context.Context, data *model.Export
 	return nil
 }
 
-func (s *ExportTaskSrv) SearchExportTask(ctx context.Context, param types2.SearchExportTaskParam, filter *model.Filter) (
-	[]model.ExportTensorTask, int64, error) {
+func (s *ExportTaskSrv) SearchExportTask(ctx context.Context, param types2.SearchExportTaskParam, filter *imagesecModel.Filter) (
+	[]imagesecModel.ExportTensorTask, int64, error) {
 	tasks, cnt, err := s.ExportDal.SearchExportTask(ctx,
 		imagesecModel.SearchExportTaskParam{
 			ExecuteType:  param.ExecuteType,
@@ -131,7 +130,7 @@ func (s *ExportTaskSrv) SearchExportTask(ctx context.Context, param types2.Searc
 	return tasks, cnt, nil
 }
 
-func (s *ExportTaskSrv) GetExportTask(ctx context.Context, param types2.GetExportTaskParam) (*model.ExportTensorTask, error) {
+func (s *ExportTaskSrv) GetExportTask(ctx context.Context, param types2.GetExportTaskParam) (*imagesecModel.ExportTensorTask, error) {
 	if param.ID <= 0 && param.UUID == "" {
 		return nil, fmt.Errorf("please input id :%d or uuid:%s", param.ID, param.UUID)
 	}
@@ -139,7 +138,7 @@ func (s *ExportTaskSrv) GetExportTask(ctx context.Context, param types2.GetExpor
 	taskParam := imagesecModel.SearchExportTaskParam{
 		ID:        param.ID,
 		Parameter: param.UUID,
-		Filter: &model.Filter{
+		Filter: &imagesecModel.Filter{
 			SortBy:    consts.SortByDesc,
 			SortFiled: "id",
 			Limit:     1,
@@ -169,7 +168,7 @@ func (s *ExportTaskSrv) CreateScanTaskImage(ctx context.Context, exportTaskID in
 
 	var lastID int64
 
-	filter := model.EmptyFilter().SetSortFiledByID().SetSortAsc().SetLimit(consts.DefaultMaxLimit)
+	filter := imagesecModel.EmptyFilter().SetSortFiledByID().SetSortAsc().SetLimit(consts.DefaultMaxLimit)
 	for {
 		subtasks, _, err := s.ScanTaskSrv.SearchScanSubtask(ctx, imagesecModel.SearchTaskParam{
 			TaskID:  scanTaskID,
@@ -187,9 +186,9 @@ func (s *ExportTaskSrv) CreateScanTaskImage(ctx context.Context, exportTaskID in
 		}
 		lastID = subtasks[len(subtasks)-1].ID
 
-		data := make([]*model.ExportTaskImage, 0)
+		data := make([]*imagesecModel.ExportTaskImage, 0)
 		for i := range subtasks {
-			data = append(data, &model.ExportTaskImage{
+			data = append(data, &imagesecModel.ExportTaskImage{
 				TaskID:    exportTaskID,
 				ImageID:   subtasks[i].ID,
 				ImageName: subtasks[i].ImageName,
@@ -210,7 +209,7 @@ func (s *ExportTaskSrv) CreateSearchImage(ctx context.Context, exportTaskID int6
 	}
 	var startID int64
 	for {
-		param.Filter = &model.Filter{Limit: consts.DefaultMaxLimit, SortBy: consts.SortByAsc, SortFiled: "id"}
+		param.Filter = &imagesecModel.Filter{Limit: consts.DefaultMaxLimit, SortBy: consts.SortByAsc, SortFiled: "id"}
 		param.StartID = startID
 
 		images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, param)
@@ -222,9 +221,9 @@ func (s *ExportTaskSrv) CreateSearchImage(ctx context.Context, exportTaskID int6
 			break
 		}
 		startID = images[len(images)-1].ID
-		data := make([]*model.ExportTaskImage, 0)
+		data := make([]*imagesecModel.ExportTaskImage, 0)
 		for i := range images {
-			data = append(data, &model.ExportTaskImage{
+			data = append(data, &imagesecModel.ExportTaskImage{
 				TaskID:        exportTaskID,
 				ImageID:       images[i].ID,
 				ImageUniqueID: images[i].UniqueID,
@@ -289,7 +288,7 @@ func (s *ExportTaskSrv) CreateCiExportData(ctx context.Context, taskID int64, da
 	}
 
 	if len(vulnUnique) > 0 {
-		vuln, _, err := s.VulnDal.SearchVuln(ctx, store.SearchVulnParam{UniqueVulns: vulnUnique}, nil)
+		vuln, _, err := s.VulnDal.SearchVuln(ctx, adaptStore.SearchVulnParam{UniqueVulns: vulnUnique}, nil)
 		if err != nil {
 			return err
 		}
@@ -313,9 +312,9 @@ func (s *ExportTaskSrv) CreateCiExportData(ctx context.Context, taskID int64, da
 		logging.Get().Err(err).Int64("taskID", taskID).Msg("CreateCiExportData,Marshal")
 		return err
 	}
-	prepare := &model.ExportHtmlPrepare{
+	prepare := &imagesecModel.ExportHtmlPrepare{
 		TaskID:   taskID,
-		DataType: model.ExportHtmlPrepareCicdImageDetail,
+		DataType: imagesecModel.ExportHtmlPrepareCicdImageDetail,
 		Data:     string(bys),
 	}
 	if err := s.ExportDal.CreateOrUpdateHTMLPrepare(ctx, prepare); err != nil {

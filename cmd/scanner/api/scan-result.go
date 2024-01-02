@@ -14,7 +14,6 @@ import (
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/i18"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -42,7 +41,7 @@ func GetRelatedSearchParam(ctx *gin.Context) imagesecModel.RelatedSearchParam {
 		MalwareMd5:   util.GetKeywordFromQuery(ctx, "malwareMd5"),
 		ImageKeyword: util.GetKeywordFromQuery(ctx, "imageKeyword"),
 
-		Filter: model.GetFilter(ctx).SetDefault(),
+		Filter: imagesecModel.GetFilter(ctx).SetDefault(),
 	}
 	return param
 }
@@ -70,7 +69,7 @@ func GetScanResultSearchParamFromCtx(ctx *gin.Context) imagesecModel.ScanResultS
 		DeployAction:        util.GetKeywordFromQuery(ctx, "deployAction"),
 		SecurityPolicyIds:   util.GetInt64SliceFromQuery(ctx, "securityPolicyIds"),
 		WebshellRiskLevel:   util.GetStringSliceFromQuery(ctx, "riskLevel"),
-		Filter:              model.GetFilter(ctx).SetDefault(),
+		Filter:              imagesecModel.GetFilter(ctx).SetDefault(),
 	}
 	if param.ImageID <= 0 {
 		param.ImageID = util.GetInt64FromQuery(ctx, "id")
@@ -272,7 +271,7 @@ func (s *ScanResultAPI) SearchSoftware(ctx *gin.Context) {
 
 func (s *ScanResultAPI) ImageBaseDetail(ctx *gin.Context) {
 	param := GetScanResultSearchParamFromCtx(ctx)
-	param.Filter = model.EmptyFilter()
+	param.Filter = imagesecModel.EmptyFilter()
 	apiParam := imagesecModel.ImageAssociateParam{
 		ImageFromType:      param.ImageFromType,
 		ImageId:            param.ImageID,
@@ -345,7 +344,7 @@ func (s *ScanResultAPI) ImageLayers(ctx *gin.Context) {
 
 func (s *ScanResultAPI) SecurityIssueOverview(ctx *gin.Context) {
 	param := GetScanResultSearchParamFromCtx(ctx)
-	param.Filter = model.EmptyFilter()
+	param.Filter = imagesecModel.EmptyFilter()
 
 	assParam := imagesecModel.ImageAssociateParam{
 		ImageFromType:      param.ImageFromType,
@@ -389,7 +388,7 @@ func (s *ScanResultAPI) SecurityIssueOverview(ctx *gin.Context) {
 
 func (s *ScanResultAPI) ImageIssueStatistic(ctx *gin.Context) {
 	param := GetScanResultSearchParamFromCtx(ctx)
-	param.Filter = model.EmptyFilter()
+	param.Filter = imagesecModel.EmptyFilter()
 
 	assParam := imagesecModel.ImageAssociateParam{
 		ImageFromType:      param.ImageFromType,
@@ -441,7 +440,7 @@ func (s *ScanResultAPI) GetImageRiskInfo(ctx *gin.Context) {
 	body.Fields = []string{"id", "image_uuid"}
 	body.ImageFromType = param.ImageFromType
 
-	body.Filter = model.EmptyFilterForTotalQuery().SetLimit(consts.DefaultMaxLimit)
+	body.Filter = imagesecModel.EmptyFilterForTotalQuery().SetLimit(consts.DefaultMaxLimit)
 
 	images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, body)
 	if err != nil {
@@ -660,7 +659,7 @@ func (s *ScanResultAPI) GetImageVulnLanguage(ctx *gin.Context) {
 	filter := param.Filter.DeepCopy()
 	param.Filter = param.Filter.SetLimit(0).SetOffset(0)
 	vulnParam := GetSearchVulnParamFromCtx(ctx)
-	vulnParam.Filter = model.EmptyFilter()
+	vulnParam.Filter = imagesecModel.EmptyFilter()
 
 	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageFromType:         param.ImageFromType,
@@ -732,7 +731,7 @@ func (s *ScanResultAPI) GetImageVulnGoBinary(ctx *gin.Context) {
 	param.Filter = param.Filter.SetLimit(0).SetOffset(0)
 
 	vulnParam := GetSearchVulnParamFromCtx(ctx)
-	vulnParam.Filter = model.EmptyFilter()
+	vulnParam.Filter = imagesecModel.EmptyFilter()
 
 	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageFromType:         param.ImageFromType,
@@ -888,7 +887,7 @@ func (s *ScanResultAPI) GetImageVulnFrame(ctx *gin.Context) {
 func (s *ScanResultAPI) GetImageWebshell(ctx *gin.Context) {
 	param := GetScanResultSearchParamFromCtx(ctx)
 
-	filter := model.GetFilter(ctx)
+	filter := imagesecModel.GetFilter(ctx)
 
 	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageFromType:         param.ImageFromType,
@@ -905,11 +904,11 @@ func (s *ScanResultAPI) GetImageWebshell(ctx *gin.Context) {
 		response.JSONError(ctx, scani18.GetImageInfo(err))
 		return
 	}
-	for i := range data.Webshell {
-		data.Webshell[i].Code = make([]imagesecModel.WebshellCode, 0)
-		data.Webshell[i].AdaptI18(ctx)
+	for i := range data.WebshellView {
+		data.WebshellView[i].Code = make([]imagesecModel.WebshellCode, 0)
+		data.WebshellView[i].AdaptI18(ctx)
 	}
-	response.JSONOK(ctx, response.WithItems(data.Webshell),
+	response.JSONOK(ctx, response.WithItems(data.WebshellView),
 		response.WithTotalItems(data.WebshellCnt),
 		response.WithItemsPerPage(filter.Limit),
 		response.WithStartIndex(filter.Offset))
@@ -956,7 +955,7 @@ func GetSearchVulnParamFromCtx(ctx *gin.Context) imagesecModel.ApiSearchVulnPara
 		ClassType:        util.GetStringSliceFromQuery(ctx, "class"),
 		AttackPath:       util.GetStringSliceFromQuery(ctx, "attackPath"),
 		OnlineImageVuln:  util.GetKeywordFromQuery(ctx, "online"),
-		Filter:           model.GetFilter(ctx).SetDefault().SetMaxLimit(consts.DefaultPerPage),
+		Filter:           imagesecModel.GetFilter(ctx).SetDefault().SetMaxLimit(consts.DefaultPerPage),
 	}
 	keyword := util.GetKeywordFromQuery(ctx, "keyword")
 	if keyword != "" {

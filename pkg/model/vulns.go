@@ -85,7 +85,7 @@ const (
 )
 
 const (
-	VulnFlagKernel       = 0 // 内核漏洞
+	VulnFlagKernel       = 0 // 内核漏洞,内核软件包
 	VulnFlagClassOSPkg   = 1 // 系统漏洞
 	VulnFlagClassLangPkg = 2 // 应用漏洞
 	VulnFlagClassConfig  = 3 // 配置文件

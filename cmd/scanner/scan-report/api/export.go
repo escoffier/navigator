@@ -15,7 +15,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/service"
 	types2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/types"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -53,7 +52,7 @@ func (s *ExportApiSrv) CreateImageSearchExportTask(ctx *gin.Context) {
 	if data.Filename == "" {
 		data.Filename = fmt.Sprintf("%d_image_search_%s.zip", now.UnixMilli(), data.TaskType)
 	}
-	task := &model.ExportTensorTask{
+	task := &imagesec.ExportTensorTask{
 		ExecuteType: consts.ExportImageSearch,
 		Parameter:   string(bys),
 		FilePath:    data.Filename,
@@ -63,7 +62,7 @@ func (s *ExportApiSrv) CreateImageSearchExportTask(ctx *gin.Context) {
 		Lang:        util.GetLanguage(ctx),
 	}
 
-	data.Parameter.Filter = &model.Filter{Limit: 1, Offset: 0}
+	data.Parameter.Filter = &imagesec.Filter{Limit: 1, Offset: 0}
 	// 查询导出的镜像数
 	_, cnt, err := s.exportSrv.ListImageWithScanInfo(ctx, data.Parameter)
 	if err != nil {
@@ -185,13 +184,13 @@ func (s *ExportApiSrv) CreateVulnExportTask(ctx *gin.Context) {
 	}
 	now := time.Now()
 	fileName := fmt.Sprintf("%s_%d.zip", data.Parameter.Name, now.Unix())
-	task := &model.ExportTensorTask{
+	task := &imagesec.ExportTensorTask{
 		ExecuteType: consts.ExportVuln,
 		Parameter:   string(bys),
 		FilePath:    fileName,
 		Creator:     data.Creator,
 		CreatedAt:   now,
-		TaskType:    model.ExportExcel, // 漏洞只能是导出excel
+		TaskType:    imagesec.ExportExcel, // 漏洞只能是导出excel
 		Lang:        util.GetLanguage(ctx),
 	}
 
@@ -237,7 +236,7 @@ func (s *ExportApiSrv) CreateScanResultExportTask(ctx *gin.Context) {
 		data.Filename = fmt.Sprintf("%s_scan_result_export_%s_%d.zip", strings.ReplaceAll(data.Parameter.TaskCreateAt, " ", "T"), data.TaskType, now.Unix())
 	}
 
-	task := &model.ExportTensorTask{
+	task := &imagesec.ExportTensorTask{
 		ExecuteType: consts.ExportScanTask,
 		Parameter:   string(bys),
 		Creator:     data.Creator,
@@ -279,12 +278,12 @@ func (s *ExportApiSrv) CreateAuditExportTask(ctx *gin.Context) {
 	}
 
 	fileName := fmt.Sprintf("audit_log_%s.zip", strings.ReplaceAll(data.TaskCreateAt, " ", "T"))
-	task := &model.ExportTensorTask{
+	task := &imagesec.ExportTensorTask{
 		ExecuteType: consts.AuditExeType,
 		Creator:     data.Creator,
 		FilePath:    fileName,
 		CreatedAt:   time.Now(),
-		TaskType:    model.ExportExcel, // 日志审计现只支持excel，所以这里赋默认值
+		TaskType:    imagesec.ExportExcel, // 日志审计现只支持excel，所以这里赋默认值
 	}
 	if err := s.exportSrv.CreateExportTask(ctx, task); err != nil {
 		response.JSONError(ctx, err)
@@ -324,13 +323,13 @@ func (s *ExportApiSrv) CreateYamlExportTask(ctx *gin.Context) {
 	}
 
 	fileName := fmt.Sprintf("iac_yaml_%s.zip", strings.ReplaceAll(data.TaskCreateAt, " ", "T"))
-	task := &model.ExportTensorTask{
+	task := &imagesec.ExportTensorTask{
 		ExecuteType: consts.IACYamlExportType,
 		Parameter:   string(bp),
 		Creator:     data.Creator,
 		FilePath:    fileName,
 		CreatedAt:   time.Now(),
-		TaskType:    model.ExportExcel,
+		TaskType:    imagesec.ExportExcel,
 		Lang:        util.GetLanguage(ctx),
 	}
 	if err := s.exportSrv.CreateExportTask(ctx, task); err != nil {
@@ -373,13 +372,13 @@ func (s *ExportApiSrv) CreateDockerfileExportTask(ctx *gin.Context) {
 	}
 
 	fileName := fmt.Sprintf("iac_dockerfile_%s.zip", strings.ReplaceAll(data.TaskCreateAt, " ", "T"))
-	task := &model.ExportTensorTask{
+	task := &imagesec.ExportTensorTask{
 		ExecuteType: consts.IACDockerfileExportType,
 		Parameter:   string(bp),
 		Creator:     data.Creator,
 		FilePath:    fileName,
 		CreatedAt:   time.Now(),
-		TaskType:    model.ExportExcel,
+		TaskType:    imagesec.ExportExcel,
 		Lang:        util.GetLanguage(ctx),
 	}
 	if err := s.exportSrv.CreateExportTask(ctx, task); err != nil {
@@ -433,7 +432,7 @@ func (s *ExportApiSrv) GetExportTaskDetail(ctx *gin.Context) {
 }
 
 func (s *ExportApiSrv) GetReportTaskList(ctx *gin.Context) {
-	filter := model.GetFilterWithDefaultValue(ctx)
+	filter := imagesec.GetFilterWithDefaultValue(ctx)
 	filter.SortFiled = "id"
 	filter.SortBy = consts.SortByDesc
 
@@ -522,7 +521,7 @@ func GenResponseMsg(ctx *gin.Context, taskID int64, filepath string) ResponseMsg
 		FilePath: filepath,
 	}
 
-	if util.GetLanguage(ctx) == model.LangEn {
+	if util.GetLanguage(ctx) == imagesec.LangEn {
 		msg.Msg = "created successfully"
 	}
 	return msg

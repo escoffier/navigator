@@ -11,9 +11,10 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	scanner_ci "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-ci"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -35,10 +36,10 @@ var StatusToInt = map[string]int{
 }
 
 type ImageManager struct {
-	dal store.ScanCiInterface
+	dal adaptStore.ScanCiInterface
 }
 
-func NewImageManager(dal store.ScanCiInterface) ImageManager {
+func NewImageManager(dal adaptStore.ScanCiInterface) ImageManager {
 	return ImageManager{dal: dal}
 }
 
@@ -291,7 +292,7 @@ func (im *ImageManager) GetImageDetail(ctx context.Context, id int64) (scanner_c
 		MatchWhitelist: record.MatchWhitelist,
 	}
 
-	_, _, cnt, err := im.dal.SearchVuln(ctx, scanner_ci.SearchVulnParm{ImageID: id, MatchPolicy: true}, &model.Filter{Limit: 1}) // 可以单独搜索优化
+	_, _, cnt, err := im.dal.SearchVuln(ctx, scanner_ci.SearchVulnParm{ImageID: id, MatchPolicy: true}, &imagesec.Filter{Limit: 1}) // 可以单独搜索优化
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("get match policy error")
 	}
@@ -423,7 +424,7 @@ func (im *ImageManager) GetRecordPkgs(ctx context.Context, limit int64, offset i
 	return res, count, nil
 }
 
-func (im *ImageManager) SearchVulns(ctx context.Context, param scanner_ci.SearchVulnParam, filter *model.Filter) ([]*scanner_ci.CiVulns, model.SeverityHistogramInfo, int64, error) {
+func (im *ImageManager) SearchVulns(ctx context.Context, param scanner_ci.SearchVulnParam, filter *imagesec.Filter) ([]*scanner_ci.CiVulns, model.SeverityHistogramInfo, int64, error) {
 	daoParam := scanner_ci.SearchVulnParm{
 		VulnKeyword:     param.VulnKeyword,
 		PkgKeyword:      param.PkgKeyword,

@@ -7,11 +7,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/opencontainers/go-digest"
 	"io"
+	"os"
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
+	"time"
+
+	"github.com/opencontainers/go-digest"
 
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
@@ -25,18 +29,16 @@ import (
 	"github.com/containerd/typeurl/v2"
 	types2 "github.com/docker/docker/api/types"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container/docker"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
-	"os"
-	"strings"
-	"time"
-
 	json "github.com/json-iterator/go"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
 	"gitlab.com/security-rd/go-pkg/logging"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/container"
 )
 
 const (

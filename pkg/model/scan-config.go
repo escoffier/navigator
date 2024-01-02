@@ -367,35 +367,6 @@ func (vi *ScanStrategy) Deserialize() {
 }
 
 func (vi *ScanStrategy) Check() error {
-	if len([]rune(vi.Name)) > 50 || vi.Name == "" {
-		return fmt.Errorf("策略名不超过50个字符且不为空")
-	}
-	if len([]rune(vi.Describe)) > 200 {
-		return fmt.Errorf("策略描述不超过200个字符")
-	}
-
-	for i := range vi.OpenLicense {
-		flag := false
-		for j := range OpenLicense {
-			if vi.OpenLicense[i] == OpenLicense[j] {
-				flag = true
-			}
-		}
-		if !flag {
-			return fmt.Errorf("open license:%s is not allowed", vi.OpenLicense[i])
-		}
-	}
-	for i := range vi.Software {
-		if vi.Software[i].Name == "" || vi.Software[i].Version == "" {
-			return fmt.Errorf("software name or version can not be empty")
-		}
-	}
-	// 敏感文件类型赋默认值
-	for i := range vi.SensitiveFile {
-		if vi.SensitiveFile[i].SecretType == "" {
-			vi.SensitiveFile[i].SecretType = "Filename"
-		}
-	}
 
 	return nil
 }

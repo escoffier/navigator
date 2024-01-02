@@ -395,14 +395,6 @@ type RejectRecord struct {
 }
 
 func (rr *RejectRecord) Deserialize() *RejectRecord {
-	re := make([]int64, 0)
-	for i := range GetRejectReason(LangZh) {
-		if ExistFlag(rr.ReasonFlag, uint64(i)) {
-			re = append(re, i)
-		}
-	}
-
-	rr.RejectReason = re
 	return rr
 }
 
@@ -411,16 +403,7 @@ func (RejectRecord) TableName() string {
 }
 
 func (rr *RejectRecord) GenReasonFlag() uint64 {
-	res := GetRejectReason(LangZh)
-	var flag uint64
-	rr.RejectReason = util.DuplicateInt64Slice(rr.RejectReason)
-	for _, r := range rr.RejectReason {
-		if _, ok := res[r]; ok {
-			flag = 1<<r + flag
-		}
-	}
-	rr.ReasonFlag = flag
-	return flag
+	return 0
 }
 
 // ImageWhitelist 镜像白名单

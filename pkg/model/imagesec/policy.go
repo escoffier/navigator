@@ -11,7 +11,6 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/i18"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -246,7 +245,7 @@ func (vi *SecurityPolicy) ChangePolicyName(ctx context.Context) *SecurityPolicy 
 	}
 	la, ok := ctx.Value(AcceptLanguage).(string)
 
-	if ok && la == model.LangZh && (vi.IsDefault || vi.Name == DefaultPolicyNameEN) {
+	if ok && la == LangZh && (vi.IsDefault || vi.Name == DefaultPolicyNameEN) {
 		vi.Name = DefaultPolicyNameZH
 	}
 	return vi
@@ -964,7 +963,7 @@ func GetImageFromType(lang string) map[string]string {
 		ImageFromNode:     "node image",
 		ImageFromRegistry: "registry image",
 	}
-	if lang == model.LangEn {
+	if lang == LangEn {
 		return avEn
 	}
 
@@ -983,7 +982,7 @@ func GetDetectScopeTypeType(lang string) map[string]string {
 		DetectScopeTypeCluster: "cluster",
 		DetectScopeTypeImage:   "image",
 	}
-	if lang == model.LangEn {
+	if lang == LangEn {
 		return avEn
 	}
 
@@ -1002,7 +1001,7 @@ func GetDetectPolicyTypeType(lang string) map[string]string {
 		ConfigTypeRegScanImage:  "registry image",
 		ConfigTypeDeploy:        "deployment",
 	}
-	if lang == model.LangEn {
+	if lang == LangEn {
 		return avEn
 	}
 

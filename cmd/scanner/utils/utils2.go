@@ -1,8 +1,6 @@
 package scannerUtils
 
 import (
-	"crypto/md5"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"io/fs"
@@ -14,32 +12,32 @@ import (
 	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/rs/zerolog"
 	"gitlab.com/security-rd/go-pkg/logging"
-	"golang.org/x/xerrors"
 )
 
-func CopyFile(src, dst string) (int64, error) {
-	sourceFileStat, err := os.Stat(src)
+func CopyFile(source, destination string) error {
+	sourceFile, err := os.Open(source)
 	if err != nil {
-		return 0, xerrors.Errorf("file (%s) stat error: %w", src, err)
+		return err
+	}
+	defer func() { _ = sourceFile.Close() }()
+
+	desFile, err := os.Create(destination)
+	if err != nil {
+		return err
 	}
 
-	if !sourceFileStat.Mode().IsRegular() {
-		return 0, fmt.Errorf("%s is not a regular file", src)
+	defer func() { _ = desFile.Close() }()
+
+	_, err = io.Copy(desFile, sourceFile)
+	if err != nil {
+		return err
 	}
 
-	source, err := os.Open(src)
+	err = desFile.Sync()
 	if err != nil {
-		return 0, err
+		return err
 	}
-	defer func() { _ = source.Close() }()
-
-	destination, err := os.Create(dst)
-	if err != nil {
-		return 0, err
-	}
-	defer func() { _ = destination.Close() }()
-	n, err := io.Copy(destination, source)
-	return n, err
+	return nil
 }
 
 func DirExists(path string) bool {
@@ -125,20 +123,6 @@ func FileGID(filePath string) (int64, error) {
 		return -1, err
 	}
 	return int64(fi.Sys().(*syscall.Stat_t).Gid), nil
-}
-
-func Md5FromFile(path string) (string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	originMd5 := md5.New()
-	_, err = io.Copy(originMd5, f)
-	if err != nil {
-		return "", err
-	}
-	originMd5Str := hex.EncodeToString(originMd5.Sum(nil))
-	return originMd5Str, nil
 }
 
 func FileExist(filename string) bool {

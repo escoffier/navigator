@@ -32,6 +32,11 @@ func (vi *NodeInfo) Same(after *NodeInfo) bool {
 	return true
 }
 
+func (vi *NodeInfo) LogStr() string {
+	ss := fmt.Sprintf("%s-%s-%s", vi.Hostname, vi.ClusterKey, vi.IP)
+	return ss
+}
+
 func (vi *NodeInfo) TableName() string {
 	return "ivan_scan_node_info"
 }
@@ -70,7 +75,7 @@ type ScannerInstanceInfo struct {
 	ID              int64  `gorm:"id"  json:"id"`
 	ClusterKey      string `gorm:"column:cluster_key" json:"clusterKey"`
 	ClusterName     string `gorm:"column:cluster_name" json:"clusterName"`
-	ScannerPodID    string `gorm:"column:scanner_pod_id" json:"scannerPodID"`      // scanner当前Pod，重新启动改变
+	ScannerPodID    string `gorm:"column:scanner_pod_id" json:"scannerPodID"`      // scanner 启动时生成的UUID,重启动后改变
 	ScannerInstance string `gorm:"column:scanner_instance" json:"scannerInstance"` // scanner当前实例，重新启动不会改变
 	ScannerVersion  string `gorm:"column:scanner_version" json:"scannerVersion"`   // 扫描器版本号
 	HeartBeatAt     int64  `gorm:"column:heart_beat_at" json:"heartBeatAt"`        // 上报的心跳
@@ -84,28 +89,33 @@ type ScannerInstanceInfo struct {
 
 func (*ScannerInstanceInfo) TableName() string { return "ivan_scanner_instance" }
 
-func (pre *ScannerInstanceInfo) Same(info ScannerInstanceInfo) bool {
-	return pre.ClusterKey == info.ClusterKey &&
-		pre.ClusterName == info.ClusterName &&
-		pre.ScannerPodID == info.ScannerPodID &&
-		pre.ScannerInstance == info.ScannerInstance
+func (vi *ScannerInstanceInfo) LogStr() string {
+	s := fmt.Sprintf("%s-%s", vi.ClusterKey, vi.ClusterName)
+	return s
 }
 
-func (pre *ScannerInstanceInfo) ToUpdater() map[string]interface{} {
+func (vi *ScannerInstanceInfo) Same(info ScannerInstanceInfo) bool {
+	return vi.ClusterKey == info.ClusterKey &&
+		vi.ClusterName == info.ClusterName &&
+		vi.ScannerPodID == info.ScannerPodID &&
+		vi.ScannerInstance == info.ScannerInstance
+}
+
+func (vi *ScannerInstanceInfo) ToUpdater() map[string]interface{} {
 	updater := map[string]interface{}{
-		"cluster_key":      pre.ClusterKey,
-		"cluster_name":     pre.ClusterName,
-		"scanner_instance": pre.ScannerInstance,
-		"scanner_pod_id":   pre.ScannerPodID,
+		"cluster_key":      vi.ClusterKey,
+		"cluster_name":     vi.ClusterName,
+		"scanner_instance": vi.ScannerInstance,
+		"scanner_pod_id":   vi.ScannerPodID,
 		"heart_beat_at":    time.Now().Unix(),
 	}
 	return updater
 }
 
-func (pre *ScannerInstanceInfo) ToHeartBeatAt() map[string]interface{} {
+func (vi *ScannerInstanceInfo) ToHeartBeatAt() map[string]interface{} {
 	updater := map[string]interface{}{
 		"heart_beat_at":   time.Now().Unix(),
-		"scanner_version": pre.ScannerVersion,
+		"scanner_version": vi.ScannerVersion,
 	}
 	return updater
 }

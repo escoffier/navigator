@@ -43,13 +43,13 @@ func NewVulnExport(
 	}
 }
 
-func (s *VulnExport) GetTensorTask(ctx context.Context, executeType string, n int64) ([]model.ExportTensorTask, error) {
+func (s *VulnExport) GetTensorTask(ctx context.Context, executeType string, n int64) ([]imagesec.ExportTensorTask, error) {
 	tasks, _, err := s.ExportTaskDal.SearchExportTask(ctx, imagesec.SearchExportTaskParam{
 		ExecuteType: []string{executeType},
-		TaskType:    model.ExportExcel,
+		TaskType:    imagesec.ExportExcel,
 		Finished:    consts.FalseString,
 		Failure:     consts.FalseString,
-		Filter:      &model.Filter{Limit: n},
+		Filter:      &imagesec.Filter{Limit: n},
 	})
 	if err != nil {
 		logging.Get().Err(err).Str("ExecuteType", executeType).Msg("GetTensorTask")
@@ -95,7 +95,7 @@ type VulnExportParma struct {
 }
 
 // 取一个任务来执行
-func (s *VulnExport) worker(ctx context.Context, task model.ExportTensorTask) error {
+func (s *VulnExport) worker(ctx context.Context, task imagesec.ExportTensorTask) error {
 	searchParam := VulnExportParma{}
 	if err := json.Unmarshal([]byte(task.Parameter), &searchParam); err != nil {
 		return err
@@ -169,7 +169,7 @@ func (s *VulnExport) ZipAndSave(ctx context.Context, filename string, files chan
 }
 
 func (s *VulnExport) Export(ctx context.Context, filename string, vuln *imagesec.VulnView,
-	imageContainers []*imagesec.ImageWithCorrelateData2, task model.ExportTensorTask) chan *excelize.File {
+	imageContainers []*imagesec.ImageWithCorrelateData2, task imagesec.ExportTensorTask) chan *excelize.File {
 	out := make(chan *excelize.File, 1)
 
 	go func() {
@@ -264,7 +264,7 @@ func (s *VulnExport) ConvertResourceData(res chan []string) chan []string {
 	return out
 }
 
-func (s *VulnExport) ConvertData(res map[types.SheetName]chan []string, task model.ExportTensorTask) map[types.SheetName]chan []string {
+func (s *VulnExport) ConvertData(res map[types.SheetName]chan []string, task imagesec.ExportTensorTask) map[types.SheetName]chan []string {
 
 	ans := make(map[types.SheetName]chan []string)
 

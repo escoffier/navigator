@@ -175,7 +175,7 @@ func (si *ScanImage) Deserialize() {
 	webShellInfo := make([]scannermodel.WebshellFileInfo, 0)
 	if len(si.WebshellInfoJSON) > 0 {
 		if err := json.Unmarshal(si.WebshellInfoJSON, &webShellInfo); err != nil {
-			logging.GetLogger().Error().Err(err).Int64("imageID", si.ImageID).Int64("ID", si.ID).Msg("Unmarshal Webshell")
+			logging.GetLogger().Error().Err(err).Int64("imageID", si.ImageID).Int64("ID", si.ID).Msg("Unmarshal WebshellView")
 			webShellInfo = make([]scannermodel.WebshellFileInfo, 0)
 		}
 	}

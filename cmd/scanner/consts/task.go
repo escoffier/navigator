@@ -62,26 +62,7 @@ const DefaultSlaveDelay = 5 * 1000 // 默认主从延迟:5s
 const SubTaskBatchInsertCount = 200
 
 const (
-	ErrScanPullImage      = iota + 1 // "拉取镜像出错"
-	ErrScanTrivy                     // "扫描镜像出错"
-	ErrScanSaveResult                // "保存扫描数据出错"
-	ErrScanConfig                    // "解析扫描配置出错"
-	ErrScanGetImage                  // "查询待扫描镜像出错"
-	ErrScanImageRemoved              // "镜像已被删除"
-	ErrScanGetRegistry               // "查询镜像仓库出错"
-	ErrScanInternal                  // "程序内部出错"
-	ErrExceededRetryCount            // "超过重试次数"
-	ErrRegRemoved                    // "仓库已删除"
-	ErrImageExpire                   // 镜像过于老，不扫描
-)
-
-const (
-	IsSyncingImage  = true  // 正在同步
-	NotSyncingImage = false // 没在同步
-)
-
-const (
 	DetectAtHour             = 18 // 每天03点的时候加检测任务(服务器中用的是 utc 时间)
 	DefaultHmEnginCnt        = 5  // 默认河马引擎的个数
-	DefaultFileExpirationDay = 14 // webshell文件默认保存14天
+	DefaultFileExpirationDay = 30 // 上传的文件默认保存30天
 )

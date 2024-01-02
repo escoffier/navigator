@@ -8,10 +8,9 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/detect"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta/metaGlobal"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -27,7 +26,7 @@ type ImageUpdateSrv struct {
 	detectResultDal imagesecStore.ImageDetectResultDal
 	detectTaskDal   imagesecStore.DetectTaskDal
 	scanIssueDal    imagesecStore.ScanIssueDal
-	trustedDal      store.TrustedImageDal
+	trustedDal      adaptStore.TrustedImageDal
 	configDal       imagesecStore.ScanImageConfigDal
 	nodeTaskDal     imagesecStore.ScanTaskDal
 	nodeDal         imagesecStore.NodeInfoDal
@@ -46,7 +45,7 @@ func NewImageUpdateSrv(
 	detectResultDal imagesecStore.ImageDetectResultDal,
 	detectTaskDal imagesecStore.DetectTaskDal,
 	scanIssueDal imagesecStore.ScanIssueDal,
-	trustedDal store.TrustedImageDal,
+	trustedDal adaptStore.TrustedImageDal,
 	configDal imagesecStore.ScanImageConfigDal,
 	nodeTaskDal imagesecStore.ScanTaskDal,
 	nodeDal imagesecStore.NodeInfoDal,
@@ -143,7 +142,7 @@ func (s *ImageUpdateSrv) ContinueUpdate(ctx context.Context) error {
 // 删除仓库后删除镜像
 func (s *ImageUpdateSrv) cleanAfterDeleteRegistry(ctx context.Context) error {
 	registries, _, err := s.registryDal.SearchRegistry(ctx,
-		imagesecModel.SearchRegistryParam{Deleted: consts.TrueString, Filter: model.EmptyFilter().SetLimit(consts.DefaultMaxLimit)})
+		imagesecModel.SearchRegistryParam{Deleted: consts.TrueString, Filter: imagesecModel.EmptyFilter().SetLimit(consts.DefaultMaxLimit)})
 
 	if err != nil {
 		s.Log.Err(err).Msg("cleanAfterDeleteRegistry SearchRegistry")
@@ -167,7 +166,7 @@ func (s *ImageUpdateSrv) cleanAfterDeleteRegistry(ctx context.Context) error {
 		}
 
 		var startID int64
-		filter := model.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortAsc().SetSortFiledByID()
+		filter := imagesecModel.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortAsc().SetSortFiledByID()
 
 		for {
 			images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{
@@ -201,7 +200,7 @@ func (s *ImageUpdateSrv) cleanAfterDeleteRegistry(ctx context.Context) error {
 // 有问题
 func (s *ImageUpdateSrv) updateTrustedImage(ctx context.Context) error {
 
-	trusted, err := s.trustedDal.SearchTrustedImage(ctx, store.SearchTrustedImageParam{IsTrusted: consts.TrueString})
+	trusted, err := s.trustedDal.SearchTrustedImage(ctx, adaptStore.SearchTrustedImageParam{IsTrusted: consts.TrueString})
 	if err != nil {
 		s.Log.Err(err).Msg("updateTrustedImage SearchTrustedImage")
 		return err
@@ -225,7 +224,7 @@ func (s *ImageUpdateSrv) updateTrustedImage(ctx context.Context) error {
 	if len(trustedDigest) > 0 {
 		cnt := 0
 		var startID int64
-		filter := model.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortAsc().SetSortFiledByID()
+		filter := imagesecModel.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortAsc().SetSortFiledByID()
 
 		for {
 			images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{
@@ -272,7 +271,7 @@ func (s *ImageUpdateSrv) updateTrustedImage(ctx context.Context) error {
 	var startID int64
 	cnt := 0
 	for {
-		filter := model.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortAsc().SetSortFiledByID()
+		filter := imagesecModel.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortAsc().SetSortFiledByID()
 		images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{
 			StartID: startID,
 			Fields:  []string{"id", "flag", "digest"},
@@ -491,19 +490,19 @@ func (s *ImageUpdateSrv) updateImageInReg(ctx context.Context) error {
 			}
 			s.Log.Info().Uint32("imageUUID", dig).
 				Msg("updateImageInReg update node image in registry")
-			// 检测
-			imageSearchParam := imagesecModel.ImageSearchApiParam{
-				ImageFromType: imagesecModel.ImageFromNode,
-				UUIDs:         []uint32{dig},
-			}
-			if err := s.imageDetectSrv.CreateImageDetectTask(ctx,
-				imageSearchParam,
-				imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectUpdateNodeImageInReg},
-				nil,
-			); err != nil {
-				s.Log.Err(err).Msg("updateImageInReg CreateDetectTask")
-				return
-			}
+			// 最新的需求，增加镜像不检测，只有当镜像扫描之后再检测
+			// imageSearchParam := imagesecModel.ImageSearchApiParam{
+			// 	ImageFromType: imagesecModel.ImageFromNode,
+			// 	UUIDs:         []uint32{dig},
+			// }
+			// if err := s.imageDetectSrv.CreateImageDetectTask(ctx,
+			// 	imageSearchParam,
+			// 	imagesecModel.ImageDetectTask{Priority: imagesecModel.DetectUpdateNodeImageInReg},
+			// 	nil,
+			// ); err != nil {
+			// 	s.Log.Err(err).Msg("updateImageInReg CreateDetectTask")
+			// 	return
+			// }
 
 			s.Log.Info().Str("digest", im.Digest).
 				Msg("updateImageInReg create detect task update node image in registry")
@@ -518,7 +517,7 @@ func (s *ImageUpdateSrv) cleanDeletedDetectPolicy(ctx context.Context) error {
 
 	policy, _, err := s.policyDal.SearchDetectPolicy(ctx, imagesecModel.SearchSecurityPolicyParam{
 		Deleted: consts.TrueString, Default: consts.FalseString,
-		Filter: &model.Filter{Limit: consts.DefaultMaxLimit}})
+		Filter: &imagesecModel.Filter{Limit: consts.DefaultMaxLimit}})
 	if err != nil {
 		s.Log.Err(err).Msg("cleanDeletedDetectPolicy GetScanImageConfig")
 		return err
@@ -555,7 +554,7 @@ func (s *ImageUpdateSrv) cleanDeletedDetectPolicy(ctx context.Context) error {
 // 删除特定policy 的检测结果
 func (s *ImageUpdateSrv) deletePolicyDetect(ctx context.Context, configID int64) error {
 
-	filter := &model.Filter{Limit: consts.DefaultMaxLimit, SortFiled: "id", SortBy: consts.SortByAsc}
+	filter := &imagesecModel.Filter{Limit: consts.DefaultMaxLimit, SortFiled: "id", SortBy: consts.SortByAsc}
 
 	for _, det := range imagesecModel.GetDetectTypes() {
 		var startID int64
@@ -685,7 +684,7 @@ func (s *ImageUpdateSrv) updateSafeFlag(ctx context.Context) error {
 func (s *ImageUpdateSrv) updateImageSafeFlag(ctx context.Context) error {
 
 	var startID int64
-	filter := &model.Filter{Limit: consts.DefaultExportBathSize, SortFiled: "id", SortBy: consts.SortByAsc}
+	filter := &imagesecModel.Filter{Limit: consts.DefaultExportBathSize, SortFiled: "id", SortBy: consts.SortByAsc}
 
 	for {
 		images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{StartID: startID, Filter: filter})

@@ -1,16 +1,18 @@
 package analyzer
 
 import (
+	"os"
+	"sync"
+	"testing"
+
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
+	"gitlab.com/security-rd/go-pkg/logging"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/whitelist/analyzer"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/daemon/dp/whitelist/analyzer/all"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/global"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"os"
-	"sync"
-	"testing"
 )
 
 var (

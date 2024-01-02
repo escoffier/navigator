@@ -22,7 +22,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/types"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	iacModel "gitlab.com/piccolo_su/vegeta/pkg/model/iac"
 	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -54,7 +53,7 @@ func NewYamlScanExportExcel(
 
 func (y *YamlScanExportExcel) Run(ctx context.Context) {
 
-	out := make(chan model.ExportTensorTask, 1)
+	out := make(chan imagesec.ExportTensorTask, 1)
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -70,11 +69,11 @@ func (y *YamlScanExportExcel) Run(ctx context.Context) {
 			<-tick.C
 
 			tasks, _, err := y.ExportTaskDao.SearchExportTask(ctx, imagesec.SearchExportTaskParam{
-				TaskType:    model.ExportExcel,
+				TaskType:    imagesec.ExportExcel,
 				ExecuteType: []string{consts.IACYamlExportType},
 				Finished:    consts.FalseString,
 				Failure:     consts.FalseString,
-				Filter:      &model.Filter{Limit: 1},
+				Filter:      &imagesec.Filter{Limit: 1},
 			})
 			if err != nil {
 				logging.Get().Err(err).Str("ExecuteType", consts.IACYamlExportType).Msg("GetTensorTask")
@@ -136,7 +135,7 @@ type taskParam struct {
 	RecordIDs *[]int                  `json:"record_ids"` // 根据id勾选
 }
 
-func (y *YamlScanExportExcel) export(ctx context.Context, task model.ExportTensorTask) (string, error) {
+func (y *YamlScanExportExcel) export(ctx context.Context, task imagesec.ExportTensorTask) (string, error) {
 	if err := y.UpdateTask.Start(ctx, task.ID); err != nil {
 		logging.Get().Err(err).Int64("taskID", task.ID).Msg("Clean Start")
 		return "", err
@@ -382,6 +381,6 @@ func (y *YamlScanExportExcel) export(ctx context.Context, task model.ExportTenso
 	return filePath, nil
 }
 
-func (y *YamlScanExportExcel) genFilePath(ctx context.Context, task model.ExportTensorTask) string {
+func (y *YamlScanExportExcel) genFilePath(ctx context.Context, task imagesec.ExportTensorTask) string {
 	return y.FileDir + "/" + strings.ReplaceAll(task.FilePath, ".zip", "") + "/"
 }

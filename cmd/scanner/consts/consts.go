@@ -133,4 +133,5 @@ const (
 	ScannerVersion211    = "2.11.1"
 	ScannerVersion220    = "2.20"
 	ScannerVersionLatest = "latest"
+	ScannerVersionTestcn = "testcn"
 )

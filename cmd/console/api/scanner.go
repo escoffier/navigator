@@ -212,6 +212,11 @@ func (api *api) scanner() func(chi.Router) {
 		r.Put("/config/scan/image", api.RedirectToScanner())
 		r.Get("/managementCenter/docs", api.RedirectToScanner())
 
+		// 病毒库，漏洞库管理
+		r.Post("/config/manage/db/vuln", api.RedirectToScanner())
+		r.Post("/config/manage/db/avira", api.RedirectToScanner())
+		r.Get("/config/manage/db/list", api.RedirectToScanner())
+
 		// 节点及扫描器
 		r.Get("/node/nodeInfo/list", api.RedirectToScanner())
 		r.Get("/scannerInfo/list", api.RedirectToScanner())

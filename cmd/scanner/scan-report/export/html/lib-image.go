@@ -241,7 +241,7 @@ package html
 // 	// 拼装数据
 // 	for v, ima := range virusMap {
 // 		vi := types.VirusInfo{
-// 			FilePath:  ima.UnzipPath,
+// 			FilePath:  ima.LayerFilePath,
 // 			VirusName: ima.Name,
 // 			Images:    virusToImage[v],
 // 		}

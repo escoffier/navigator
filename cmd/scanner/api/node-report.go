@@ -6,7 +6,6 @@ import (
 	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagesec"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/i18"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -23,7 +22,7 @@ func NewNodeReportAPISrv(nodeSrv imagesecSrv.NodeReportService) *NodeReportAPISr
 func (s *NodeReportAPISrv) SearchNode(ctx *gin.Context) {
 	param := imagesecModel.SearchNodeInfoParam{
 		Keyword: util.GetKeywordFromQuery(ctx, "keyword"),
-		Filter:  model.GetFilter(ctx).SetDefault().SetMaxLimit(consts.DefaultMaxLimit),
+		Filter:  imagesecModel.GetFilter(ctx).SetDefault().SetMaxLimit(consts.DefaultMaxLimit),
 	}
 
 	node, cnt, err := s.nodeSrv.SearchNode(ctx, param)
