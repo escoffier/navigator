@@ -6074,10 +6074,10 @@ func CleanUpRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient
 		}
 
 		keys := make([]string, 0, len(result))
-		containerUuid := make([]uint32, len(keys))
-		for i, doc := range result {
+		containerUuid := make([]uint32, 0, len(result))
+		for _, doc := range result {
 			keys = append(keys, cast.ToString(doc.Id))
-			containerUuid[i] = util.GenerateUUID(doc.Id)
+			containerUuid = append(containerUuid, util.GenerateUUID(doc.Id))
 		}
 
 		err = rdb.WithContext(oneCtx).Transaction(func(tx *gorm.DB) error {
