@@ -128,6 +128,7 @@ func (ir *ImageVulnsReporter) LoadSummary(ctx context.Context, assetsSummary []*
 		logging.Get().WithContext(ctx).Errorf(lerr, "load image risk levels error")
 		return nil, lerr
 	}
+	//logging.Get().Info().Msgf("LoadSummary imageSumm:%+v", imageSumm)
 	return ImageVulnsSummary{
 		summaryData: imageSumm,
 		resToImages: resImageMap,
@@ -164,6 +165,7 @@ func (s ImageVulnsSummary) ResourceSummary(tx context.Context, clusterKey, names
 		for _, iobj := range imageIDs {
 			imageID := iobj.(string)
 			allSumm, ok := s.summaryData[imageID]
+			//logging.Get().Info().Msgf("ResourceSummary imageId:%s,allSumm:%+v,isOk:%v", imageID, allSumm, ok)
 			if ok {
 				summ, sok := allSumm[riskTypeKey]
 				if sok {
@@ -175,13 +177,13 @@ func (s ImageVulnsSummary) ResourceSummary(tx context.Context, clusterKey, names
 
 			}
 		}
-		if count > 0 {
-			sums[riskTypeKey] = Summary{
-				Count:    count,
-				Severity: maxRiskTypeSeverity,
-				RiskType: riskType,
-			}
+		//if count > 0 {
+		sums[riskTypeKey] = Summary{
+			Count:    count,
+			Severity: maxRiskTypeSeverity,
+			RiskType: riskType,
 		}
+		//}
 	}
 
 	return sums, nil

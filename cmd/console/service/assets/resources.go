@@ -954,6 +954,21 @@ func (rl *TensorResourcesService) CountImages(ctx context.Context, queryOptions 
 	return cnt, nil
 }
 
+func (rl *TensorResourcesService) GetImageInfos(ctx context.Context, queryOptions *dal.ResContainersQueryOption) ([]*ImageInfo, error) {
+	containers, err := dal.GetResourceContainersUnique(ctx, rl.rdb.GetReadDB(), queryOptions, -1, -1)
+	if err != nil {
+		return nil, err
+	}
+	var images []*ImageInfo
+	for _, c := range containers {
+		images = append(images, &ImageInfo{
+			Name: c.Image,
+			UUID: c.ImageUUID,
+		})
+	}
+	return images, nil
+}
+
 func (rl *TensorResourcesService) GetImageInfosV2(ctx context.Context, queryOptions *dal.ResContainersQueryOption) ([]*ImageInfo, error) {
 	containers, err := dal.GetResourceContainersUniqueV2(ctx, rl.rdb.GetReadDB(), queryOptions, -1, -1)
 	if err != nil {
