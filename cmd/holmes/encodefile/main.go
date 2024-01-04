@@ -329,6 +329,7 @@ func readBytesFromDir(dirPath string) ([]byte, []byte) {
 }
 
 func printYamlWithLineNo(finalBytes []byte) {
+	return // 本地打包的时候再打开
 	fmt.Println("---------- ---------- ---------- yaml start ---------- ---------- ---------- ")
 	lines := strings.Split(string(finalBytes), "\n")
 	for i := range lines {
