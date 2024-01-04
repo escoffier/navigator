@@ -126,7 +126,7 @@ require (
 	k8s.io/kubernetes v1.24.0
 	layeh.com/radius v0.0.0-20210819152912-ad72663a72ab
 	moul.io/http2curl v1.0.0
-	scm.tensorsecurity.cn/tensorsecurity-rd/api v0.2.4-0.20230809062140-8296db0e9feb
+	scm.tensorsecurity.cn/tensorsecurity-rd/api v0.2.4-0.20231025065239-cf3e4dec1164
 	scm.tensorsecurity.cn/tensorsecurity-rd/trivy-db v0.0.5
 )
 
@@ -613,7 +613,7 @@ require (
 replace (
 	github.com/containernetworking/cni => github.com/containernetworking/cni v0.8.1
 	github.com/containers/podman/v3 => scm.tensorsecurity.cn/tensorsecurity-rd/podman/v3 v3.4.6-20220425170000
-	gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.88
+	gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.91
 	go.opentelemetry.io/otel/metric => go.opentelemetry.io/otel/metric v0.35.0
 	helm.sh/helm/v3 => helm.sh/helm/v3 v3.11.1
 	k8s.io/api => k8s.io/kubernetes/staging/src/k8s.io/api v0.0.0-20220503133649-4ce5a8954017

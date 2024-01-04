@@ -961,6 +961,7 @@ func (npc *NetworkPolicyController) caculatePolicyNodeRules1(cnp *crdv1alpha1.Mi
 					ToAddresses: ads,
 					FromAddress: adddress,
 					FromIPBlock: peer.IPBlock,
+					Http:        peer.Http,
 				})
 			}
 		}
@@ -979,6 +980,7 @@ func (npc *NetworkPolicyController) caculatePolicyNodeRules1(cnp *crdv1alpha1.Mi
 						Ports:       r.Ports,
 						FromAddress: ads,
 						ToIPBlock:   peer.IPBlock,
+						Http:        peer.Http,
 					})
 				}
 				continue
@@ -1249,7 +1251,7 @@ func (npc *NetworkPolicyController) caculatePolicyNodeRules(cnp *crdv1alpha1.Mic
 }
 
 func generateCRDPolicyRule(cnp *crdv1alpha1.MicrosegClusterNetworkPolicy, rule *crdv1alpha1.Rule, addressMap map[string][]crdv1alpha1.Address,
-	addresses []crdv1alpha1.Address, ipBlock *crdv1alpha1.IPBlock, direction string) map[string]*crdv1alpha1.NetworkPolicyRuleGroup {
+	addresses []crdv1alpha1.Address, ipBlock *crdv1alpha1.IPBlock, http *crdv1alpha1.Http, direction string) map[string]*crdv1alpha1.NetworkPolicyRuleGroup {
 	rules := map[string]*crdv1alpha1.NetworkPolicyRuleGroup{}
 	for node, ads := range addressMap {
 		if _, ok := rules[node]; !ok {
@@ -1280,6 +1282,7 @@ func generateCRDPolicyRule(cnp *crdv1alpha1.MicrosegClusterNetworkPolicy, rule *
 				ToAddresses: ads,
 				FromAddress: addresses,
 				FromIPBlock: ipBlock,
+				Http:        http,
 			})
 		case "egress":
 			rules[node].Spec.Rules = append(rules[node].Spec.Rules, crdv1alpha1.NodeRule{
@@ -1291,6 +1294,7 @@ func generateCRDPolicyRule(cnp *crdv1alpha1.MicrosegClusterNetworkPolicy, rule *
 				ToAddresses: addresses,
 				FromAddress: ads,
 				ToIPBlock:   ipBlock,
+				Http:        http,
 			})
 		default:
 			logging.Get().Error().Msgf("invalid rule direction %s ", direction)
@@ -1355,6 +1359,7 @@ func (npc *NetworkPolicyController) caculateIngressRemoteSideRules(cnp *crdv1alp
 			Ports:       r.Ports,
 			ToAddresses: addresses,
 			FromAddress: ads,
+			Http:        peer.Http,
 		})
 	}
 	return ruleGroup, nil
@@ -1390,8 +1395,9 @@ func (npc *NetworkPolicyController) caculateEgressRemoteSideRules(cnp *crdv1alph
 			Protocol:    r.Protocol,
 			Action:      string(*r.Action),
 			Ports:       r.Ports,
-			ToAddresses: addresses,
-			FromAddress: ads,
+			ToAddresses: ads,
+			FromAddress: addresses,
+			Http:        peer.Http,
 		})
 	}
 	return ruleGroup, nil
@@ -1417,7 +1423,7 @@ func (npc *NetworkPolicyController) caculateIngressRules(cnp *crdv1alpha1.Micros
 
 	for _, r := range cnp.Spec.Ingress {
 		if len(r.From) == 0 {
-			ruleMap := generateCRDPolicyRule(cnp, &r, addressesMap, []crdv1alpha1.Address{{IP: "0.0.0.0"}}, nil, "ingress")
+			ruleMap := generateCRDPolicyRule(cnp, &r, addressesMap, []crdv1alpha1.Address{{IP: "0.0.0.0"}}, nil, nil, "ingress")
 			appendToMap(rules, ruleMap)
 			continue
 		}
@@ -1437,7 +1443,7 @@ func (npc *NetworkPolicyController) caculateIngressRules(cnp *crdv1alpha1.Micros
 			}
 			// generate ingress rules for subject pods
 			//  from ------> subject
-			rule1 := generateCRDPolicyRule(cnp, &r, addressesMap, adddress, peer.IPBlock, "ingress")
+			rule1 := generateCRDPolicyRule(cnp, &r, addressesMap, adddress, peer.IPBlock, peer.Http, "ingress")
 			appendToMap(rules, rule1)
 
 			// generate egress rules for from-side pods
@@ -1461,7 +1467,7 @@ func (npc *NetworkPolicyController) caculateEgressRules(cnp *crdv1alpha1.Microse
 
 	for _, r := range cnp.Spec.Egress {
 		if len(r.To) == 0 {
-			ruleMap := generateCRDPolicyRule(cnp, &r, addressesMap, []crdv1alpha1.Address{{IP: "0.0.0.0"}}, nil, "egress")
+			ruleMap := generateCRDPolicyRule(cnp, &r, addressesMap, []crdv1alpha1.Address{{IP: "0.0.0.0"}}, nil, nil, "egress")
 			appendToMap(rules, ruleMap)
 			continue
 		}
@@ -1471,10 +1477,10 @@ func (npc *NetworkPolicyController) caculateEgressRules(cnp *crdv1alpha1.Microse
 			if peer.PodSelector == nil && peer.NamespaceSelector == nil && peer.Group == "" && peer.IPBlock == nil {
 				toAddresses = []crdv1alpha1.Address{{IP: "0.0.0.0"}}
 			} else {
-				endpoints, err = npc.getRelatedServiceAddr(peer.PodSelector, peer.NamespaceSelector, peer.Group, r.Ports)
-				if err != nil {
-					return nil, err
-				}
+				// endpoints, err = npc.getRelatedServiceAddr(peer.PodSelector, peer.NamespaceSelector, peer.Group, r.Ports)
+				// if err != nil {
+				// 	return nil, err
+				// }
 
 				toAddresses, err = npc.caculateAddress(peer.PodSelector, peer.NamespaceSelector, peer.Group)
 				if err != nil {
@@ -1488,7 +1494,7 @@ func (npc *NetworkPolicyController) caculateEgressRules(cnp *crdv1alpha1.Microse
 			}
 
 			// generate egress rule for subject pods
-			rule1 := generateCRDPolicyRule(cnp, &r, addressesMap, toAddresses, peer.IPBlock, "egress")
+			rule1 := generateCRDPolicyRule(cnp, &r, addressesMap, toAddresses, peer.IPBlock, peer.Http, "egress")
 			for node, ads := range addressesMap {
 				for _, ep := range endpoints {
 					rule1[node].Spec.Rules = append(rule1[node].Spec.Rules, crdv1alpha1.NodeRule{

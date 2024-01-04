@@ -14,8 +14,11 @@ import (
 	"syscall"
 	"time"
 
+	heavyagent "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/heavy-agent"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo/handler"
 	svcdiscovery "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo/svc-discovery"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/waf"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/status"
 
 	"github.com/pkg/errors"
 	"github.com/rs/zerolog"
@@ -26,6 +29,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/mq"
 	"gitlab.com/security-rd/go-pkg/sdk/palace"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 
@@ -98,8 +102,8 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli m
 		return nil, nil, nil, nil, "", errors.Errorf("k8s client init failed, %v", err)
 
 	}
-	nodePods := nodeinfo.NewNodePodsWatcher(hostName, clusterKey, kubeClient)
-	nodePods.Build()
+	nodePodWatcher := nodeinfo.NewNodePodsWatcher(hostName, clusterKey, kubeClient)
+	nodePodWatcher.Build()
 	if err != nil {
 		return nil, nil, nil, nil, "", errors.Errorf("k8s client init failed, %v", err)
 	}
@@ -107,7 +111,7 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli m
 	cmWatcher := cmap.NewWatcher(kubeClient, myNamespace, "ivan-degradation-controller").AddFunc(degrade.DegradationCmapWatcher).Build()
 	_ = cmWatcher.Start()
 
-	containerType, err := nodePods.Build().GetContainerType()
+	containerType, err := nodePodWatcher.Build().GetContainerType()
 	if err != nil {
 		return nil, nil, nil, nil, "", errors.Errorf("get k8s node containerRuntimeVersion failed, %v", err)
 	}
@@ -119,7 +123,7 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli m
 
 	agent := containerassets.NewAgent(mqWriter)
 	podResInfo := nodeinfo.NewPodResInfo(agent, clusterKey)
-	k8sInfo := netflow.NewNodePodInfo(kubeClient, policyCli)
+	k8sInfo := netflow.NewNodePodInfo(kubeClient, policyCli, nodePodWatcher.Build().PodLister())
 
 	var containerInfo nodeinfo.ContainerInfoManager
 	switch containerType {
@@ -238,7 +242,7 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli m
 	})
 
 	// podsWatcher := nodePods.AddWatcher(k8sInfo).AddWatcher(podResInfo).Build()
-	podsWatcher := nodePods.AddEventHandler(nodeinfo.PodEventHandlerFuncs{
+	podsWatcher := nodePodWatcher.AddEventHandler(nodeinfo.PodEventHandlerFuncs{
 		AddFunc:    podResInfo.OnAdd,
 		UpdateFunc: podResInfo.OnUpdate,
 		DeleteFunc: podResInfo.OnDelete,
@@ -338,6 +342,8 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 		return errors.Errorf("get cluster grpc address failed.")
 	}
 
+	workNamespace := os.Getenv("MY_POD_NAMESPACE")
+
 	mqFactory := mq.GetClientFactory()
 	mqWriter, err := mqFactory.Writer(context.Background())
 	if err != nil {
@@ -352,7 +358,18 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 	_ = rpcStream.AddHandler(&pb.NodeLoadReq{}, &handler.NodeLoadHandler{})
 	rpcStream.Start()
 
-	clusterManager := k8s.NewClusterInfoManager(clusterAddr)
+	kubeConfig, err := k8s.KubeConfig()
+	if err != nil {
+		return nil
+	}
+	clientset, err := assets.NewForConfig(kubeConfig)
+	if err != nil {
+		return nil
+	}
+
+	factory := informers.NewSharedInformerFactoryWithOptions(clientset, 10*time.Hour, informers.WithNamespace(workNamespace))
+
+	clusterManager := k8s.NewClusterInfoManagerWithOpts(clusterAddr, clientset, factory, workNamespace)
 	clusterKey, ok := clusterManager.ClusterKey()
 	if !ok {
 		logging.Get().Warn().Msg("get cluster key failed")
@@ -375,8 +392,8 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 	if microsegEnv == "true" {
 		microsegv2 = true
 	}
-	var policyClient, policyEventClient microseg.PolicyClient
 
+	var agentClient, agentEventClient *heavyagent.Client
 	if microsegv2 {
 		pathExists := false
 		_, err = os.Stat("/var/run/heavy-agent")
@@ -394,18 +411,22 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 		}
 
 		if pathExists {
-			policyClient, err = microseg.NewPolicyClient("/var/run/heavy-agent/zero-trust.sock")
+			agentClient, err = heavyagent.NewClient("/var/run/heavy-agent/zero-trust.sock")
+			// policyClient, err = microseg.NewPolicyClient("/var/run/heavy-agent/zero-trust.sock")
 			if err != nil {
 				return err
 			}
 
-			policyEventClient, err = microseg.NewPolicyClient("/var/run/heavy-agent/zero-trust-post.sock")
+			agentEventClient, err = heavyagent.NewClient("/var/run/heavy-agent/zero-trust-post.sock")
+			// policyEventClient, err = microseg.NewPolicyClient("/var/run/heavy-agent/zero-trust-post.sock")
 			if err != nil {
 				return err
 			}
+
 		}
 	}
 
+	policyClient := microseg.NewPolicyClient(agentClient)
 	containerInfo, k8sInfo, podResInfo, podWatcher, containerType, err := initNodeInfos(hostName, hostIP, clusterKey, myNamespace, policyClient, stopCh)
 	if err != nil {
 		return err
@@ -422,29 +443,41 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 	// free resource
 	defer flow.Close()
 
-	kubeConfig, err := k8s.KubeConfig()
-	if err != nil {
-		return nil
-	}
-	clientset, err := assets.NewForConfig(kubeConfig)
-	if err != nil {
-		return nil
-	}
-
-	if microsegv2 {
-		tensorFactory := externalversions.NewSharedInformerFactoryWithOptions(clientset.TensorClientset, 10*time.Hour, externalversions.WithTweakListOptions(func(lo *v1.ListOptions) {
+	// if microsegv2 {
+	tensorFactory := externalversions.NewSharedInformerFactoryWithOptions(clientset.TensorClientset, 10*time.Hour,
+		externalversions.WithTweakListOptions(func(lo *v1.ListOptions) {
 			lo.LabelSelector = fmt.Sprintf("kubernetes.io/node-name=%s", hostName)
 		}))
-		ruleController := microseg.NewRuleGroupController(clientset.TensorClientset, tensorFactory, policyClient, hostName)
-		stopChan := make(chan struct{})
-		go ruleController.Run(stopChan)
+	ruleController := microseg.NewRuleGroupController(clientset.TensorClientset, tensorFactory, policyClient, hostName)
+	stopChan := make(chan struct{})
 
-		tensorFactory.Start(stopChan)
-		tensorFactory.WaitForCacheSync(stopChan)
+	go ruleController.Run(stopChan)
 
-		eventProcessor := microseg.NewEventProcessor(policyEventClient)
-		go eventProcessor.Run()
+	var wafEnabled = true
+	wafEnv := os.Getenv("MICROSEGV2")
+	if wafEnv == "true" {
+		wafEnabled = true
 	}
+	if wafEnabled {
+		wafClient := waf.NewWafClient(agentClient)
+		wafController := waf.NewWafController(clientset.TensorClientset, factory, tensorFactory, podWatcher, wafClient)
+		go wafController.Run(stopCh)
+	}
+
+	tensorFactory.Start(stopChan)
+	tensorFactory.WaitForCacheSync(stopChan)
+
+	clusterManagerSvc := os.Getenv("CLUSTER_MANAGER_URL")
+	eventProcessor := heavyagent.NewEventProcessor(clusterManagerSvc, agentEventClient)
+
+	microsegHandler := microseg.NewHandler(clusterManagerSvc)
+	eventProcessor.AddHandler("microseg", microsegHandler)
+
+	wafhander := waf.NewHandler(clusterManagerSvc)
+	eventProcessor.AddHandler("waf", wafhander)
+
+	go eventProcessor.Run()
+	// }
 
 	wg.Add(1)
 	go func() {
@@ -597,6 +630,11 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 			}
 		}()
 	}
+
+	go func() {
+		srv := status.NewServer(12000)
+		srv.Run()
+	}()
 	WaitSignal(stopCh)
 	wg.Wait()
 	return err

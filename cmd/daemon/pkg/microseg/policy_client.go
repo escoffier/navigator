@@ -4,10 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
-	"os"
-	"time"
 
-	"gitlab.com/security-rd/go-pkg/logging"
+	heavyagent "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/heavy-agent"
 	crdv1alpha1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/microsegmentation.security.io/v1alpha1"
 )
 
@@ -24,9 +22,7 @@ type NodeRule struct {
 	Ports       []crdv1alpha1.NetworkPolicyPort `json:"ports,omitempty"`
 	ToAddresses []Address                       `json:"toAddresses,omitempty"`
 	FromAddress []Address                       `json:"fromAddress,omitempty"`
-
-	// ToIPBlock   *IPBlock                        `json:"toIPBlock,omitempty"`
-	// FromIPBlock *IPBlock                        `json:"fromIPBlock,omitempty"`
+	Http        []*crdv1alpha1.Http             `json:"http,omitempty"`
 }
 
 type PolicyRule struct {
@@ -53,47 +49,31 @@ type PolicyClient interface {
 	DeleteContaier(pid int, podID uint64) error
 
 	GetConn() net.Conn
+	ReConnect() error
 	Stop()
+	SetController(controller *RuleGroupController)
+	AddConnectionCallback(cb heavyagent.ReConnectCB)
 }
 
 type policyCliet struct {
-	conn          *net.UnixConn
-	writeDeadline time.Time
-	path          string
+	*heavyagent.Client
+	controller *RuleGroupController
 }
 
-func NewPolicyClient(address string) (PolicyClient, error) {
-	stats, err := os.Stat(address)
-	if err != nil {
-		return nil, fmt.Errorf("could not stat socket address(%s): %w", address, err)
-	}
+var _ PolicyClient = (*policyCliet)(nil)
 
-	switch stats.Mode() {
-	case 0770, 1770:
-		return nil, fmt.Errorf("socket address(%s) had incorrect mode(%v), must be 0770", address, stats.Mode())
+func NewPolicyClient(cli *heavyagent.Client) PolicyClient {
+	return &policyCliet{
+		Client: cli,
 	}
-
-	conn, err := net.Dial("unix", address)
-	if err != nil {
-		return nil, fmt.Errorf("unable to dial socket(%s): %w", address, err)
-	}
-	return &policyCliet{conn: conn.(*net.UnixConn), path: address}, nil
-
 }
 
 func (cli *policyCliet) AddPolicy(rule *PolicyRule) error {
-	// data, err := json.Marshal(rule)
-	// if err != nil {
-	// 	return err
-	// }
-	// cli.conn.SetWriteDeadline(cli.writeDeadline)
-	// cli.writeDeadline = time.Time{}
-	// _, err = cli.conn.Write(data)
 	resp, err := cli.sendMessage(rule)
 	if err != nil {
 		return err
 	}
-	logging.Get().Debug().Str(moduleKey, moduleName).Msgf("policy reponse: %v", resp)
+	log.Debug().Msgf("policy reponse: %v", resp)
 	if resp.Status != 0 {
 		return fmt.Errorf("data plane err :%d", resp.Status)
 	}
@@ -105,7 +85,7 @@ func (cli *policyCliet) DeletePolicy(rule *PolicyRule) error {
 	if err != nil {
 		return err
 	}
-	logging.Get().Debug().Str(moduleKey, moduleName).Msgf("policy reponse: %v", resp)
+	log.Debug().Msgf("policy reponse: %v", resp)
 	if resp.Status != 0 {
 		return fmt.Errorf("data plane err :%d", resp.Status)
 	}
@@ -117,10 +97,8 @@ func (cli *policyCliet) sendMessage(msg interface{}) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	cli.conn.SetWriteDeadline(time.Now().Add(time.Second * 3))
-	logging.Get().Info().Str(moduleKey, moduleName).Msgf("send data: %s", string(data))
-	// cli.writeDeadline = time.Time{}
-	_, err = cli.conn.Write(data)
+
+	err = cli.Send(data)
 	if err != nil {
 		return nil, err
 	}
@@ -130,26 +108,21 @@ func (cli *policyCliet) sendMessage(msg interface{}) (*Response, error) {
 }
 
 func (cli *policyCliet) receiveResponse() (*Response, error) {
-	var data = make([]byte, 4096)
 	var resp = &Response{}
-	nBytes, err := cli.conn.Read(data)
+	data, err := cli.Receive()
 	if err != nil {
 		return nil, err
 	}
-	logging.Get().Debug().Str(moduleKey, moduleName).Msgf("received %d bytes response", nBytes)
-	if nBytes > 0 {
-		logging.Get().Debug().Str(moduleKey, moduleName).Msgf("response: %s", string(data))
-		err = json.Unmarshal(data[:nBytes], resp)
+	log.Debug().Msgf("received %d bytes response", len(data))
+	if len(data) > 0 {
+		log.Debug().Msgf("response: %s", string(data))
+		err = json.Unmarshal(data, resp)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	return resp, nil
-}
-
-func (cli *policyCliet) Stop() {
-	cli.conn.Close()
 }
 
 func (cli *policyCliet) AddContainer(pid int, podID uint64) error {
@@ -184,6 +157,13 @@ func (cli *policyCliet) DeleteContaier(pid int, podID uint64) error {
 	return err
 }
 
-func (cli *policyCliet) GetConn() net.Conn {
-	return cli.conn
+func (cli *policyCliet) SetController(controller *RuleGroupController) {
+	cli.controller = controller
+	cli.AddReConnectCallback(func() {
+		controller.ReSyncAllPolicy()
+	})
+}
+
+func (cli *policyCliet) AddConnectionCallback(cb heavyagent.ReConnectCB) {
+	cli.AddReConnectCallback(cb)
 }

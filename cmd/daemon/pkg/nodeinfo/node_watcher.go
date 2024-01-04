@@ -27,6 +27,7 @@ const (
 	ContainerdType = "containerd"
 	PodUIDIndex    = "podUID"
 	PodIPIndex     = "podIP"
+	OwnerIndex     = "ownerIndex"
 )
 
 var cronJobNameRegexp = regexp.MustCompile(`(.+)-\d{8,10}$`)
@@ -177,6 +178,13 @@ func NewNodePodsWatcher(nodeName, clusterKey string, kubeClient *kubernetes.Clie
 			pod, ok := obj.(*corev1.Pod)
 			if ok {
 				return []string{string(pod.Status.PodIP)}, nil
+			}
+			return nil, fmt.Errorf("object is not pod")
+		},
+		OwnerIndex: func(obj interface{}) ([]string, error) {
+			if pod, ok := obj.(*corev1.Pod); ok {
+				resName, resKind := util.GetOwnerOfPod(pod)
+				return []string{resKind + "/" + pod.Namespace + "/" + resName}, nil
 			}
 			return nil, fmt.Errorf("object is not pod")
 		},
@@ -334,4 +342,26 @@ func (n *NodePodsWatcher) GetPod(namespace, name string) (*corev1.Pod, error) {
 		return nil, errors.New("invalid pod object")
 	}
 	return pod, nil
+}
+
+func (n *NodePodsWatcher) GetPodByOwnder(kind, namespace, name string) ([]*corev1.Pod, error) {
+	ownerKey := kind + "/" + namespace + "/" + name
+	objs, err := n.store.ByIndex(OwnerIndex, ownerKey)
+	if err != nil {
+		return nil, err
+	}
+	var ret []*corev1.Pod
+	for _, obj := range objs {
+		ret = append(ret, obj.(*corev1.Pod))
+	}
+
+	return ret, nil
+}
+
+func (n *NodePodsWatcher) AddEventHandler(handler cache.ResourceEventHandler) {
+	n.informer.AddEventHandler(handler)
+}
+
+func (n *NodePodsWatcher) PodLister() listerv1.PodLister {
+	return n.podLister
 }

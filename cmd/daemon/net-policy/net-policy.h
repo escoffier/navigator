@@ -1,71 +1,13 @@
-#ifndef _NET_POLICY_H_
-#define _NET_POLICY_H_
+#pragma once
 
-#include <map>
+#include <unordered_map>
 #include <string>
-
-#ifdef  __cplusplus
-extern "C" {
-#endif
-
 #include <netinet/in.h>
+#include "vector"
 #include "cjson.h"
 #include "libmnl/libmnl.h"
 #include "libnetfilter_conntrack/libnetfilter_conntrack.h"
 #include "libnetfilter_queue/libnetfilter_queue.h"
-
-int gzLogLevel = 0;
-#define POLICY_LOG_LEVEL "POLICY_LOG_LEVEL"
-
-#define LOG_E(fmt, ...) {\
-    fprintf(stderr, "[ERROR] [line:%d] [%s] [policy] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
-}
-
-#define LOG_I(fmt, ...) {\
-    fprintf(stderr, "[INFO] [line:%d] [%s] [policy] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
-}
-
-#define LOG_W(fmt, ...) {\
-    fprintf(stderr, "[WARN] [line:%d] [%s] [policy] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
-}
-
-#define LOG_D(fmt, ...) {\
-    if(gzLogLevel > 0) fprintf(stderr, "[DEBUG] [line:%d] [%s] [policy] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
-}
-
-#define LOG_V(fmt, ...) {\
-    if(gzLogLevel > 1) fprintf(stderr, "[VERBOSE] [line:%d] [%s] [policy] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
-}
-
-#define RETURN_ERROR(ret, fmt, ...) {\
-    fprintf(stderr, "[ERROR] [line:%d] [%s] [policy] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
-    return ret;\
-}
-
-#define RETURN_WARN(ret, fmt, ...) {\
-    fprintf(stderr, "[WARN] [line:%d] [%s] [policy] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
-    return ret;\
-}
-
-#define BREAK_ERROR(fmt, ...) {\
-    fprintf(stderr, "[ERROR] [line:%d] [%s] [policy] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
-    break;\
-}
-
-#define CONTINUE_ERROR(fmt, ...) {\
-    fprintf(stderr, "[ERROR] [line:%d] [%s] [policy] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
-    continue;\
-}
-
-#define CONTINUE_WARN(fmt, ...) {\
-    fprintf(stderr, "[WARN] [line:%d] [%s] [policy] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
-    continue;\
-}
-
-#define GOTO_ERROR(state, fmt, ...) {\
-    fprintf(stderr, "[ERROR] [line:%d] [%s] [policy] " fmt "\n", __LINE__, __FUNCTION__, ##__VA_ARGS__);\
-    goto state;\
-}
 
 #define BasePath             ("/host")
 #define NET_POLICY_UNIX      ("/var/run/heavy-agent/zero-trust.sock")
@@ -93,14 +35,18 @@ typedef enum
     DEL_RULE = 4, //delete rule
     RSP_ACK  = 5, //response
     POST_NET = 6, //deny post
+    ADD_WAF_RULE = 7,//add waf rule
+    DEL_WAF_RULE = 8,//delete waf rule
     NET_INFO_MAX
 } NET_DATA_TYPE;
 
 typedef enum
 {
-    NET_DENY    = 0,
-    NET_ALLOW   = 1,
-    NET_DEFAULT = 2,
+    NET_DENY      = 0,
+    NET_ALLOW     = 1,
+    NET_ALLOW_RSP = 2,
+    NET_ALLOW_REQ = 3,
+    NET_DEFAULT   = 4,
     NET_POLICY_MAX
 } NET_POLICY_RULE;
 
@@ -111,16 +57,61 @@ typedef enum
     FLOW_DIR_MAX
 } FLOW_DIR;
 
+/*TCP/UDP伪首部*/
+typedef struct
+{
+    uint32_t  saddr;
+    uint32_t  daddr;
+    uint8_t   placeholder;
+    uint8_t   protocol;
+    uint16_t  length;
+} PSEUDO_HEADER;
+
+typedef struct tcp_four_tuple
+{
+    uint32_t uzSrcAddr;
+    uint32_t uzDstAddr;
+    uint16_t usSrcPort;
+    uint16_t usDstPort;
+    /*override*/
+    bool operator <(const tcp_four_tuple &other) const
+	{
+        /*compare source address*/
+        if(uzSrcAddr < other.uzSrcAddr) {
+             return true;
+        } else if(uzSrcAddr > other.uzSrcAddr) {
+            return false;
+        }
+        /*compare destination address*/
+        if(uzDstAddr < other.uzDstAddr) {
+            return true;
+        } else if(uzDstAddr > other.uzDstAddr) {
+            return false;
+        }
+        /*compare source port*/
+        if(usSrcPort < other.usSrcPort) {
+            return true;
+        } else if(usSrcPort > other.usSrcPort) {
+            return false;
+        }
+        /*compare destination port*/
+        return usDstPort < other.usDstPort;
+	}
+} TCP_FOUR_TUPLE_V4;
+
 typedef struct
 {
     char proto;
+    uint16_t totLen;
     uint16_t srcPort;
     uint16_t dstPort;
+    uint32_t uzSrcAddr;
+    uint32_t uzDstAddr;
     std::string srcAddr;
     std::string dstAddr;
 } FIVE_TUPLE;
 
-typedef struct
+ struct NFQ_RES_INFO
 {
     int pid = 0;
     int inputFd = 0;
@@ -135,7 +126,7 @@ typedef struct
     void *nfctCb = NULL;
     void *nfctHd = NULL;
     void *nfctCbHd = NULL;
-} NFQ_RES_INFO;
+} ;
 
 typedef struct
 {
@@ -159,7 +150,16 @@ typedef struct
     uint8_t  proto;//协议
 } RULE_PORT;
 
-typedef struct 
+struct HTTP_RULE_INFO
+{
+    uint8_t direction;
+    NET_POLICY_RULE action;
+    std::string host;
+    std::string method;
+    std::string path;
+};
+
+struct RULE_DETAIL
 {
     char proto;//协议
     int  priority;//权重
@@ -170,10 +170,4 @@ typedef struct
     std::string policyKey;//策略主键
     std::string srcIp;//源地址
     std::string dstIp;//目的地址
-} RULE_DETAIL;
-
-#ifdef  __cplusplus
-}
-#endif  /* end of __cplusplus */
-
-#endif //_NET_POLICY_H_
+};

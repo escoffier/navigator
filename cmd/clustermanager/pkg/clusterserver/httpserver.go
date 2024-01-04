@@ -4,10 +4,12 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
-	"gitlab.com/security-rd/go-pkg/sdk/palace"
 	"net/http"
 	"strings"
 	"time"
+
+	model1 "gitlab.com/security-rd/go-pkg/model"
+	"gitlab.com/security-rd/go-pkg/sdk/palace"
 
 	"github.com/gin-contrib/pprof"
 	"github.com/gin-gonic/gin"
@@ -186,6 +188,22 @@ func (cs *ClusterServer) handleAttackLogs(c *gin.Context) {
 	})
 }
 
+func (cs *ClusterServer) handleMicrosegEvents(c *gin.Context) {
+	var microsegEvent model1.TensorMicrosegEvent
+	err := c.ShouldBindJSON(&microsegEvent)
+	if err != nil {
+		c.String(http.StatusInternalServerError, "unmarshal microseg event err: %v", err)
+		return
+	}
+	logging.Get().Info().Msgf("microseg event: %+v", microsegEvent)
+	err = cs.Palace.SendMicrosegEvent(microsegEvent)
+	if err != nil {
+		c.String(http.StatusInternalServerError, "send microseg event err: %v", err)
+		return
+	}
+	c.String(http.StatusOK, "ok")
+}
+
 func NewHTTPServer(agent *clusterAgent.ClusterAgent, config *config.Config, Palace *palace.Palace) (*ClusterServer, error) {
 	tlsConfig := &tls.Config{}
 	if config.TLSServer {
@@ -214,6 +232,7 @@ func NewHTTPServer(agent *clusterAgent.ClusterAgent, config *config.Config, Pala
 	r.GET("/internal/watch_cluster", s.handleWatchCluster)
 	r.GET("/api/openapi/ATTCK/latestData", s.handleATTACKLatestData)
 	r.POST("/internal/attack/logs", s.handleAttackLogs)
+	r.POST("/internal/microseg/event", s.handleMicrosegEvents)
 
 	s.engine = r
 
