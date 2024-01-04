@@ -182,10 +182,14 @@ func licenseTypeByLang(ctx context.Context, type_ string) string {
 		switch type_ {
 		case model.LicenseTypeZHDelivery:
 			return model.LicenseTypeZHDelivery
+		case "特殊(无限制)":
+			return model.LicenseTypeZHDelivery
 		}
 	case lang.LanguageEN:
 		switch type_ {
 		case model.LicenseTypeZHDelivery:
+			return model.LicenseTypeDelivery
+		case "特殊(无限制)":
 			return model.LicenseTypeDelivery
 		}
 	}
