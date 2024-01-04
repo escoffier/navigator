@@ -85,7 +85,6 @@ daemon: drift-prevention-client ## Build daemon binary
 	@echo "daemon will use mirror"
 	CGO_ENABLED=1 go build -v -o bin/daemon  cmd/daemon/main.go
 	gcc -o bin/ns-mnt  cmd/daemon/setns/cjson.c cmd/daemon/setns/setmnt.c cmd/daemon/setns/net_info.c cmd/daemon/setns/netebpf_user.c cmd/daemon/setns/bpf.c cmd/daemon/setns/bpf_load.c -lelf -lpthread
-	make -C cmd/daemon/net-policy BIN_DIR=$(BIN_DIR)
 	#upx --lzma --best bin/daemon
 	docker build -f build/daemon/Dockerfile -t $(REPOPREFIX)/daemon:$(IMAGE_TAG) \
         --build-arg MIRROR_SOURCE=$(MIRROR_SOURCE) .
@@ -222,12 +221,19 @@ webhook:
 	#upx --lzma --best dist/webhook
 	docker build -t $(REPOPREFIX)/webhook:$(IMAGE_TAG) -f ./build/webhook/Dockerfile .
 
+.PHONY: heavy-agent
+heavy-agent:
+	@echo "build heavy-agent"
+	mkdir heavy_agent
+	cmake cmd/daemon/net-policy -B heavy_agent
+	cmake --build heavy_agent
+	docker build -t $(REPOPREFIX)/heavy-agent:$(IMAGE_TAG) -f ./build/heavy-agent/Dockerfile .
 
 ## Build all images
 .PHONY: all
 all: drift-prevention-client scanner scarecrow console data holmes daemon  \
 webhook cluster-manager kafka-proxy kube-scanner-report platform-report \
-scan_report apiscan-job cluster-proxy node-image
+scan_report apiscan-job cluster-proxy node-image heavy-agent
 
 
 .PHONY: pushimages
@@ -248,6 +254,7 @@ pushimages:
 	docker push $(REPOPREFIX)/apiscan-job:$(IMAGE_TAG)
 	docker push $(REPOPREFIX)/cluster-proxy:$(IMAGE_TAG)
 	docker push $(REPOPREFIX)/node-image:$(IMAGE_TAG)
+	docker push $(REPOPREFIX)/heavy-agent:$(IMAGE_TAG)
 
 .PHONY: rm-local-images
 rm-local-images:
@@ -267,3 +274,4 @@ rm-local-images:
 	docker rmi $(REPOPREFIX)/platform-report:$(IMAGE_TAG)
 	docker rmi $(REPOPREFIX)/cluster-proxy:$(IMAGE_TAG)
 	docker rmi $(REPOPREFIX)/node-image:$(IMAGE_TAG)
+	docker rmi $(REPOPREFIX)/heavy-agent:$(IMAGE_TAG)

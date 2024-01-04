@@ -21,7 +21,6 @@ ENV LC_ALL=zh_CN.UTF-8
 
 COPY bin/daemon /
 COPY bin/ns-mnt /
-COPY bin/net-rule /
 COPY ./configs/daemon/supervisord.conf /etc/
 COPY ./configs/daemon/*.o /
 COPY ./configs/drift-prevention/inject /

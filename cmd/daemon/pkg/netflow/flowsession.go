@@ -931,7 +931,7 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 	dst, dstOk := fs.nodePodsInfo.GetResDataByIp(netSession.Reply.SrcIp)
 	//源地址和目的地址都没有查询到pod信息时,则丢弃该session
 	if !srcOk && !dstOk {
-		logging.Get().Warn().Msgf("query k8s resource failed. %+v", *netSession)
+		// logging.Get().Warn().Msgf("query k8s resource failed. %+v", *netSession)
 		return nil
 	}
 	//get cluster key

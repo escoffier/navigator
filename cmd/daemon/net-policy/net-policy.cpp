@@ -1,5 +1,8 @@
+#include <cstddef>
+#include <memory>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string_view>
 #include <unistd.h>
 #include <netinet/in.h>
 #include <linux/types.h>
@@ -9,6 +12,7 @@
 #include <linux/udp.h>
 #include <linux/tcp.h>
 #include <set>
+#include <utility>
 #include <vector>
 #include <string.h>
 #include <arpa/inet.h>
@@ -19,9 +23,29 @@
 #include <dirent.h>
 #include <fcntl.h>
 #include <sched.h>
-#include "net-policy.h"
+#include <map>
+#include <iostream>
+#include <iomanip>
+#include <string>
+#include <sys/time.h>
+#include <gflags/gflags.h>
+#include "glog/logging.h"
+#include "log.h"
+#include "http/codec.h"
+#include "http/connection.h"
+#include "http/extension/log.h"
+#include "http/filter.h"
+#include "http/http_filter_factory.h"
+#include "net/connection_manager.h"
+#include "net/ip.h"
+#include "net/utility.h"
+#include "waf/plugin.h"
+#include "policy/engine.h"
 
 using namespace std;
+
+int gzLogLevel   = 0;
+bool gbWafEnable = false;
 
 struct u32_mask
 {
@@ -34,12 +58,88 @@ typedef struct nf_conntrack NF_CONNTRACK;
 static int szLocalNetNsFd = 0;
 static int gClientFd = 0;
 static int gPostLinkFd = 0;
-static set<int> MaskCidr;
-static set<int> Priority;
-static map<uint64_t, NFQ_RES_INFO *> NfqueResData;
-static map<string, RULE_DETAIL> NetInputPolicyRule;
-static map<string, RULE_DETAIL> NetOutputPolicyRule;
-static map<string, map<string, FLOW_DIR>*> NetPolicyKey;
+static char cDataBuf[102400];
+static std::set<int> MaskCidr;
+static std::set<int> Priority;
+static std::unordered_map<uint64_t, NFQ_RES_INFO *> NfqueResData;
+static std::unordered_map<std::string, RULE_DETAIL> NetInputPolicyRule;
+static std::unordered_map<std::string, RULE_DETAIL> NetOutputPolicyRule;
+static std::unordered_map<std::string, std::unordered_map<std::string, FLOW_DIR>*> NetPolicyKey;
+static std::unordered_map<std::string, std::vector<HTTP_RULE_INFO>*> NetInputHttpPolicy;
+static std::unordered_map<std::string, std::vector<HTTP_RULE_INFO>*> NetOutputHttpPolicy;
+static std::map<TCP_FOUR_TUPLE_V4, http::ConnectionPtr> TcpCtInput;
+static std::map<TCP_FOUR_TUPLE_V4, http::ConnectionPtr> TcpCtOutput;
+static net::ConnectionManager connectionManager;
+
+/*now system second to string*/
+std::string TimeToString()
+{
+    std::string sRet;
+    char value[64];
+    time_t  nowtime;
+    struct  tm *info  = NULL;
+    /*buffer info*/
+    memset(value, 0, sizeof(value));
+    /*time format*/
+    time(&nowtime);
+    info = localtime(&nowtime);
+    strftime(value, sizeof(value), "%Y-%m-%d %H:%M:%S", info);
+    /*to string*/
+    sRet = value;
+    /*return*/
+    return sRet;
+}
+
+/* Checksum a block of data */
+uint16_t csum(uint16_t *packet, int packlen)
+{
+    unsigned long sum = 0;
+    while (packlen > 1)
+    {
+        sum += *packet++;
+        packlen -= 2;
+    }
+    /*sum*/
+    if (packlen > 0) sum += *(uint8_t *)packet;
+    /* TODO: this depends on byte order */
+    while (sum >> 16) sum = (sum & 0xffff) + (sum >> 16);
+    /*return*/
+    return (uint16_t)~sum;
+}
+
+/*tcp checksum*/
+uint16_t TcpCsum(char *packet)
+{
+    struct iphdr *iphdr;
+    struct tcphdr *tcpphdr, *ttcphdr;
+    PSEUDO_HEADER *pseudo;
+    uint16_t datalen;
+    char buffer[2048];
+    /*ip protocol header*/
+    iphdr = reinterpret_cast<struct iphdr *>(packet);
+    /*check protocol*/
+    if (iphdr->protocol != IPPROTO_TCP) return 0;
+    /*udp protocol header*/
+    tcpphdr = reinterpret_cast<struct tcphdr *>(packet + iphdr->ihl * 4);
+    /*buffer length*/
+	datalen = ntohs(iphdr->tot_len);
+	if (datalen >= sizeof(buffer)) RETURN_ERROR(0, "create tcp checksum failed, data is too long than buffer, data len : %d", datalen);
+    /*init memory*/
+    memset(buffer, 0, sizeof(buffer));
+    /*pesudo header*/
+    pseudo = (PSEUDO_HEADER *)buffer;
+    pseudo->daddr = iphdr->daddr;
+    pseudo->saddr = iphdr->saddr;
+    pseudo->placeholder = 0;
+    pseudo->protocol = iphdr->protocol;
+    pseudo->length = htons(ntohs(iphdr->tot_len) - (iphdr->ihl << 2));
+    /*tcp header*/
+    ttcphdr = (struct tcphdr *)(buffer + sizeof(PSEUDO_HEADER));
+    memcpy(ttcphdr, tcpphdr, ntohs(pseudo->length));
+    ttcphdr->check = 0;
+    /*checksum*/
+    return csum((uint16_t *)buffer, ntohs(pseudo->length) + sizeof(PSEUDO_HEADER)); // sizeof(PSEUDO_HEADER) + sizeof(UDP_HEADER));
+}
 
 void PrintPolicyData(RULE_DETAIL &r, RULE_PORT &stPort)
 {
@@ -88,7 +188,7 @@ int SetLocalNetNs(int fd)
     return 0;
 }
 
-string ipv6Convert(char *ipv6)
+std::string ipv6Convert(char *ipv6)
 {
     int ret;
     string sRet = "";
@@ -163,13 +263,6 @@ static string CreatePolicyRuleKey(RULE_DETAIL &info)
     LOG_D("create policy rule key : [%s], priority : %d, priority size : %d", buff, info.priority, (int)Priority.size());
     key = buff;
     return key;
-}
-
-string ipv4ToString(uint32_t ip)
-{
-    struct in_addr addr;
-    addr.s_addr = ip;
-    return inet_ntoa(addr);
 }
 
 static int CreatePolicyRuleKey(FIVE_TUPLE &tuple, FLOW_DIR dir, vector<string> &value)
@@ -253,24 +346,25 @@ err:
 }
 
 /*post match message*/
-static int PostMatchMsg(FIVE_TUPLE &tuple, NET_POLICY_RULE rule, FLOW_DIR dir, string &sRuleKey)
+static int PostMatchMsg(FIVE_TUPLE &tuple, NET_POLICY_RULE action, FLOW_DIR dir, string &sRuleKey)
 {
     int ret, len;
     char *str = NULL;
     cJSON *root = NULL;
     if(gPostLinkFd <= 0) return 0;
-    //rule
-    rule = (rule == NET_DEFAULT) ? NET_ALLOW : rule;
+    //action
+    action = (action == NET_DENY) ? NET_DENY: NET_ALLOW;
     //create json object
     root = cJSON_CreateObject();
     if(!root) RETURN_ERROR(-1, "create json object failed.");
+    cJSON_AddStringToObject(root, "type", "microseg");
     cJSON_AddNumberToObject(root, "proto", tuple.proto);
-    cJSON_AddNumberToObject(root, "rule", rule);
+    cJSON_AddNumberToObject(root, "action", action);
     cJSON_AddNumberToObject(root, "direction", dir);
-    cJSON_AddNumberToObject(root, "src-port", tuple.srcPort);
-    cJSON_AddNumberToObject(root, "dst-port", tuple.dstPort);
-    cJSON_AddStringToObject(root, "src-ip", tuple.srcAddr.c_str());
-    cJSON_AddStringToObject(root, "dst-ip", tuple.dstAddr.c_str());
+    cJSON_AddNumberToObject(root, "src_port", tuple.srcPort);
+    cJSON_AddNumberToObject(root, "dst_port", tuple.dstPort);
+    cJSON_AddStringToObject(root, "src_ip", tuple.srcAddr.c_str());
+    cJSON_AddStringToObject(root, "dst_ip", tuple.dstAddr.c_str());
     cJSON_AddStringToObject(root, "policy_name", sRuleKey.c_str());
     str = cJSON_PrintUnformatted(root);
     if(!str) GOTO_ERROR(err, "json format failed.");
@@ -289,15 +383,36 @@ err:
     return -1;
 }
 
+/*match http policy rule*/
+static NET_POLICY_RULE MatchHttpPolicyRule(std::vector<HTTP_RULE_INFO> *httpRules, http::Header state)
+{
+    std::string host, method, path;
+    if(httpRules == NULL) return NET_DEFAULT;
+    /*check http state*/
+    for(auto it = httpRules->begin(); it != httpRules->end(); it++)
+    {
+        host = (*it).host;
+        method = (*it).method;
+        path = (*it).path;
+        if(!host.empty() && (host != state.host_)) continue;
+        if(!method.empty() && (method != state.method_)) continue;
+        if(!path.empty() && (path != state.path_)) continue;
+        /*return*/
+        return (*it).action;
+    }
+    /*return*/
+    return NET_DEFAULT;
+}
+
 /*math net policy rule*/
 static NET_POLICY_RULE MatchNetPolicyRule(FIVE_TUPLE &tuple, FLOW_DIR dir, string &sRuleKey)
 {
     int p;
     bool bIsMatch;
-    string key;
-    vector<string> ruleKeys;
-    map<string, RULE_DETAIL> *ruleQue;
-    map<string, RULE_DETAIL>::iterator it;
+    std::string key;
+    std::vector<std::string> ruleKeys;
+    std::unordered_map<std::string, RULE_DETAIL> *ruleQue;
+    std::unordered_map<std::string, RULE_DETAIL>::iterator it;
     /*match*/
     ruleQue = (dir == DIR_INGRESS) ? &NetInputPolicyRule : &NetOutputPolicyRule;
     if(ruleQue->size() == 0) return NET_DEFAULT;
@@ -308,7 +423,7 @@ static NET_POLICY_RULE MatchNetPolicyRule(FIVE_TUPLE &tuple, FLOW_DIR dir, strin
     for(int i = 0; i < (int)ruleKeys.size(); i++)
     {
         //print debug log
-        //LOG_D("%s, find rule, key : %s, dst port : %d.", (dir == DIR_INGRESS) ? "ingress" : "egress", ruleKeys[i].c_str(), tuple.dstPort);
+        LOG_T("%s, find rule, key : %s, dst port : %d.", (dir == DIR_INGRESS) ? "ingress" : "egress", ruleKeys[i].c_str(), tuple.dstPort);
         //find rule
         it = ruleQue->find(ruleKeys.at(i).c_str());
         if(it == ruleQue->end()) continue;
@@ -423,7 +538,7 @@ static int SetAcceptMark(NFQ_RES_INFO *nfqres, FIVE_TUPLE &tuple, NFC_MSG_TYPE m
 }
 
 /*parse package*/
-static int parse_package(unsigned char *pkg, FIVE_TUPLE &tuple)
+static int parse_package(unsigned char *pkg, FIVE_TUPLE &tuple, struct tcphdr *tcphdr, int &offset)
 {
     uint16_t srcPort, dstPort;
     struct iphdr  *iph;
@@ -432,11 +547,15 @@ static int parse_package(unsigned char *pkg, FIVE_TUPLE &tuple)
     struct in_addr addr;
     /*init buffer*/
     iph = (struct iphdr *)pkg;
-    addr.s_addr   = iph->saddr;
-    tuple.srcAddr = inet_ntoa(addr);
-    addr.s_addr   = iph->daddr;
-    tuple.dstAddr = inet_ntoa(addr);
+    addr.s_addr     = iph->saddr;
+    tuple.uzSrcAddr = iph->saddr;
+    tuple.srcAddr   = inet_ntoa(addr);
+    addr.s_addr     = iph->daddr;
+    tuple.uzDstAddr = iph->daddr;
+    tuple.dstAddr   = inet_ntoa(addr);
     if(iph->version != 4) return NF_ACCEPT;
+    /*ip header length*/
+    offset = iph->ihl << 2;
     /*procotol*/
     switch (iph->protocol)
     {
@@ -444,12 +563,15 @@ static int parse_package(unsigned char *pkg, FIVE_TUPLE &tuple)
             udph = (struct udphdr *)(pkg + iph->ihl * 4);
             srcPort = udph->source;
             dstPort = udph->dest;
+            offset += sizeof(struct udphdr);
             break;
 
         case IPPROTO_TCP:
             tcph = (struct tcphdr *)(pkg + iph->ihl * 4);
             srcPort = tcph->source;
             dstPort = tcph->dest;
+            offset += tcph->doff << 2;
+            memcpy(tcphdr, tcph, sizeof(struct tcphdr));
             break;
 
         default:
@@ -459,66 +581,57 @@ static int parse_package(unsigned char *pkg, FIVE_TUPLE &tuple)
     tuple.proto = iph->protocol;
     tuple.srcPort = ntohs(srcPort);
     tuple.dstPort = ntohs(dstPort);
+    tuple.totLen = ntohs(iph->tot_len);
     /*return*/
     return NF_MATCH_RULE;
 }
 
-static int input_nfq_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nfq_data *nfa, void *data)
+/*reset tcp link*/
+static int rst_tcp_link(unsigned char *pkg)
 {
-    int id = 0, ret;
-    uint32_t mark;
-    string sRuleKey;
-    struct nfqnl_msg_packet_hdr *ph;
-    unsigned char *pkg;
-    NET_POLICY_RULE ruleRet;
-    FIVE_TUPLE tuple;
-    NFQ_RES_INFO *nfqres = (NFQ_RES_INFO *)data;
-    nfqres = nfqres;
-
-    ph = nfq_get_msg_packet_hdr(nfa);
-    if(!ph) return 0;
-
-    id = ntohl(ph->packet_id);
-    //printf("hw_protocol=0x%04x hook=%u id=%u ", ntohs(ph->hw_protocol), ph->hook, id);
-
-    mark = nfq_get_nfmark(nfa);
-    if(mark == NET_ALLOW) return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
-
-    ret = nfq_get_payload(nfa, &pkg);
-    if (ret < 0) return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
-    
-    //printf("payload_len=%d ", ret);
-    if(ret < (int)sizeof(struct iphdr)) return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
-    
-    ret = parse_package(pkg, tuple);
-    if(ret != NF_MATCH_RULE) nfq_set_verdict(qh, id, ret, 0, NULL);
-    /*print debug log*/
-    LOG_V("input %s %s:%u -> %s:%u ", (tuple.proto == IPPROTO_UDP) ? "udp" : "tcp", tuple.srcAddr.c_str(), tuple.srcPort, tuple.dstAddr.c_str(), tuple.dstPort);
-    /*match rule*/
-    ruleRet = MatchNetPolicyRule(tuple, DIR_INGRESS, sRuleKey);
-    if(ruleRet != NET_DEFAULT) PostMatchMsg(tuple, ruleRet, DIR_INGRESS, sRuleKey);
-    //deny
-    if(ruleRet == NET_DENY)
+    int offset, datalen;
+    //uint16_t check;
+    struct iphdr  *iph;
+    struct tcphdr *tcph;
+    /*init buffer*/
+    iph = (struct iphdr *)pkg;
+    if(iph->version != 4) return NF_ACCEPT;
+    /*procotol*/
+    if(iph->protocol != IPPROTO_TCP) return NF_ACCEPT;
+    /*tcp protocol*/
+    tcph = (struct tcphdr *)(pkg + iph->ihl * 4);
+    //check = tcph->check;
+    /*modify method*/
+    offset = (iph->ihl * 4) + (tcph->doff << 2);
+    datalen = ntohs(iph->tot_len) - offset;
+    for(auto i = offset; i < (offset + datalen); i++)
     {
-        LOG_D("input drop %s %s:%u -> %s:%u ", (tuple.proto == IPPROTO_UDP) ? "udp" : "tcp", tuple.srcAddr.c_str(), tuple.srcPort, tuple.dstAddr.c_str(), tuple.dstPort);
-        /*drop data*/
-        return nfq_set_verdict(qh, id, NF_DROP, 0, NULL);
+        pkg[i] = 0;
+        if((i - offset) > 6) break;
     }
+    /*checksum*/
+    tcph->check = TcpCsum((char *)pkg);
+    /*print debug log*/
+    //LOG_D("src check : 0x%04x, now check : 0x%04x", check & 0xffff, tcph->check & 0xffff);
     /*return*/
-    return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW, 0, NULL);
+    return NF_ACCEPT;
 }
 
-static int output_nfq_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nfq_data *nfa, void *data)
+static int input_nfq_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nfq_data *nfa, void *argv)
 {
-    int id = 0, ret;
+    bool bRet = false;
+    int id = 0, ret, offset;
     uint32_t mark;
     string sRuleKey;
-    struct nfqnl_msg_packet_hdr *ph;
-    unsigned char *pkg;
-    NET_POLICY_RULE ruleRet;
     FIVE_TUPLE tuple;
-    NFQ_RES_INFO *nfqres = (NFQ_RES_INFO *)data;
-    nfqres = nfqres;
+    struct tcphdr tcphdr;
+    TCP_FOUR_TUPLE_V4 ctKey;
+    NET_POLICY_RULE ruleRet;
+    struct nfqnl_msg_packet_hdr *ph;
+    unsigned char *pkg, *value = nullptr;
+    std::map<TCP_FOUR_TUPLE_V4, http::ConnectionPtr>::iterator tcpIt;
+    NFQ_RES_INFO *nfqres = (NFQ_RES_INFO *)argv;
+    (void)nfqres;
 
     ph = nfq_get_msg_packet_hdr(nfa);
     if(!ph) return 0;
@@ -527,47 +640,345 @@ static int output_nfq_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct
     //printf("hw_protocol=0x%04x hook=%u id=%u ", ntohs(ph->hw_protocol), ph->hook, id);
 
     mark = nfq_get_nfmark(nfa);
-    if(mark == NET_ALLOW) return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
+    if((mark == NET_ALLOW) || (mark == NET_ALLOW_RSP)) return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
 
-    ret = nfq_get_payload(nfa, &pkg);
-    if (ret < 0) return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
+    auto dataLen = nfq_get_payload(nfa, &pkg);
+    if (dataLen < 0) return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
     
     //printf("payload_len=%d ", ret);
-    if(ret < (int)sizeof(struct iphdr)) return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
+    if(dataLen < (int)sizeof(struct iphdr)) return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
     
-    ret = parse_package(pkg, tuple);
+    ret = parse_package(pkg, tuple, &tcphdr, offset);
     if(ret != NF_MATCH_RULE) nfq_set_verdict(qh, id, ret, 0, NULL);
     /*print debug log*/
-    LOG_V("output %s %s:%u -> %s:%u ", (tuple.proto == IPPROTO_UDP) ? "udp" : "tcp", tuple.srcAddr.c_str(), tuple.srcPort, tuple.dstAddr.c_str(), tuple.dstPort);
-    /*match rule*/
-    ruleRet = MatchNetPolicyRule(tuple, DIR_EGRESS, sRuleKey);
-    if(ruleRet != NET_DEFAULT) PostMatchMsg(tuple, ruleRet, DIR_EGRESS, sRuleKey);
-    //deny
-    if(ruleRet == NET_DENY)
+    //if(tuple.srcPort != 53) LOG_V("input receive %s, mark : %d, seq %u, tot len : %d, %s:%u -> %s:%u, memory : %p", (tuple.proto == IPPROTO_UDP) ? "udp" : "tcp", mark, ntohl(tcphdr.seq), tuple.totLen, tuple.srcAddr.c_str(), tuple.srcPort, tuple.dstAddr.c_str(), tuple.dstPort, argv);
+
+    //LOG_D("input receive data: %p", pkg);
+    if(gbWafEnable && (tuple.proto == IPPROTO_TCP))
     {
-        LOG_D("output drop %s %s:%u -> %s:%u ", (tuple.proto == IPPROTO_UDP) ? "udp" : "tcp", tuple.srcAddr.c_str(), tuple.srcPort, tuple.dstAddr.c_str(), tuple.dstPort);
-        /*drop data*/
-        return nfq_set_verdict(qh, id, NF_DROP, 0, NULL);
+        auto status = connectionManager.receive(seastar::net::packet::from_static_data((char*)pkg, dataLen));
+        if (status == net::NetStatus::Drop) {
+        return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW_REQ, dataLen, pkg);
+        }
     }
-    /*return*/
-    return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW, 0, NULL);
+    /*tcp four tuple*/
+    ctKey.usDstPort = tuple.dstPort;
+    ctKey.usSrcPort = tuple.srcPort;
+    ctKey.uzDstAddr = tuple.uzDstAddr;
+    ctKey.uzSrcAddr = tuple.uzSrcAddr;
+    /*tcp protocol*/
+    switch (tuple.proto)
+    {
+    case IPPROTO_TCP:
+        /*query conntrack info*/
+        tcpIt = TcpCtInput.find(ctKey);
+        if(tcpIt == TcpCtInput.end())
+        {
+            /*tcp syn*/
+            if(tcphdr.syn != 0) break;
+            /*tcp ack*/
+            if(dataLen <= offset) return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW_REQ, 0, NULL);
+            /*break*/
+            break;
+        }
+        /*tcp tuple exist*/
+        bRet = true;
+        /*tcp fin*/
+        if((tcphdr.fin == 1) || (tcphdr.rst == 1))
+        {
+            TcpCtInput.erase(ctKey);
+            /*print debug log*/
+            LOG_D("microseg-dp input data, delete conntrack info, src: %s:%d, dest : %s:%d", tuple.srcAddr.c_str(), tuple.srcPort, tuple.dstAddr.c_str(), tuple.dstPort);
+            /*return*/
+            return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW, 0, NULL);
+        }
+        /*tcp ack*/
+        if(dataLen <= offset) return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW_REQ, 0, NULL);
+        /*break*/
+        break;
+    case IPPROTO_UDP:
+        break;
+    default:
+        return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
+    }
+    /*query tcp conntrack result*/
+    if(!bRet)
+    {
+        /*match rule*/
+        ruleRet = MatchNetPolicyRule(tuple, DIR_INGRESS, sRuleKey);
+        if(ruleRet == NET_DEFAULT) return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW, 0, NULL);
+        /*query http rule*/
+        auto httpRule = NetInputHttpPolicy.find(sRuleKey);
+        /*check http rule*/
+        if((httpRule == NetInputHttpPolicy.end()) || (tuple.proto == IPPROTO_UDP) || (httpRule->second->size() == 0))
+        {
+            /*post match message*/
+            PostMatchMsg(tuple, ruleRet, DIR_INGRESS, sRuleKey);
+            //deny
+            if(ruleRet == NET_DENY)
+            {
+                LOG_D("input drop %s %s:%u -> %s:%u ", (tuple.proto == IPPROTO_UDP) ? "udp" : "tcp", tuple.srcAddr.c_str(), tuple.srcPort, tuple.dstAddr.c_str(), tuple.dstPort);
+                /*drop data*/
+                return nfq_set_verdict(qh, id, NF_DROP, 0, NULL);
+            }
+            /*return*/
+            return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW, 0, NULL);
+        }
+    }
+
+    auto tcpSeq = ntohl(tcphdr.seq);
+    /*tcp syn packet*/
+    if(tcphdr.syn == 1)
+    {
+        LOG_D("microseg-dp  input sync, src: %s, dest : %s, offset : %d, data len : %d", tuple.srcAddr.c_str(),  tuple.dstAddr.c_str(), offset, dataLen);
+        auto conn  = std::make_unique<http::Connection>(sRuleKey);
+        conn->setTcpSeq(tcpSeq + 1);
+        TcpCtInput.insert({ctKey, std::move(conn)});
+        /*return*/
+        return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW_REQ, 0, NULL);
+    }
+    /*print debug log*/
+    LOG_D("microseg-dp  input data, src: %s, dest : %s, offset : %d, data len : %d", tuple.srcAddr.c_str(),  tuple.dstAddr.c_str(), offset, dataLen);
+    /*can not find tcp conntrack*/
+    if(tcpIt == TcpCtInput.end())
+    {
+        LOG_D("microseg-dp input not sync, new conntrack, src: %s, dest : %s, offset : %d, data len : %d", tuple.srcAddr.c_str(),  tuple.dstAddr.c_str(), offset, dataLen);
+        auto [it, success] = TcpCtInput.insert({ctKey, std::make_unique<http::Connection>(sRuleKey)});
+        if (success) {
+            tcpIt = it;
+        }
+    }
+    /*get tcp data*/
+    value = pkg + offset;
+    /*get rule key*/
+    sRuleKey = tcpIt->second->getRuleKey();
+    /*get tcp seq*/
+    if(tcpSeq < tcpIt->second->getTcpSeq()) {
+        LOG_D("input - duplicated tcp segment");
+        return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
+    }
+    auto payloadLen = dataLen - offset;
+    /*save tcp seq*/
+    tcpIt->second->setTcpSeq(tcpSeq + payloadLen);
+    /*string convert*/
+    auto data = std::string_view(reinterpret_cast<const char *>(value), payloadLen);
+    auto header = tcpIt->second->onData(data);
+    LOG_D("input method : %s, path : %s, host : %s, state : %d", header.method_.c_str(), header.path_.c_str(), header.host_.c_str(), static_cast<int>(header.parseState_));
+    /*parse http state*/
+    if(header.parseState_ != ParseState::Done) return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW_REQ, 0, NULL);
+    /*get rule key*/
+    sRuleKey = tcpIt->second->getRuleKey();
+    /*query http rule*/
+    auto httpRule = NetInputHttpPolicy.find(sRuleKey);
+    if(httpRule == NetInputHttpPolicy.end()) return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_DEFAULT, 0, NULL);
+    // process header
+    ruleRet = MatchHttpPolicyRule(httpRule->second, header);
+    /*print debug log*/
+    LOG_D("match input http rule : %d, key : %s", ruleRet, sRuleKey.c_str());
+    /*net rule continue*/
+    if(ruleRet == NET_DEFAULT) return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW_REQ, 0, NULL);
+    /*post match message*/
+    PostMatchMsg(tuple, ruleRet, DIR_INGRESS, sRuleKey);
+    /*rst tcp link*/
+    if(ruleRet == NET_DENY) rst_tcp_link(pkg);
+    /*send rst http*/
+    return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW_REQ, dataLen, pkg);
+}
+
+static int output_nfq_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct nfq_data *nfa, void *argv)
+{
+    bool bRet = false;
+    int id = 0, ret, offset;
+    uint32_t mark;
+    std::string sRuleKey;
+    FIVE_TUPLE tuple;
+    struct tcphdr tcphdr;
+    TCP_FOUR_TUPLE_V4 ctKey;
+    struct nfqnl_msg_packet_hdr *ph;
+    unsigned char *pkg, *value;
+    NET_POLICY_RULE ruleRet;
+    std::map<TCP_FOUR_TUPLE_V4, http::ConnectionPtr>::iterator tcpIt;
+    // NFQ_RES_INFO *nfqres = (NFQ_RES_INFO *)argv;
+    // nfqres = nfqres;
+
+    ph = nfq_get_msg_packet_hdr(nfa);
+    if(!ph) return 0;
+
+    id = ntohl(ph->packet_id);
+    //printf("hw_protocol=0x%04x hook=%u id=%u ", ntohs(ph->hw_protocol), ph->hook, id);
+
+    mark = nfq_get_nfmark(nfa);
+    if((mark == NET_ALLOW) || (mark == NET_ALLOW_REQ)) return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
+
+    auto dataLen = nfq_get_payload(nfa, &pkg);
+    if (dataLen < 0) return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
+    
+    //printf("payload_len=%d ", ret);
+    if(dataLen < (int)sizeof(struct iphdr)) return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
+    
+    ret = parse_package(pkg, tuple, &tcphdr, offset);
+    if(ret != NF_MATCH_RULE) nfq_set_verdict(qh, id, ret, 0, NULL);
+    /*print debug log*/
+    //if(tuple.dstPort != 53) LOG_V("output receive %s, mark : %d, seq: %u, tot len : %d, %s:%u -> %s:%u, memory : %p ", (tuple.proto == IPPROTO_UDP) ? "udp" : "tcp", mark, ntohl(tcphdr.seq), tuple.totLen, tuple.srcAddr.c_str(), tuple.srcPort, tuple.dstAddr.c_str(), tuple.dstPort, argv);
+    //LOG_D("input receive data: %p", pkg);
+    if(gbWafEnable && (tuple.proto == IPPROTO_TCP))
+    {
+        auto status = connectionManager.receive(seastar::net::packet::from_static_data((char*)pkg, dataLen));
+        if (status == net::NetStatus::Drop) {
+            //LOG_D("drop pkt: %p", pkg);
+            return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW_RSP, dataLen, pkg);
+        }
+    }
+    /*tcp four tuple*/
+    ctKey.usDstPort = tuple.dstPort;
+    ctKey.usSrcPort = tuple.srcPort;
+    ctKey.uzDstAddr = tuple.uzDstAddr;
+    ctKey.uzSrcAddr = tuple.uzSrcAddr;
+    /*tcp protocol*/
+    switch (tuple.proto)
+    {
+    case IPPROTO_TCP:
+        /*query conntrack info*/
+        tcpIt = TcpCtOutput.find(ctKey);
+        if(tcpIt == TcpCtOutput.end())
+        {
+            /*tcp syn*/
+            if(tcphdr.syn != 0) break;
+            /*tcp ack*/
+            if(dataLen <= offset) return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW_RSP, 0, NULL);
+            /*break*/
+            break;
+        }
+        /*tcp tuple exist*/
+        bRet = true;
+        /*tcp fin*/
+        if((tcphdr.fin == 1) || (tcphdr.rst == 1))
+        {
+            TcpCtOutput.erase(ctKey);
+            /*print debug log*/
+            LOG_D("microseg-dp out data, delete conntrack info, src: %s:%d, dest : %s:%d", tuple.srcAddr.c_str(), tuple.srcPort, tuple.dstAddr.c_str(), tuple.dstPort);
+            /*return*/
+            return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW, 0, NULL);
+        }
+        /*tcp ack*/
+        if(dataLen <= offset) return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW_RSP, 0, NULL);
+        /*break*/
+        break;
+    case IPPROTO_UDP:
+        break;
+    default:
+        return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
+    }
+    /*query tcp conntrack result*/
+    if(!bRet)
+    {
+        /*match rule*/
+        ruleRet = MatchNetPolicyRule(tuple, DIR_EGRESS, sRuleKey);
+        if(ruleRet == NET_DEFAULT) return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW, 0, NULL);
+        /*query http rule*/
+        auto httpRule = NetOutputHttpPolicy.find(sRuleKey);
+        /*check http rule*/
+        if((httpRule == NetOutputHttpPolicy.end()) || (tuple.proto == IPPROTO_UDP) || (httpRule->second->size() == 0))
+        {
+            /*post match message*/
+            PostMatchMsg(tuple, ruleRet, DIR_EGRESS, sRuleKey);
+            //deny
+            if(ruleRet == NET_DENY)
+            {
+                LOG_D("output drop %s %s:%u -> %s:%u ", (tuple.proto == IPPROTO_UDP) ? "udp" : "tcp", tuple.srcAddr.c_str(), tuple.srcPort, tuple.dstAddr.c_str(), tuple.dstPort);
+                /*drop data*/
+                return nfq_set_verdict(qh, id, NF_DROP, 0, NULL);
+            }
+            /*return*/
+            return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW, 0, NULL);
+        }
+    }
+    auto tcpSeq = ntohl(tcphdr.seq);
+    /*tcp syn packet*/
+    if(tcphdr.syn == 1)
+    {
+        LOG_D("microseg-dp output sync, rule key : %s, src: %s, dest : %s, offset : %d, data len : %d", sRuleKey.c_str(), tuple.srcAddr.c_str(),  tuple.dstAddr.c_str(), offset, dataLen);
+        auto conn  = std::make_unique<http::Connection>(sRuleKey);
+        conn->setTcpSeq(tcpSeq + 1);
+        TcpCtOutput.insert({ctKey, std::move(conn)});
+        /*return*/
+        return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW_RSP, 0, NULL);
+    }
+    /*print debug log*/
+    LOG_D("microseg-dp output data, src: %s, dest : %s, offset : %d, data len : %d", tuple.srcAddr.c_str(),  tuple.dstAddr.c_str(), offset, dataLen);
+    /*can not find tcp conntrack*/
+    if(tcpIt == TcpCtOutput.end())
+    {
+        LOG_D("microseg-dp output not sync, new conntrack, src: %s, dest : %s, offset : %d, data len : %d", tuple.srcAddr.c_str(),  tuple.dstAddr.c_str(), offset, dataLen);
+        auto [it, success] = TcpCtOutput.insert({ctKey, std::make_unique<http::Connection>(sRuleKey)});
+        if (success) {
+            tcpIt = it;
+        }
+    }
+    /*get tcp data*/
+    value = pkg + offset;
+    /*get rule key*/
+    sRuleKey = tcpIt->second->getRuleKey();
+    /*get tcp seq*/
+    if(tcpSeq < tcpIt->second->getTcpSeq()) {
+        LOG_D("output - duplicated tcp segment");
+        return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
+    }
+
+    auto payloadLen = dataLen - offset;
+    /*save tcp seq*/
+    tcpIt->second->setTcpSeq(tcpSeq + payloadLen);
+    /*string convert*/
+    auto data = std::string_view(reinterpret_cast<const char *>(value), payloadLen);
+    auto header = tcpIt->second->onData(data);
+    LOG_D("output method : %s, path : %s, host : %s, state : %d, rule key : %s", header.method_.c_str(), header.path_.c_str(), header.host_.c_str(), static_cast<int>(header.parseState_), sRuleKey.c_str());
+    /*parse http state*/
+    if(header.parseState_ != ParseState::Done) return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW_RSP, 0, NULL);
+    /*query http rule*/
+    auto httpRule = NetOutputHttpPolicy.find(sRuleKey);
+    if(httpRule == NetOutputHttpPolicy.end()) return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_DEFAULT, 0, NULL);
+    // process header
+    ruleRet = MatchHttpPolicyRule(httpRule->second, header);
+    /*print debug log*/
+    LOG_D("match output http rule : %d, key : %s", ruleRet, sRuleKey.c_str());
+    /*net rule continue*/
+    if(ruleRet == NET_DEFAULT) return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW_RSP, 0, NULL);
+    /*post match message*/
+    PostMatchMsg(tuple, ruleRet, DIR_EGRESS, sRuleKey);
+    /*rst tcp link*/
+    if(ruleRet == NET_DENY) rst_tcp_link(pkg);
+    /*send rst http*/
+    return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW_RSP, dataLen, pkg);
 }
 
 /*destroy nfqueue resource*/
-void DestroyNfqueResource(NFQ_RES_INFO *nfqres)
+void DestroyNfqueResource(int efd, NFQ_RES_INFO *nfqres)
 {
+    struct epoll_event ev;
     struct nfq_q_handle *qh = NULL;
     if(!nfqres) return;
-
-    if(nfqres->inputFd > 0) close(nfqres->inputFd);
-    if(nfqres->outputFd > 0) close(nfqres->outputFd);
+    /*close input fd*/
+    if(nfqres->inputFd > 0)
+    {
+        ev.data.fd = nfqres->inputFd;
+        epoll_ctl(efd, EPOLL_CTL_DEL, nfqres->inputFd, &ev);
+        close(nfqres->inputFd);
+    }
+    /*close output fd*/
+    if(nfqres->outputFd > 0)
+    {
+        ev.data.fd = nfqres->outputFd;
+        epoll_ctl(efd, EPOLL_CTL_DEL, nfqres->outputFd, &ev);
+        close(nfqres->outputFd);
+    }
+    /*destroy input queue*/
     if(nfqres->inputQue)
     {
         qh = (struct nfq_q_handle *)nfqres->inputQue;
         nfq_close(qh->h);
         nfq_destroy_queue(qh);
     }
-
+    /*destroy output queue*/
     if(nfqres->outputQue)
     {
         qh = (struct nfq_q_handle *)nfqres->outputQue;
@@ -635,7 +1046,7 @@ int OpenNfque(int quenum, NFQ_RES_INFO *nfqres)
     }
     if(!qh) GOTO_ERROR(err, "nfq create queue failed");
 
-    ret = nfq_set_mode(qh, NFQNL_COPY_PACKET, 0xff);
+    ret = nfq_set_mode(qh, NFQNL_COPY_PACKET, 0xffff);
     if(ret < 0) GOTO_ERROR(err, "nfq set mode failed.");
 
     /*save nfqueue handle*/
@@ -659,7 +1070,7 @@ err:
 int NfqueueRcvData(int32_t zRcvEvFd, int32_t fd, void *ptr)
 {
     int ret;
-    char buf[10240];
+    char buf[65536];
     NFQ_RES_INFO *nfqRes = NULL;
     struct nfq_q_handle *qh;
     RCV_EPOLL_CB *nfqEvent = (RCV_EPOLL_CB *)ptr;
@@ -747,24 +1158,24 @@ int InitNfqueue(int zRcvEvFd, NET_CTRL_INFO &ctrl)
     ret = AddEpollEvent(zRcvEvFd, nfqres);
     if(ret < 0) GOTO_ERROR(err, "add %d epoll event failed.", ctrl.pid);
     /*save nfqueue resource*/
-    NfqueResData.insert(pair<uint64_t, NFQ_RES_INFO *>(ctrl.podId, nfqres));
+    NfqueResData.insert(make_pair(ctrl.podId, nfqres));
     /*return*/
     return 0;
 
 err:
-    DestroyNfqueResource(nfqres);
+    DestroyNfqueResource(zRcvEvFd, nfqres);
     /*return*/
     return -1;
 }
 
 /*nfqueue release*/
-int ReleaseNfqueResource(int podId)
+int ReleaseNfqueResource(int efd, int podId)
 {
     /*find nfqueue resource infor*/
     auto it = NfqueResData.find(podId);
     if(it == NfqueResData.end()) return 0;
     /*release resource*/
-    DestroyNfqueResource(it->second);
+    DestroyNfqueResource(efd, it->second);
     /*return*/
     return 0;
 }
@@ -782,8 +1193,24 @@ int DeletePolicy(NET_CTRL_INFO &ctrl)
 {
     string key;
     FLOW_DIR value;
-    map<string, FLOW_DIR>* subPolicy;
-    map<string, map<string, FLOW_DIR>*>::iterator keyIt;
+    std::unordered_map<string, FLOW_DIR>* subPolicy;
+    std::unordered_map<string, std::unordered_map<string, FLOW_DIR>*>::iterator keyIt;
+    /*clear input http policy*/
+    auto it = NetInputHttpPolicy.find(ctrl.policyKey);
+    if(it != NetInputHttpPolicy.end())
+    {
+        auto sit = it->second;
+        delete sit;
+        NetInputHttpPolicy.erase(it);
+    }
+    /*clear output http policy*/
+    it = NetOutputHttpPolicy.find(ctrl.policyKey);
+    if(it != NetOutputHttpPolicy.end())
+    {
+        auto sit = it->second;
+        delete sit;
+        NetOutputHttpPolicy.erase(it);
+    }
     //clear
     if(NetPolicyKey.size() == 0) return ClearSetData();
     //find
@@ -816,10 +1243,33 @@ int DeletePolicy(NET_CTRL_INFO &ctrl)
                 break;
         }
     }
+    /*clear net policy*/
     subPolicy->clear();
     delete subPolicy;
     /*print debug log*/
     LOG_D("delete net policy rule, key : %s", ctrl.policyKey.c_str());
+    /*return*/
+    return 0;
+}
+
+int AddNewHttpPolicy(FLOW_DIR dir, std::string &key, HTTP_RULE_INFO &httpRule)
+{
+    std::vector<HTTP_RULE_INFO> *httpRuleArr;
+    auto http = (dir == DIR_INGRESS) ? &NetInputHttpPolicy : &NetOutputHttpPolicy;
+    auto it = http->find(key);
+    if(it == http->end())
+    {
+        httpRuleArr = new std::vector<HTTP_RULE_INFO>;
+        http->insert(std::make_pair(key, httpRuleArr));
+        /*print debug log*/
+        LOG_D("create new http policy : %s, memory address : %p.", key.c_str(), httpRuleArr);
+    }
+    else
+    {
+        httpRuleArr = it->second;
+    }
+    httpRuleArr->push_back(httpRule);
+    /*return*/
     return 0;
 }
 
@@ -827,11 +1277,11 @@ int DeletePolicy(NET_CTRL_INFO &ctrl)
 int AddNewPolicy(RULE_DETAIL &policy, RULE_PORT &stPort)
 {
     string key;
-    map<string, FLOW_DIR>* subPolicy;
-    map<string, FLOW_DIR>::iterator it;
-    map<string, RULE_DETAIL> *ruleQue;
-    map<string, RULE_DETAIL>::iterator ruleIt;
-    map<string, map<string, FLOW_DIR>*>::iterator keyIt;
+    std::unordered_map<string, FLOW_DIR>* subPolicy;
+    std::unordered_map<string, FLOW_DIR>::iterator it;
+    std::unordered_map<string, RULE_DETAIL> *ruleQue;
+    std::unordered_map<string, RULE_DETAIL>::iterator ruleIt;
+    std::unordered_map<string, std::unordered_map<string, FLOW_DIR>*>::iterator keyIt;
     //check
     if((policy.priority <= 0) || (policy.priority >= 129)) RETURN_ERROR(-1, "priority is error, need 0 < priority < 129, priority : %d", policy.priority);
     //print debug log
@@ -840,8 +1290,8 @@ int AddNewPolicy(RULE_DETAIL &policy, RULE_PORT &stPort)
     keyIt = NetPolicyKey.find(policy.policyKey);
     if(keyIt == NetPolicyKey.end())
     {
-        subPolicy = new map<string, FLOW_DIR>;
-        NetPolicyKey.insert(pair<string, map<string, FLOW_DIR>*>(policy.policyKey, subPolicy));
+        subPolicy = new std::unordered_map<string, FLOW_DIR>;
+        NetPolicyKey.insert(make_pair(policy.policyKey, subPolicy));
         //print debug log
         LOG_D("create new policy : %s", policy.policyKey.c_str());
     }
@@ -859,7 +1309,7 @@ int AddNewPolicy(RULE_DETAIL &policy, RULE_PORT &stPort)
     if(ruleIt == ruleQue->end())
     {
         policy.vPorts.push_back(stPort);
-        ruleQue->insert(pair<string, RULE_DETAIL>(key, policy));
+        ruleQue->insert(make_pair(key, policy));
     }
     else
     {
@@ -868,18 +1318,18 @@ int AddNewPolicy(RULE_DETAIL &policy, RULE_PORT &stPort)
         /*delete source key*/
         ruleQue->erase(ruleIt);
         /*insert key*/
-        ruleQue->insert(pair<string, RULE_DETAIL>(key, value));
+        ruleQue->insert(make_pair(key, value));
         /*print debug log*/
         LOG_D("key : %s, mutil port : %d ~ %d, num : %d", key.c_str(), stPort.port, stPort.endPort, (int)value.vPorts.size());
     }
     /*insert key*/
-    subPolicy->insert(pair<string, FLOW_DIR>(key, policy.direction));
+    subPolicy->insert(make_pair(key, policy.direction));
     //return
     return 0;
 }
 
 /*update iptable rule*/
-void UpdateMark(map<uint64_t, string> &cgRes)
+void UpdateMark(std::unordered_map<uint64_t, string> &cgRes)
 {
     int mark = NET_DENY;
     FIVE_TUPLE tuple = {};
@@ -921,6 +1371,9 @@ void WriteIptableRule(int iMarkNum, int oMarkNum)
     FILE *fp = NULL;
     char buf[1024];
     char cmd[1024];
+    const char *simark = nullptr;
+    const char *somark = nullptr;
+
     const char *pcheck  = "iptables -t mangle -S | grep TS_ZERO_PREROUTING";
     const char *ocheck  = "iptables -t mangle -S | grep TS_ZERO_OUTPUT";
 
@@ -930,8 +1383,11 @@ void WriteIptableRule(int iMarkNum, int oMarkNum)
     const char *imark  = "iptables -t mangle -I PREROUTING -j CONNMARK --restore-mark";
     const char *omark  = "iptables -t mangle -I OUTPUT -j CONNMARK --restore-mark";
 
-    const char *simark = "iptables -t mangle -A INPUT -j CONNMARK --save-mark";
-    const char *somark = "iptables -t mangle -A POSTROUTING -j CONNMARK --save-mark";
+    if(gbWafEnable)
+    {
+        simark = "iptables -t mangle -A INPUT -j CONNMARK --save-mark";
+        somark = "iptables -t mangle -A POSTROUTING -j CONNMARK --save-mark";
+    }
 
     const char *ipass  = "iptables -t mangle -A TS_ZERO_PREROUTING -m mark --mark %d -j ACCEPT";
     const char *infque = "iptables -t mangle -A TS_ZERO_PREROUTING -j NFQUEUE --queue-num 0 --queue-bypass";
@@ -962,7 +1418,7 @@ void WriteIptableRule(int iMarkNum, int oMarkNum)
         sprintf(cmd, ipass, iMarkNum);
         system(cmd);
         system(infque);
-        system(simark);
+        if(simark) system(simark);
     }
     pclose(fp);
     //
@@ -978,7 +1434,7 @@ void WriteIptableRule(int iMarkNum, int oMarkNum)
         sprintf(cmd, opass, oMarkNum);
         system(cmd);
         system(onfque);
-        system(somark);
+        if(somark) system(somark);
     }
     pclose(fp);
     return;
@@ -991,14 +1447,15 @@ int ParseNetPolicy(char *buf)
 {
     uint64_t podId;
     int i, size, num, ret;
-    cJSON *root = NULL, *item, *array, *ipaddr, *ports, *rules, *param;
+    cJSON *root = NULL, *item, *array, *ipaddr, *ports, *rules, *param, *httparr;
     std::string key, action, dir, value;
     std::vector<RULE_PORT> rulePorts = {};
     std::vector<std::string> srcip = {}, dstip = {};
     RULE_PORT rulePort = {};
     RULE_DETAIL rule = {};
     NET_CTRL_INFO ctrl = {};
-    map<uint64_t, string> cgRes = {};
+    HTTP_RULE_INFO http;
+    std::unordered_map<uint64_t, string> cgRes = {};
     /*check argument*/
     if(!buf) return -1;
     //ctrl json
@@ -1026,12 +1483,35 @@ int ParseNetPolicy(char *buf)
         item = cJSON_GetObjectItem(array, "action");
         if(!item) BREAK_ERROR("get rule's action failed");
         action = item->valuestring;
-        rule.action =(action.compare("Allow") == 0) ? NET_ALLOW : NET_DENY;
+        rule.action =(action.compare("Allow") == 0 || action.compare("Log") == 0) ? NET_ALLOW : NET_DENY;
         //direction
         item = cJSON_GetObjectItem(array, "direction");
         if(!item) BREAK_ERROR("get rule's direction failed");
         dir = item->valuestring;
         rule.direction = (dir.compare("ingress") == 0) ? DIR_INGRESS : DIR_EGRESS;
+        //list http rule
+        httparr = cJSON_GetObjectItem(array, "http");
+        if(httparr)
+        {
+            http.action    = rule.action;
+            http.direction = rule.direction;
+            for(int k = 0; k < cJSON_GetArraySize(httparr); k++)
+            {
+                item = cJSON_GetArrayItem(httparr, k);
+                if(!item) BREAK_ERROR("get http config info failed.");
+                param = cJSON_GetObjectItem(item, "host");
+                if(!param) BREAK_ERROR("get http host failed.");
+                http.host = cJSON_GetStringValue(param);
+                param = cJSON_GetObjectItem(item, "method");
+                if(!param) BREAK_ERROR("get http method failed.");
+                http.method = cJSON_GetStringValue(param);
+                param = cJSON_GetObjectItem(item, "path");
+                if(!param) BREAK_ERROR("get http path failed.");
+                http.path = cJSON_GetStringValue(param);
+                /*save http rule*/
+                AddNewHttpPolicy(rule.direction, rule.policyKey, http);
+            }
+        }
         //source address
         ipaddr = cJSON_GetObjectItem(array, "fromAddress");
         if(!ipaddr) BREAK_ERROR("get rule's fromAddress failed");
@@ -1050,7 +1530,7 @@ int ParseNetPolicy(char *buf)
             param = cJSON_GetObjectItem(item, "pod_id");
             if(!param) CONTINUE_ERROR("get pod id failed.");
             podId = (uint64_t)param->valuedouble;
-            cgRes.insert(pair<uint64_t, string>(podId, value));
+            cgRes.insert(make_pair(podId, value));
         }
         //
         ports = cJSON_GetObjectItem(array, "ports");
@@ -1103,7 +1583,7 @@ int ParseNetPolicy(char *buf)
             param = cJSON_GetObjectItem(item, "pod_id");
             if(!param) CONTINUE_ERROR("get pod id failed.");
             podId = (uint64_t)param->valuedouble;
-            cgRes.insert(pair<uint64_t, string>(podId, value));
+            cgRes.insert(make_pair(podId, value));
         }
         //create network policy rule
         for(int j = 0; j < (int)srcip.size(); j++)
@@ -1197,13 +1677,14 @@ err:
 
 int ParseRcvData(int32_t zRcvEvFd, int32_t fd, void *ptr)
 {
+    bool bRet;
     int ret = 0, length;
-    char result[1024], buf[20480];
+    char result[1024];
     NET_CTRL_INFO ctrl = {};
     RULE_DETAIL net = {};
     if((fd <= 0) || (!ptr)) RETURN_ERROR(-2, "[net] parse failed by argumnet is error!");
     /*read data*/
-    ret = read(fd, buf, sizeof(buf));
+    ret = read(fd, cDataBuf, sizeof(cDataBuf));
     if(ret <= 0)
     {
         if((errno == EAGAIN) || (errno == EINTR)) RETURN_WARN(0, "read data failed, fd : %d, %s.", fd, strerror(errno));
@@ -1211,14 +1692,14 @@ int ParseRcvData(int32_t zRcvEvFd, int32_t fd, void *ptr)
         RETURN_ERROR(-1, "read net policy data failed, fd : %d, %s.", fd, strerror(errno));
     }
     //
-    buf[ret] = 0;
-    if(buf[ret - 1] == '\n') buf[--ret] = 0;
+    cDataBuf[ret] = 0;
+    if(cDataBuf[ret - 1] == '\n') cDataBuf[--ret] = 0;
     //print debug log
-    LOG_D("receive data : %s", buf);
+    LOG_D("receive data : %s", cDataBuf);
     //set 0
     memset(result, 0, sizeof(result));
     //parse json
-    ret = ParseRcvJson(buf, &ctrl);
+    ret = ParseRcvJson(cDataBuf, &ctrl);
     if(ret < 0) GOTO_ERROR(rsp, "[net] parse receive json failed!");
     //condition
     switch (ctrl.msgType)
@@ -1237,17 +1718,28 @@ int ParseRcvData(int32_t zRcvEvFd, int32_t fd, void *ptr)
             goto rsp;
 
         case POD_DIE:
-            ret = ReleaseNfqueResource(ctrl.podId);
+            ret = ReleaseNfqueResource(zRcvEvFd, ctrl.podId);
             goto rsp;
             
         case ADD_RULE:
-            ret = ParseNetPolicy(buf); 
+            ret = ParseNetPolicy(cDataBuf); 
             //print rule size
             LOG_D("NetInputPolicyRule : %d, NetOutputPolicyRule : %d", (int)NetInputPolicyRule.size(), (int)NetOutputPolicyRule.size());
             goto rsp;
 
         case DEL_RULE:
             ret = DeletePolicy(ctrl);
+            goto rsp;
+
+        case ADD_WAF_RULE:
+            bRet = http::extension::RootContext.ParseConfiguration(cDataBuf);
+            ret = (bRet == true) ? 0 : 1;
+            goto rsp;
+            
+        case DEL_WAF_RULE:
+            //delete waf config
+            bRet = http::extension::RootContext.RemoveWafRule(cDataBuf);
+            ret = (bRet == true) ? 0 : 1;
             goto rsp;
 
         default:
@@ -1332,6 +1824,8 @@ int ProcAcceptPostLinkEvent(int32_t zRcvEvFd, int32_t fd, void *ptr)
     }
     /*save fd*/
     gPostLinkFd = zClientFd;
+    http::extension::RootContext.SetPostFd(&gPostLinkFd);
+
     //noblock
     fcntl(zClientFd, F_SETFL, fcntl(zClientFd, F_GETFL) | O_NONBLOCK);
     //return
@@ -1371,12 +1865,44 @@ int CreatePostServer(int efd, RCV_EPOLL_CB *pstPostEv)
     //return
     return 0;
 err:
-    close(fd);
+    if(fd > 0) close(fd);
     return -2;
+}
+
+void CustomPrefix(std::ostream &s, const google::LogMessageInfo &l, void*) {
+   s << std::setw(4) << 1900 + l.time.year()
+   << '-'
+   << setw(2) << 1 + l.time.month()
+   << '-'
+   << setw(2) << l.time.day()
+   << 'T'
+   << setw(2) << l.time.hour() << ':'
+   << setw(2) << l.time.min()  << ':'
+   << setw(2) << l.time.sec() << "."
+   << setw(6) << l.time.usec()
+   << ' '
+//    << setfill(' ') << setw(5)
+   << l.thread_id << setfill('0')
+   << " {"
+   << l.severity
+   << "} "
+   << l.filename << ':' << l.line_number;
 }
 
 int main(int argc, char *argv[])
 {
+    google::InitGoogleLogging(argv[0], &CustomPrefix);
+    google::ParseCommandLineFlags(&argc, &argv, true);
+    FLAGS_logtostderr = true;
+
+    http::HttpFilterFactory::getInstance().registerFilter( [] (size_t id, uint32_t from, uint32_t to) -> std::shared_ptr<http::HttpFilterBase> {
+        return std::make_shared<http::extension::LogFilter>(id, from, to);
+    });
+
+    http::HttpFilterFactory::getInstance().registerFilter( [] (size_t id,uint32_t from, uint32_t to) -> std::shared_ptr<http::HttpFilterBase> {
+        return std::make_shared<http::extension::PluginContext>(id, from, to);
+    });
+
     char *pcLogLevel = NULL;
     struct sockaddr_un svrAddr;
     struct epoll_event ev, events[20];
@@ -1388,6 +1914,9 @@ int main(int argc, char *argv[])
     /*get log level env*/
     pcLogLevel = getenv(POLICY_LOG_LEVEL);
     if(pcLogLevel) gzLogLevel = atoi(pcLogLevel);
+    /*get waf env*/
+    pcLogLevel = getenv(POLICY_WAF_ENABLE);
+    if(pcLogLevel) gbWafEnable = (strcmp(pcLogLevel, "true") == 0) ? true : false;
     //open local net ns
     OpenLocalNetNs();
     /*init cidr*/

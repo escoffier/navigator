@@ -59,10 +59,13 @@ func NewClusterInfoManager(cmHost string) *ClusterInfoManager {
 	}
 	workNamespace := os.Getenv("MY_POD_NAMESPACE")
 	factory := informers.NewSharedInformerFactoryWithOptions(clientset, 10*time.Hour, informers.WithNamespace(workNamespace))
+	return NewClusterInfoManagerWithOpts(cmHost, clientset, factory, workNamespace)
+}
 
+func NewClusterInfoManagerWithOpts(cmHost string, clientSet *assets.Clientset, factory informers.SharedInformerFactory, workNamespace string) *ClusterInfoManager {
 	m := &ClusterInfoManager{
 		host:          cmHost,
-		HostClient:    clientset,
+		HostClient:    clientSet,
 		workNamespace: workNamespace,
 		lister:        factory.Core().V1().ConfigMaps().Lister(),
 		hasSynced:     factory.Core().V1().ConfigMaps().Informer().HasSynced,

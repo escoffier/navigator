@@ -1024,7 +1024,7 @@ func (s *WafService) UpdateRules(ctx context.Context, req *RuleRequest) error {
 			return err == nil
 		}
 		logging.Get().Warn().Msgf("invalid waf rule configmap in cluster: %s", key)
-		return false
+		return true
 	})
 	if err != nil {
 		return fmt.Errorf("invalid waf rule configmap %w", err)

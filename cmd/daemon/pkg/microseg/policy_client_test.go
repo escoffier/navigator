@@ -4,6 +4,8 @@ import (
 	"net"
 	"testing"
 	"time"
+
+	heavyagent "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/heavy-agent"
 )
 
 func Test_policyCliet_DeletePolicy(t *testing.T) {
@@ -15,7 +17,8 @@ func Test_policyCliet_DeletePolicy(t *testing.T) {
 		rule *PolicyRule
 	}
 
-	cli, err := NewPolicyClient("/tmp/echo.socket")
+	agentCli, err := heavyagent.NewClient("/tmp/echo.socket")
+	cli := NewPolicyClient(agentCli)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -39,10 +42,6 @@ func Test_policyCliet_DeletePolicy(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// cli := &policyCliet{
-			// 	conn:          tt.fields.conn,
-			// 	writeDeadline: tt.fields.writeDeadline,
-			// }
 			if err := cli.DeletePolicy(tt.args.rule); (err != nil) != tt.wantErr {
 				t.Errorf("policyCliet.DeletePolicy() error = %v, wantErr %v", err, tt.wantErr)
 			}

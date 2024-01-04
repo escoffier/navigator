@@ -9,6 +9,7 @@ import (
 
 	"gitlab.com/security-rd/go-pkg/logging"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/util/workqueue"
@@ -20,8 +21,8 @@ import (
 )
 
 const maxRetries = 15
-const moduleKey = "module"
-const moduleName = "microseg"
+
+var log = logging.Get().With().Str("module", "microseg").Logger()
 
 type RuleGroupController struct {
 	ruleInformer    cache.SharedIndexInformer
@@ -48,6 +49,7 @@ func NewRuleGroupController(clientset *versioned.Clientset, crdFactory externalv
 		DeleteFunc: controller.deleteRuleGroup,
 	}, time.Hour*8)
 
+	cli.SetController(controller)
 	return controller
 }
 
@@ -86,12 +88,12 @@ func (rg *RuleGroupController) handleErr(err error, key interface{}) {
 		return
 	}
 	if rg.queue.NumRequeues(key) < maxRetries {
-		logging.Get().Err(err).Str(moduleKey, moduleName).Msgf("Error syncing policy rule, retrying %s", key)
+		log.Err(err).Msgf("Error syncing policy rule, retrying %s", key)
 		rg.queue.AddRateLimited(key)
 		return
 	}
 
-	logging.Get().Warn().Str(moduleKey, moduleName).Msgf("Dropping policy rule %q out of the queue: %v", key, err)
+	log.Warn().Msgf("Dropping policy rule %q out of the queue: %v", key, err)
 	rg.queue.Forget(key)
 	// utilruntime.HandleError(err)
 }
@@ -111,9 +113,9 @@ func addressFromRule(a *crdv1alpha1.Address) Address {
 	return addr
 }
 
-func isDenyAllPolicy(ruleGroup *crdv1alpha1.NetworkPolicyRuleGroup) bool {
-	return strings.Contains(ruleGroup.Name, "-deny-all-")
-}
+// func isDenyAllPolicy(ruleGroup *crdv1alpha1.NetworkPolicyRuleGroup) bool {
+// 	return strings.Contains(ruleGroup.Name, "-deny-all-")
+// }
 
 func buildPolicyRuleMessage(msgType int, ruleGroup *crdv1alpha1.NetworkPolicyRuleGroup) *PolicyRule {
 	message := &PolicyRule{
@@ -128,6 +130,9 @@ func buildPolicyRuleMessage(msgType int, ruleGroup *crdv1alpha1.NetworkPolicyRul
 			Priority:  r.Priority,
 			Protocol:  r.Protocol,
 			Ports:     r.Ports,
+		}
+		if r.Http != nil {
+			newRule.Http = []*crdv1alpha1.Http{r.Http}
 		}
 		for _, a := range r.FromAddress {
 			newRule.FromAddress = append(newRule.FromAddress, addressFromRule(&a))
@@ -153,7 +158,7 @@ func (rg *RuleGroupController) syncPolicy(name string) error {
 	rule, err := rg.ruleLister.Get(name)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			logging.Get().Info().Str(moduleKey, moduleName).Msgf("deleting policy: %s", name)
+			log.Info().Msgf("deleting policy: %s", name)
 			policyName := strings.TrimSuffix(name, "-"+rg.nodeName)
 			err = rg.polCli.DeletePolicy(&PolicyRule{
 				MessageType: 4,
@@ -161,29 +166,29 @@ func (rg *RuleGroupController) syncPolicy(name string) error {
 			})
 			return err
 		}
-		logging.Get().Err(err).Str(moduleKey, moduleName).Msgf("get rulegroup %s err ", name)
+		log.Err(err).Msgf("get rulegroup %s err ", name)
 		return err
 	}
 
 	data, err := json.Marshal(rule)
 	if err != nil {
-		logging.Get().Err(err).Str(moduleKey, moduleName).Msgf("marshal rulegroup %s err ", name)
+		log.Err(err).Msgf("marshal rulegroup %s err ", name)
 		return err
 	}
-	logging.Get().Info().Str(moduleKey, moduleName).Msgf("policy rule: %s", string(data))
+	log.Info().Msgf("policy rule: %s", string(data))
 
 	msg := buildPolicyRuleMessage(3, rule)
 	err = rg.polCli.AddPolicy(msg)
 	if err != nil {
-		logging.Get().Err(err).Str(moduleKey, moduleName).Msgf("send rule message err")
+		logging.Get().Err(err).Msgf("send rule message err")
 	}
 
 	msgData, err := json.Marshal(msg)
 	if err != nil {
-		logging.Get().Err(err).Str(moduleKey, moduleName).Msgf("marshal rulegroup %s err ", name)
+		log.Err(err).Msgf("marshal rulegroup %s err ", name)
 		return err
 	}
-	logging.Get().Info().Str(moduleKey, moduleName).Msgf("policy rule msg to dp: %s", string(msgData))
+	log.Info().Msgf("policy rule msg to dp: %s", string(msgData))
 
 	return nil
 }
@@ -203,7 +208,7 @@ func (rg *RuleGroupController) processNextItem() bool {
 }
 
 func (rg *RuleGroupController) Run(stopChan chan struct{}) {
-	logging.Get().Info().Str(moduleKey, moduleName).Msg("run Network Policy Controller")
+	log.Info().Msg("run Network Policy Controller")
 	if !cache.WaitForNamedCacheSync("network_policy", stopChan, rg.ruleGroupSynced) {
 		return
 	}
@@ -211,17 +216,22 @@ func (rg *RuleGroupController) Run(stopChan chan struct{}) {
 }
 
 func (rg *RuleGroupController) worker() {
-	logging.Get().Info().Str(moduleKey, moduleName).Msg("start worker")
+	log.Info().Msg("start worker")
 	for rg.processNextItem() {
 	}
 }
 
-// func (rg *RuleGroupController) applyDefaultPolicy() {
-// 	// rules := crdv1alpha1.NetworkPolicyRuleGroup
-// 	rule := &PolicyRule{
-// 		MessageType: 3,
-// 		PolicyName:  "kubernets-policy",
-// 	}
-// 	rule.
-
-// }
+func (rg *RuleGroupController) ReSyncAllPolicy() error {
+	logging.Get().Info().Msg("resync all policies")
+	ruleList, err := rg.ruleLister.List(labels.Everything())
+	if err != nil {
+		return err
+	}
+	for _, r := range ruleList {
+		rg.syncPolicy(r.Name)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}

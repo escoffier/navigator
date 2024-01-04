@@ -8,6 +8,7 @@ import (
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/microseg"
@@ -17,6 +18,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
+	listerv1 "k8s.io/client-go/listers/core/v1"
 )
 
 const (
@@ -28,14 +30,20 @@ type NodePodsInfo struct {
 	k8sCli        *kubernetes.Clientset
 	policyCli     microseg.PolicyClient
 	containerInfo nodeinfo.ContainerInfoManager
+	podLister     listerv1.PodLister
 }
 
-func NewNodePodInfo(k8sCli *kubernetes.Clientset, policyCli microseg.PolicyClient) *NodePodsInfo {
+func NewNodePodInfo(k8sCli *kubernetes.Clientset, policyCli microseg.PolicyClient, podLister listerv1.PodLister) *NodePodsInfo {
 	info := &NodePodsInfo{
 		resInfos:  new(sync.Map),
 		k8sCli:    k8sCli,
 		policyCli: policyCli,
+		podLister: podLister,
 	}
+
+	info.policyCli.AddConnectionCallback(func() {
+		info.ResynAll()
+	})
 
 	return info
 }
@@ -64,10 +72,6 @@ func (n *NodePodsInfo) getContainerData(pod *corev1.Pod) (map[string]*daemon.Con
 			logging.Get().Debug().Str("pod", pod.GetNamespace()+pod.GetName()).Msgf("get container pid failed : %v", err)
 			continue
 		}
-		//print debug log
-		//if pod.GetNamespace() == "testzfc" {
-		//	logging.Get().Info().Msgf("pod name : %+v, id : %+v, container name : %+v.", pod.GetName(), id, container.Name)
-		//}
 		//save container information
 		containerData[id] = &daemon.ContainerData{
 			ContainerName: container.Name,
@@ -245,6 +249,30 @@ func (n *NodePodsInfo) UpdateContainerData(ip, ns, podName string) error {
 
 func (n *NodePodsInfo) SetContainerManager(containerInfo nodeinfo.ContainerInfoManager) {
 	n.containerInfo = containerInfo
+}
+
+func (n *NodePodsInfo) ResynAll() {
+	pods, err := n.podLister.List(labels.Everything())
+	if err != nil {
+		logging.Get().Err(err).Msg("resync pods")
+		return
+	}
+
+	for _, pod := range pods {
+		containers, err := n.getContainerData(pod)
+		if err != nil {
+			logging.Get().Err(err).Msg("resync pods, get container")
+			return
+		}
+		for _, c := range containers {
+			logging.Get().Info().Str("module", "heavy-agent").Msgf("resync pod: %s/%s with pid : %d to agent", pod.Namespace, pod.Name, c.ContainerPid)
+			err := n.policyCli.AddContainer(c.ContainerPid, podID(pod))
+			if err != nil {
+				logging.Get().Warn().Str("module", "heavy-agent").Msgf("container %s (pid: %d) to agent err: %v",
+					c.ContainerName, c.ContainerPid, err)
+			}
+		}
+	}
 }
 
 func podID(pod *corev1.Pod) uint64 {
