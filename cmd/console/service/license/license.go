@@ -147,7 +147,8 @@ func RefreshLicenseInfo(licenseCode string) (err error) {
 		return err
 	}
 
-	if newInfo.Eigenvalue != eigenvalue {
+	// 特殊类型的license不验证env相关信息
+	if newInfo.LicenseType != "特殊(无限制)" && newInfo.Eigenvalue != eigenvalue {
 		return fmt.Errorf("10081")
 	}
 
@@ -165,15 +166,18 @@ func ValidateLicense(allowGracePeriod bool) (status Status) {
 		return
 	}
 
-	eigenvalue, err := manager.getEnvEigenvalue()
-	if err != nil {
-		logging.Get().Error().Err(err).Msg("")
-		return
-	}
+	// 特殊类型的license不验证env相关信息
+	if manager.currentInfo.LicenseType != "特殊(无限制)" {
+		eigenvalue, err := manager.getEnvEigenvalue()
+		if err != nil {
+			logging.Get().Error().Err(err).Msg("")
+			return
+		}
 
-	if strings.Split(manager.currentInfo.Eigenvalue, ".")[0] != strings.Split(eigenvalue, ".")[0] {
-		logging.Get().Warn().Msg("10080")
-		return
+		if strings.Split(manager.currentInfo.Eigenvalue, ".")[0] != strings.Split(eigenvalue, ".")[0] {
+			logging.Get().Warn().Msg("10080")
+			return
+		}
 	}
 
 	return manager.verifier.validate(manager.currentInfo, allowGracePeriod)
