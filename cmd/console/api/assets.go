@@ -2091,7 +2091,8 @@ func (api *api) getImageInfosV2() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resource service failed")))
 			return
 		}
-		imageInfos, err := resSvc.GetImageInfosV2(ctx, queryOpt)
+		//imageInfos, err := resSvc.GetImageInfosV2(ctx, queryOpt)
+		imageInfos, err := resSvc.GetImageInfos(ctx, queryOpt)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("get resource service failed")))
 			return

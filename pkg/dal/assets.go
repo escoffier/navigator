@@ -1245,7 +1245,7 @@ func fromContainerToModel(ctx context.Context, rdb *gorm.DB, container corev1.Co
 	contModel.ResourceName = resource.Name
 	contModel.Image = container.Image
 	contModel.ImagePullPolicy = container.ImagePullPolicy
-	contModel.ImageUUID = util.GenerateUUID(container.Image)
+	//contModel.ImageUUID = util.GenerateUUID(container.Image)
 	contModel.Ports = container.Ports
 	contModel.SecurityContext = (*model.SecurityContext)(container.SecurityContext)
 	contModel.Spec = (*model.ContainerSpec)(&container)
@@ -1350,6 +1350,9 @@ func doUpsertResourceContainers(ctx context.Context, rdb *gorm.DB, resource *ass
 	}
 
 	return contModels, nil
+}
+func UpsertContainerImageUuid(ctx context.Context, rdb *gorm.DB, containerId uint32, imageUuid uint32) error {
+	return rdb.WithContext(ctx).Model(&model.TensorContainer{}).Where("id = ?", containerId).Update("image_uuid", imageUuid).Error
 }
 
 func CleanUpUnUpdatedResources(ctx context.Context, rdb *gorm.DB, ts time.Time, clusterKey string) error {
@@ -2785,7 +2788,7 @@ func CountContainer(ctx context.Context, rdb *gorm.DB, query *ResContainersQuery
 
 	var count int64
 
-	db := rdb.WithContext(pgCtx).Model(&model.TensorRawContainer{}).Distinct("image_uuid")
+	db := rdb.WithContext(pgCtx).Model(&model.TensorContainer{}).Distinct("image")
 	if len(query.WhereEqCondition) > 0 {
 		db = db.Where(query.WhereEqCondition)
 	}
@@ -2841,7 +2844,7 @@ func GetResourceContainersUnique(ctx context.Context, rdb *gorm.DB, query *ResCo
 		if limit > 0 && offset >= 0 {
 			db = db.Offset(offset).Limit(limit)
 		}
-		return db.Distinct("image").Find(&containers).Error
+		return db.Distinct("image", "image_uuid").Find(&containers).Error
 	})
 	if err != nil {
 		return nil, err

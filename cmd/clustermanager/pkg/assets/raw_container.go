@@ -127,6 +127,13 @@ func (cb *RawContainerCallBack) doOnRawContainerEvent(ctx context.Context, e con
 	case assets.ActionUpdate, assets.ActionAdd:
 
 		var upsertErr error
+		// 同步更新 container 表的 image_uuid
+		upsertErr = dal.UpsertContainerImageUuid(tctx, cb.parent.rdb.Get(),
+			dal.GetContainerUUID(e.container.ClusterKey, e.container.Namespace, e.container.ResourceKind, e.container.ResourceName, e.container.Name),
+			e.container.ImageUUID)
+		if upsertErr != nil {
+			logging.Get().Err(upsertErr).Msg("upsert container's image_uuid error,containerId:" + e.container.ContainerID)
+		}
 		if useRedis {
 			upsertErr = dal.UpsertRawContainerWithRedis(tctx, cb.parent.rdb.Get(), cb.parent.mustGetRedisSearchClient("rawContainer"), e.container)
 		} else {
