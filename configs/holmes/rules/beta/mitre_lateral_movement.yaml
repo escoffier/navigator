@@ -31,7 +31,6 @@
   condition: >
     evt.type=setns and evt.dir=<
     and proc_name_exists
-    and shell_parent_procs
     and not (container.id=host and proc.name in (docker_binaries, k8s_binaries, lxd_binaries, nsenter))
     and not proc.name in (sysdigcloud_binaries, sysdig, calico, oci-umount, cilium-cni, network_plugin_binaries)
     and not proc.name in (user_known_change_thread_namespace_binaries)
@@ -49,6 +48,7 @@
     and not ignore_proc_args
     and not (tensorsec_namespace and k8s.pod.name contains "holmes")
     and not proc.cmdline contains 'ns-mnt'
+    and not k8s.ns.name = "deepflow"
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container.info=%container.info,parent=%proc.pname,image=%container.image.repository,image_tag=%container.image.tag,container_id=%container.id,container_name=%container.name
   info:
@@ -70,7 +70,7 @@
   disable: true
   hid: move_03
   condition: >
-    spawned_process and container and not user_known_k8s_client_container_parens and proc.name in (k8s_client_binaries) and not tensorsec_namespace and shell_parent_procs and not proc.cmdline contains "docker build git@g.com"
+    spawned_process and container and not user_known_k8s_client_container_parens and proc.name in (k8s_client_binaries) and not tensorsec_namespace and not proc.cmdline contains "docker build git@g.com"
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container.info=%container.info,parent=%proc.pname,image=%container.image.repository,image_tag=%container.image.tag,container_id=%container.id,container_name=%container.name
   info:
@@ -117,9 +117,10 @@
     not k8s_containers and
     k8s_api_server and
     not ignore_proc_args and
-    not user_known_contact_k8s_api_server_activities and 
-    shell_parent_procs
+    not user_known_contact_k8s_api_server_activities
     and not fd.sport = 22
+    and not k8s.ns.name = "kube-system" and not k8s.ns.name = "argocd" and not k8s.ns.name = "monitoring" and not k8s.ns.name = "stio-system" and not k8s.ns.name = "tensorsec" and not k8s.ns.name = "istio-system"
+    and not proc.name in (antrea-controll, kube-state-metr, pilot-agent)
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_info=%container.info,image=%container.image.repository,image_tag=%container.image.tag,connection=%fd.name,container_id=%container.id,container_name=%container.name
   info:
@@ -164,7 +165,7 @@
 - key: Try ssh connection in container
   hid: move_07
   condition: >
-    (inbound_outbound) and allowed_ssh_hosts and container and shell_parent_procs and not fd.name contains "->127.0.0.1" and not fd.name contains "->0.0.0.0:" and not fd.name contains "->::1"
+    (inbound_outbound) and allowed_ssh_hosts and container and not fd.name contains "->127.0.0.1" and not fd.name contains "->0.0.0.0:" and not fd.name contains "->::1"
   output: >
     connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name
   steps:
@@ -188,7 +189,7 @@
 - key: Try ssh connection in host
   hid: move_08
   condition: >
-    (inbound_outbound) and allowed_ssh_hosts and not container and not proc.cmdline = "sshd -D" and shell_parent_procs and not fd.name contains "->127.0.0.1" and not fd.name contains "->0.0.0.0:" and not fd.name contains "->::1"
+    (inbound_outbound) and allowed_ssh_hosts and not container and not proc.cmdline = "sshd -D" and not fd.name contains "->127.0.0.1" and not fd.name contains "->0.0.0.0:" and not fd.name contains "->::1"
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,user=%user.name,user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository
   steps:
@@ -216,7 +217,6 @@
   condition: >
     spawned_process 
     and not container
-    and shell_parent_procs
     and (proc.name = "find" and evt.arg.args contains "docker.sock")
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent=%proc.pname,file=%fd.name,program=%proc.name,gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4],container_id=%container.id,container_name=%container.name,image=%container.image.repository
@@ -240,7 +240,6 @@
   hid: move_10
   condition: >
     (evt.type = execve or evt.type = clone)
-    and shell_parent_procs
     and not container
     and (evt.dir = < or evt.dir = >>)
     and proc.name = "docker" 
@@ -268,7 +267,6 @@
   hid: move_11
   condition: >
     (evt.type = execve or evt.type = clone)
-    and shell_parent_procs
     and not container
     and proc.name = "docker"
     and proc.cmdline contains "inspect"

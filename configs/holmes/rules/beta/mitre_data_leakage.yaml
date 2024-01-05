@@ -161,7 +161,6 @@
   condition: >
     (sensitive_files or proc.cmdline contains "/etc/passwd") and open_read and container
     and proc_name_exists
-    and shell_parent_procs
     and not proc.name in (user_mgmt_binaries, userexec_binaries, package_mgmt_binaries,
      cron_binaries, read_sensitive_file_binaries, shell_binaries, hids_binaries,
      vpn_binaries, mail_config_binaries, nomachine_binaries, sshkit_script_binaries,
@@ -206,7 +205,6 @@
   hid: exf_09
   condition: >
     open_read and
-    shell_parent_procs and
     (fd.filename in (shell_config_filenames) or
     fd.name in (shell_config_files) or
     fd.directory in (shell_config_directories)) and

@@ -1,0 +1,233 @@
+##mozart_branches
+- key: reverseShell
+  type: branches_serial
+  branches:
+  - steps:
+    - name: checkRegexMatch
+      params: [ '(?=.*\.socket\(\)|.*socket\(socket\.AF_INET,socket\.SOCK_STREAM\))(?=.*\.connect\()', trigger.payload.output_map.proc_cmdline ]
+    - name: defineValue
+      params: { reverse_tool: python, reverse_tool_zh: python }
+  - steps:
+    - name: checkRegexMatch
+      params: [ '^php(?:\d+(?:\.\d+)?)?\s+-r\s+.*fsockopen\(', trigger.payload.output_map.proc_cmdline ]
+    - name: defineValue
+      params: { reverse_tool: php, reverse_tool_zh: php }
+  - steps:
+    - name: checkRegexMatch
+      params: [ '^perl.*-e.*[sS]ocket.*open\(', trigger.payload.output_map.proc_cmdline ]
+    - name: defineValue
+      params: { reverse_tool: perl, reverse_tool_zh: perl }
+  - steps:
+    - name: checkRegexMatch
+      params: [ 'lua(?:\d+(?:\.\d+)?)?\s+-e+\s+.*require\(.*socket', trigger.payload.output_map.proc_cmdline ]
+    - name: defineValue
+      params: { reverse_tool: lua, reverse_tool_zh: lua }
+  - steps:
+    - name: checkRegexMatch
+      params: [ 'whois\s*-h\s*(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})\s*-p\s*(\b\d{1,5}\b)', trigger.payload.output_map.proc_cmdline ]
+    - name: defineValue
+      params: { reverse_tool: whois, reverse_tool_zh: whois }
+  - steps:
+    - name: checkRegexMatch
+      params: [ 'openssl.*(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3}).*(\b\d{1,5}\b)', trigger.payload.output_map.proc_cmdline ]
+    - name: defineValue
+      params: { reverse_tool: openssl, reverse_tool_zh: openssl }
+  - steps:
+    - name: checkRegexMatch
+      params: [ 'socat666666\s+TCP:(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3}):\d+\s+EXEC:[^\s]+sh', trigger.payload.output_map.proc_cmdline ]
+    - name: defineValue
+      params: { reverse_tool: socat, reverse_tool_zh: socat }
+  - steps:
+    - name: checkExpression
+      params: 'some i; CacheContext("trigger.payload.output_map.proc_name", input.session_id)==["nc", "nc.traditional", "ncat", "nc.openbsd", "busybox"][i]'
+    - name: defineValue
+      params: { reverse_tool: nc, reverse_tool_zh: nc }
+  - steps:
+    - name: checkRegexMatch
+      params: [ "(?=.*-rsocket -e)(?=.*TCPSocket\\.new\\()", trigger.payload.output_map.proc_cmdline ]
+    - name: checkRelatedExists
+      params: [ 'Created remote connection through ruby in container', 1s, trigger.payload.output_map.proc_vpgid, payload.output_map.proc_vpgid ]
+    - name: defineValue
+      params: { reverse_tool: ruby, reverse_tool_zh: ruby }
+  - steps:
+    - name: checkExpression
+      params: 'some i; CacheContext("trigger.payload.output_map.proc_name", input.session_id)==["ash", "bash", "csh", "ksh", "sh", "tcsh", "zsh", "dash"][i]'
+    - name: defineValue
+      params: { reverse_tool: "shell binaries", reverse_tool_zh: "shell二进制文件" }
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_name, "java"]
+    - name: defineValue
+      params: { reverse_tool: java1, reverse_tool_zh: java1 }
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_pname, "java"]
+    - name: defineValue
+      params: { reverse_tool: java2, reverse_tool_zh: java2 }
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_name, "go"]
+    - name: defineValue
+      params: { reverse_tool: go1, reverse_tool_zh: go1 }
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_pname, "go"]
+    - name: defineValue
+      params: { reverse_tool: go2, reverse_tool_zh: go2 }   
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_name, "python"]
+    - name: defineValue
+      params: { reverse_tool: python-1, reverse_tool_zh: python-1 }
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_pname, "python"]
+    - name: defineValue
+      params: { reverse_tool: python-2, reverse_tool_zh: python-2 }    
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_name, "python2"]
+    - name: defineValue
+      params: { reverse_tool: python2-1, reverse_tool_zh: python2-1 }
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_pname, "python2"]
+    - name: defineValue
+      params: { reverse_tool: python2-2, reverse_tool_zh: python2-2 }  
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_name, "python3"]
+    - name: defineValue
+      params: { reverse_tool: python3-1, reverse_tool_zh: python3-1 }
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_pname, "python3"]
+    - name: defineValue
+      params: { reverse_tool: python3-2, reverse_tool_zh: python3-2 }     
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_name, "ruby"]
+    - name: defineValue
+      params: { reverse_tool: ruby1, reverse_tool_zh: ruby1 }
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_pname, "ruby"]
+    - name: defineValue
+      params: { reverse_tool: ruby2, reverse_tool_zh: ruby2 }
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_name, "awk"]
+    - name: defineValue
+      params: { reverse_tool: awk1, reverse_tool_zh: awk1 }
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_pname, "awk"]
+    - name: defineValue
+      params: { reverse_tool: awk2, reverse_tool_zh: awk2 }      
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_name, "php"]
+    - name: defineValue
+      params: { reverse_tool: php1, reverse_tool_zh: php1 }
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_pname, "php"]
+    - name: defineValue
+      params: { reverse_tool: php2, reverse_tool_zh: php2 }    
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_name, "perl"]
+    - name: defineValue
+      params: { reverse_tool: perl1, reverse_tool_zh: perl1 }
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_pname, "perl"]
+    - name: defineValue
+      params: { reverse_tool: perl2, reverse_tool_zh: perl2 }    
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_name, "lua"]
+    - name: defineValue
+      params: { reverse_tool: lua1, reverse_tool_zh: lua1 }
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_pname, "lua"]
+    - name: defineValue
+      params: { reverse_tool: lua2, reverse_tool_zh: lua2 }    
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_name, "lua5.1"]
+    - name: defineValue
+      params: { reverse_tool: lua5.1-1, reverse_tool_zh: lua5.1-1 }
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_pname, "lua5.1"]
+    - name: defineValue
+      params: { reverse_tool: lua5.1-2, reverse_tool_zh: lua5.1-2 }    
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_name, "whois"]
+    - name: defineValue
+      params: { reverse_tool: whois1, reverse_tool_zh: whois1 }
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_pname, "whois"]
+    - name: defineValue
+      params: { reverse_tool: whois2, reverse_tool_zh: whois2 }    
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_name, "openssl"]
+    - name: defineValue
+      params: { reverse_tool: openssl1, reverse_tool_zh: openssl1 }
+  - steps:
+    - name: checkValue
+      params: [ trigger.payload.output_map.proc_pname, "openssl"]
+    - name: defineValue
+      params: { reverse_tool: openssl2, reverse_tool_zh: openssl2 }                                            
+  - steps:
+    - name: checkRelatedExists
+      params: [ 'Running telnet in container', 1s, trigger.payload.output_map.proc_vpgid, payload.output_map.proc_vpgid ]
+    - name: defineValue
+      params: { reverse_tool: telnet, reverse_tool_zh: telnet }
+  - steps:
+    - name: checkRelatedExists
+      params: [ 'Created remote connection through awk in container', 1s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
+    - name: defineValue
+      params: { reverse_tool: awk, reverse_tool_zh: awk }
+  - steps:
+    - name: checkRelatedExists
+      params: [ 'Calling the dup system call in container', 1s, trigger.payload.output_map.proc_vpgid, payload.output_map.proc_vpgid ]
+  - steps:
+    - name: checkRelatedExists
+      params: [ 'Generated java child process shell after starting the container', 1s, trigger.payload.output_map.proc_vpgid, payload.output_map.proc_vpgid ]
+    - name: defineValue
+      params: { reverse_tool: java, reverse_tool_zh: java }
+  - steps:
+    - name: checkRelatedExists
+      params: [ 'Generated go child process shell after starting the container', 1s, trigger.payload.output_map.proc_vpgid, payload.output_map.proc_vpgid ]
+    - name: defineValue
+      params: { reverse_tool: go, reverse_tool_zh: go }
+  - steps:
+    - name: checkRelatedExists
+      params: [ 'Generated child process shell after starting the container', 1s, trigger.payload.output_map.proc_vpgid, payload.output_map.proc_vpgid ]
+  - default: false
+
+- key: vimPrivilegeEscalation
+  type: branches_serial
+  branches:
+  - steps:
+    - name: checkRelatedExists
+      params: [ 'Generated child process shell after starting the container', 5s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid ]
+    - name: defineValue
+      params: { method: 'vim_suid to execute commands', method_zh: 'vim_suid执行命令' }
+  - steps:
+    - name: checkRelatedExists
+      params: [ 'Generated child process shell after starting the container', 1s, trigger.payload.output_map.proc_pid, payload.output_map.proc_ppid]
+    - name: defineValue
+      params: { method: 'vim to run commands', method_zh: 'vim执行命令' }
+  - steps:
+    - name: checkRelatedExists
+      params: [Linux Privilege Escalation by modifying sensitive files with suid binaries, 10s, trigger.payload.output_map.proc_pid, payload.output_map.proc_pid]
+    - name: defineValue
+      params: { method: 'vim_suid to modify sensitive files', method_zh: 'vim_suid修改敏感文件' }
+  - default: false

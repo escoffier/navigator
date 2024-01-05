@@ -1,6 +1,5 @@
 ##attck_rule_type=Privilege_Escalation
 - key: Launch Privileged Container
-  disabled: true
   hid: priv_01
   condition: >
     container_started and container
@@ -31,7 +30,6 @@
   condition: >
     evt.type=setuid and evt.dir=>
     and (known_user_in_container or not container)
-    and shell_parent_procs
     and not user.name=root
     and not somebody_becoming_themself
     and not proc.name in (known_setuid_binaries, userexec_binaries, mail_binaries, docker_binaries,
@@ -41,6 +39,9 @@
     and not nrpe_becoming_nagios
     and not user_known_non_sudo_setuid_conditions
     and not tensorsec_namespace
+    and not k8s.ns.name = "kube-system"
+    and not k8s.ns.name = "monitoring"
+    and not k8s.ns.name = "argocd"
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,cur_uid=%user.uid,parent=%proc.pname,uid=%evt.arg.uid,container_id=%container.id,container_name=%container.name,image=%container.image.repository
   info:
@@ -83,7 +84,6 @@
   hid: priv_04
   condition: >
     consider_all_chmods and chmod and (evt.arg.mode contains "S_ISUID" or evt.arg.mode contains "S_ISGID")
-    and shell_parent_procs
     and not proc.name in (user_known_chmod_applications)
     and not exe_running_docker_save
     and not user_known_set_setuid_or_setgid_bit_conditions
@@ -108,7 +108,7 @@
   hid: priv_05
   condition: >
     (evt.type=chroot and container and proc.name !=sshd and proc.name !=vsftpd)
-    and not (tensorsec_namespace and (k8s.pod.name contains "-host-" or k8s.pod.name contains "-docker-" or k8s.pod.name contains "-kube-")) and shell_family_procs
+    and not (tensorsec_namespace and (k8s.pod.name contains "-host-" or k8s.pod.name contains "-docker-" or k8s.pod.name contains "-kube-"))
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name
   info:
@@ -225,7 +225,7 @@
     and not proc.cmdline contains "kube-bench "
     and not proc.cmdline contains "scanner "
     and not proc.cmdline contains "systemd-tmpfile --create"
-    and shell_family_procs
+    and not proc.cmdline contains "6 init"
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,proc_name=%proc.name,container_id=%container.id,container_name=%container.name
   info:
@@ -349,7 +349,7 @@
       zh: "SUID（Set User ID）是一种特殊的权限位，用于指定在执行可执行文件时，该文件将以文件所有者的权限运行，而不是执行者的权限。通常攻击者滥用SUID权限并使用find工具来进行Linux提权，获得对系统更高权限的访问，可能执行危险的操作。而正常用户不会故意滥用SUID权限来提权。"
     suggestion:
       en: "(1). Please first combine the alarm process command line, (parent) process name, server IP address and other fields to initially determine whether it is a business, R&D/operation and maintenance behavior (2). If it is a repeated expected behavior, and After investigation, it is judged that the security risk is controllable, and you can consider whitening it (3). If it is an unexpected behavior, please conduct correlation analysis through the container ID, associated alarm list, etc., and check whether the command line contains -exec or -ok. Contact security personnel promptly for further investigation"
-      zh: "(1).请先结合告警的进程命令行、(父)进程名、服务端IP地址等字段初步判断是否为业务、研发/运维的行为 (2).如果是重复出现的预期行为，且经排查后判断安全风险可控，可以考虑对其进行加白 (3).如果是非预期行为，请通过容器id、关联告警列表等内容进行关联分析，查看命令行是否包含-exec或-ok，及时联系安全人员进一步排查。"
+      zh: "(1).请先结合告警的进程命令行、(父)进程名、服务端IP地址等字段初步判断是否为业务、研发/运维的行为 (2).如果是重复出现的预期行为，且经排查后判断安全风险可控，可以考虑对其进行加白 (3).如果是非预期行为，请通过容器id、关联告警列表等内容进行关联分析，查看命令行是否包含-exec或-ok，及时联系安全人员进一步排查"
     rule_type: Privilege_Escalation
     priority: ALERT
     urgency: true
@@ -406,7 +406,7 @@
   info:
     name:
       en: "Detect release_agent File Container Escapes"
-      zh: "尝试修改release_agent进行Linux_Cgroup容器逃逸"
+      zh: "尝试修改release_agent进行Linux_Cgroup容器逃逸(CVE-2022-0492)"
     desc:
       en: "CVE-2022-0492 is a container escape vulnerability affecting the Linux kernel that can be abused by an attacker to gain control of the host system while running a privileged container. Normal users usually do not modify the release_agent file because this requires in-depth knowledge of the system kernel and container technology and is not a routine task. This operation is generally considered an unusual and potentially dangerous behavior. There is a high probability that the attacker triggers this vulnerability by modifying the release_agent attribute in the /proc/sys/kernel/panic file after performing the attack, thereby executing malicious code. And escape from the container to gain access to the host."
       zh: "CVE-2022-0492 是一个影响 Linux 内核的容器逃逸漏洞，攻击者可以在运行特权容器的情况下滥用该漏洞来获取对主机系统的控制权限。正常用户通常不会修改 release_agent 文件，因为这需要对系统内核和容器技术的深入了解，而且不是常规任务。此操作通常被认为是一种不寻常且潜在危险的行为，大概率是攻击者在进行攻击后，通过修改 /proc/sys/kernel/panic 文件中的 release_agent 属性来触发此漏洞，从而执行恶意代码并逃逸出容器，获取对主机的访问权限。"
@@ -422,7 +422,6 @@
   hid: priv_19
   condition: >
     evt.type = connect and evt.args contains "docker.sock" and container and not tensorsec_namespace and
-    shell_parent_procs and
     (proc.cmdline contains "docker -H unix:" or proc.cmdline contains "docker --host unix:")
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name
@@ -442,10 +441,11 @@
     tags: [ATT&CK, users, docker, filesystem, mitre_privilege_escalation, L4]
 
 - key: Try to read the k8s token and bypass RBAC
-  #disabled: true
   hid: priv_20
   condition: >
-    open_read and fd.name = /var/run/secrets/kubernetes.io/serviceaccount/token and container and shell_parent_procs
+    open_read and fd.name = /var/run/secrets/kubernetes.io/serviceaccount/token and container
+    and not k8s.ns.name = "kube-system" and not k8s.ns.name = "argocd" and not k8s.ns.name = "monitoring" and not k8s.ns.name = "stio-system" and not k8s.ns.name = "tensorsec" and not k8s.ns.name = "istio-system" and not k8s.ns.name = "deepflow"
+    and not proc.name in (antrea-controll, kube-state-metr, pilot-agent)
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name
   info:
@@ -466,9 +466,7 @@
 - key: Docker copy vulnerability leads to container escape(CVE-2019-14271)
   hid: priv_21
   condition: >
-    evt.type in (unlinkat, rename) and evt.args contains "libnss_" and evt.args contains ".so" and
-    container and
-    shell_parent_procs
+    evt.type in (unlinkat, rename) and evt.args contains "libnss_" and evt.args contains ".so" and container
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name
   info:
@@ -487,11 +485,9 @@
     tags: [ATT&CK, docker, filesystem, mitre_privilege_escalation, L4]
 
 - key: Containerd vulnerability leads to container escape(CVE-2020-15257)
-  disabled: true
   hid: priv_22
   condition: >
     evt.type = openat and fd.name=/proc/net/unix and container 
-    and shell_parent_procs 
     and not show_information_procs
     and not proc.name=netstat
     and not proc.name=lsof 
@@ -515,7 +511,7 @@
 - key: Using vim for linux privilege escalation
   hid: priv_23
   condition: >
-    open_read and evt.arg.name = "/usr/share/vim/vimrc" and container and shell_parent_procs
+    open_read and evt.arg.name = "/usr/share/vim/vimrc" and container
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,evt.arg.exe=%evt.arg.exe,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3],aname[4]=%proc.aname[4],aname[5]=%proc.aname[5],aname[6]=%proc.aname[6],aname[7]=%proc.aname[7],proc_pgid=%proc.vpgid
   steps:
@@ -539,7 +535,7 @@
 - key: Using visudo to modify sensitive file for linux privilege escalation
   hid: priv_24
   condition: >
-    open_write and fd.name = "/etc/sudoers" and container and shell_parent_procs
+    open_write and fd.name = "/etc/sudoers" and container
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name
   steps:
@@ -563,7 +559,7 @@
 - key: Linux dirty cow vulnerability leads to container escape(CVE-2016-5195)
   hid: priv_25
   condition: >
-    evt.type = openat and fd.name=/proc/self/mem and shell_family_procs
+    evt.type = openat and fd.name=/proc/self/mem
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name,evt.args=%evt.args,fd.name=%fd.name,parent=%proc.pname,gparent=%proc.aname[2],ggparent=%proc.aname[3]
   steps:
@@ -610,8 +606,7 @@
   hid: priv_27
   condition: >
     evt.type=execve and proc.name=docker and
-    (proc.cmdline contains "build" and proc.cmdline contains "git@" and proc.cmdline contains "--upload-pack") and
-    shell_parent_procs
+    (proc.cmdline contains "build" and proc.cmdline contains "git@" and proc.cmdline contains "--upload-pack")
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container.info=%container.info,shell=%proc.name,parent=%proc.pname,terminal=%proc.tty,container_id=%container.id,container_name=%container.name,image=%container.image.repository
   info:
@@ -633,8 +628,7 @@
   hid: priv_28
   condition: >
     evt.type=socket and (evt.arg[0]=AF_PACKET or evt.arg[0]=17) and
-    consider_packet_socket_communication and container and not proc.name in (user_known_packet_socket_binaries) and
-    shell_parent_procs
+    consider_packet_socket_communication and container and not proc.name in (user_known_packet_socket_binaries)
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,socket_info=%evt.args,container_id=%container.id,container_name=%container.name,image=%container.image.repository,image_tag=%container.image.tag
   info:
@@ -652,10 +646,10 @@
     urgency: false
     tags: [ATT&CK, network, docker, mitre_privilege_escalation, L4]
 
-- key: Execute commands through the docker api
+- key: Execute commands through the unauthorized docker api
   hid: priv_29
   condition: >
-    evt.type in (sendto, sendmsg, connect) and fd.sport = 2375 and shell_parent_procs and not fd.name contains "->127.0.0.1" and not fd.name contains "->0.0.0.0:" and not fd.name contains "->::1"
+    evt.type in (sendto, sendmsg, connect) and fd.sport = 2375 and not fd.name contains "->127.0.0.1" and not fd.name contains "->0.0.0.0:" and not fd.name contains "->::1"
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name
   steps:
@@ -663,8 +657,8 @@
       params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.proc_cmdline ]
   info:
     name:
-      en: "Execute commands through the docker api"
-      zh: "通过Docker-api执行命令"
+      en: "Execute commands through the unauthorized docker api"
+      zh: "通过未授权Docker-api执行命令"
     desc:
       en: "The Docker API can be used to interact with and manage Docker containers. Normal users usually do not perform these operations by calling the Docker API directly. Instead, they use the Docker command line tool or other user-friendly interfaces to interact with the container. There is a high probability that after carrying out the attack, the attacker will try to use the Docker API to perform malicious operations, such as container escape, malicious code injection and unauthorized access, which may lead to data leakage, destruction or other bad behaviors."
       zh: "Docker API 可以用于与 Docker 容器进行交互和管理，正常用户通常不会通过直接调用 Docker API 来执行这些操作，而是使用 Docker 命令行工具或其他用户友好的界面来与容器进行交互。大概率是攻击者在进行攻击后，尝试利用 Docker API 来执行恶意操作，如容器逃逸、恶意代码注入和非授权访问，可能导致数据泄漏、破坏或其他不良行为。"
@@ -677,7 +671,6 @@
     tags: [ATT&CK, network, docker, mitre_privilege_escalation, L4]
 
 # - key: Launch Sensitive Mount Container
-#   disabled: true
 #   hid: priv_30
 #   condition: >
 #     container_started and container
@@ -704,12 +697,10 @@
 
 #docker exec -it ca59be69b71e  mount --bind /root /
 - key: Mount the host root directory to the container
-  disabled: true
   hid: priv_31
   condition: >
     spawned_process 
     and not container
-    and shell_parent_procs
     and (proc.name = "docker" or proc.name = "kubectl")
     and (proc.cmdline contains "exec" and proc.cmdline contains "mount" and proc.cmdline contains "/root")
   output: >
@@ -731,12 +722,10 @@
 
 #Escape via SYS_PTRACE permissions
 - key: Escape via SYS_PTRACE permissions
-  disabled: true
   hid: priv_32
   condition: >
     container 
     and syscall.type = ptrace
-    and shell_parent_procs
     and not proc.cmdline contains "strace"
     and not falco_sensitive_mount_containers
     and not user_sensitive_mount_containers
@@ -760,7 +749,6 @@
 
 #cat /test/lxcfs/cgroup/devices.allow
 - key: lxcfs escape
-  disabled: true
   hid: priv_33
   condition: >
     container and (open_write or open_read)
@@ -785,31 +773,111 @@
     urgency: true
     tags: [ATT&CK, filesystem, mitre_privilege_escalation, L3]
 
-# - key: DirtyPipe (CVE-2022-0847) Read-only file overwrite privilege escalation escape
-#   disabled: true
-#   hid: priv_34
-#   condition: >
-#     container and shell_parent_procs and evt.type =  
-#     and not k8s.ns.name = "kube-system"
-#     and not (k8s.pod.name contains "-holmes-" or k8s.pod.name contains "-kafka-")
-#     and not falco_sensitive_mount_containers
-#     and not user_sensitive_mount_containers
-#   output: >
-#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent=%proc.pname,file=%fd.name,program=%proc.name,gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4],container_id=%container.id,container_name=%container.name,image=%container.image.repository
-#   steps:
-#     - name: checkRelatedExists
-#       params: [ 'Read and write overwrite the passwd file', 2s, trigger.payload.output_map.proc_pid, payload.output_map.proc_ppid ]
-#   info:
-#     name:
-#       en: "DirtyPipe (CVE-2022-0847) Read-only file overwrite privilege escalation escape"
-#       zh: "DirtyPipe (CVE-2022-0847) 只读文件覆盖提权逃逸"
-#     desc:
-#       en: "CVE-2022-0847, also known as DirtyPipe, is a security vulnerability that allows attackers to exploit read-only files on Linux systems to perform file overwrite and privilege escalation escape. Generally, we believe that normal users will not actively execute CVE (known vulnerabilities) related attack tools or scripts. There is a high probability that attackers try to use the DirtyPipe vulnerability to overwrite files such as passwd. Their main goal is to escalate privileges and escape, that is, to enhance their Privilege levels on the infected system."
-#       zh: "CVE-2022-0847，也被称为DirtyPipe，是一个安全漏洞，允许攻击者在Linux系统上利用只读文件进行文件覆盖提权逃逸。通常我们认为正常用户不会主动执行CVE（已知漏洞）相关的攻击工具或脚本，大概率是攻击者尝试利用DirtyPipe漏洞，对passwd等文件进行覆盖，其主要目标是提权逃逸，即提升其在受感染的系统上的权限级别。"
-#     suggestion:
-#       en: "(1). Please first combine the process command line, (parent) process name and other fields of the alarm to initially determine whether it is a business, R&D/operation and maintenance behavior (2). If it is a repeated expected behavior, and it is safe after investigation The risk is controllable and you can consider whitening it (3). If it is an unexpected behavior, please conduct correlation analysis through the container ID, associated alarm list, etc. to check whether there are traces of modification of /etc/passwd in the node where the container is running. Contact security personnel promptly for further investigation"
-#       zh: "(1).请先结合告警的进程命令行、(父)进程名等字段初步判断是否为业务、研发/运维的行为  (2).如果是重复出现的预期行为，且经排查后判断安全风险可控，可以考虑对其进行加白  (3).如果是非预期行为，请通过容器id、关联告警列表等内容进行关联分析，查看该容器运行节点中/etc/passwd是否存在被修改痕迹，及时联系安全人员进一步排查 "
-#     rule_type: Privilege_Escalation
-#     priority: ALERT
-#     urgency: true
-#     tags: [ATT&CK, filesystem, mitre_privilege_escalation, L3]
+- key: DirtyPipe (CVE-2022-0847) Read-only file overwrite privilege escalation escape
+  hid: priv_34
+  condition: >
+    container and evt.type = mmap and evt.type = pipe
+    and not k8s.ns.name = "kube-system"
+    and not (k8s.pod.name contains "-holmes-" or k8s.pod.name contains "-kafka-")
+    and not falco_sensitive_mount_containers
+    and not user_sensitive_mount_containers
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent=%proc.pname,file=%fd.name,program=%proc.name,gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4],container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "DirtyPipe (CVE-2022-0847) Read-only file overwrite privilege escalation escape"
+      zh: "DirtyPipe (CVE-2022-0847) 只读文件覆盖提权逃逸"
+    desc:
+      en: "CVE-2022-0847, also known as DirtyPipe, is a security vulnerability that allows attackers to exploit read-only files on Linux systems to perform file overwrite and privilege escalation escape. Generally, we believe that normal users will not actively execute CVE (known vulnerabilities) related attack tools or scripts. There is a high probability that attackers try to use the DirtyPipe vulnerability to overwrite files such as passwd. Their main goal is to escalate privileges and escape, that is, to enhance their Privilege levels on the infected system."
+      zh: "CVE-2022-0847，也被称为DirtyPipe，是一个安全漏洞，允许攻击者在Linux系统上利用只读文件进行文件覆盖提权逃逸。通常我们认为正常用户不会主动执行CVE（已知漏洞）相关的攻击工具或脚本，大概率是攻击者尝试利用DirtyPipe漏洞，对passwd等文件进行覆盖，其主要目标是提权逃逸，即提升其在受感染的系统上的权限级别。"
+    suggestion:
+      en: "(1). Please first combine the process command line, (parent) process name and other fields of the alarm to initially determine whether it is a business, R&D/operation and maintenance behavior (2). If it is a repeated expected behavior, and it is safe after investigation The risk is controllable and you can consider whitening it (3). If it is an unexpected behavior, please conduct correlation analysis through the container ID, associated alarm list, etc. to check whether there are traces of modification of /etc/passwd in the node where the container is running. Contact security personnel promptly for further investigation"
+      zh: "(1).请先结合告警的进程命令行、(父)进程名等字段初步判断是否为业务、研发/运维的行为  (2).如果是重复出现的预期行为，且经排查后判断安全风险可控，可以考虑对其进行加白  (3).如果是非预期行为，请通过容器id、关联告警列表等内容进行关联分析，查看该容器运行节点中/etc/passwd是否存在被修改痕迹，及时联系安全人员进一步排查 "
+    rule_type: Privilege_Escalation
+    priority: ALERT
+    urgency: true
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, L3]
+    
+#################中移订制#############################
+#mount /dev/sda2 /
+- key: Privileged container escapes by mounting physical disk
+  disable: true
+  hid: priv_35
+  condition: >
+    evt.type = execve
+    and container 
+    and not tensorsec_namespace
+    and (proc.cmdline contains "mount" and proc.cmdline contains "/dev/")
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Privileged container escapes by mounting physical disk"
+      zh: "特权容器通过挂载物理磁盘逃逸"
+    desc:
+      en: "The escape of privileged containers by mounting physical disks is a security threat. Attackers can operate by mounting disks, which may lead to and control the container cluster environment. Generally, we believe that normal users will not perform this behavior in the container. There is a high probability that the attacker is performing a privilege escalation operation."
+      zh: "特权容器通过挂载物理磁盘逃逸是一种安全威胁，攻击者可以通过挂载磁盘进行操作可能导容器集群环境并控制。通常我们认为正常用户不会在容器内进行此行为，大概率是攻击者在进行提权操作。"
+    suggestion:
+      en: "If a container is compromised, you need to isolate the container, obtain the attacker's remote IP address, and investigate other attacks to confirm cluster security."
+      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，确认该更新操作是否符合预期，是否为运维人员触发。"
+    rule_type: Privilege_Escalation
+    priority: ALERT
+    urgency: false
+    tags: [ATT&CK, exec, filesystem, mitre_privilege_escalation, L3]
+
+#curl -k https://172.17.0.1:10250/logs/root_link/ -H "Authorization: Bearer $token"
+- key: Escape by mounting /var/log
+  disable: true
+  hid: priv_36
+  condition: >
+    container
+    and fd.name contains "->172.17.0.1:10250"
+    and fd.sport = 10250
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Escape by mounting /var/log"
+      zh: "利用挂载/var/log逃逸"
+    desc:
+      en: "Mount /var/log escape is often discussed as a security issue in containerized environments such as Docker or Kubernetes. This kind of escape usually involves mounting a directory on the host (such as /var/log) into the container, and then using some way to obtain write permissions to the directory in the container, so that commands can be executed on the host. or create file"
+      zh: "挂载/var/log逃逸通常是在讨论Docker或Kubernetes等容器化环境中的安全问题。这种逃逸通常涉及到将宿主机的某个目录（如/var/log）挂载到容器中，然后利用某种方式在容器中获取对该目录的写权限，从而能够在宿主机上执行命令或创建文件"
+    suggestion:
+      en: "If a container is compromised, you need to isolate the container, obtain the attacker's remote IP address, and investigate other attacks to confirm cluster security."
+      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，确认该更新操作是否符合预期，是否为运维人员触发。"
+    rule_type: Privilege_Escalation
+    priority: ALERT
+    urgency: false
+    tags: [ATT&CK, exec, filesystem, mitre_privilege_escalation, L3]
+
+#curl http://11.11.11.11:2379
+- key: Access api unauthenticated
+  disabled: false
+  hid: priv_37
+  condition: >
+    evt.type in (accept,accept4,listen,connect) 
+    and not tensorsec_namespace
+    and not k8s.ns.name = kube-system
+    and container 
+    and (fd.sport="2379" or fd.sport="2380" or fd.sport="10250" or fd.sport="2375" or fd.sport="2376" )
+    and not fd.name contains "127.0.0.1"
+    and not fd.sip = "127.0.0.1"
+
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "access api unauthenticated"
+      zh: "K8s集群组件Api未授权访问"
+    desc:
+      en: "Usually we think that administrators will not execute k8s related commands in the container. The high probability is that the attacker will achieve unauthorized access, lateral movement, steal sensitive information and bypass security measures in order to obtain the ApiServer_token after the attack."
+      zh: "在容器内匿名访问K8s集群组件API，验证是否存在未授权访问"
+    suggestion:
+      en: "Please confirm whether this behavior is initiated by a trusted person or program, or the container may be invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
+      zh: "请确认该行为发起对象是否为可信人员或程序，否则容器可能遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+    rule_type: Privilege_Escalation
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, container, k8s, mitre_privilege_escalation, L1]
+
+#################中移订制#############################

@@ -1,12 +1,10 @@
 - key: Schedule Cron Jobs
-  disabled: true
   hid: pers_01
   condition: >
     ((open_write and cron_dir_action) or
      (spawned_process and proc.name = "crontab")) and
     not consider_all_cron_jobs and container and
-    not user_known_cron_jobs and
-    shell_parent_procs
+    not user_known_cron_jobs
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,file=%fd.name,container_id=%container.id,container_name=%container.name,image=%container.image.repository,image_tag=%container.image.tag
   info:
@@ -27,7 +25,7 @@
 - key: Run user mgmt binaries
   hid: pers_02
   condition: >
-    spawned_process and proc.name in (user_mgmt_binaries) and shell_parent_procs and
+    spawned_process and proc.name in (user_mgmt_binaries) and
     not proc.name in (su, sudo, lastlog, nologin, unix_chkpwd) and
     not proc.pname in (cron_binaries, systemd, systemd.postins, udev.postinst, run-parts) and
     not proc.cmdline startswith "passwd -S" and
@@ -61,7 +59,6 @@
 #   hid: pers_03
 #   condition: >
 #     fd.name startswith /var/lib/rpm and open_write
-#     and shell_parent_procs
 #     and not rpm_procs
 #     and not ansible_running_python
 #     and not python_running_chef
@@ -109,7 +106,7 @@
 - key: Modify shell configuration file
   hid: pers_05
   condition: >
-    open_write and shell_parent_procs and
+    open_write and
     (fd.filename in (shell_config_filenames) or
      fd.name in (shell_config_files) or
      fd.directory in (shell_config_directories))
@@ -184,7 +181,6 @@
 #     tags: [ATT&CK, filesystem, mitre_persistence]
 
 - key: Detect outbound connections to common miner pool ports
-  disabled: true
   hid: pers_08
   condition: >
     net_miner_pool and not trusted_images_query_miner_domain_dns
@@ -225,3 +221,47 @@
     priority: ALERT
     urgency: false
     tags: [ATT&CK, network, mitre_backdoor_maintenance, L4]
+
+#################中移订制#############################
+# kubectl apply -f ngi.yaml
+- key: Create a backdoor Daemonset
+  disabled: false
+  hid: pers_10
+  condition: >
+    container and 
+    ((proc.cmdline contains "apply" and proc.cmdline contains "-f") or
+    (proc.cmdline contains "create"))
+    and not k8s.ns.name = "kube-system"
+    and not k8s.ns.name = "falco"
+    and not tensorsec_namespace 
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Create a backdoor Daemonset"
+      zh: "创建后门Daemonset"
+    desc:
+      en: "Attackers often create backdoor daemonsets to establish a persistent, unobtrusive presence in a Kubernetes cluster to serve their malicious purposes"
+      zh: "攻击者创建后门 Daemonset 的目的通常是在 Kubernetes 集群中建立一个持久的、不易察觉的存在，以满足他们的恶意目的"
+    suggestion:
+      en: "Please confirm whether this behavior is initiated by a trusted person or program, or the container may be invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
+      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，确认该更新操作是否符合预期，是否为运维人员触发。"
+    rule_type: Persistence
+    priority: ALERT
+    urgency: true
+    tags: [ATT&CK, container, k8s, mitre_backdoor_maintenance, L1]
+
+#################中移订制#############################
+
+
+
+
+
+
+
+
+
+
+
+
+
