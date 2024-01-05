@@ -4,7 +4,6 @@
 #   condition: >
 #     proc.pname in (db_server_binaries)
 #     and spawned_process
-#     and shell_parent_procs
 #     and not proc.name in (db_server_binaries)
 #     and not postgres_running_wal_e
 #     and not user_known_db_spawned_processes
@@ -104,7 +103,6 @@
   hid: exec_04
   condition: >
     evt.type = execve and container and
-    shell_parent_procs and 
     (not tensorsec_namespace) and
     (proc.cmdline contains "cdk eva" or
      proc.cmdline contains "k0otkit" or
@@ -136,8 +134,7 @@
   condition: >
     evt.type = connect and container and
     fd.sport = 6379  and
-    proc.cmdline contains "redis-cli -h " and not proc.cmdline contains "localhost" and not proc.cmdline contains "127.0.0.1" and not k8s.pod.name contains "51c1c6" and
-    shell_parent_procs
+    proc.cmdline contains "redis-cli -h " and not proc.cmdline contains "localhost" and not proc.cmdline contains "127.0.0.1" and not k8s.pod.name contains "51c1c6"
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent=%proc.pname,terminal=%proc.tty,container_id=%container.id,container_name=%container.name,image=%container.image.repository
   info:
@@ -186,7 +183,6 @@
     and fd.name contains "->"
     and not fd.sport in ("", 53)
     and fd.name != "" and fd.name exists and fd.type in ("ipv4", "ipv6")
-    and shell_family_procs
     and proc.name in (brute_force_binaries)
     and not proc.name in (known_system_procs_network_activity_binaries)
     and not proc.pname in (known_system_procs_network_activity_binaries)
@@ -253,7 +249,6 @@
     and container
     and remote_file_copy_procs
     and not user_known_remote_file_copy_activities
-    and shell_parent_procs
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent_process=%proc.pname,container_id=%container.id,container_name=%container.name,image=%container.image.repository,image_tag=%container.image.tag
   info:
@@ -275,12 +270,13 @@
   hid: exec_10
   condition: >
     easy_outbound and
-    fd.sport in (k8s_ports) and
-    shell_parent_procs
+    fd.sport in (k8s_ports)
     and not fd.name contains "->127.0.0.1"
     and not fd.name contains "->0.0.0.0:"
     and not fd.name contains "->::1"
+    and not fd.sport = 10250
     and not (proc.cmdline contains "docker -H tcp://" and proc.cmdline contains ":2375")
+    and not k8s.ns.name = "kube-system"
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,user=%user.name,user_loginuid=%user.loginuid,container_id=%container.id,container_name=%container.name,image=%container.image.repository
   steps:
@@ -308,7 +304,6 @@
     and fd.name contains "->"
     and not fd.sport in ("", 53, 22)
     and fd.name != "" and fd.name exists and fd.type in ("ipv4", "ipv6")
-    and shell_family_procs
     and not proc.name in (known_system_procs_network_activity_binaries)
     and not proc.pname in (known_system_procs_network_activity_binaries)
     and not (package_mgmt_procs or package_mgmt_ancestor_procs)
@@ -316,17 +311,19 @@
     and not user_expected_system_procs_network_activity_conditions and container
     and not tensorsec_namespace
     and not proc.cmdline contains "redis-cli -h"
+    and not proc.cmdline contains "curl -k"
     and not k8s.ns.name = "kube-system"
+    and not k8s.ns.name = "deepflow"
     and not fd.name contains "->127.0.0.1"
     and not fd.name contains "->0.0.0.0:"
     and not fd.name contains "->::1"
     and not (proc.cmdline contains "docker -H tcp://" and proc.cmdline contains ":2375")
 #and not k8s.pod.name contains "51c1c6" and (inbound_outbound) and fd.sport=8080
   output: >
-    pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_name=%proc.name,parent=%proc.pname,proc.aname[0]=%proc.aname[0],proc.aname[1]=%proc.aname[1],gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4]
+    pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,fd_name=%fd.name,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_pname=%proc.pname,proc_name=%proc.name,parent=%proc.pname,proc.aname[0]=%proc.aname[0],proc.aname[1]=%proc.aname[1],gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4]
   steps:
     - name: checkRegexMatch
-      params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})|(\w*sh)|(^[a-zA-Z0-9._]*$)', trigger.payload.output_map.proc_cmdline ]
+      params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.fd_name ]
     - name: branches
       params: MARCO::reverseShell
   info:
@@ -349,7 +346,6 @@
   hid: exec_12
   condition: >
     container 
-    and shell_parent_procs
     and evt.type = execve
     and proc.name = mknod
     and not tensorsec_namespace 
@@ -381,7 +377,6 @@
     and container
     and user.name != "_apt"
     and package_mgmt_procs
-    and shell_parent_procs
     and not package_mgmt_ancestor_procs
     and not user_known_package_manager_in_container
     and not (tensorsec_namespace and k8s.pod.name contains "-frontend")
@@ -406,7 +401,6 @@
   hid: exec_14
   condition: >
     ((open_write and access_repositories) or (modify and modify_repositories))
-    and shell_parent_procs
     and not package_mgmt_procs
     and not package_mgmt_ancestor_procs
     and not exe_running_docker_save
@@ -437,7 +431,6 @@
     and not fd.name in (allowed_dev_files)
     and not fd.name startswith /dev/tty
     and not user_known_create_files_below_dev_activities
-    and shell_family_procs
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,file=%fd.name,container_id=%container.id,container_name=%container.name,image=%container.image.repository
   info:
@@ -459,7 +452,6 @@
   hid: exec_16
   condition: >
     evt.dir = < and open_write and monitored_dir
-    and shell_family_procs
     and not package_mgmt_procs
     and not coreos_write_ssh_dir
     and not exe_running_docker_save
@@ -490,7 +482,6 @@
   hid: exec_17
   condition: >
     bin_dir and evt.dir = < and open_write
-    and shell_family_procs
     and not package_mgmt_procs
     and not exe_running_docker_save
     and not python_running_get_pip
@@ -516,8 +507,7 @@
 - key: Modify binary dirs
   hid: exec_18
   condition: >
-    bin_dir_rename and modify and not package_mgmt_procs and not exe_running_docker_save and not user_known_modify_bin_dir_activities and
-    shell_parent_procs
+    bin_dir_rename and modify and not package_mgmt_procs and not exe_running_docker_save and not user_known_modify_bin_dir_activities
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,operation=%evt.type,file=%fd.name,evt.args=%evt.args,container_id=%container.id,container_name=%container.name,image=%container.image.repository
   info:
@@ -539,7 +529,7 @@
   disable: true
   hid: exec_19
   condition: >
-    write_etc_common and not (tensorsec_namespace and k8s.pod.name contains "holmes") and shell_parent_procs and not fd.name = "/etc/sudoers"
+    write_etc_common and not (tensorsec_namespace and k8s.pod.name contains "holmes") and not fd.name = "/etc/sudoers"
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent=%proc.pname,file=%fd.name,program=%proc.name,gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4],container_id=%container.id,container_name=%container.name,image=%container.image.repository
   info:
@@ -564,7 +554,6 @@
   condition: >
     open_read and container
     and fd.name = /proc/sys/kernel/randomize_va_space
-    and shell_parent_procs
     and not falco_sensitive_mount_containers
     and not user_sensitive_mount_containers
     and not tensorsec_namespace
@@ -584,3 +573,426 @@
     priority: INFO
     urgency: false
     tags: [ATT&CK, exec, filesystem, mitre_execution, L3]
+
+#################中移订制#############################
+#docker cp 
+- key: Write files to the host through local docker.sock
+  disable: true
+  hid: exec_21
+  condition: >
+    evt.type = execve 
+    and container 
+    and not tensorsec_namespace
+    and (proc.cmdline contains "docker -H unix:" or proc.cmdline contains "docker --host unix:" or proc.cmdline contains "docker") and  proc.cmdline contains "cp"
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Write files to the host through local docker.sock"
+      zh: "通过本地docker.sock向宿主机写入文件"
+    desc:
+      en: "Writing files directly to the host via Docker.sock is a security risk because it can lead to unauthorized access and manipulation. Docker.sock is the UNIX socket for the Docker daemon used to communicate with Docker clients. Generally, we believe that normal users will not perform this behavior in the container. There is a high probability that the attacker is performing a privilege escalation operation."
+      zh: "直接通过 Docker.sock 向宿主机写入文件是一个安全风险，因为这可能导致未经授权的访问和操纵。Docker.sock 是 Docker 守护进程的 UNIX 套接字，用于与 Docker 客户端通信。通常我们认为正常用户不会在容器内进行此行为，大概率是攻击者在进行提权操作。"
+    suggestion:
+      en: "If a container is compromised, you need to isolate the container, obtain the attacker's remote IP address, and investigate other attacks to confirm cluster security."
+      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，确认该更新操作是否符合预期，是否为运维人员触发。"
+    rule_type: Execution
+    priority: ALERT
+    urgency: false
+    tags: [ATT&CK, exec, filesystem, mitre_execution, L3]
+
+#echo "1" >  /data/docker/containers/1.txt && rm -rf /data/docker/containers/1.txt
+- key: Clean docker logs
+  disable: true
+  hid: exec_22
+  condition: >
+    open_write 
+    and fd.directory contains "docker" 
+    and fd.directory contains "containers"
+    and not proc.cmdline contains "dockerd -H"
+    and not proc.pname = "systemd"
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container=%container.info,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Clean docker logs"
+      zh: "清理docker日志"
+    desc:
+      en: "If there are signs that an attacker is cleaning Docker logs, this could be a sign of a sabotage or cover-up attack. Attackers may scrub logs to try to hide their activities or erase records of their attacks"
+      zh: "如果有迹象表明攻击者正在清理 Docker 日志，这可能是一种破坏或掩盖攻击的迹象。攻击者可能会清理日志以尝试隐藏他们的活动或擦除对其攻击的记录"
+    suggestion:
+      en: "If a container is compromised, you need to isolate the container, obtain the attacker's remote IP address, and investigate other attacks to confirm cluster security."
+      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，确认该更新操作是否符合预期，是否为运维人员触发。"
+    rule_type: Execution
+    priority: ALERT
+    urgency: false
+    tags: [ATT&CK, exec, filesystem, mitre_execution, L3]
+
+# docker load -i 1.tar
+- key: Upload malicious image to local
+  disabled: false
+  hid: exec_23
+  condition: >
+    proc.cmdline contains "docker" 
+    and proc.cmdline contains "load" 
+    and proc.cmdline contains "-i"
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Upload malicious image to local"
+      zh: "上传恶意镜像至本地"
+    desc:
+      en: "Uploading malicious images to local Kubernetes (K8s) nodes can cause serious security issues. An attacker may hide malicious code in an image and then upload it to a vulnerable K8s node. The node may execute the malicious code when processing the image."
+      zh: "上传恶意镜像到本地 Kubernetes (K8s) 节点可能会导致严重的安全问题。攻击者可能会在镜像中隐藏恶意代码，然后将其上传到易受攻击的 K8s 节点，节点在处理镜像时可能会执行其中的恶意代码"
+    suggestion:
+      en: "Please confirm whether this behavior is initiated by a trusted person or program, or the container may be invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
+      zh: "请通过进程树判断该命令是否属于已知进程的正常行为，是否由恶意软件执行，确认该更新操作是否符合预期，是否为运维人员触发。"
+    rule_type: Discovery
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, container, k8s, mitre_execution, L1]
+
+#strace binary
+- key: high risk syscall in container
+  disabled: false
+  hid: exec_24
+  condition: >
+    evt.type in (highriskcall) 
+    and container 
+    and not tensorsec_namespace 
+    and not proc.pname in (runc:[0:PARENT], runc:[1:CHILD], runc, docker-runc, exe, docker-runc-cur)
+    and not proc.name in (runc:[0:PARENT], runc:[1:CHILD], runc, docker-runc, exe, docker-runc-cur)
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "high risk syscall in container"
+      zh: "容器内执行高危系统调用"
+    desc:
+      en: "Usually we think that administrators will not execute k8s related commands in the container. The high probability is that the attacker will achieve unauthorized access, lateral movement, steal sensitive information and bypass security measures in order to obtain the ApiServer_token after the attack."
+      zh: "在容器内执行高危系统调用，测试Seccomp安全机制是否开启且配置良好"
+    suggestion:
+      en: "Please confirm whether this behavior is initiated by a trusted person or program, or the container may be invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
+      zh: "请确认该行为发起对象是否为可信人员或程序，否则容器可能遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+    rule_type: Discovery
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, container, k8s, mitre_execution, L1]
+
+- key: Network Connection outside Local Subnet
+  desc: Detect traffic to image outside local subnet.
+  hid: exec_25
+  condition: >
+    inbound_outbound 
+    and container 
+    and remote_server_subnet
+    and not tensorsec_namespace 
+    and not k8s.ns.name = kube-system
+    and not k8s.ns.name = deepflow
+    and not k8s.ns.name = istio-system
+    and not k8s.ns.name = monitoring
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Network Connection outside Local Subnet"
+      zh: "容器内访问外网"
+    desc:
+      en: "Usually we think that administrators will not execute k8s related commands in the container. The high probability is that the attacker will achieve unauthorized access, lateral movement, steal sensitive information and bypass security measures in order to obtain the ApiServer_token after the attack."
+      zh: "容器内访问外网"
+    suggestion:
+      en: "Please confirm whether this behavior is initiated by a trusted person or program, or the container may be invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
+      zh: "请确认该行为发起对象是否为可信人员或程序，否则容器可能遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+    rule_type: Discovery
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, container, k8s, mitre_execution, L1]
+
+#curl http://10.2.30.12/latest/api/token
+- key: access AWS IAM token
+  desc: access AWS IAM token
+  hid: exec_26
+  condition: >
+    evt.type = execve and container 
+    and proc.cmdline contains "/latest/api/token"
+    and not tensorsec_namespace 
+    and not k8s.ns.name = kube-system
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "access AWS IAM token"
+      zh: "利用Metadata API获取AWS IAM凭证"
+    desc:
+      en: "Usually we think that administrators will not execute k8s related commands in the container. The high probability is that the attacker will achieve unauthorized access, lateral movement, steal sensitive information and bypass security measures in order to obtain the ApiServer_token after the attack."
+      zh: "利用Metadata API获取AWS IAM凭证"
+    suggestion:
+      en: "Please confirm whether this behavior is initiated by a trusted person or program, or the container may be invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
+      zh: "请确认该行为发起对象是否为可信人员或程序，否则容器可能遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+    rule_type: Discovery
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, container, k8s, mitre_execution, L1]
+
+#kubectl  get secret
+- key: get namespace secret by sa
+  desc: get namespace secret by sa
+  hid: exec_27
+  condition: >
+    evt.type = execve and container 
+    and (proc.name = kubectl or proc.name = curl or  proc.name = k)
+    and proc.cmdline contains "secret" 
+    and not tensorsec_namespace 
+    and not k8s.ns.name = kube-system
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "get namespace secret by sa"
+      zh: "利用sa获取集群Secret"
+    desc:
+      en: "Usually we think that administrators will not execute k8s related commands in the container. The high probability is that the attacker will achieve unauthorized access, lateral movement, steal sensitive information and bypass security measures in order to obtain the ApiServer_token after the attack."
+      zh: "利用sa获取集群的Secret"
+    suggestion:
+      en: "Please confirm whether this behavior is initiated by a trusted person or program, or the container may be invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
+      zh: "请确认该行为发起对象是否为可信人员或程序，否则容器可能遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+    rule_type: Discovery
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, container, k8s, mitre_execution, L1]
+
+#kubectl  get pod -n kube-system
+- key: create shadow api server
+  desc: create shadow api server
+  hid: exec_28
+  condition: >
+    evt.type = execve and container 
+    and (proc.name = kubectl or proc.name = curl or  proc.name = k)
+    and proc.cmdline contains "kube-system" 
+    and proc.cmdline contains "pod" 
+    and not tensorsec_namespace 
+    and not k8s.ns.name = kube-system
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "create shadow api server"
+      zh: "创建影子API Server"
+    desc:
+      en: "Usually we think that administrators will not execute k8s related commands in the container. The high probability is that the attacker will achieve unauthorized access, lateral movement, steal sensitive information and bypass security measures in order to obtain the ApiServer_token after the attack."
+      zh: "创建影子API Server"
+    suggestion:
+      en: "Please confirm whether this behavior is initiated by a trusted person or program, or the container may be invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
+      zh: "请确认该行为发起对象是否为可信人员或程序，否则容器可能遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+    rule_type: Discovery
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, container, k8s, mitre_execution, L1]
+
+#kubectl get configmap
+- key: get namespace configmap by sa
+  desc: get namespace configmap by sa
+  hid: exec_29
+  condition: >
+    evt.type = execve and container 
+    and (proc.name = kubectl or proc.name = curl or  proc.name = k)
+    and proc.cmdline contains "configmap" 
+    and not tensorsec_namespace 
+    and not k8s.ns.name = kube-system
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "get namespace configmap by sa"
+      zh: "利用sa窃取集群ConfigMap"
+    desc:
+      en: "Usually we think that administrators will not execute k8s related commands in the container. The high probability is that the attacker will achieve unauthorized access, lateral movement, steal sensitive information and bypass security measures in order to obtain the ApiServer_token after the attack."
+      zh: "利用sa窃取集群ConfigMap"
+    suggestion:
+      en: "Please confirm whether this behavior is initiated by a trusted person or program, or the container may be invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
+      zh: "请确认该行为发起对象是否为可信人员或程序，否则容器可能遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+    rule_type: Discovery
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, container, k8s, mitre_execution, L1]
+
+#kubectl get PodSecurityPolicy
+- key: get cluster pod security policy by sa
+  desc: get cluster pod security policy by sa
+  hid: exec_30
+  condition: >
+    evt.type = execve and container 
+    and (proc.name = kubectl or proc.name = curl or  proc.name = k)
+    and (proc.cmdline contains "psp" or  proc.cmdline contains "podSecurityPolicy" )
+    and not tensorsec_namespace 
+    and not k8s.ns.name = kube-system
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "get cluster pod security policy by sa"
+      zh: "利用sa窃取集群Pod Security Policy"
+    desc:
+      en: "Usually we think that administrators will not execute k8s related commands in the container. The high probability is that the attacker will achieve unauthorized access, lateral movement, steal sensitive information and bypass security measures in order to obtain the ApiServer_token after the attack."
+      zh: "利用sa窃取集群Pod Security Policy"
+    suggestion:
+      en: "Please confirm whether this behavior is initiated by a trusted person or program, or the container may be invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
+      zh: "请确认该行为发起对象是否为可信人员或程序，否则容器可能遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+    rule_type: Discovery
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, container, k8s, mitre_execution, L1]
+
+#kubectl get secret -n kube-system
+- key: find trampoline Pod
+  desc: find trampoline Pod
+  hid: exec_31
+  condition: >
+    evt.type = execve and container 
+    and (proc.name = kubectl or proc.name = curl or  proc.name = k)
+    and proc.cmdline contains "kube-system" 
+    and proc.cmdline contains "secret" 
+    and not tensorsec_namespace 
+    and not k8s.ns.name = kube-system
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "find trampoline Pod"
+      zh: "trampoline Pod发现"
+    desc:
+      en: "Usually we think that administrators will not execute k8s related commands in the container. The high probability is that the attacker will achieve unauthorized access, lateral movement, steal sensitive information and bypass security measures in order to obtain the ApiServer_token after the attack."
+      zh: "trampoline Pod发现"
+    suggestion:
+      en: "Please confirm whether this behavior is initiated by a trusted person or program, or the container may be invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
+      zh: "请确认该行为发起对象是否为可信人员或程序，否则容器可能遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+    rule_type: Discovery
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, container, k8s, mitre_execution, L1]
+
+#kubectl auth can-i list pod
+- key: can-i judge authorization
+  desc: can-i judge authorization
+  hid: exec_32
+  condition: >
+    evt.type = execve and container 
+    and proc.name = kubectl or proc.name = k
+    and proc.cmdline contains "auth" 
+    and proc.cmdline contains "can-i" 
+    and not tensorsec_namespace 
+    and not k8s.ns.name = kube-system
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "can-i judge authorization"
+      zh: "使用can-i进行权限探测"
+    desc:
+      en: "Usually we think that administrators will not execute k8s related commands in the container. The high probability is that the attacker will achieve unauthorized access, lateral movement, steal sensitive information and bypass security measures in order to obtain the ApiServer_token after the attack."
+      zh: "使用can-i进行权限探测"
+    suggestion:
+      en: "Please confirm whether this behavior is initiated by a trusted person or program, or the container may be invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
+      zh: "请确认该行为发起对象是否为可信人员或程序，否则容器可能遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+    rule_type: Discovery
+    priority: WARNING
+    urgency: true
+    tags: [ATT&CK, container, k8s, mitre_execution, L1]
+
+#################中移订制#############################
+
+#################特定场景规则############################
+#nmap 192.168.3.20 -p 
+- key: Container ports are scanned
+  hid: exec_33
+  condition: >
+    container and inbound and fd.sport in (vulnerable_ports) and not tensorsec_namespace and k8s.pod.name contains "dvwa" 
+  output: >
+    connection=%fd.name,file=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Container ports are scanned"
+      zh: "容器端口被扫描"
+    desc:
+      en: "There is a high probability that attackers use port scanning tools (such as nmap) to conduct reconnaissance and scan the target network, trying to discover vulnerabilities, exposed services or weaknesses in the network in order to prepare for subsequent attacks."
+      zh: "大概率是攻击者使用端口扫描工具(如：nmap)进行侦察和扫描目标网络，尝试发现网络中的漏洞、暴露的服务或弱点，以便为后续攻击做准备。"
+    suggestion:
+      en: "Check whether the open port of k8s Service is a high-risk port and whether the port service has security risks"
+      zh: "查看 k8s Service开放端口是否为高危险端口、端口服务是否有安全风险"
+    rule_type: Discovery
+    priority: ALERT
+    urgency: false
+    tags: [ATT&CK, network, mitre_execution, L1]
+
+#hydra -l root -P Desktop/PD/Brute/Top_Password/Top100.txt mysql://192.168.3.20:30134
+- key: Container ports are being brute-forced
+  hid: exec_34
+  condition: >
+    container and inbound and fd.sport in (database_ports) and not tensorsec_namespace and k8s.pod.name contains "dvwa" 
+  output: >
+    connection=%fd.name,file=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+  steps:
+    - name: checkRuleRecentCount
+      params: [ 'Container ports are being brute-forced', 3s, 5, '["fd_sip", "fd_sport", "fd_cip"]', '[]', 1m ]
+  info:
+    name:
+      en: "Container ports are being brute-forced"
+      zh: "容器端口正在被暴力破解"
+    desc:
+      en: "Check whether the open port of k8s Service is a high-risk port such as a database, and detect whether there are weak passwords"
+      zh: "大概率是攻击者使用口令爆破工具(如：hydra)进行弱口令侦察和扫描目标网络，尝试发现网络中的漏洞、暴露的服务或弱点，以便为后续攻击做准备。"
+    suggestion:
+      en: "Please confirm the specific behavior of the tool. Hackers may scan the intranet. It is recommended to use offset defense to limit the execution of the tool, and check whether the container has been invaded."
+      zh: "查看 k8s Service开放端口是否为高危险端口如数据库，并检测是否有弱口令"
+    rule_type: Discovery
+    priority: ALERT
+    urgency: false
+    tags: [ATT&CK, network, mitre_execution, L1]
+
+# redis-cli -h 192.168.3.20 -p 31528
+- key: External suspicious connection
+  hid: exec_35
+  condition: >
+    container and inbound and fd.sport=6379 and not tensorsec_namespace and k8s.pod.name contains "dvwa" 
+  output: >
+    connection=%fd.name,file=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,user=%user.name,user_loginuid=%user.loginuid,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "External suspicious connection"
+      zh: "外部可疑连接"
+    desc:
+      en: "There is a high probability that the attacker has obtained the credentials and tried to log in to high-risk services such as redis-cli. Under normal circumstances, these ports are not open to the outside world."
+      zh: "大概率是攻击者获取到凭证尝试登录，如：redis-cli等高危服务，一般情况下这些端口都不对外开放的。"
+    suggestion:
+      en: "Check whether the open port of k8s Service is a high-risk port such as a database, and detect whether there are weak passwords."
+      zh: "查看 k8s Service开放端口是否为高危险端口如数据库，并检测是否有弱口令。"
+    rule_type: Discovery
+    priority: ALERT
+    urgency: false
+    tags: [ATT&CK, network, mitre_execution, L1]
+
+#CVE-2017-7529
+- key: Nginx integer overflow vulnerability
+  hid: exec_36
+  condition: >
+    container
+    and evt.type = sendfile
+    and not tensorsec_namespace and k8s.pod.name contains "ng"
+  output: >
+    connection=%fd.name,file=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,user=%user.name,user_loginuid=%user.loginuid,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Nginx integer overflow vulnerability"
+      zh: "Nginx整数溢出漏洞"
+    desc:
+      en: "CVE-2017-7529 is an integer overflow vulnerability for Nginx. Generally, we believe that normal users will not actively perform CVE (known vulnerability) related attacks. There is a high probability that attackers will try to exploit it, including denial of service attacks and remote execution. Code, information leakage, abuse of system resources, and persistence intrusion."
+      zh: "CVE-2017-7529是一种针对Nginx整数溢出漏洞 ，通常我们认为正常用户不会主动执行CVE（已知漏洞）相关的攻击行为，大概率是攻击者尝试利用它，包括拒绝服务攻击、远程执行代码、信息泄露、滥用系统资源和入侵持久性等目的。"
+    suggestion:
+      en: "Check whether the open port of k8s Service is the nginx service port, and check the nginx version to ensure that it is not within the 0.5.6 - 1.13.2 version."
+      zh: "查看 k8s Service开放端口是否为nginx服务端口，并检查nginx版本确保不在0.5.6 - 1.13.2版本内。"
+    rule_type: Discovery
+    priority: ALERT
+    urgency: false
+    tags: [ATT&CK, network, mitre_execution, L1]
+#################特定场景规则############################

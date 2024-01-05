@@ -1,0 +1,51 @@
+##custom_config_inits
+- key: miner_domains
+  name:
+    zh: "挖矿IP"
+    en: "Miner Domains Pool"
+  effect:
+    zh: 可检测对应IP的挖矿连接
+    en: It could detect connections from the miner to the given domains
+  prompt:
+    zh: "请输入完整的挖矿IP，多个输入回车分隔"
+    en: "Please input the complete miner domains(no need of the schema prefix). Please seprate multiple ones by enter if needed."
+  type: list
+  # rulesAppliedSteps规范: the first item must be a rule; the others must be macros
+  rulesAppliedSteps:
+  - - Detect outbound connections to common miner pool ports
+    - net_miner_pool
+    - minerpool_other
+
+- key: sensitive_paths
+  name:
+    zh: "敏感文件路径"
+    en: "Sensitive File Paths"
+  effect:
+    zh: 可检测对应文件遭到的读写或修改
+    en: It could detect the reads/writes of the specified file paths
+  prompt:
+    zh: "请输入敏感文件的绝对路径（精准匹配），多个请输入回车分隔"
+    en: "Please input the absolute path of the sensitive file paths(exact match).  Please seprate multiple ones by enter if needed."
+  type: list
+  rulesAppliedSteps:
+  - - Gaining environment information
+
+- key: monitored_directories
+  name:
+    zh: 敏感目录
+    en: Sensitive Directories
+  effect:
+    zh: 可检测对应目录下的文件读写或修改
+    en: It could detect the reads/writes of the specified directories
+  prompt:
+    zh: 请输入敏感目录的绝对路径（精准匹配），多个请输入回车分隔
+    en: Please input the absolute path of sensitive directories(exact match). Please seprate multiple ones by enter if needed.
+  type: list
+  rulesAppliedSteps:
+  - - Write below monitored dir
+    - monitored_dir
+##custom_config_inits END
+
+
+
+

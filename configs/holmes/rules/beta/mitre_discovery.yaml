@@ -2,7 +2,7 @@
 - key: View network information in the container
   hid: disc_01
   condition: >
-    spawned_process and container and proc.name in (namespace_bypass_cmds) and shell_parent_procs
+    spawned_process and container and proc.name in (namespace_bypass_cmds)
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
   info:
@@ -27,8 +27,7 @@
 #      consider_ssh_reads and
 #      (user_ssh_directory or fd.name startswith /root/.ssh) and
 #      not user_known_read_ssh_information_activities and
-#      not proc.name in (ssh_binaries)) and
-#      shell_parent_procs
+#      not proc.name in (ssh_binaries))
 #   output: >
 #     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,file=%fd.name,parent=%proc.pname,container_id=%container.id,container_name=%container.name,image=%container.image.repository
 #   info:
@@ -51,8 +50,7 @@
   condition: >
     spawned_process and
     not container and
-    network_tool_procs and
-    shell_parent_procs
+    network_tool_procs
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent_process=%proc.pname,container_id=%container.id,container_name=%container.name
   info:
@@ -71,17 +69,16 @@
     tags: [ATT&CK, network, mitre_discovery, L4]
 
 - key: View process information in the container
-  disabled: true
   hid: disc_04
   condition: >
-    container and shell_parent_procs and 
-    ((open_read and fd.name startswith "/proc/" and fd.name contains "pid_max" and evt.arg.flags = O_RDONLY) or (proc.name = "top" or proc.name = "htop"))
-    and not (k8s.pod.name contains "holmes" or k8s.pod.name contains "calico" or k8s.pod.name contains "node-exporter" or k8s.pod.name contains "console" or k8s.pod.name contains "51c1c6" or k8s.pod.name contains "prometheus" or k8s.ns.name = "kube-system")
+    open_read and container and
+    fd.name startswith "/proc/" and fd.name contains "pid_max" and evt.arg.flags = O_RDONLY and
+    not (k8s.pod.name contains "holmes" or k8s.pod.name contains "calico" or k8s.pod.name contains "node-exporter" or k8s.pod.name contains "console" or k8s.pod.name contains "51c1c6" or k8s.pod.name contains "prometheus" or k8s.ns.name = "kube-system") and not proc.cmdline contains "ps cax"
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container.info=%container.info,shell=%proc.name,parent=%proc.pname,terminal=%proc.tty,container_id=%container.id,container_name=%container.name,image=%container.image.repository
   info:
     name:
-      en: "View process information in the container" 
+      en: "View process information in the container"
       zh: "容器内查看进程信息"
     desc:
       en: "Generally, we believe that normal users in the container will not perform this behavior. The high probability is that the attacker will conduct reconnaissance and information collection to view process information in the container after the attack, and use this information to understand the target system, discover weaknesses, and perform further attacks. and control container."
@@ -99,7 +96,7 @@
   condition: >
     open_read and container and
     (proc.cmdline contains "fdisk -l" or (fd.name startswith "/sys/dev/block/" and evt.arg.flags contains O_RDONLY)) and
-    not tensorsec_namespace and shell_parent_procs
+    not tensorsec_namespace
   output: >
     fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
   info:
@@ -124,7 +121,6 @@
     and (fd.directory contains "www" or fd.directory contains "apache" or fd.directory contains "tomcat" or fd.directory contains "web" or fd.directory contains "http")
     and (fd.name contains ".jsp" or fd.name contains ".php" or fd.name contains ".config" or fd.name contains ".bak" or fd.name contains ".old" or fd.name contains ".log")
     and not tensorsec_namespace
-    and shell_parent_procs
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
   info:
@@ -150,7 +146,6 @@
     (proc.cmdline contains "-perm" and (proc.cmdline contains "4000" or proc.cmdline contains "-u+s")) and
     (proc.cmdline contains "-print" or proc.cmdline contains "-exec" or proc.cmdline contains "-ls" or proc.cmdline contains "-fls" or proc.cmdline contains "-xargs")
     )
-    and shell_family_procs
   output: >
     fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
   info:
@@ -174,8 +169,7 @@
     open_read and container and
     (fd.name="/var/log/lastlog" or fd.name="/var/log/wtmp") and
     not shell_procs and
-    not tensorsec_namespace and not k8s.pod.name contains "calico" and
-    shell_parent_procs
+    not tensorsec_namespace and not k8s.pod.name contains "calico"
   output: >
     fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
   info:
@@ -197,8 +191,7 @@
   hid: disc_09
   condition: >
     open_read and (fd.name contains ".bash_history" or fd.name contains ".zsh_history") and
-    container and
-    shell_parent_procs and not shell_procs
+    container and not shell_procs
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,container_id=%container.id,container_name=%container.name
   info:
@@ -217,12 +210,10 @@
     tags: [ATT&CK, container, exec, file, mitre_discovery, L1]
 
 - key: Get ApiServer_token through kubectl
-  disabled: true
   hid: disc_10
   condition: >
     evt.type = execve and
-    (proc.cmdline contains "kubectl config view" or proc.cmdline contains "kubectl describe secrets") and
-    shell_parent_procs
+    (proc.cmdline contains "kubectl config view" or proc.cmdline contains "kubectl describe secrets")
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
   info:
@@ -267,7 +258,7 @@
 - key: Launch Suspicious Network Tool in Container
   hid: disc_12
   condition: >
-    spawned_process and container and network_tool_procs and shell_parent_procs and not ignore_proc_args and not user_known_network_tool_activities and not proc.cmdline contains "-w 2 localhost 2181" and not tensorsec_namespace
+    spawned_process and container and network_tool_procs and not ignore_proc_args and not user_known_network_tool_activities and not proc.cmdline contains "-w 2 localhost 2181" and not tensorsec_namespace
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent_process=%proc.pname,container_id=%container.id,container_name=%container.name,image=%container.image.repository,image_tag=%container.image.tag
   steps:
@@ -294,7 +285,6 @@
     evt.type in (connect,sendto,sendmsg)
     and fd.name contains "->"
     and fd.name != "" and fd.name exists and fd.type in ("ipv4", "ipv6")
-    and shell_family_procs
     and proc.name in (scan_ports_tool_binaries)
     and not fd.sport in ("", 53)
     and not proc.name in (known_system_procs_network_activity_binaries)

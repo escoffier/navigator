@@ -1,0 +1,442 @@
+##attck_rule_type=Watson
+- key: Unauthorized access to Tomcat-Web in Redis
+  hid: hp_01
+  category: Watson
+  categoryZh: 主动防御
+  condition: >
+    k8s.pod.name contains "51c1c6" and (inbound_outbound) and fd.sport=8080
+  output: >
+    fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Unauthorized access to Tomcat-Web in Redis"
+      zh: "Redis容器内未授权访问Tomcat-Web"
+    desc:
+      en: "Unauthorized access to Tomcat-Web in Redis"
+      zh: "Redis容器内未授权访问Tomcat-Web"
+    suggestion:
+      en: "It is recommended to check whether an attacker has obtained internal container permissions, and use immune defense to restrict attackers from further attacks"
+      zh: "建议排查是否有攻击者已获取内部容器权限，同时使用免疫防御限制攻击者进行进一步攻击。"
+    rule_type: Privilege_Escalation
+    priority: ALERT
+    urgency: true
+    tags: [Watson, L4]
+
+- key: Upload webshell through the Tomcat-Manager-App
+  hid: hp_02
+  category: Watson
+  categoryZh: 主动防御
+  condition: >
+    k8s.pod.name contains "51c1c6" and evt.type = read and evt.arg.data contains "POST /manager/html/upload" and fd.sport=8080 and proc.name=java
+  output: >
+    fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name,http_request=%evt.args
+  info:
+    name:
+      en: "Upload webshell through the Tomcat-Manager-App"
+      zh: "通过Tomcat-Manager-App上传webshell"
+    desc:
+      en: "Upload webshell through the Tomcat-Manager-App"
+      zh: "通过Tomcat-Manager-App上传webshell"
+    suggestion:
+      en: "It is recommended to check whether an attacker has obtained internal container permissions, and use immune defense to restrict attackers from further attacks"
+      zh: "建议排查是否有攻击者已获取内部容器权限，同时使用免疫防御限制攻击者进行进一步攻击。"
+    rule_type: Privilege_Escalation
+    priority: ALERT
+    urgency: true
+    tags: [Watson, L4]
+
+- key: Execute commands through webshell
+  hid: hp_03
+  category: Watson
+  categoryZh: 主动防御
+  condition: >
+    k8s.pod.name contains "51c1c6" and evt.type = read and (evt.arg.data contains "POST " or evt.arg.data contains "GET ") and evt.arg.data contains "jsp" and fd.sport=8080 and proc.name=java
+  output: >
+    fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_vpgid=%proc.vpgid,proc_cmdline=%proc.cmdline,proc_name=%proc.name,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name,http_request=%evt.args
+  steps:
+    - name: checkRelatedExists
+      params: [Generated child process shell after starting the container, 1s, trigger.payload.output_map.proc_name, payload.output_map.proc_pname]
+    - name: checkValue
+      params: [trigger.payload.output_map.proc_name, java]
+  info:
+    name:
+      en: "Execute commands through webshell"
+      zh: "通过向Tomcat上传webshell并执行命令"
+    desc:
+      en: "Execute commands through webshell"
+      zh: "通过向Tomcat上传webshell并执行命令"
+    suggestion:
+      en: "It is recommended to check whether an attacker has obtained internal container permissions, and use immune defense to restrict attackers from further attacks"
+      zh: "建议排查是否有攻击者已获取内部容器权限，同时使用免疫防御限制攻击者进行进一步攻击。"
+    rule_type: Privilege_Escalation
+    priority: ALERT
+    urgency: true
+    tags: [Watson, L4]
+
+- key: Unauthorized access to Redis-Server
+  hid: hp_04
+  category: Watson
+  categoryZh: 主动防御
+  condition: >
+    k8s.pod.name contains "51c1c6" and (inbound_outbound) and fd.sport=6379
+  output: >
+    fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Unauthorized access to Redis-Server"
+      zh: "Redis-Server未授权访问"
+    desc:
+      en: "Unauthorized access to Redis-Server"
+      zh: "Redis-Server未授权访问"
+    suggestion:
+      en: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+      zh: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+    rule_type: Privilege_Escalation
+    priority: ALERT
+    urgency: true
+    tags: [Watson, L4]
+
+- key: Unauthorized access to ElasticSearch
+  hid: hp_05
+  category: Watson
+  categoryZh: 主动防御
+  condition: >
+    k8s.pod.name contains "75fb1c" and (inbound_outbound) and fd.sport=9200
+  output: >
+    fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Unauthorized access to ElasticSearch"
+      zh: "ElasticSearch未授权访问"
+    desc:
+      en: "Unauthorized access to ElasticSearch"
+      zh: "ElasticSearch未授权访问"
+    suggestion:
+      en: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+      zh: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+    rule_type: Privilege_Escalation
+    priority: ALERT
+    urgency: true
+    tags: [Watson, L4]
+
+- key: Execute sensitive commands through ElasticSearch（CVE-2015-1427）
+  hid: hp_06
+  category: Watson
+  categoryZh: 主动防御
+  condition: >
+    k8s.pod.name contains "75fb1c" and evt.type=execve and evt.res!=ENOENT and proc.pname = java
+  output: >
+    fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Execute sensitive commands through ElasticSearch（CVE-2015-1427）"
+      zh: "通过ElasticSearch执行命令（CVE-2015-1427）"
+    desc:
+      en: "Execute sensitive commands through ElasticSearch（CVE-2015-1427）"
+      zh: "通过ElasticSearch执行命令（CVE-2015-1427）"
+    suggestion:
+      en: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+      zh: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+    rule_type: Privilege_Escalation
+    priority: ALERT
+    urgency: true
+    tags: [Watson, L4]
+
+- key: Unauthorized access to Tomcat-Web
+  hid: hp_07
+  category: Watson
+  categoryZh: 主动防御
+  condition: >
+    k8s.pod.name contains "b0f328" and (inbound_outbound) and fd.sport = 8080
+  output: >
+    fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Unauthorized access to Tomcat-Web"
+      zh: "Tomcat-Web未授权访问"
+    desc:
+      en: "Unauthorized access to Tomcat-Web"
+      zh: "Tomcat-Web未授权访问"
+    suggestion:
+      en: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+      zh: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+    rule_type: Privilege_Escalation
+    priority: ALERT
+    urgency: true
+    tags: [Watson, L4]
+
+- key: Reading local files through Tomcat-AJP-Connector（CVE-2020-1938）
+  hid: hp_08
+  category: Watson
+  categoryZh: 主动防御
+  condition: >
+    k8s.pod.name contains "b0f328" and (inbound_outbound) and fd.sport = 8009
+  output: >
+    fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Reading local files through Tomcat-AJP-Connector（CVE-2020-1938）"
+      zh: "攻击者尝试利用Tomcat-AJP-Connector文件包含漏洞（CVE-2020-1938）"
+    desc:
+      en: "Reading local files through Tomcat-AJP-Connector（CVE-2020-1938）"
+      zh: "攻击者尝试利用Tomcat-AJP-Connector文件包含漏洞（CVE-2020-1938）"
+    suggestion:
+      en: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+      zh: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+    rule_type: Privilege_Escalation
+    priority: ALERT
+    urgency: true
+    tags: [Watson, L4]
+
+- key: Unauthorized access to Jenkins
+  hid: hp_09
+  category: Watson
+  categoryZh: 主动防御
+  condition: >
+    k8s.pod.name contains "99a7ca" and (inbound_outbound) and fd.sport = 8080
+  output: >
+    fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Unauthorized access to Jenkins"
+      zh: "Jenkins未授权访问"
+    desc:
+      en: "Unauthorized access to Jenkins"
+      zh: "Jenkins未授权访问"
+    suggestion:
+      en: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+      zh: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+    rule_type: Privilege_Escalation
+    priority: ALERT
+    urgency: true
+    tags: [Watson, L4]
+
+- key: Execute sensitive commands through Jenkins
+  hid: hp_10
+  category: Watson
+  categoryZh: 主动防御
+  condition: >
+    k8s.pod.name contains "99a7ca" and evt.type=execve and evt.res!=ENOENT
+  output: >
+    fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Execute sensitive commands through Jenkins"
+      zh: "通过Jenkins执行命令（CVE-2018-1000861）"
+    desc:
+      en: "Execute sensitive commands through Jenkins"
+      zh: "通过Jenkins执行命令（CVE-2018-1000861）"
+    suggestion:
+      en: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+      zh: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+    rule_type: Privilege_Escalation
+    priority: ALERT
+    urgency: true
+    tags: [Watson, L4]
+
+- key: Unauthorized access to Jupyter-Notebook
+  hid: hp_11
+  category: Watson
+  categoryZh: 主动防御
+  condition: >
+    (inbound_outbound) and fd.sport = 8888 and k8s.pod.name contains "ddc305"
+  output: >
+    fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Unauthorized access to Jupyter-Notebook"
+      zh: "Jupyter-Notebook未授权访问"
+    desc:
+      en: "Unauthorized access to Jupyter-Notebook"
+      zh: "Jupyter-Notebook未授权访问"
+    suggestion:
+      en: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+      zh: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+    rule_type: Privilege_Escalation
+    priority: ALERT
+    urgency: true
+    tags: [Watson, L4]
+
+- key: Execute sensitive commands through Jupyter-Notebook
+  hid: hp_12
+  category: Watson
+  categoryZh: 主动防御
+  condition: >
+    k8s.pod.name contains "ddc305" and evt.type=execve and evt.res!=ENOENT
+  output: >
+    fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Execute sensitive commands through Jupyter-Notebook"
+      zh: "通过Jupyter-Notebook执行命令"
+    desc:
+      en: "Execute sensitive commands through Jupyter-Notebook"
+      zh: "通过Jupyter-Notebook执行命令"
+    suggestion:
+      en: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+      zh: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+    rule_type: Privilege_Escalation
+    priority: ALERT
+    urgency: true
+    tags: [Watson, L4]
+
+- key: The k8s client is executed in Watson
+  hid: hp_13
+  category: Watson
+  categoryZh: 主动防御
+  condition: >
+    watson_pods and spawned_process and container and not user_known_k8s_client_container_parens and proc.name in (k8s_client_binaries)
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container.info=%container.info,parent=%proc.pname,image=%container.image.repository,image_tag=%container.image.tag,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "The k8s client is executed in Watson"
+      zh: "诱饵容器内运行k8s相关二进制程序"
+    desc:
+      en: "The k8s client is executed in Watson"
+      zh: "诱饵容器内运行k8s相关二进制程序"
+    suggestion:
+      en: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+      zh: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+    rule_type: Lateral_Movement
+    priority: ALERT
+    urgency: true
+    tags: [Watson, L4]
+
+- key: Unauthorized access to Mysql
+  hid: hp_14
+  category: Watson
+  categoryZh: 主动防御
+  condition: >
+    k8s.pod.name contains "588ee1" and (inbound_outbound) and fd.sport = 3306
+  output: >
+    fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Unauthorized access to Mysql"
+      zh: "Mysql未授权访问"
+    desc:
+      en: "Unauthorized access to Mysql"
+      zh: "Mysql未授权访问"
+    suggestion:
+      en: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+      zh: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+    rule_type: Privilege_Escalation
+    priority: ALERT
+    urgency: true
+    tags: [Watson, L4]
+
+- key: The attacker successfully cracked the weak Mysql password
+  hid: hp_15
+  category: Watson
+  categoryZh: 主动防御
+  condition: >
+    k8s.pod.name contains "588ee1" and evt.type=recvfrom and evt.arg.data contains "select" and fd.sport = 3306
+  output: >
+    fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "The attacker successfully cracked the weak Mysql password"
+      zh: "攻击者成功暴破出Mysql弱口令"
+    desc:
+      en: "The attacker successfully cracked the weak Mysql password"
+      zh: "攻击者成功暴破出Mysql弱口令"
+    suggestion:
+      en: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+      zh: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+    rule_type: Privilege_Escalation
+    priority: ALERT
+    urgency: true
+    tags: [Watson, L4]
+
+- key: Unauthorized access to SSH
+  hid: hp_16
+  category: Watson
+  categoryZh: 主动防御
+  condition: >
+    k8s.pod.name contains "98166d" and (inbound_outbound) and fd.sport = 22
+  output: >
+    fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Unauthorized access to SSH"
+      zh: "SSH未授权访问"
+    desc:
+      en: "Unauthorized access to SSH"
+      zh: "SSH未授权访问"
+    suggestion:
+      en: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+      zh: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+    rule_type: Privilege_Escalation
+    priority: ALERT
+    urgency: true
+    tags: [Watson, L4]
+
+- key: The attacker successfully cracked the weak SSH password
+  hid: hp_17
+  category: Watson
+  categoryZh: 主动防御
+  condition: >
+    k8s.pod.name contains "98166d" and evt.type=write and evt.arg.data contains "Welcome"
+  output: >
+    fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,fd.sport=%fd.sport,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "The attacker successfully cracked the weak SSH password"
+      zh: "攻击者成功暴破出SSH弱口令"
+    desc:
+      en: "The attacker successfully cracked the weak SSH password"
+      zh: "攻击者成功暴破出SSH弱口令"
+    suggestion:
+      en: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+      zh: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+    rule_type: Privilege_Escalation
+    priority: ALERT
+    urgency: true
+    tags: [Watson, L4]
+
+- key: Unauthorized access to vsftpd
+  hid: hp_18
+  category: Watson
+  categoryZh: 主动防御
+  condition: >
+    k8s.pod.name contains "42cca6" and (inbound_outbound) and fd.sport = 21
+  output: >
+    fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "Unauthorized access to vsftpd"
+      zh: "vsftpd未授权访问"
+    desc:
+      en: "Unauthorized access to vsftpd"
+      zh: "vsftpd未授权访问"
+    suggestion:
+      en: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+      zh: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+    rule_type: Privilege_Escalation
+    priority: ALERT
+    urgency: true
+    tags: [Watson, L4]
+
+- key: The attacker successfully cracked the weak ftp password
+  hid: hp_19
+  category: Watson
+  categoryZh: 主动防御
+  condition: >
+    k8s.pod.name contains "42cca6" and evt.type=write and evt.arg.data contains "OK LOGIN"
+  output: >
+    fd_name=%fd.name,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,fd.sport=%fd.sport,container_id=%container.id,container_name=%container.name
+  info:
+    name:
+      en: "The attacker successfully cracked the weak ftp password"
+      zh: "攻击者成功暴破出ftp弱口令"
+    desc:
+      en: "The attacker successfully cracked the weak ftp password"
+      zh: "攻击者成功暴破出ftp弱口令"
+    suggestion:
+      en: "It is recommended to check whether the attack source container has been invaded. Micro-Segmentation and immune defense can be used to restrict attackers from further attacks."
+      zh: "建议排查攻击源容器是否已遭到入侵，可使用微隔离与免疫防御限制攻击者进行进一步攻击。"
+    rule_type: Privilege_Escalation
+    priority: ALERT
+    urgency: true
+    tags: [Watson, L4]

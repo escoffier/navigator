@@ -4,7 +4,7 @@
   condition: >
     open_write and
     access_log_files and
-    (shell_family_procs or proc.pname = containerd-shim) and
+    proc.pname = containerd-shim and
     not trusted_logging_images and
     not allowed_clear_log_files and 
     not tensorsec_namespace
@@ -29,7 +29,7 @@
   hid: def_02
   condition: >
     ((spawned_process and proc.name in (shred, rm, mv) and proc.args contains "bash_history") or
-     (open_write and fd.name contains "bash_history" and evt.arg.flags contains "O_TRUNC")) and shell_parent_procs
+     (open_write and fd.name contains "bash_history" and evt.arg.flags contains "O_TRUNC"))
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,type=%evt.type,fd_name=%fd.name,name=%evt.arg.name,path=%evt.arg.path,oldpath=%evt.arg.oldpath,container.info=%container.info,container_id=%container.id,container_name=%container.name
   info:
@@ -53,7 +53,6 @@
     (modify_shell_history or truncate_shell_history) and
     not var_lib_docker_filepath and
     not proc.name in (docker_binaries) and
-    shell_parent_procs and
     container
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,fd=%evt.arg.fd,filename=%evt.arg.filename,mode=%evt.arg.mode,user=%user.name,user_loginuid=%user.loginuid,process=%proc.name,container_id=%container.id,container_name=%container.name,image=%container.image.repository,image_tag=%container.image.tag
