@@ -140,6 +140,7 @@ typedef struct
     int  pid;//进程PID
     uint64_t podId;
     std::string policyKey;
+    std::string uuid;
     NET_DATA_TYPE msgType;//数据类型
 } NET_CTRL_INFO;
 
