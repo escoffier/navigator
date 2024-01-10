@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 
+	"github.com/google/uuid"
 	heavyagent "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/heavy-agent"
 	crdv1alpha1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/microsegmentation.security.io/v1alpha1"
 )
@@ -25,20 +26,26 @@ type NodeRule struct {
 	Http        []*crdv1alpha1.Http             `json:"http,omitempty"`
 }
 
+type MetaData struct {
+	UUID string `json:"uuid"`
+}
 type PolicyRule struct {
+	MetaData
 	MessageType int        `json:"msg_type"`
 	PolicyName  string     `json:"policy_name"`
 	Rules       []NodeRule `json:"rules,omitempty"`
 }
 
 type ContainerInfo struct {
+	MetaData
 	MessageType int    `json:"msg_type"`
 	Pid         int    `json:"pid"`
 	PodID       uint64 `json:"pod_id"`
 }
 
 type Response struct {
-	Status int
+	MetaData
+	Status int `json:"status"`
 }
 
 type PolicyClient interface {
@@ -51,24 +58,24 @@ type PolicyClient interface {
 	GetConn() net.Conn
 	ReConnect() error
 	Stop()
-	SetController(controller *RuleGroupController)
-	AddConnectionCallback(cb heavyagent.ReConnectCB)
+	// SetController(controller *RuleGroupController)
+	AddReConnectionCallback(cb heavyagent.ReConnectCB)
 }
 
-type policyCliet struct {
+type policyClient struct {
 	*heavyagent.Client
-	controller *RuleGroupController
 }
 
-var _ PolicyClient = (*policyCliet)(nil)
+var _ PolicyClient = (*policyClient)(nil)
 
 func NewPolicyClient(cli *heavyagent.Client) PolicyClient {
-	return &policyCliet{
+	return &policyClient{
 		Client: cli,
 	}
 }
 
-func (cli *policyCliet) AddPolicy(rule *PolicyRule) error {
+func (cli *policyClient) AddPolicy(rule *PolicyRule) error {
+	rule.MetaData.UUID = uuid.NewString()
 	resp, err := cli.sendMessage(rule)
 	if err != nil {
 		return err
@@ -80,7 +87,8 @@ func (cli *policyCliet) AddPolicy(rule *PolicyRule) error {
 	return nil
 }
 
-func (cli *policyCliet) DeletePolicy(rule *PolicyRule) error {
+func (cli *policyClient) DeletePolicy(rule *PolicyRule) error {
+	rule.MetaData.UUID = uuid.NewString()
 	resp, err := cli.sendMessage(rule)
 	if err != nil {
 		return err
@@ -92,7 +100,7 @@ func (cli *policyCliet) DeletePolicy(rule *PolicyRule) error {
 	return nil
 }
 
-func (cli *policyCliet) sendMessage(msg interface{}) (*Response, error) {
+func (cli *policyClient) sendMessage(msg interface{}) (*Response, error) {
 	data, err := json.Marshal(msg)
 	if err != nil {
 		return nil, err
@@ -107,7 +115,7 @@ func (cli *policyCliet) sendMessage(msg interface{}) (*Response, error) {
 	return resp, err
 }
 
-func (cli *policyCliet) receiveResponse() (*Response, error) {
+func (cli *policyClient) receiveResponse() (*Response, error) {
 	var resp = &Response{}
 	data, err := cli.Receive()
 	if err != nil {
@@ -125,11 +133,14 @@ func (cli *policyCliet) receiveResponse() (*Response, error) {
 	return resp, nil
 }
 
-func (cli *policyCliet) AddContainer(pid int, podID uint64) error {
+func (cli *policyClient) AddContainer(pid int, podID uint64) error {
 	conInfo := &ContainerInfo{
 		MessageType: 1,
 		Pid:         pid,
 		PodID:       podID,
+		MetaData: MetaData{
+			UUID: uuid.NewString(),
+		},
 	}
 
 	resp, err := cli.sendMessage(conInfo)
@@ -141,11 +152,14 @@ func (cli *policyCliet) AddContainer(pid int, podID uint64) error {
 	}
 	return err
 }
-func (cli *policyCliet) DeleteContaier(pid int, podID uint64) error {
+func (cli *policyClient) DeleteContaier(pid int, podID uint64) error {
 	conInfo := &ContainerInfo{
 		MessageType: 2,
 		Pid:         pid,
 		PodID:       podID,
+		MetaData: MetaData{
+			UUID: uuid.NewString(),
+		},
 	}
 	resp, err := cli.sendMessage(conInfo)
 	if err != nil {
@@ -157,13 +171,6 @@ func (cli *policyCliet) DeleteContaier(pid int, podID uint64) error {
 	return err
 }
 
-func (cli *policyCliet) SetController(controller *RuleGroupController) {
-	cli.controller = controller
-	cli.AddReConnectCallback(func() {
-		controller.ReSyncAllPolicy()
-	})
-}
-
-func (cli *policyCliet) AddConnectionCallback(cb heavyagent.ReConnectCB) {
-	cli.AddReConnectCallback(cb)
+func (cli *policyClient) AddReConnectionCallback(cb heavyagent.ReConnectCB) {
+	cli.AddConnectCallback(cb)
 }

@@ -3,6 +3,7 @@ package waf
 import (
 	"encoding/json"
 
+	"github.com/google/uuid"
 	heavyagent "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/heavy-agent"
 	v1 "k8s.io/api/core/v1"
 )
@@ -10,7 +11,7 @@ import (
 type Client interface {
 	SendWafMessage(config *Config, pods []*v1.Pod) error
 	DeleteWaf(pods []*v1.Pod) error
-	SetController(controller *WafController)
+	AddReConnectionCallback(cb heavyagent.ReConnectCB)
 }
 
 type client struct {
@@ -18,7 +19,8 @@ type client struct {
 	controller *WafController
 }
 type Response struct {
-	Status int
+	UUID   string `json:"uuid"`
+	Status int    `json:"status"`
 }
 
 func NewWafClient(cli *heavyagent.Client) Client {
@@ -42,7 +44,7 @@ func (cli *client) SendWafMessage(config *Config, pods []*v1.Pod) error {
 	if err != nil {
 		return err
 	}
-	cli.Send(data)
+	err = cli.Send(data)
 	if err != nil {
 		return err
 	}
@@ -56,11 +58,13 @@ func (cli *client) SendWafMessage(config *Config, pods []*v1.Pod) error {
 
 func (cli *client) DeleteWaf(pods []*v1.Pod) error {
 	type Message struct {
+		UUID    string   `json:"uuid"`
 		MsgType int      `json:"msg_type"`
 		PodIPs  []string `json:"pod_ips"`
 	}
 
 	msg := Message{
+		UUID:    uuid.NewString(),
 		MsgType: 8,
 	}
 	for _, po := range pods {
@@ -89,10 +93,11 @@ func (cli *client) receiveResponse() (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Debug().Str(moduleKey, moduleName).Msgf("received %d bytes response", len(data))
+
+	log.Debug().Msgf("received %d bytes response", len(data))
 	var resp = &Response{}
 	if len(data) > 0 {
-		log.Debug().Str(moduleKey, moduleName).Msgf("response: %s", string(data))
+		log.Debug().Msgf("response: %s", string(data))
 		err = json.Unmarshal(data, resp)
 		if err != nil {
 			return nil, err
@@ -101,9 +106,6 @@ func (cli *client) receiveResponse() (*Response, error) {
 	return resp, nil
 }
 
-func (cli *client) SetController(controller *WafController) {
-	cli.controller = controller
-	cli.AddReConnectCallback(func() {
-		controller.TriggerAllSync()
-	})
+func (cli *client) AddReConnectionCallback(cb heavyagent.ReConnectCB) {
+	cli.AddConnectCallback(cb)
 }

@@ -82,8 +82,6 @@ type WafRequest struct {
 	TLSKey       string   `json:"tls_key"`
 	Description  string   `json:"description"`
 	Protocol     string   `json:"protocol"`
-	// Uri          v1alpha1.StringMatch `json:"uri"`
-	// WorkLoad    Workload             `json:"workload"`
 }
 
 type SecretRequest struct {
@@ -502,6 +500,9 @@ func (s *WafService) attachGlobalMatchExpression(ctx context.Context, request *M
 					ObjectMeta: v1.ObjectMeta{
 						Namespace: s.rootNamespace,
 						Name:      blackWhiteConfig,
+						Labels: map[string]string{
+							"app.kubernetes.io/component": "waf-rules",
+						},
 					},
 				}
 				cm, err = client.CoreV1().ConfigMaps(s.rootNamespace).Create(ctx, cm, v1.CreateOptions{})

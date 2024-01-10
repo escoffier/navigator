@@ -365,3 +365,7 @@ func (n *NodePodsWatcher) AddEventHandler(handler cache.ResourceEventHandler) {
 func (n *NodePodsWatcher) PodLister() listerv1.PodLister {
 	return n.podLister
 }
+
+func (n *NodePodsWatcher) PodInformer() cache.SharedIndexInformer {
+	return n.informer
+}

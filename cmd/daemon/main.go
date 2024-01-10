@@ -123,7 +123,7 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli m
 
 	agent := containerassets.NewAgent(mqWriter)
 	podResInfo := nodeinfo.NewPodResInfo(agent, clusterKey)
-	k8sInfo := netflow.NewNodePodInfo(kubeClient, policyCli, nodePodWatcher.Build().PodLister())
+	k8sInfo := netflow.NewNodePodInfo(kubeClient)
 
 	var containerInfo nodeinfo.ContainerInfoManager
 	switch containerType {
@@ -261,7 +261,6 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli m
 	if err != nil {
 		return nil, nil, nil, nil, "", fmt.Errorf("start dockerInfo listen failed, %v.", err)
 	}
-
 	return containerInfo, k8sInfo, podResInfo, podsWatcher, containerType, nil
 }
 
@@ -431,6 +430,11 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 	if err != nil {
 		return err
 	}
+
+	stopChan := make(chan struct{})
+	controller := nodeinfo.NewPodController(podWatcher.PodLister(), podWatcher.PodInformer(), containerInfo, policyClient)
+	go controller.Run(stopChan)
+
 	logging.Get().Info().Msg("Init NodeInfo done")
 
 	// new flow session
@@ -449,7 +453,6 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 			lo.LabelSelector = fmt.Sprintf("kubernetes.io/node-name=%s", hostName)
 		}))
 	ruleController := microseg.NewRuleGroupController(clientset.TensorClientset, tensorFactory, policyClient, hostName)
-	stopChan := make(chan struct{})
 
 	go ruleController.Run(stopChan)
 

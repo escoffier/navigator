@@ -3,14 +3,16 @@ package nodeinfo
 import (
 	"bufio"
 	"context"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
 	"net/http"
 	"net/url"
 	"os"
 	"runtime/debug"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
 
 	"github.com/containers/podman/v3/pkg/bindings"
 	"github.com/containers/podman/v3/pkg/bindings/containers"
@@ -28,6 +30,7 @@ type PodmanInfoManager struct {
 	containerData map[string]int64 // map[containerId]time
 
 	sync.RWMutex
+	synced atomic.Bool
 }
 
 func (p *PodmanInfoManager) SetPodStore(store containerassets.PodCache) {
@@ -70,6 +73,10 @@ func NewPodmanInfoManager() (*PodmanInfoManager, error) {
 	}()
 
 	return rs, nil
+}
+
+func (p *PodmanInfoManager) Synced() bool {
+	return p.synced.Load()
 }
 
 func (p *PodmanInfoManager) clearContainerTimeoutData() {
@@ -170,6 +177,7 @@ func (p *PodmanInfoManager) Start() error {
 				logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
 			}
 		}()
+		p.synced.Store(true)
 		//docker events
 		p.ListenEvents(p.saveContainerData)
 	}()

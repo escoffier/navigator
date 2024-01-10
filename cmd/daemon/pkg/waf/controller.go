@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/google/uuid"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -86,7 +87,7 @@ func NewWafController(clientset *versioned.Clientset, factory informers.SharedIn
 		podWatcher:         podWatcher,
 		agentCliet:         cli,
 	}
-	controller.agentCliet.SetController(controller)
+	controller.agentCliet.AddReConnectionCallback(controller.TriggerAllSync)
 
 	wafServiceInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc:    controller.AddWafService,
@@ -100,9 +101,9 @@ func NewWafController(clientset *versioned.Clientset, factory informers.SharedIn
 				return false
 			}
 			labels := meta.GetLabels()
-			app, ok := labels["app"]
+			app, ok := labels["app.kubernetes.io/component"]
 			if ok {
-				if app == "waf" {
+				if app == "waf-rules" {
 					return true
 				}
 			}
@@ -241,6 +242,7 @@ func (rg *WafController) handleErr(err error, key interface{}) {
 		rg.queue.Forget(key)
 		return
 	}
+	logging.Get().Info().Msgf("handle err for %s", key)
 	if rg.queue.NumRequeues(key) < maxRetries {
 		log.Err(err).Str(moduleKey, moduleName).Msgf("Error syncing policy rule, retrying %s", key)
 		rg.queue.AddRateLimited(key)
@@ -302,18 +304,18 @@ func (c *WafController) syncWafService(key string) error {
 	pods, err := c.podWatcher.GetPodByOwnder(wl.Kind, wl.Namespace, wl.Name)
 	if err != nil {
 		log.Err(err).Msgf("found pod by owner %v", wl)
-		return nil
+		return err
 	}
 	if len(pods) > 0 {
 		config, err := c.generateConfig(wafSvc)
 		if err != nil {
 			log.Info().Err(err).Msgf("sync waf service %s", wafSvc.Name)
-			return nil
+			return err
 		}
-		c.agentCliet.SendWafMessage(config, pods)
-		// for _, pod := range pods {
-		// 	config.PodIP = pod.Status.PodIP
-		// }
+		err = c.agentCliet.SendWafMessage(config, pods)
+		if err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -390,6 +392,7 @@ func (c *WafController) generateConfig(service *v1alpha1.Service) (*Config, erro
 	}
 
 	config := &Config{
+		UUID:              uuid.NewString(),
 		MsgType:           7,
 		Mode:              service.Spec.Mode,
 		ClusterKey:        service.Spec.Workload.ClusterKey,

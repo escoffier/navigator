@@ -49,7 +49,8 @@ func NewRuleGroupController(clientset *versioned.Clientset, crdFactory externalv
 		DeleteFunc: controller.deleteRuleGroup,
 	}, time.Hour*8)
 
-	cli.SetController(controller)
+	cli.AddReConnectionCallback(controller.ReSyncAllPolicy)
+	// cli.SetController(controller)
 	return controller
 }
 
