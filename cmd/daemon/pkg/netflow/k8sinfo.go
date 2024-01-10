@@ -2,13 +2,10 @@ package netflow
 
 import (
 	"context"
-	"fmt"
-	"hash/fnv"
 	"sync"
 	"time"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/microseg"
@@ -18,7 +15,6 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes"
-	listerv1 "k8s.io/client-go/listers/core/v1"
 )
 
 const (
@@ -30,20 +26,13 @@ type NodePodsInfo struct {
 	k8sCli        *kubernetes.Clientset
 	policyCli     microseg.PolicyClient
 	containerInfo nodeinfo.ContainerInfoManager
-	podLister     listerv1.PodLister
 }
 
-func NewNodePodInfo(k8sCli *kubernetes.Clientset, policyCli microseg.PolicyClient, podLister listerv1.PodLister) *NodePodsInfo {
+func NewNodePodInfo(k8sCli *kubernetes.Clientset) *NodePodsInfo {
 	info := &NodePodsInfo{
-		resInfos:  new(sync.Map),
-		k8sCli:    k8sCli,
-		policyCli: policyCli,
-		podLister: podLister,
+		resInfos: new(sync.Map),
+		k8sCli:   k8sCli,
 	}
-
-	info.policyCli.AddConnectionCallback(func() {
-		info.ResynAll()
-	})
 
 	return info
 }
@@ -86,12 +75,12 @@ func (n *NodePodsInfo) getContainerData(pod *corev1.Pod) (map[string]*daemon.Con
 	return containerData, nil
 }
 
-func (n *NodePodsInfo) OnAdd(newPod *corev1.Pod) {
-	if newPod.Spec.HostNetwork {
+func (n *NodePodsInfo) OnAdd(pod *corev1.Pod) {
+	logging.Get().Info().Msgf("add pod %s/%s", pod.Namespace, pod.Name)
+	if pod.Spec.HostNetwork {
 		return
 	}
-
-	n.savePodData(newPod)
+	n.savePodData(pod)
 }
 
 func (n *NodePodsInfo) OnDelete(oldPod *corev1.Pod) {
@@ -108,21 +97,6 @@ func (n *NodePodsInfo) OnDelete(oldPod *corev1.Pod) {
 			continue
 		}
 		n.DeleteResData(podIp.IP)
-	}
-	if len(oldPod.Status.PodIPs) > 0 && n.policyCli != nil {
-		ip := oldPod.Status.PodIPs[0]
-		if value, exist := n.resInfos.Load(ip); exist {
-			resData := value.(*daemon.K8sResData)
-			for _, c := range resData.ContainerInfo {
-				err := n.policyCli.DeleteContaier(c.ContainerPid, podID(oldPod))
-				if err != nil {
-					logging.Get().Warn().Msgf("container %s (pid: %d) to dp err: %v",
-						c.ContainerName, c.ContainerPid, err)
-					continue
-				}
-				break
-			}
-		}
 	}
 }
 
@@ -154,21 +128,8 @@ func (n *NodePodsInfo) savePodData(pod *corev1.Pod) {
 	var rsData daemon.K8sResData
 	rsData.ContainerInfo, err = n.getContainerData(pod)
 	if err != nil {
-		logging.Get().Err(err).Str("microseg", "common").Msgf("get pod(%s/%s) contaier info err", pod.Namespace, pod.Name)
+		logging.Get().Err(err).Str("module", "netflow").Msgf("get pod(%s/%s) contaier info err", pod.Namespace, pod.Name)
 		return
-	}
-
-	if n.policyCli != nil {
-		logging.Get().Debug().Str("microseg", "policy").Msgf("to dp %d", len(rsData.ContainerInfo))
-		for _, c := range rsData.ContainerInfo {
-			logging.Get().Info().Str("microseg", "policy").Msgf("sync pod: %s/%s with pid : %d to dp", pod.Namespace, pod.Name, c.ContainerPid)
-			err := n.policyCli.AddContainer(c.ContainerPid, podID(pod))
-			if err != nil {
-				logging.Get().Warn().Msgf("container %s (pid: %d) to dp err: %v",
-					c.ContainerName, c.ContainerPid, err)
-			}
-			break
-		}
 	}
 
 	var res nodeinfo.Resource
@@ -249,35 +210,4 @@ func (n *NodePodsInfo) UpdateContainerData(ip, ns, podName string) error {
 
 func (n *NodePodsInfo) SetContainerManager(containerInfo nodeinfo.ContainerInfoManager) {
 	n.containerInfo = containerInfo
-}
-
-func (n *NodePodsInfo) ResynAll() {
-	pods, err := n.podLister.List(labels.Everything())
-	if err != nil {
-		logging.Get().Err(err).Msg("resync pods")
-		return
-	}
-
-	for _, pod := range pods {
-		containers, err := n.getContainerData(pod)
-		if err != nil {
-			logging.Get().Err(err).Msg("resync pods, get container")
-			return
-		}
-		for _, c := range containers {
-			logging.Get().Info().Str("module", "heavy-agent").Msgf("resync pod: %s/%s with pid : %d to agent", pod.Namespace, pod.Name, c.ContainerPid)
-			err := n.policyCli.AddContainer(c.ContainerPid, podID(pod))
-			if err != nil {
-				logging.Get().Warn().Str("module", "heavy-agent").Msgf("container %s (pid: %d) to agent err: %v",
-					c.ContainerName, c.ContainerPid, err)
-			}
-		}
-	}
-}
-
-func podID(pod *corev1.Pod) uint64 {
-	str := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
-	h := fnv.New64a()
-	h.Write([]byte(str))
-	return h.Sum64()
 }

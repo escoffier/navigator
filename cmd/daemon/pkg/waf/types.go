@@ -37,6 +37,7 @@ type EventPostConf struct {
 }
 
 type Config struct {
+	UUID              string                     `json:"uuid"`
 	MsgType           int                        `json:"msg_type"`
 	PodIPs            []string                   `json:"pod_ips"`
 	Mode              string                     `json:"mode"`

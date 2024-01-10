@@ -2,6 +2,7 @@ package nodeinfo
 
 import (
 	"context"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
 )
 
@@ -18,6 +19,7 @@ type ContainerInfoManager interface {
 	SetPodStore(store containerassets.PodCache)
 	// RunCmd 响应如果无stderr信息，resp则为stdout的内容；否则 resp格式为： stdout:xxx\nstderr:xxx
 	RunCmd(ctx context.Context, containerId string, cmd []string) (resp string, err error)
+	Synced() bool
 }
 
 type SaveContainerDataFunc func(containerID string, timestamp int64)

@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"net"
 	"os"
+	"sync"
 	"time"
 
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -18,12 +19,13 @@ const (
 	moduleName = "heavy-agent"
 )
 
-type ReConnectCB func()
+type ReConnectCB func() error
 
 type Client struct {
-	conn *net.UnixConn
-	path string
-	cbs  []ReConnectCB
+	conn  *net.UnixConn
+	path  string
+	cbs   []ReConnectCB
+	mutex sync.Mutex
 }
 
 func NewClient(address string) (*Client, error) {
@@ -33,7 +35,7 @@ func NewClient(address string) (*Client, error) {
 	for i := 0; i < 10; i++ {
 		stats, err = os.Stat(address)
 		if err != nil {
-			time.Sleep(time.Second * 5)
+			time.Sleep(time.Second * 2)
 		}
 	}
 	if err != nil {
@@ -81,11 +83,13 @@ func (cli *Client) ReConnect() error {
 	}
 	logging.Get().Info().Msgf("reconnected to uds %s", cli.path)
 	cli.conn = conn.(*net.UnixConn)
-	for _, cb := range cli.cbs {
-		cb()
-	}
 
-	// return cli.controller.ReSyncAllPolicy()
+	go func() {
+		for _, cb := range cli.cbs {
+			cb()
+		}
+	}()
+
 	return nil
 }
 
@@ -94,11 +98,16 @@ func (cli *Client) Stop() {
 }
 
 func (cli *Client) Send(data []byte) error {
-	cli.GetConn().SetWriteDeadline(time.Now().Add(time.Second * 3))
-	logging.Get().Info().Str(moduleKey, moduleName).Msgf("send data: %s", string(data))
-	// cli.writeDeadline = time.Time{}
-	_, err := cli.GetConn().Write(data)
+	cli.mutex.Lock()
+	defer cli.mutex.Unlock()
+
+	cli.conn.SetWriteDeadline(time.Now().Add(time.Second * 3))
+	defer cli.conn.SetWriteDeadline(time.Time{})
+
+	logging.Get().Debug().Int64("timestamp", time.Now().UnixMilli()).Msgf("send data: %s", string(data))
+	_, err := cli.conn.Write(data)
 	if err != nil {
+		logging.Get().Err(err).Msgf("send data: %d", len(data))
 		cli.ReConnect()
 		return err
 	}
@@ -106,19 +115,24 @@ func (cli *Client) Send(data []byte) error {
 }
 
 func (cli *Client) Receive() ([]byte, error) {
+	cli.mutex.Lock()
+	defer cli.mutex.Unlock()
+
 	var data = make([]byte, 4096)
-	nBytes, err := cli.GetConn().Read(data)
+	cli.conn.SetReadDeadline(time.Now().Add(time.Second * 3))
+	defer cli.conn.SetReadDeadline(time.Time{})
+	nBytes, err := cli.conn.Read(data)
 	if err != nil {
+		logging.Get().Err(err).Msgf("receive data %s", string(data))
 		if errors.Is(err, io.EOF) {
 			err = cli.ReConnect()
 		}
 		return nil, err
 	}
-	logging.Get().Debug().Str(moduleKey, moduleName).Msgf("received %d bytes response", nBytes)
-	logging.Get().Info().Str(moduleKey, moduleName).Msgf("response: %s", string(data))
+	logging.Get().Debug().Int64("timestamp", time.Now().UnixMilli()).Msgf("response len %d:, body: %s", nBytes, string(data))
 	return data[:nBytes], nil
 }
 
-func (cli *Client) AddReConnectCallback(cb ReConnectCB) {
+func (cli *Client) AddConnectCallback(cb ReConnectCB) {
 	cli.cbs = append(cli.cbs, cb)
 }

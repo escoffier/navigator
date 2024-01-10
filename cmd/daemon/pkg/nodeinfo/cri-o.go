@@ -4,6 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"runtime/debug"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/utils"
@@ -13,12 +20,6 @@ import (
 	cri "k8s.io/cri-api/pkg/apis"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
 	"k8s.io/kubernetes/pkg/kubelet/cri/remote"
-	"os"
-	"runtime/debug"
-	"strings"
-	"sync"
-	"sync/atomic"
-	"time"
 )
 
 var crioPollingDuration = time.Minute * 5
@@ -36,6 +37,7 @@ type CRIOInfoManager struct {
 	mqReady       atomic.Bool
 	sync.RWMutex
 	runningContainerMap sync.Map // 缓存running的容器id
+	synced              atomic.Bool
 }
 
 // unix://xxx
@@ -79,6 +81,10 @@ func NewCRIOInfoManager(clusterKey, hostName, hostIP string, agent *containerass
 	}()
 
 	return &crioInfoManager, nil
+}
+
+func (d *CRIOInfoManager) Synced() bool {
+	return d.synced.Load()
 }
 
 func (c *CRIOInfoManager) clearContainerTimeoutData() {
@@ -255,6 +261,7 @@ func (c *CRIOInfoManager) Start() error {
 
 			c.listAll()
 			c.agent.HandlerContainerSync(context.Background(), c.clusterKey, c.hostName, t)
+			c.synced.Store(true)
 		}
 		// handle containerd events
 		c.ListenEvents(c.saveContainerData)

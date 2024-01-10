@@ -5,6 +5,16 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"math/rand"
+	"net"
+	"os"
+	"path/filepath"
+	"runtime/debug"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
 	"github.com/containerd/containerd/api/services/tasks/v1"
@@ -29,15 +39,6 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	cri "k8s.io/cri-api/pkg/apis"
 	"k8s.io/kubernetes/pkg/kubelet/cri/remote"
-	"math/rand"
-	"net"
-	"os"
-	"path/filepath"
-	"runtime/debug"
-	"strings"
-	"sync"
-	"sync/atomic"
-	"time"
 )
 
 const containerK8sNamespace = "k8s.io"
@@ -63,6 +64,7 @@ type ContainerdInfoManager struct {
 	runClient    cri.RuntimeService // 向容器发送命令
 	retryMap     map[string]*containerdRetryItem
 	retryMapLock *sync.Mutex
+	synced       atomic.Bool
 }
 
 type containerdRetryItem struct {
@@ -135,6 +137,11 @@ func NewContainerdInfoManager(clusterKey, hostName, hostIP string, agent *contai
 	containerdInfoManager.runClient = runClient
 	return &containerdInfoManager, nil
 }
+
+func (d *ContainerdInfoManager) Synced() bool {
+	return d.synced.Load()
+}
+
 func (d *ContainerdInfoManager) clearContainerTimeoutData() {
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
@@ -349,6 +356,7 @@ func (d *ContainerdInfoManager) Start() error {
 
 			d.listAll()
 			d.agent.HandlerContainerSync(context.Background(), d.clusterKey, d.hostName, t)
+			d.synced.Store(true)
 		}
 		// handle containerd events
 		d.ListenEvents(d.saveContainerData)

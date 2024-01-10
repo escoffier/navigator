@@ -4,8 +4,6 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"github.com/docker/docker/pkg/stdcopy"
-	"github.com/docker/docker/pkg/stringid"
 	"os"
 	"runtime/debug"
 	"strconv"
@@ -13,6 +11,9 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+
+	"github.com/docker/docker/pkg/stdcopy"
+	"github.com/docker/docker/pkg/stringid"
 
 	"github.com/docker/docker/api/types/events"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
@@ -49,6 +50,12 @@ type DockerInfoManager struct {
 	sync.RWMutex
 	retryMap     map[string]*dockerRetryItem
 	retryMapLock *sync.Mutex
+	synced       atomic.Bool
+}
+
+// Synced implements ContainerInfoManager.
+func (d *DockerInfoManager) Synced() bool {
+	return d.synced.Load()
 }
 
 type dockerRetryItem struct {
@@ -261,6 +268,7 @@ func (d *DockerInfoManager) Start() error {
 
 			d.listAll()
 			d.agent.HandlerContainerSync(context.Background(), d.clusterKey, d.hostName, t)
+			d.synced.Store(true)
 		}
 		// handle docker events
 		d.ListenEvents(d.saveContainerData)
