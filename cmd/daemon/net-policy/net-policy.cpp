@@ -74,20 +74,26 @@ static net::ConnectionManager connectionManager;
 /*now system second to string*/
 std::string TimeToString()
 {
-    std::string sRet;
-    char value[64];
-    time_t  nowtime;
+    std::string data;
+    char value[64], buffer[128];
     struct  tm *info  = NULL;
+    struct timeval tv;
     /*buffer info*/
     memset(value, 0, sizeof(value));
+    memset(buffer, 0, sizeof(buffer));
     /*time format*/
-    time(&nowtime);
-    info = localtime(&nowtime);
+    gettimeofday(&tv, NULL);
+    // 将时间转换为本地时间
+    info = localtime(&tv.tv_sec);
+    if(!info) return data;
+    // 格式化时间为字符串
     strftime(value, sizeof(value), "%Y-%m-%d %H:%M:%S", info);
+    /*milliseconds*/
+    snprintf(buffer, sizeof(buffer), "%s.%03ld", value, tv.tv_usec / 1000);
     /*to string*/
-    sRet = value;
+    data = buffer;
     /*return*/
-    return sRet;
+    return data;
 }
 
 /* Checksum a block of data */
@@ -1383,7 +1389,7 @@ void WriteIptableRule(int iMarkNum, int oMarkNum)
     const char *imark  = "iptables -t mangle -I PREROUTING -j CONNMARK --restore-mark";
     const char *omark  = "iptables -t mangle -I OUTPUT -j CONNMARK --restore-mark";
 
-    if(gbWafEnable)
+    if(!gbWafEnable)
     {
         simark = "iptables -t mangle -A INPUT -j CONNMARK --save-mark";
         somark = "iptables -t mangle -A POSTROUTING -j CONNMARK --save-mark";
@@ -1651,6 +1657,9 @@ int ParseRcvJson(char *buf, NET_CTRL_INFO *ctrl)
     //get resource key
     item = cJSON_GetObjectItem(root, "policy_name");
     if(item) ctrl->policyKey = item->valuestring;
+    //get uuid
+    item = cJSON_GetObjectItem(root, "uuid");
+    if(item) ctrl->uuid = item->valuestring;
     //free resource
     cJSON_Delete(root);
     //check data
@@ -1695,7 +1704,7 @@ int ParseRcvData(int32_t zRcvEvFd, int32_t fd, void *ptr)
     cDataBuf[ret] = 0;
     if(cDataBuf[ret - 1] == '\n') cDataBuf[--ret] = 0;
     //print debug log
-    LOG_D("receive data : %s", cDataBuf);
+    LOG_V("receive msg, time : %s, data : %s", TimeToString().c_str(), cDataBuf);
     //set 0
     memset(result, 0, sizeof(result));
     //parse json
@@ -1751,11 +1760,11 @@ rsp:
     //
     SetLocalNetNs(szLocalNetNsFd);
     /*response data*/
-    sprintf(result, "{\"status\":%d,\"msg_type\":%d}", ret, RSP_ACK);
+    sprintf(result, "{\"status\":%d,\"msg_type\":%d,\"uuid\":\"%s\"}", ret, RSP_ACK, ctrl.uuid.c_str());
     //data len
     length = strlen(result);
     //print debug log
-    LOG_V("rsp data : %s.", result);
+    LOG_V("rsp msg, time : %s, data : %s.", TimeToString().c_str(), result);
     //send response data
     ret = write(fd, result, length);
     //judge response result
