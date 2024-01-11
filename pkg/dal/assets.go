@@ -2361,7 +2361,7 @@ func GetClusterKeyList(ctx context.Context, rdb *gorm.DB) (keys []string, err er
 	return
 }
 
-func GetSoftNamespace(ctx context.Context, rdb *gorm.DB, keys []string) (nsMap map[string]string, err error) {
+func GetPodNamespace(ctx context.Context, rdb *gorm.DB, keys []string) (nsMap map[string]string, err error) {
 	nsMap = make(map[string]string)
 	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
 	defer cancel()
@@ -2373,8 +2373,8 @@ func GetSoftNamespace(ctx context.Context, rdb *gorm.DB, keys []string) (nsMap m
 			continue
 		}
 		for _, str := range rawContainer.Environment {
-			if strings.Contains(str, env.SoftName) {
-				nsMap[key] = str[len(env.SoftName)+1:]
+			if strings.Contains(str, env.MyNamespace) {
+				nsMap[key] = str[len(env.MyNamespace)+1:]
 				break
 			}
 		}
