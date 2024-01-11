@@ -115,9 +115,9 @@ func (m *Server) Run(stop <-chan struct{}) error {
 	if monitorTopic == "" {
 		monitorTopic = env.DefaultTopicMonitor
 	}
-	namespace := os.Getenv(env.SoftName)
+	namespace := os.Getenv(env.MyNamespace)
 	if namespace == "" {
-		return errors.New("not found env:" + env.SoftName)
+		return errors.New("not found env:" + env.MyNamespace)
 	}
 
 	softVersion := os.Getenv(env.SoftVersionEnv)
@@ -131,6 +131,7 @@ func (m *Server) Run(stop <-chan struct{}) error {
 		Version:    softVersion,
 		Namespace:  namespace,
 	}
+	logging.Get().Info().Msgf("selfInfo: :%+v", sf)
 	watcher, err := metrics.NewMetricsWatcher(&sf, node.Status.NodeInfo.ContainerRuntimeVersion, mqWriter, monitorTopic)
 	if err != nil {
 		logging.Get().Err(err).Msgf("metricsWatcher init failed.")

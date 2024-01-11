@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"context"
+	"encoding/json"
 	wstats "github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/stats"
 	statsV1 "github.com/containerd/cgroups/v3/cgroup1/stats"
 	v1 "github.com/containerd/cgroups/v3/cgroup1/stats"
@@ -166,6 +167,19 @@ func (d *containerdMetrics) getMetricsByAppLabels(nsCtx context.Context, appLabe
 			//windowsStats = v
 		default:
 			logging.Get().Error().Msg("cannot convert metric data to cgroups.Metrics or windows.Statistics")
+			// todo log
+			bytes, err := json.Marshal(metric.Data)
+			if err != nil {
+				logging.Get().Err(err).Msg("cannot json.Marshal metric.Data")
+			} else {
+				logging.Get().Info().Msgf("metric.Data:%s", string(bytes))
+			}
+			bytes, err = json.Marshal(anydata)
+			if err != nil {
+				logging.Get().Err(err).Msg("cannot json.Marshal anydata")
+			} else {
+				logging.Get().Info().Msgf("anydata:%s", string(bytes))
+			}
 			continue
 		}
 		if data != nil {

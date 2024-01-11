@@ -33,7 +33,7 @@ type SelfInfo struct {
 
 func NewBeatSend(writer mq.Writer, topic string, duration time.Duration, clusterKey string) *BeatSend {
 	podName := os.Getenv("MY_POD_NAME")
-	namespace := os.Getenv(env.SoftName)
+	namespace := os.Getenv(env.MyNamespace)
 	nodeName := os.Getenv(env.NodeName)
 	appLabel := os.Getenv(env.PodAppLabel)
 	version := os.Getenv(env.SoftVersionEnv)

@@ -5,9 +5,10 @@ const (
 	MonitorLabelApps        = "MONITOR_LABEL_APPS" // eg value: DefaultMonitorAppLabels
 	DefaultMonitorAppLabels = "holmes,scanner,cluster-manager"
 
-	SoftName        = "SOFT_NAME"
-	DefaultSoftName = "tensor"
-	SoftVersionEnv  = "SOFT_VERSION"
+	SoftName           = "SOFT_NAME"
+	DefaultMyNamespace = "tensorsec"
+	MyNamespace        = "MY_POD_NAMESPACE"
+	SoftVersionEnv     = "SOFT_VERSION"
 
 	NodeName    = "MY_NODE_NAME"
 	PodAppLabel = "MY_POD_APP_LABEl"

@@ -97,7 +97,7 @@ func (m *MonitorService) RefreshMonitorComponent(ctx context.Context, component 
 	if len(keys) == 0 {
 		return returnResult()
 	}
-	nsMap, err := dal.GetSoftNamespace(ctx, m.rdb.Get(), keys)
+	nsMap, err := dal.GetPodNamespace(ctx, m.rdb.Get(), keys)
 	if err != nil {
 		logging.Get().Err(err).Msgf("GetSoftNamespace failed.")
 		return returnResult()
@@ -134,9 +134,6 @@ func (m *MonitorService) RefreshMonitorComponent(ctx context.Context, component 
 			var containerRunning int
 			var isHealth bool
 			nodeNames[pod.Spec.NodeName] = struct{}{}
-
-			logging.Get().Info().Msgf("podName:%s, podStatus:%s", pod.Name, pod.Status.String())
-
 			for _, status := range pod.Status.ContainerStatuses {
 				tmp := model.TensorsecContainerMonitor{
 					TableBase: model.TableBase{
