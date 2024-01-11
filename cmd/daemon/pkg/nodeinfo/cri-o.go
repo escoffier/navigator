@@ -307,7 +307,8 @@ func (c *CRIOInfoManager) buildContainerDetail(container *runtimeapi.Container) 
 
 	containerStatus, containerInfo, err := GetCrioContainerDetail(c.runClient, container.Id, true)
 	if err != nil {
-
+		logging.Get().Err(err).Msgf("GetCrioContainerDetail failed.")
+		return nil, err
 	}
 	var (
 		name      string

@@ -1,8 +1,11 @@
 syntax = "proto3";
-package pb;
-option go_package = "./;pb";
-import "google/protobuf/any.proto";
 
+package pb;
+
+option go_package = "./;pb";
+
+import "google/protobuf/any.proto";
+import public "google/protobuf/timestamp.proto";
 enum MessageType {
     CREATE = 0;
     READ = 1;
@@ -11,7 +14,7 @@ enum MessageType {
 }
 
 message ClusterMessage {
-    MessageType  MessageType = 1;
+    MessageType MessageType = 1;
     string Topic = 2;
     string ReqUUID = 3;
     string NodeKey = 4;
@@ -20,40 +23,40 @@ message ClusterMessage {
 }
 
 message CommonReponse {
-    int32  Status = 1;
-    string StatusMessage = 2; 
+    int32 Status = 1;
+    string StatusMessage = 2;
 }
 
 message ImagePullSecret {
-	string UserName = 1;
-	string Password = 2;
-	string Email = 3;
-	string Server = 4;
+    string UserName = 1;
+    string Password = 2;
+    string Email = 3;
+    string Server = 4;
 }
 
 message ServicePort {
-	int32 Port = 1;
-	int32 TargetPort = 2;
+    int32 Port = 1;
+    int32 TargetPort = 2;
 }
 
 message HoneySpotReq {
     string Name = 1;
     string Namespace = 2;
-    string ClusterKey = 3;              
-	string Service = 4;             
-	repeated ServicePort Ports = 5;     
-	string WorkLoad = 6;                 
-	int32  Replica = 7;               
-	string Image = 8;              
-	repeated ImagePullSecret Secrets = 9;
-	bool   OutboundOff = 10;             
+    string ClusterKey = 3;
+    string Service = 4;
+    repeated ServicePort Ports = 5;
+    string WorkLoad = 6;
+    int32 Replica = 7;
+    string Image = 8;
+    repeated ImagePullSecret Secrets = 9;
+    bool OutboundOff = 10;
 }
 
 message HoneySpotResp {
     string Name = 1;
     string Namespace = 2;
-    string StatusMessage = 3; 
-    int32  Status = 4;
+    string StatusMessage = 3;
+    int32 Status = 4;
     repeated HoneySpotReq Results = 5;
 }
 
@@ -80,6 +83,51 @@ message NodeLoadResp {
     string ErrMsg = 4;
 }
 
+
+message ContainerMetricsReq {
+    string ClusterKey = 1;
+    repeated string NodeName = 2;
+    string AppLabel = 3;
+}
+
+
+message SelfInfo {
+    string ClusterKey = 1;
+    string NodeName = 2;
+    string Version = 3;
+    string Namespace = 4;
+    string PodName = 5;
+    string AppLabel = 6;
+    string ContainerName = 7;
+}
+message MetricsInfo {
+    CpuStats CpuStats = 1;
+    float CpuLimit = 2;
+    uint64 MemUsage = 3;
+    uint64 MemLimit = 4;
+    uint64 BlockITotal = 5;
+    uint64 BLockOTotal = 6;
+    google.protobuf.Timestamp Time =7;
+}
+
+message CpuStats {
+    uint64 TotalUsage = 1;
+    uint64 SystemUsage = 2;
+    uint32 OnlineCPUs = 3;
+}
+
+message ContainerMetric {
+    SelfInfo self = 1;
+    MetricsInfo MetricsInfo = 2;
+}
+
+
+message ContainerMetricsResp {
+    repeated ContainerMetric Metrics = 1;
+    string ErrMsg = 2;
+}
+
+
 message Register {
     string NodeKey = 1;
 }
@@ -97,7 +145,7 @@ message ClusterRegister {
     string WorkerNamespace = 10;
     string Platform = 11;
     string Version = 12;
-    int32  Status = 13;
+    int32 Status = 13;
 }
 
 message IPBlock {
@@ -111,7 +159,7 @@ message NamespacedName {
 
 message NetworkPolicyPort {
     string Protocol = 1;
-    string Port = 2; 
+    string Port = 2;
     int32 EndPort = 3;
 }
 
@@ -140,14 +188,14 @@ message LabelSelector {
 }
 
 message ClusterNetworkPolicy {
-    string name  = 1;
+    string name = 1;
     int32 Priority = 2;
     LabelSelector PodSelector = 3;
     LabelSelector NamespaceSelector = 4;
     string Group = 5;
     NamespacedName ServiceAccount = 6;
     repeated PolicyRule Ingress = 7;
-    repeated PolicyRule Egress = 8; 
+    repeated PolicyRule Egress = 8;
 }
 
 message NetworkPolicy {
@@ -158,9 +206,9 @@ message NetworkPolicy {
     string Group = 5;
     NamespacedName ServiceAccount = 6;
     repeated PolicyRule Ingress = 7;
-    repeated PolicyRule Egress = 8; 
+    repeated PolicyRule Egress = 8;
 }
 
 service ClusterService {
-     rpc SendMessage(stream ClusterMessage) returns(stream ClusterMessage);
+    rpc SendMessage (stream ClusterMessage) returns (stream ClusterMessage);
 }

@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"context"
+	"gitlab.com/piccolo_su/vegeta/pkg/env"
+	"gitlab.com/piccolo_su/vegeta/pkg/heartbeat"
 	"os"
 	"strings"
 	"time"
@@ -41,6 +43,9 @@ const (
 	defaultTopic   = "kube-resources"
 	defaultGroupID = "group-assets"
 	resyncInterval = 8 * time.Hour
+
+	EnvGroupIDMonitor     = "KAFKA_MONITOR_GROUP_ID"
+	defaultGroupIdMonitor = "group-monitor"
 )
 
 type server struct {
@@ -91,6 +96,7 @@ func NewServer() (*server, error) {
 	})
 	_ = stream.AddHandler(&pb.ComplianceScanReq{}, &scapper.ProxyHandler{ServerStream: inClusterStream})
 	_ = stream.AddHandler(&pb.NodeLoadReq{}, &scapper.NodeLoadProxyHandler{ServerStream: inClusterStream})
+	_ = stream.AddHandler(&pb.ContainerMetricsReq{}, &scapper.ContainerMetricsProxyHandler{ServerStream: inClusterStream})
 	_ = stream.Start()
 
 	agent.Stream = stream
@@ -118,6 +124,12 @@ func NewServer() (*server, error) {
 		return nil, err
 	}
 	go controller.Run(stopChan)
+
+	monitorTopic := os.Getenv(env.EnvTopicMonitor)
+	if monitorTopic == "" {
+		monitorTopic = env.DefaultTopicMonitor
+	}
+	go heartbeat.NewBeatSend(mqWriter, monitorTopic, time.Minute, agent.CusterID).Run()
 
 	if microsegv2 {
 		go microseg.NewNetworkPolicyController(agent.GetHostClient().TensorClientset, factory, tensorFactory).Run(stopChan)

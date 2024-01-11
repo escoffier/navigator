@@ -41,16 +41,17 @@ var vulMap = map[string]string{
 }
 
 type SingleApiResponse struct {
-	ID          int64  `json:"id"`
-	Cluster     string `json:"cluster"`
-	Url         string `json:"url"`
-	Params      string `json:"params"`
-	Resource    string `json:"resource"`
-	Kind        string `json:"kind"`
-	ContentType string `json:"contentType"`
-	Method      string `json:"method"`
-	PodName     string `json:"podName"`
-	Namespace   string `json:"namespace"`
+	ID          int64    `json:"id"`
+	Cluster     string   `json:"cluster"`
+	Url         string   `json:"url"`
+	Params      string   `json:"params"`
+	Resource    string   `json:"resource"`
+	Kind        string   `json:"kind"`
+	ContentType string   `json:"contentType"`
+	Method      string   `json:"method"`
+	PodName     string   `json:"podName"`
+	Namespace   string   `json:"namespace"`
+	Tags        []string `json:"tags"`
 }
 
 type SingleApiScanResult struct {
@@ -223,12 +224,14 @@ func (s *Service) CountApis(ctx context.Context) (int64, error) {
 
 type ApiQueryOption struct {
 	whereEqCondition   map[string]interface{}
+	whereInCondition   map[string]interface{}
 	whereLikeCondition map[string]string
 }
 
 func ApiQuery() *ApiQueryOption {
 	return &ApiQueryOption{
 		whereEqCondition:   make(map[string]interface{}),
+		whereInCondition:   make(map[string]interface{}),
 		whereLikeCondition: make(map[string]string),
 	}
 }
@@ -252,7 +255,10 @@ func (q *ApiQueryOption) WithFuzzyResource(resource string) *ApiQueryOption {
 	q.whereLikeCondition["resource"] = resource
 	return q
 }
-
+func (q *ApiQueryOption) WithIdList(idList []string) *ApiQueryOption {
+	q.whereInCondition["id"] = idList
+	return q
+}
 func (q *ApiQueryOption) WithClusterKey(cluster string) *ApiQueryOption {
 	q.whereEqCondition["cluster"] = cluster
 	return q
@@ -281,6 +287,9 @@ func (s *Service) ListApis(ctx context.Context, query *ApiQueryOption, limit, of
 		}
 		for col, q := range query.whereLikeCondition {
 			tx = tx.Where(fmt.Sprintf("%s LIKE ?", col), getLikeExpr(q))
+		}
+		for k, v := range query.whereInCondition {
+			tx = tx.Where(fmt.Sprintf("%s in ?", k), v)
 		}
 
 		err := tx.Count(&total).Error

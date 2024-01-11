@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/configs"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/iac"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/monitor"
+	"gitlab.com/piccolo_su/vegeta/pkg/heartbeat"
 	"gitlab.com/security-rd/go-pkg/translate"
 	"net/http"
 	"os"
@@ -66,6 +68,13 @@ import (
 )
 
 const resyncInterval = 8 * time.Hour
+
+const (
+	EnvGroupIDMonitor     = "KAFKA_MONITOR_GROUP_ID"
+	defaultGroupIdMonitor = "group-monitor"
+)
+
+var beatMetricsWatcher *heartbeat.BeatReceive
 
 // Console represents the Vegeta Console server.
 type Console struct {
@@ -207,6 +216,10 @@ func NewConsole(
 	rlErr := assetsSvc.InitResourcesService(rdb, redisearchClient, scannerURL, stream)
 	if rlErr != nil {
 		logging.Get().Err(rlErr).Msg("ERROR: InitResourcesService init error")
+	}
+	rlErr = monitor.InitMonitorService(rdb, stream)
+	if rlErr != nil {
+		logging.Get().Err(rlErr).Msg("ERROR: InitMonitorService init error")
 	}
 
 	resSvc, ok := assetsSvc.GetResourcesService(mainCtx)
@@ -352,6 +365,18 @@ func NewConsole(
 	if drErr != nil {
 		logging.Get().Err(drErr).Msg("ERROR: InitDriftService init error")
 	}
+
+	//	monitor
+	monitorTopic := os.Getenv(env.EnvTopicMonitor)
+	if monitorTopic == "" {
+		monitorTopic = env.DefaultTopicMonitor
+	}
+
+	monitorGroupID := os.Getenv(EnvGroupIDMonitor)
+	if monitorGroupID == "" {
+		monitorGroupID = defaultGroupIdMonitor
+	}
+	beatMetricsWatcher = heartbeat.NewWatcher(mqReader, monitorTopic, monitorGroupID, rdb)
 
 	err = defense.InitDefenseService(rdb, es, scannerURL, stream)
 	if err != nil {
@@ -513,6 +538,8 @@ func (c *Console) Run() func() {
 	} else {
 		logging.Get().Error().Err(errors.New("drift service not exist")).Msg("get a nil drift service")
 	}
+
+	go beatMetricsWatcher.Run(ctx.Done())
 
 	scapper, _ := scapper.GetScapper(ctx)
 	err = scapper.InitCheckUnFinishedJobs(ctx)

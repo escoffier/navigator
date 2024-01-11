@@ -732,7 +732,6 @@ func (ac *Controller) processNextItem() bool {
 		err = ac.syncService(as.key)
 	case *corev1.Endpoints:
 		err = ac.syncEndpoints(as.key)
-		err = ac.syncEndpoints(as.key)
 	case *corev1.Secret:
 		err = ac.syncSecret(as.key)
 	case *corev1.PersistentVolume:
@@ -807,7 +806,6 @@ func (ac *Controller) syncPod(key string) error {
 			PoolInfo: ac.poolInfo,
 		}
 	}
-	logging.Get().Debug().Msgf("debug pod:send msg:%s/%s, action:%s", res.Namespace, res.Name, action)
 	return ac.sendToMainClusterManager(ctx, action, pkgassets.Pods2Watch, res, nil)
 }
 
@@ -1387,13 +1385,13 @@ func (ac *Controller) addSvc(obj interface{}) {
 func (ac *Controller) updateSvc(oldObj, newObj interface{}) {
 	oldS := oldObj.(*corev1.Service)
 	newS := newObj.(*corev1.Service)
-	logging.Get().Debug().Msgf("update pod %s", oldS.Name)
+	logging.Get().Debug().Msgf("update svc %s", oldS.Name)
 	ac.enqueue(newS, pkgassets.ActionUpdate)
 }
 
 func (ac *Controller) deleteSvc(obj interface{}) {
 	svc := obj.(*corev1.Service)
-	logging.Get().Debug().Msgf("delete pod %s/%s", svc.Namespace, svc.Name)
+	logging.Get().Debug().Msgf("delete svc %s/%s", svc.Namespace, svc.Name)
 	ac.enqueue(svc, pkgassets.ActionDelete)
 }
 
