@@ -288,6 +288,7 @@ func (rl *TensorResourcesService) CountNamespaces(ctx context.Context, clusterKe
 type NamespaceView struct {
 	*model.TensorNamespace
 	Managers []*dal.UserNameAccount
+	Tags     []string
 }
 
 func (rl *TensorResourcesService) GetNamespacesWithOption(ctx context.Context, query *dal.NamespacesQueryOption, offset, limit int) ([]*NamespaceView, int64, error) {
@@ -1364,12 +1365,12 @@ func (rl *TensorResourcesService) GetBusiSvcDetail(ctx context.Context, id uint3
 	return dal.GetBusiSvcDetail(ctx, rl.rdb.GetReadDB(), id)
 }
 
-func (rl *TensorResourcesService) ListExposeHost(ctx context.Context, webDesc string, protocol []string, offset, limit int) ([]*dal.ExposeHostItem, int64, error) {
-	cnt, err := dal.CountExposeHost(ctx, rl.rdb.GetReadDB(), webDesc, protocol)
+func (rl *TensorResourcesService) ListExposeHost(ctx context.Context, webDesc string, protocol, hosts []string, offset, limit int) ([]*dal.ExposeHostItem, int64, error) {
+	cnt, err := dal.CountExposeHost(ctx, rl.rdb.GetReadDB(), webDesc, protocol, hosts)
 	if err != nil {
 		return nil, 0, err
 	}
-	svcs, err := dal.GetExposeHosts(ctx, rl.rdb.GetReadDB(), webDesc, protocol, offset, limit)
+	svcs, err := dal.GetExposeHosts(ctx, rl.rdb.GetReadDB(), webDesc, protocol, hosts, offset, limit)
 	if err != nil {
 		return nil, 0, err
 	}
@@ -1737,4 +1738,75 @@ func (rl *TensorResourcesService) checkNamespaceLabelUntil(ctx context.Context, 
 		return true
 	}
 	return false
+}
+
+func (rl *TensorResourcesService) GetEnableAssetsTagList(ctx context.Context) ([]*model.TensorAssetsTag, error) {
+	apps, err := dal.GetEnableAssetsTagList(ctx, rl.rdb.Get())
+	if err != nil {
+		return nil, err
+	}
+	return apps, nil
+}
+
+func (rl *TensorResourcesService) GetAssetsTagListWithCount(ctx context.Context, tagName string, offset int, limit int) ([]*dal.TensorAssetsTagWithRelCounts, int64, error) {
+	apps, err := dal.GetAssetsTagList(ctx, rl.rdb.Get(), tagName, offset, limit)
+	if err != nil {
+		return nil, -1, err
+	}
+
+	cnt, err := dal.CountAssetsTag(ctx, rl.rdb.Get(), tagName)
+	if err != nil {
+		return nil, -1, err
+	}
+
+	return apps, cnt, nil
+}
+
+type ChangeAssetsTagStatus struct {
+	EnableTagIds  []string `json:"enableTagIds"`
+	DisableTagIds []string `json:"disableTagIds"`
+}
+
+func (rl *TensorResourcesService) ChangeAssetsTagStatus(ctx context.Context, request ChangeAssetsTagStatus) error {
+	return dal.ChangeAssetsTagStatus(ctx, rl.rdb.Get(), request.EnableTagIds, request.DisableTagIds)
+}
+
+func (rl *TensorResourcesService) GetAssetsTagRelCounts(ctx context.Context, tagId string) (detail *dal.AssetsTagWithIdsCounts, err error) {
+	return dal.GetAssetsTagRelIdsCounts(ctx, rl.rdb.Get(), tagId)
+}
+
+func (rl *TensorResourcesService) SaveAssetsTagRel(ctx context.Context, detail *dal.AssetsTagRelDetail) (err error) {
+	return dal.SaveAssetsTagRel(ctx, rl.rdb.Get(), detail)
+}
+
+func (rl *TensorResourcesService) DeleteAssetsTag(ctx context.Context, tagId string) (err error) {
+	return dal.DeleteAssetsTag(ctx, rl.rdb.Get(), tagId)
+}
+
+func (rl *TensorResourcesService) AssetsChangeTags(ctx context.Context, req *dal.AssetsChangeTagsReq) (err error) {
+	return dal.AssetsChangeTags(ctx, rl.rdb.Get(), req)
+}
+
+func (rl *TensorResourcesService) GetAssetsCustomTags(ctx context.Context) ([]*model.TensorAssetsTag, error) {
+	return dal.GetAssetsCustomTags(ctx, rl.rdb.Get())
+}
+
+// 查询资产对应的tag列表
+func (rl *TensorResourcesService) GetTagsMapByAssetsIds(ctx context.Context, objType model.TagRelObjType, objIds []string) (map[string][]string, error) {
+	relOnes, err := dal.GetTagsByAssetsIds(ctx, rl.rdb.Get(), objType, objIds)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[string][]string)
+	for _, rel := range relOnes {
+		tags := result[rel.ObjId]
+		tags = append(tags, rel.TagName)
+		result[rel.ObjId] = tags
+	}
+	return result, nil
+}
+
+// 查询 某个tag下的 各种类型资产的数量
+func (rl *TensorResourcesService) GetAssetsCountInTag(ctx context.Context, tagId string) (*dal.AssetsTagWithCounts, error) {
+	return dal.GetAssetsTagRelCounts(ctx, rl.rdb.Get(), tagId)
 }

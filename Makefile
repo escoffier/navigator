@@ -51,6 +51,13 @@ cluster-manager:
 	#upx --lzma --best dist/cluster-manager
 	docker build -t $(REPOPREFIX)/cluster-manager:$(IMAGE_TAG) -f ./build/cluster-manager/Dockerfile .
 
+.PHONY: monitor
+monitor:
+	@echo "build monitor"
+	go build -v \
+		-tags=jsoniter -o dist/monitor gitlab.com/piccolo_su/vegeta/cmd/monitor
+	#upx --lzma --best dist/monitor
+	docker build -t $(REPOPREFIX)/monitor:$(IMAGE_TAG) -f ./build/monitor/Dockerfile .
 
 .PHONY: cluster-proxy
 cluster-proxy:
@@ -233,7 +240,7 @@ heavy-agent:
 .PHONY: all
 all: drift-prevention-client scanner scarecrow console data holmes daemon  \
 webhook cluster-manager kafka-proxy kube-scanner-report platform-report \
-scan_report apiscan-job cluster-proxy node-image heavy-agent
+scan_report apiscan-job cluster-proxy node-image heavy-agent monitor
 
 
 .PHONY: pushimages
@@ -255,6 +262,7 @@ pushimages:
 	docker push $(REPOPREFIX)/cluster-proxy:$(IMAGE_TAG)
 	docker push $(REPOPREFIX)/node-image:$(IMAGE_TAG)
 	docker push $(REPOPREFIX)/heavy-agent:$(IMAGE_TAG)
+	docker push $(REPOPREFIX)/monitor:$(IMAGE_TAG)
 
 .PHONY: rm-local-images
 rm-local-images:
@@ -275,3 +283,4 @@ rm-local-images:
 	docker rmi $(REPOPREFIX)/cluster-proxy:$(IMAGE_TAG)
 	docker rmi $(REPOPREFIX)/node-image:$(IMAGE_TAG)
 	docker rmi $(REPOPREFIX)/heavy-agent:$(IMAGE_TAG)
+	docker rmi $(REPOPREFIX)/monitor:$(IMAGE_TAG)

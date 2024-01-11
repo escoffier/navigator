@@ -16,6 +16,7 @@ type MessageStreamClient interface {
 	SetNamespaceLabel(ctx context.Context, nodeKey string, req *pb.NamespaceLabelSetReq) (*pb.NamespaceLabelErrResp, error)
 	DeleteNamespaceLabel(ctx context.Context, nodeKey string, req *pb.NamespaceLabelSetReq) (*pb.NamespaceLabelErrResp, error)
 	GetNodeLoadInfo(ctx context.Context, nodeKey string, req *pb.NodeLoadReq) (*pb.NodeLoadResp, error)
+	GetContainerMetrics(ctx context.Context, nodeKey string, req *pb.ContainerMetricsReq) (*pb.ContainerMetricsResp, error)
 	CreateCluster(ctx context.Context, nodeKey string, honeySpot *pb.ClusterRegister) (*pb.CommonReponse, error)
 	UpdateVulnDB(ctx context.Context, nodeKey string, vulnReq *pb.ImageSecReq) (*pb.ImageSecResp, error)
 	DeliverImageSecMsg(ctx context.Context, nodeKey string, imageSecReq *pb.ImageSecReq) (*pb.ImageSecResp, error)
@@ -137,6 +138,21 @@ func (s *messageStream) GetNodeLoadInfo(ctx context.Context, nodeKey string, req
 		return nil, err
 	}
 	r, ok := resp.(*pb.NodeLoadResp)
+	if !ok {
+		return nil, fmt.Errorf("invalid message type: %s", resp.ProtoReflect().Descriptor().FullName())
+	}
+	logging.Get().Info().Msgf("response: %s", r.String())
+	return r, nil
+}
+
+func (s *messageStream) GetContainerMetrics(ctx context.Context, clusterKey string, req *pb.ContainerMetricsReq) (*pb.ContainerMetricsResp, error) {
+	resp, err := s.Request(ctx, clusterKey, pb.MessageType_CREATE, req, true)
+
+	if err != nil {
+		logging.Get().Err(err).Msg("request err")
+		return nil, err
+	}
+	r, ok := resp.(*pb.ContainerMetricsResp)
 	if !ok {
 		return nil, fmt.Errorf("invalid message type: %s", resp.ProtoReflect().Descriptor().FullName())
 	}

@@ -234,6 +234,7 @@ func getContainerStatusStr(cs []corev1.ContainerStatus) string {
 		s.WriteRune('\t')
 		s.WriteString(c.ImageID)
 		s.WriteRune('\n')
+		s.WriteString(c.State.String())
 	}
 	return s.String()
 }

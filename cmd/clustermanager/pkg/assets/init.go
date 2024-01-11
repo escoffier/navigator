@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/monitor"
 	"os"
 	"runtime/debug"
 	"strconv"
@@ -110,7 +111,7 @@ func Watcher(rdb *databases.RDBInstance,
 		wInstance.AddCallback(newResourcesWatcher(rdb, scannerURL, searchClient))
 		wInstance.AddCallback(newHoneyspotService(rdb))
 		wInstance.AddCallback(newRawContainerWatcher(rdb, searchClient))
-
+		wInstance.AddCallback(monitor.NewContainerStatusWatch(rdb))
 		exportContainers := os.Getenv("EXPORT_CONTAINERS")
 		if exportContainers == "true" {
 			wInstance.AddCallback(newPodContainerWatcher(rdb))

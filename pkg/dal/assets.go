@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/env"
 	netv1 "k8s.io/api/networking/v1"
 	"strconv"
 	"strings"
@@ -27,9 +28,14 @@ import (
 const (
 	ContainerTypeInit    = "InitContainer"
 	ContainerTypeDefault = "Container"
-	running              = 0
+	Running              = 0
 	terminated           = 1
 	waiting              = 2
+
+	ContainerState_running = 0
+	ContainerState_created = 1
+	ContainerState_exited  = 2
+	ContainerState_unknown = 3
 )
 
 var (
@@ -235,12 +241,14 @@ var BlockNsLabels = []string{"microseg-tenant", "microseg-nsgrp"}
 type NamespacesQueryOption struct {
 	WhereLikeCondition map[string]string
 	whereEqCondition   map[string]interface{}
+	whereInCondition   map[string]interface{}
 }
 
 func NamespaceQuery() *NamespacesQueryOption {
 	return &NamespacesQueryOption{
 		WhereLikeCondition: map[string]string{},
 		whereEqCondition:   map[string]interface{}{},
+		whereInCondition:   map[string]interface{}{},
 	}
 }
 
@@ -259,6 +267,10 @@ func (n *NamespacesQueryOption) WithCluster(clusterKey string) *NamespacesQueryO
 func (n *NamespacesQueryOption) WithName(ns string) *NamespacesQueryOption {
 	n.whereEqCondition["name"] = ns
 	return n
+}
+
+func (n *NamespacesQueryOption) WithIdList(idList []string) {
+	n.whereInCondition["id"] = idList
 }
 
 func CountNamespaces(ctx context.Context, rdb *gorm.DB, clusterKey, nameQuery string) (int64, error) {
@@ -369,7 +381,9 @@ func CountNamespacesWithOption(ctx context.Context, rdb *gorm.DB, queryOpt *Name
 		for column, val := range queryOpt.WhereLikeCondition {
 			db = db.Where(fmt.Sprintf("%s LIKE ?", column), GetLikeExpr(val))
 		}
-
+		for k, v := range queryOpt.whereInCondition {
+			rdb = rdb.Where(fmt.Sprintf("%s in ?", k), v)
+		}
 		return db.Count(&nsCount).Error
 	})
 	if err != nil {
@@ -393,7 +407,9 @@ func GetNamespaceWithOption(ctx context.Context, rdb *gorm.DB, queryOpt *Namespa
 		for column, val := range queryOpt.WhereLikeCondition {
 			rdb = rdb.Where(fmt.Sprintf("%s LIKE ?", column), GetLikeExpr(val))
 		}
-
+		for k, v := range queryOpt.whereInCondition {
+			rdb = rdb.Where(fmt.Sprintf("%s in ?", k), v)
+		}
 		if limit > 0 && offset >= 0 {
 			rdb = rdb.Offset(offset).Limit(limit)
 		}
@@ -502,6 +518,10 @@ func (q *ResourcesQueryOption) WithResourceName(name string) *ResourcesQueryOpti
 }
 func (q *ResourcesQueryOption) WithFuzzyName(name string) *ResourcesQueryOption {
 	q.WhereLikeCondition["name"] = name
+	return q
+}
+func (q *ResourcesQueryOption) WithIdList(idList []string) *ResourcesQueryOption {
+	q.whereInCondition["id"] = idList
 	return q
 }
 func (q *ResourcesQueryOption) WithFuzzyNamespace(ns string) *ResourcesQueryOption {
@@ -1578,7 +1598,7 @@ func CleanUpUnUpdatedNamespaces(ctx context.Context, rdb *gorm.DB, ts time.Time,
 			if err != nil {
 				return err
 			}
-			return tx.Where("cluster_key=?  and updated_at <", clusterKey, now).Delete(&model.TensorNamespaceLabel{}).Error
+			return tx.Where("cluster_key=?  and updated_at < ?", clusterKey, now).Delete(&model.TensorNamespaceLabel{}).Error
 		})
 	})
 }
@@ -1854,6 +1874,10 @@ func (q *ResPodsQueryOption) WithFuzzyName(cname string) *ResPodsQueryOption {
 }
 func (q *ResPodsQueryOption) WithFuzzyPodIP(ip string) *ResPodsQueryOption {
 	q.WhereLikeCondition["pod_ip"] = ip
+	return q
+}
+func (q *ResPodsQueryOption) WithIdList(idList []string) *ResPodsQueryOption {
+	q.whereInCondition["id"] = idList
 	return q
 }
 func (q *ResPodsQueryOption) WithCluster(clusterKey string) *ResPodsQueryOption {
@@ -2239,6 +2263,7 @@ func ClusterQuery() *ClusterQueryOption {
 	return &ClusterQueryOption{
 		WhereEqCondition:   make(map[string]interface{}),
 		WhereLikeCondition: make(map[string]string),
+		WhereInCondition:   make(map[string]interface{}),
 		columnQuery:        colQuery{},
 		mulColQuery:        mulColQuery{},
 	}
@@ -2247,6 +2272,7 @@ func ClusterQuery() *ClusterQueryOption {
 
 type ClusterQueryOption struct {
 	WhereEqCondition   map[string]interface{}
+	WhereInCondition   map[string]interface{}
 	WhereLikeCondition map[string]string
 	columnQuery        colQuery
 	mulColQuery        mulColQuery
@@ -2281,7 +2307,10 @@ func (q *ClusterQueryOption) WithPlatform(platform string) *ClusterQueryOption {
 	q.WhereEqCondition["platform"] = platform
 	return q
 }
-
+func (q *ClusterQueryOption) WithIdList(idList []string) *ClusterQueryOption {
+	q.WhereInCondition["id"] = idList
+	return q
+}
 func (q *ClusterQueryOption) WithRulesVersion(version string) *ClusterQueryOption {
 	q.WhereEqCondition["rule_version"] = version
 	return q
@@ -2303,6 +2332,9 @@ func GetClusters(ctx context.Context, rdb *gorm.DB, query *ClusterQueryOption, o
 				rdb = rdb.Where(fmt.Sprintf("%s LIKE ?", column), GetLikeExpr(val))
 			}
 		}
+		for k, v := range query.WhereInCondition {
+			rdb = rdb.Where(fmt.Sprintf("%s in ?", k), v)
+		}
 
 		oneErr := rdb.WithContext(oneCtx).Model(&model.TensorCluster{}).Where("status = ?", 0).Order("id").Offset(offset).Limit(limit).Find(&clusters).Error
 		if oneErr != nil {
@@ -2310,6 +2342,43 @@ func GetClusters(ctx context.Context, rdb *gorm.DB, query *ClusterQueryOption, o
 		}
 		return nil
 	})
+	return
+}
+
+func GetClusterKeyList(ctx context.Context, rdb *gorm.DB) (keys []string, err error) {
+	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
+	defer cancel()
+	err = util.RetryWithBackoff(ctx, func() error {
+		oneCtx, oneCancel := context.WithTimeout(ctx, 300*time.Millisecond)
+		defer oneCancel()
+
+		oneErr := rdb.WithContext(oneCtx).Model(&model.TensorCluster{}).Where("status = ?", 0).Select("id").Order("id").Scan(&keys).Error
+		if oneErr != nil {
+			return oneErr
+		}
+		return nil
+	})
+	return
+}
+
+func GetSoftNamespace(ctx context.Context, rdb *gorm.DB, keys []string) (nsMap map[string]string, err error) {
+	nsMap = make(map[string]string)
+	ctx, cancel := context.WithTimeout(ctx, 1000*time.Millisecond)
+	defer cancel()
+	for _, key := range keys {
+		var rawContainer model.TensorRawContainer
+		oneErr := rdb.WithContext(ctx).Model(&model.TensorRawContainer{}).Where("cluster_key = ? and name ='cluster-manager' and  status = ?", key, 0).Select("environment").Take(&rawContainer).Error
+		if oneErr != nil {
+			logging.GetLogger().Err(oneErr).Msgf("find env:soft_name failed, clusterKey:%s", key)
+			continue
+		}
+		for _, str := range rawContainer.Environment {
+			if strings.Contains(str, env.SoftName) {
+				nsMap[key] = str[len(env.SoftName)+1:]
+				break
+			}
+		}
+	}
 	return
 }
 
@@ -2328,6 +2397,9 @@ func CountClusters(ctx context.Context, rdb *gorm.DB, query *ClusterQueryOption)
 			for column, val := range query.WhereLikeCondition {
 				rdb = rdb.Where(fmt.Sprintf("%s LIKE ?", column), GetLikeExpr(val))
 			}
+		}
+		for k, v := range query.WhereInCondition {
+			rdb = rdb.Where(fmt.Sprintf("%s in ?", k), v)
 		}
 		return rdb.WithContext(oneCtx).Model(&model.TensorCluster{}).Where("status = ?", 0).Count(&totalCnt).Error
 	})
@@ -2625,7 +2697,10 @@ func (q *NodeQueryOption) WithColumnFuzzyQuery(column, query string) *NodeQueryO
 	q.WhereLikeCondition[column] = query
 	return q
 }
-
+func (q *NodeQueryOption) WithIdList(idList []string) *NodeQueryOption {
+	q.whereInCondition["id"] = idList
+	return q
+}
 func GetNodes(ctx context.Context, rdb *gorm.DB, queryOptions *NodeQueryOption, offset, limit int) ([]*model.TensorNode, error) {
 	rctx, cancel := context.WithTimeout(ctx, 2000*time.Millisecond)
 	defer cancel()
@@ -2960,7 +3035,7 @@ func genContainer(pod *corev1.Pod, ContainerStatus *corev1.ContainerStatus, reso
 		ResourceKind:  resKind,
 		CreatedAt:     pod.CreationTimestamp.Time,
 		UpdatedAt:     updateTime,
-		Status:        getContainerStatus(&ContainerStatus.State),
+		Status:        GetContainerStatus(&ContainerStatus.State),
 		PodUID:        string(pod.UID),
 		PodIP:         pod.Status.PodIP,
 		HostIP:        pod.Status.HostIP,
@@ -3076,15 +3151,23 @@ func CleanUpPodContainerRelations(ctx context.Context, rdb *gorm.DB, ts time.Tim
 	})
 }
 
-func getContainerStatus(status *corev1.ContainerState) int32 {
+func GetContainerStatus(status *corev1.ContainerState) int32 {
 	if status.Waiting != nil && (status.Waiting.Reason != "" || status.Waiting.Message != "") {
 		return waiting
 	} else if status.Running != nil && !status.Running.StartedAt.IsZero() {
-		return running
+		return Running
 	} else if status.Terminated != nil {
 		return terminated
 	}
-	return running
+	return waiting
+}
+
+func GetContainerCRIState(status *corev1.ContainerState, ready bool) int8 {
+	//ref: k8s.io/kubernetes@v1.24.0/pkg/kubelet/kubelet_pods.go:1630
+	if status.Running != nil && ready { //
+		return ContainerStatus_normal_int
+	}
+	return ContainerStatus_abnormal_int
 }
 
 type colMultiQuery struct {
@@ -3564,6 +3647,7 @@ type RawContainerWithFrameworkStr struct {
 	*model.TensorRawContainer
 	FrameworkStr  string
 	FrameworkPath string
+	Tags          []string
 }
 
 func GetRawContainersWithFrameworkWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, queryOptions *RawContainersWithFrameworkQueryOption, offset int, limit int) ([]*RawContainerWithFrameworkStr, error) {
@@ -3816,13 +3900,13 @@ func upsertRawContainersWithTx(tx *gorm.DB, container *assets.TensorRawContainer
 		return err
 	}
 	if len(svcList) > 0 {
-		err = tx.Model(&model.TensorRawContainerSvc{}).Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoUpdates: clause.AssignmentColumns(OnDupUpdatedColsForRawCtnSvc)}).Create(svcList).Error
+		err = tx.Model(&model.TensorRawContainerSvc{}).Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoUpdates: clause.AssignmentColumns(OnDupUpdatedColsForRawCtnSvc)}).Create(&svcList).Error
 		if err != nil {
 			return err
 		}
 	}
 	if len(frameworkList) > 0 {
-		err = tx.Model(&model.TensorRawContainerFramework{}).Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoUpdates: clause.AssignmentColumns(OnDupUpdatedColsForRawCtnFramework)}).Create(frameworkList).Error
+		err = tx.Model(&model.TensorRawContainerFramework{}).Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "id"}}, DoUpdates: clause.AssignmentColumns(OnDupUpdatedColsForRawCtnFramework)}).Create(&frameworkList).Error
 		if err != nil {
 			return err
 		}
@@ -4005,6 +4089,10 @@ func (q *IngressesQueryOption) WithNamespace(ns string) *IngressesQueryOption {
 }
 func (q *IngressesQueryOption) WithFuzzNamespace(ns string) *IngressesQueryOption {
 	q.whereLikeCondition["namespace"] = ns
+	return q
+}
+func (q *IngressesQueryOption) WithIdList(idList []string) *IngressesQueryOption {
+	q.whereInCondition["id"] = idList
 	return q
 }
 func (q *IngressesQueryOption) WithFuzzName(name string) *IngressesQueryOption {
@@ -4370,6 +4458,9 @@ func (q *ServicesQueryOption) WithClusterIp(ip string) {
 }
 func (q *ServicesQueryOption) WithServiceTypes(types []string) {
 	q.whereInCondition["type"] = types
+}
+func (q *ServicesQueryOption) WithIdList(idList []string) {
+	q.whereInCondition["id"] = idList
 }
 func (q *ServicesQueryOption) WithTimeRange(start, end time.Time) *ServicesQueryOption {
 	q.timeRange.start = start
@@ -5697,6 +5788,7 @@ type ExposeHostItem struct {
 	Host     string
 	Protocol string
 	PathList []*ExposeHostPathBase
+	Tags     []string
 }
 
 type ExposeHostPathBase struct {
@@ -5718,7 +5810,7 @@ type ExposeHostPathBase struct {
 	Namespace      string `json:"namespace" gorm:"column:namespace;"`
 }
 
-func CountExposeHost(ctx context.Context, rdb *gorm.DB, webDesc string, protocols []string) (int64, error) {
+func CountExposeHost(ctx context.Context, rdb *gorm.DB, webDesc string, protocols []string, hosts []string) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, 9*time.Second)
 	defer cancel()
 
@@ -5735,13 +5827,16 @@ func CountExposeHost(ctx context.Context, rdb *gorm.DB, webDesc string, protocol
 		if len(protocols) > 0 {
 			db = db.Where("protocol in ?", protocols)
 		}
+		if len(hosts) > 0 {
+			db = db.Where("host in ?", hosts)
+		}
 		db = db.Where("status =0 ").Distinct("host")
 		return db.Count(&cntNum).Error
 	})
 	return cntNum, err
 }
 
-func GetExposeHosts(ctx context.Context, rdb *gorm.DB, webDesc string, protocols []string, offset, limit int) ([]*ExposeHostItem, error) {
+func GetExposeHosts(ctx context.Context, rdb *gorm.DB, webDesc string, protocols, hosts []string, offset, limit int) ([]*ExposeHostItem, error) {
 	rCtx, cancel := context.WithTimeout(ctx, 10000*time.Millisecond)
 	defer cancel()
 
@@ -5753,6 +5848,9 @@ func GetExposeHosts(ctx context.Context, rdb *gorm.DB, webDesc string, protocols
 	}
 	if len(protocols) > 0 {
 		db = db.Where("protocol in ?", protocols)
+	}
+	if len(hosts) > 0 {
+		db = db.Where("host in ?", hosts)
 	}
 	if offset >= 0 && limit >= 0 {
 		db.Offset(offset).Limit(limit)

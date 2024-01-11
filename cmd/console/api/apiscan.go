@@ -3,8 +3,12 @@ package api
 import (
 	"context"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi"
@@ -279,6 +283,7 @@ func (api *api) listAllApis() http.HandlerFunc {
 		method, _ := param.QueryString(r, "method")
 		resource, _ := param.QueryString(r, "resource")
 		namespace, _ := param.QueryString(r, "namespace")
+		idList, _ := param.QueryString(r, "idList")
 
 		service, ok := apiscan.GetService(ctx)
 		if !ok {
@@ -304,10 +309,33 @@ func (api *api) listAllApis() http.HandlerFunc {
 		if resource != "" {
 			query.WithFuzzyResource(resource)
 		}
+		if idList != "" {
+			query.WithIdList(strings.Split(idList, ","))
+		}
 		result, totoalItems, err := service.ListApis(ctx, query, limit, offset)
 		if err != nil {
 			apperror.RespAndLog(w, ctx, err)
 			return
+		}
+
+		hideTags, _ := param.QueryBool(r, "hideTags")
+		var objIdList []string
+		if !hideTags {
+			for _, api := range result {
+				objIdList = append(objIdList, strconv.Itoa(int(api.ID)))
+			}
+
+			resSvc, _ := assets.GetResourcesService(ctx)
+			tagsMapByAssetsIds, err := resSvc.GetTagsMapByAssetsIds(ctx, model.ObjType_api, objIdList)
+			if err != nil {
+				logging.GetLogger().Err(err).Msg("query api's tags failed")
+				response.Ok(w, response.WithItems(result), response.WithTotalItems(totoalItems))
+				return
+			}
+			for _, item := range result {
+				item.Tags = tagsMapByAssetsIds[strconv.Itoa(int(item.ID))]
+				item.Tags = append(item.Tags, dal.ObjTypeBuiltInTagMap[model.ObjType_api]...)
+			}
 		}
 		response.Ok(w, response.WithItems(result), response.WithTotalItems(totoalItems))
 	}

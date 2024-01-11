@@ -121,6 +121,7 @@ var accessUrlMap = map[string][]string{
 		"/api/v2/containerSec/scanner/managementCenter/docs",
 		"/api/v2/platform/configs",
 		"/api/v2/containerSec/scanner/config/scan/sensitive/rule",
+		"/api/v2/platform/monitor", // 组件监控
 	},
 }
 

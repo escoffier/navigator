@@ -3,6 +3,7 @@ package scapper
 import (
 	"context"
 	"os"
+	"sync"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/compliance"
@@ -176,5 +177,66 @@ func (n *NodeLoadProxyHandler) OnUpdate(stream rpcstream.Stream, reqID string, m
 
 func (n *NodeLoadProxyHandler) OnDelete(stream rpcstream.Stream, reqID string, message protoreflect.ProtoMessage) {
 	logging.Get().Error().Str("reqID", reqID).Msg("not implement NodeLoadProxyHandler msg onDelete")
+
+}
+
+type ContainerMetricsProxyHandler struct {
+	ServerStream rpcstream.MessageStream
+}
+
+func (n *ContainerMetricsProxyHandler) OnCreate(s rpcstream.Stream, reqID string, message protoreflect.ProtoMessage) {
+	req := message.(*pb.ContainerMetricsReq)
+	logging.Get().Info().Str("obj", "NodeLoadProxyHandler-OnCreate").
+		Str("reqID", reqID).Msg("received console stream msg")
+
+	var (
+		result = &pb.ContainerMetricsResp{}
+	)
+	defer func() {
+		if err := s.SendResponse(reqID, result); err != nil {
+			logging.Get().Error().Err(err).Str("obj", "ContainerMetricsProxyHandler-OnCreate").
+				Str("reqID", reqID).Msg("failed, send response to console")
+		} else {
+			logging.Get().Info().Str("obj", "ContainerMetricsProxyHandler").Str("method", "OnCreate").
+				Str("reqID", reqID).Msg("success, send response to console")
+		}
+	}()
+
+	var wg sync.WaitGroup
+	var lock sync.Mutex
+	for _, nodeName := range req.NodeName {
+		wg.Add(1)
+		go func(nodeName string) {
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			logging.Get().Info().Msgf("ContainerMetricsProxyHandler-OnCreate:nodeName:%s", nodeName)
+			resp, err := n.ServerStream.GetContainerMetrics(ctx, nodeName+"-monitor", req)
+			logging.Get().Err(err).Msgf("ContainerMetricsProxyHandler-OnCreate:nodeName:%s,err==nil:%v,resp:%s", nodeName, err == nil, resp.String())
+
+			wg.Done()
+			if err != nil {
+				logging.Get().Err(err).Str("reqID", reqID).Msgf("ContainerMetricsProxyHandler-OnCreate: failed to get  container metrics. nodeName:%s,appLabel:%s", nodeName, req.AppLabel)
+				return
+			}
+			lock.Lock()
+			result.Metrics = append(result.Metrics, resp.Metrics...)
+			lock.Unlock()
+		}(nodeName)
+	}
+	wg.Wait()
+}
+
+func (n *ContainerMetricsProxyHandler) OnRead(stream rpcstream.Stream, reqID string, message protoreflect.ProtoMessage) {
+	logging.Get().Error().Str("reqID", reqID).Msg("not implement ContainerMetricsProxyHandler msg OnRead")
+
+}
+
+func (n *ContainerMetricsProxyHandler) OnUpdate(stream rpcstream.Stream, reqID string, message protoreflect.ProtoMessage) {
+	logging.Get().Error().Str("reqID", reqID).Msg("not implement ContainerMetricsProxyHandler msg OnUpdate")
+
+}
+
+func (n *ContainerMetricsProxyHandler) OnDelete(stream rpcstream.Stream, reqID string, message protoreflect.ProtoMessage) {
+	logging.Get().Error().Str("reqID", reqID).Msg("not implement ContainerMetricsProxyHandler msg onDelete")
 
 }

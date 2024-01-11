@@ -35,6 +35,17 @@ import (
 
 func (api *api) assets() func(chi.Router) {
 	return func(r chi.Router) {
+		//tag
+		r.Get("/assetsTags", api.getAssetsTags)
+		r.Get("/enableAssetsTags", api.getEnableAssetsTags)
+		r.Put("/assetsTagChangeStatus", api.changeAssetsTags)
+		r.Get("/assetsTag/{tagId}", api.getAssetsTagRelCountsById)
+		r.Post("/assetsTag", api.saveAssetsTag)
+		r.Delete("/assetsTag/{tagId}", api.deleteAssetsTag)
+		r.Post("/assetsChangeTag", api.assetsChangeTags) // 批量修改关联标签
+		r.Get("/assetsCustomTags", api.getAssetsCustomTags)
+		r.Get("/assetsCountInTag", api.getAssetsCountInTag) //资产卡片计数
+
 		r.Get("/clusters", api.getClusters())
 		r.Post("/cluster", api.addNewCluster())
 		r.Put("/cluster", api.updateClusterInfo())
@@ -129,6 +140,11 @@ func (api *api) assets() func(chi.Router) {
 		// 站点
 		r.Get("/exposeHosts", api.getExposeHosts())
 		r.Get("/exposeHost/{id}", api.getExposeHostDetail())
+		// 监控
+		r.Get("/monitor/total", api.getExposeHostDetail())
+		r.Get("/monitor/detail/holms", api.getExposeHostDetail())
+		r.Get("/monitor/detail/clusterManager", api.getExposeHostDetail())
+		r.Get("/monitor/detail/scanner", api.getExposeHostDetail())
 	}
 }
 
@@ -380,18 +396,19 @@ func (api *api) getResourcesByImageVuln() http.HandlerFunc {
 // @Router /api/v2/platform/assets/cluters
 func (api *api) getClusters() http.HandlerFunc {
 	type cluster struct {
-		Key           string `json:"key"`
-		Name          string `json:"name"`
-		PlatForm      string `json:"platForm"`
-		APIServerAddr string `json:"apiServerAddr"`
-		Description   string `json:"description"`
-		Version       string `json:"version"`
-		Creator       string `json:"creator"`
-		CreatedAt     int64  `json:"createdAt"`
-		Updater       string `json:"updater"`
-		UpdatedAt     int64  `json:"updatedAt"`
-		RuleVersion   string `json:"ruleVersion"`
-		NodeNumber    int64  `json:"nodeNumber"`
+		Key           string   `json:"key"`
+		Name          string   `json:"name"`
+		PlatForm      string   `json:"platForm"`
+		APIServerAddr string   `json:"apiServerAddr"`
+		Description   string   `json:"description"`
+		Version       string   `json:"version"`
+		Creator       string   `json:"creator"`
+		CreatedAt     int64    `json:"createdAt"`
+		Updater       string   `json:"updater"`
+		UpdatedAt     int64    `json:"updatedAt"`
+		RuleVersion   string   `json:"ruleVersion"`
+		NodeNumber    int64    `json:"nodeNumber"`
+		Tags          []string `json:"tags"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 1*time.Second)
@@ -437,6 +454,10 @@ func (api *api) getClusters() http.HandlerFunc {
 		if platform != "" {
 			query.WithPlatform(platform)
 		}
+		idList, _ := param.QueryString(r, "idList")
+		if idList != "" {
+			query.WithIdList(strings.Split(idList, ","))
+		}
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
 			logging.Get().Error().Msg("service instance get error")
@@ -450,8 +471,10 @@ func (api *api) getClusters() http.HandlerFunc {
 			return
 		}
 		ret := make([]cluster, len(clusters))
+		var clusterKeyList []string
 		for i, c := range clusters {
 			ret[i].Key = c.Key
+			clusterKeyList = append(clusterKeyList, c.Key)
 			ret[i].Description = c.Description
 			ret[i].Name = c.Name
 			ret[i].PlatForm = c.Platform
@@ -468,6 +491,20 @@ func (api *api) getClusters() http.HandlerFunc {
 			nodeQuery.WithStatus(0)
 			nodeNum, _ := resSvc.CountNodes(ctx, nodeQuery)
 			ret[i].NodeNumber = nodeNum
+		}
+		hideTags, _ := param.QueryBool(r, "hideTags") // 隐藏tag
+		//isEnglish(r)
+		if !hideTags {
+			tagsMapByAssetsIds, err := resSvc.GetTagsMapByAssetsIds(ctx, model.ObjType_cluster, clusterKeyList)
+			if err != nil {
+				logging.Get().Err(err).Msg("query cluster's tags failed")
+				response.Ok(w, response.WithItems(ret), response.WithTotalItems(totalCnt))
+				return
+			}
+			for i, tensorCluster := range ret {
+				ret[i].Tags = tagsMapByAssetsIds[tensorCluster.Key]
+				ret[i].Tags = append(ret[i].Tags, dal.ObjTypeBuiltInTagMap[model.ObjType_cluster]...)
+			}
 		}
 
 		response.Ok(w, response.WithItems(ret), response.WithTotalItems(totalCnt))
@@ -654,6 +691,10 @@ func (api *api) getNamespaces() http.HandlerFunc {
 		if clusterKey != "" {
 			query.WithFuzzyCluster(clusterKey)
 		}
+		idList, _ := param.QueryString(r, "idList")
+		if idList != "" {
+			query.WithIdList(strings.Split(idList, ","))
+		}
 		if name != "" {
 			query.WithFuzzyName(name)
 		}
@@ -669,6 +710,26 @@ func (api *api) getNamespaces() http.HandlerFunc {
 			logging.Get().Err(err).Msg("getNamespaces error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
+		}
+		hideTags, _ := param.QueryBool(r, "hideTags")
+		var objIdList []string
+		if !hideTags {
+			for _, namespace := range namespaces {
+				objIdList = append(objIdList, strconv.Itoa(int(namespace.ID)))
+			}
+			tagsMapByAssetsIds, err := resSvc.GetTagsMapByAssetsIds(ctx, model.ObjType_namespace, objIdList)
+			if err != nil {
+				logging.Get().Err(err).Msg("query namespace's tags failed")
+				response.Ok(w, response.WithItems(namespaces),
+					response.WithTotalItems(totalCnt),
+					response.WithStartIndex(int64(offset+len(namespaces))),
+				)
+				return
+			}
+			for _, item := range namespaces {
+				item.Tags = tagsMapByAssetsIds[strconv.Itoa(int(item.ID))]
+				item.Tags = append(item.Tags, dal.ObjTypeBuiltInTagMap[model.ObjType_namespace]...)
+			}
 		}
 		response.Ok(w, response.WithItems(namespaces),
 			response.WithTotalItems(totalCnt),
@@ -945,7 +1006,8 @@ type GetResourceFuzzy struct {
 	Kind       string `in:"query" name:"kind"`
 	Query      string `in:"query" name:"query"`
 	Name       string `in:"query" name:"name"`
-	UseRedis   bool   `in:"-"`
+	IdList     []string
+	UseRedis   bool `in:"-"`
 }
 
 func (req *GetResourceFuzzy) Render(r *http.Request) error {
@@ -977,6 +1039,11 @@ func (req *GetResourceFuzzy) Render(r *http.Request) error {
 	if err != nil {
 		query = ""
 	}
+	idList, _ := param.QueryString(r, "idList")
+	if idList != "" {
+		req.IdList = strings.Split(idList, ",")
+	}
+
 	req.Limit = limit
 	req.Offset = offset
 	req.ClusterKey = clusterKey
@@ -1009,6 +1076,9 @@ func (req *GetResourceFuzzy) Execute(ctx context.Context) ([]*assets.TensorResou
 	if req.Name != "" {
 		rQuery = rQuery.WithFuzzyName(req.Name)
 	}
+	if len(req.IdList) > 0 {
+		rQuery = rQuery.WithIdList(req.IdList)
+	}
 	rQuery.WithUserAccount = true
 
 	var (
@@ -1033,6 +1103,7 @@ func (req *GetResourceFuzzy) Execute(ctx context.Context) ([]*assets.TensorResou
 
 func (api *api) getResourcesFuzzy() http.HandlerFunc {
 	type resource struct {
+		Id        uint32                 `json:"id"`
 		Cluster   string                 `json:"cluster"`
 		Namespace string                 `json:"namespace"`
 		Kind      string                 `json:"kind"`
@@ -1041,9 +1112,11 @@ func (api *api) getResourcesFuzzy() http.HandlerFunc {
 		Alias     string                 `json:"alias"`
 		Managers  []*dal.UserNameAccount `json:"managers"`
 		Authority string                 `json:"authority"`
+		Tags      []string               `json:"tags"`
 	}
 	modelToResource := func(rm *assets.TensorResourceView) *resource {
 		r := new(resource)
+		r.Id = rm.ID
 		r.Cluster = rm.ClusterKey
 		r.Namespace = rm.Namespace
 		r.Kind = rm.Kind
@@ -1069,8 +1142,24 @@ func (api *api) getResourcesFuzzy() http.HandlerFunc {
 			return
 		}
 		items := make([]*resource, len(resources))
+		var objIdList []string
 		for i, resource := range resources {
 			items[i] = modelToResource(resource)
+			objIdList = append(objIdList, strconv.Itoa(int(resource.ID)))
+		}
+		hideTags, _ := param.QueryBool(r, "hideTags")
+		if !hideTags {
+			resSvc, _ := assets.GetResourcesService(ctx)
+			tagsMapByAssetsIds, err := resSvc.GetTagsMapByAssetsIds(ctx, model.ObjType_resource, objIdList)
+			if err != nil {
+				logging.Get().Err(err).Msg("query resource's tags failed")
+				response.Ok(w, response.WithItems(items), response.WithTotalItems(totalCnt), response.WithStartIndex(int64(req.Offset+len(items))))
+				return
+			}
+			for _, item := range items {
+				item.Tags = tagsMapByAssetsIds[strconv.Itoa(int(item.Id))]
+				item.Tags = append(item.Tags, dal.ObjTypeBuiltInTagMap[model.ObjType_resource]...)
+			}
 		}
 
 		response.Ok(w, response.WithItems(items), response.WithTotalItems(totalCnt), response.WithStartIndex(int64(req.Offset+len(items))))
@@ -1272,16 +1361,17 @@ func (api *api) getResourceContainers() http.HandlerFunc {
 }
 
 type GetPods struct {
-	Limit        int       `in:"query" name:"limit"`
-	Offset       int       `in:"query" name:"offset"`
-	ClusterKey   string    `in:"query" name:"cluster_key"`
-	Namespace    string    `in:"query" name:"namespace"`
-	NodeName     string    `in:"query" name:"node_name"`
-	ResourceKind string    `in:"query" name:"resource_kind"`
-	ResourceName string    `in:"query" name:"resource_name"`
-	Name         string    `in:"query" name:"name"`
-	PodIP        string    `in:"query" name:"pod_ip"`
-	Query        string    `in:"query" name:"query"`
+	Limit        int    `in:"query" name:"limit"`
+	Offset       int    `in:"query" name:"offset"`
+	ClusterKey   string `in:"query" name:"cluster_key"`
+	Namespace    string `in:"query" name:"namespace"`
+	NodeName     string `in:"query" name:"node_name"`
+	ResourceKind string `in:"query" name:"resource_kind"`
+	ResourceName string `in:"query" name:"resource_name"`
+	Name         string `in:"query" name:"name"`
+	PodIP        string `in:"query" name:"pod_ip"`
+	Query        string `in:"query" name:"query"`
+	IdList       []string
 	StartTime    time.Time `in:"query" name:"start_time"`
 	EndTime      time.Time `in:"query" name:"end_time"`
 	UseRedis     bool      `in:"-"`
@@ -1303,6 +1393,10 @@ func (req *GetPods) Render(r *http.Request) error {
 	req.PodIP = getNormalizedQueryParam(r, "pod_ip")
 	req.Query, _ = param.QueryString(r, "query")
 
+	idList, _ := param.QueryString(r, "idList")
+	if idList != "" {
+		req.IdList = strings.Split(idList, ",")
+	}
 	var start, end time.Time
 	startTime, _ := param.QueryString(r, "start_time")
 	if startTime != "" {
@@ -1323,6 +1417,11 @@ func (req *GetPods) Render(r *http.Request) error {
 
 	req.EndTime = end
 	return nil
+}
+
+type PodWithTags struct {
+	*model.PodResourceRelation
+	Tags []string
 }
 
 func (req *GetPods) Execute(ctx context.Context) ([]*model.PodResourceRelation, int64, error) {
@@ -1347,6 +1446,9 @@ func (req *GetPods) Execute(ctx context.Context) ([]*model.PodResourceRelation, 
 	}
 	if req.PodIP != "" {
 		queryOpt.WithFuzzyPodIP(req.PodIP)
+	}
+	if len(req.IdList) > 0 {
+		queryOpt = queryOpt.WithIdList(req.IdList)
 	}
 
 	if req.Query != "" {
@@ -1398,6 +1500,31 @@ func (api *api) getPods() http.HandlerFunc {
 		pods, cnt, err := req.Execute(ctx)
 		if err != nil {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, fmt.Errorf("get resource pod err: %v", err)))
+			return
+		}
+		hideTags, _ := param.QueryBool(r, "hideTags")
+		if !hideTags {
+			var objIdList []string
+			for _, pod := range pods {
+				objIdList = append(objIdList, strconv.Itoa(int(pod.ID)))
+			}
+			resSvc, _ := assets.GetResourcesService(ctx)
+			tagsMapByAssetsIds, err := resSvc.GetTagsMapByAssetsIds(ctx, model.ObjType_pod, objIdList)
+			if err != nil {
+				logging.Get().Err(err).Msg("query pod's tags failed")
+				response.Ok(w, response.WithItems(pods), response.WithTotalItems(cnt))
+				return
+			}
+			var podWithT []*PodWithTags
+			for _, item := range pods {
+				tmp := PodWithTags{
+					PodResourceRelation: item,
+				}
+				tmp.Tags = tagsMapByAssetsIds[strconv.Itoa(int(item.ID))]
+				tmp.Tags = append(tmp.Tags, dal.ObjTypeBuiltInTagMap[model.ObjType_resource]...)
+				podWithT = append(podWithT, &tmp)
+			}
+			response.Ok(w, response.WithItems(pods), response.WithTotalItems(cnt))
 			return
 		}
 		response.Ok(w, response.WithItems(pods), response.WithTotalItems(cnt))
@@ -1695,6 +1822,11 @@ func (api *api) countPods() http.HandlerFunc {
 	}
 }
 
+type NodeWithTags struct {
+	*model.TensorNode
+	Tags []string `json:"tags"`
+}
+
 func (api *api) getNodes() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
@@ -1710,6 +1842,7 @@ func (api *api) getNodes() http.HandlerFunc {
 		clusterKey, _ := param.QueryString(r, "cluster_key")
 		name, _ := param.QueryString(r, "name")
 		nodeIP, _ := param.QueryString(r, "ip")
+		idList, _ := param.QueryString(r, "idList")
 
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
@@ -1726,6 +1859,9 @@ func (api *api) getNodes() http.HandlerFunc {
 		}
 		if nodeIP != "" {
 			queryOpt.WithColumnFuzzyQuery("node_ip", nodeIP)
+		}
+		if len(idList) > 0 {
+			queryOpt.WithIdList(strings.Split(idList, ","))
 		}
 		status, err := param.QueryInt8(r, "status")
 		if err == nil {
@@ -1755,10 +1891,34 @@ func (api *api) getNodes() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
-		response.Ok(w, response.WithItems(nodes),
-			response.WithTotalItems(totalCnt),
-			response.WithStartIndex(int64(offset+len(nodes))),
-		)
+
+		hideTags, _ := param.QueryBool(r, "hideTags")
+		if !hideTags {
+			var objIdList []string
+			for _, item := range nodes {
+				objIdList = append(objIdList, strconv.Itoa(int(item.ID)))
+			}
+			resSvc, _ := assets.GetResourcesService(ctx)
+			tagsMapByAssetsIds, err := resSvc.GetTagsMapByAssetsIds(ctx, model.ObjType_node, objIdList)
+			if err != nil {
+				logging.Get().Err(err).Msg("query ingress's tags failed")
+				response.Ok(w, response.WithItems(nodes), response.WithTotalItems(totalCnt), response.WithStartIndex(int64(offset+len(nodes))))
+				return
+			}
+			var withTags []*NodeWithTags
+			for _, item := range nodes {
+				tmp := &NodeWithTags{
+					TensorNode: item,
+				}
+				tmp.Tags = tagsMapByAssetsIds[strconv.Itoa(int(item.ID))]
+				tmp.Tags = append(tmp.Tags, dal.ObjTypeBuiltInTagMap[model.ObjType_node]...)
+				withTags = append(withTags, tmp)
+			}
+			response.Ok(w, response.WithItems(withTags), response.WithTotalItems(totalCnt), response.WithStartIndex(int64(offset+len(nodes))))
+			return
+		}
+
+		response.Ok(w, response.WithItems(nodes), response.WithTotalItems(totalCnt), response.WithStartIndex(int64(offset+len(nodes))))
 	}
 }
 
@@ -2359,6 +2519,29 @@ func (api *api) getRawContainersWithFramework() http.HandlerFunc {
 			logging.Get().Err(err).Msg("get raw container error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
+		}
+
+		hideTags, _ := param.QueryBool(r, "hideTags")
+		if !hideTags {
+			var objIdList []string
+			for _, con := range containers {
+				objIdList = append(objIdList, con.ContainerID)
+			}
+
+			resSvc, _ := assets.GetResourcesService(ctx)
+			tagsMapByAssetsIds, err := resSvc.GetTagsMapByAssetsIds(ctx, model.ObjType_container, objIdList)
+			if err != nil {
+				logging.Get().Err(err).Msg("query resource's tags failed")
+				response.Ok(w, response.WithItems(containers),
+					response.WithTotalItems(totalCnt),
+					response.WithStartIndex(int64(req.Offset+len(containers))),
+				)
+				return
+			}
+			for _, item := range containers {
+				item.Tags = tagsMapByAssetsIds[item.ContainerID]
+				item.Tags = append(item.Tags, dal.ObjTypeBuiltInTagMap[model.ObjType_container]...)
+			}
 		}
 
 		response.Ok(w, response.WithItems(containers),
@@ -3105,6 +3288,7 @@ type GetIngresses struct {
 	ingressName string
 	namespace   string
 	clusterKey  string
+	idList      []string
 	start       time.Time
 	end         time.Time
 	limit       int
@@ -3116,6 +3300,10 @@ func (req *GetIngresses) Render(r *http.Request) error {
 	req.ingressName = getNormalizedQueryParam(r, "name")
 	req.clusterKey = getNormalizedQueryParam(r, "cluster_key")
 	req.namespace = getNormalizedQueryParam(r, "namespace")
+	idList, _ := param.QueryString(r, "idList")
+	if idList != "" {
+		req.idList = strings.Split(idList, ",")
+	}
 	var start, end time.Time
 	var err error
 	startTime, _ := param.QueryString(r, "start_time")
@@ -3152,12 +3340,20 @@ func (req *GetIngresses) Execute(ctx context.Context) ([]*model.TensorIngress, i
 	if req.namespace != "" {
 		queryOpt.WithFuzzNamespace(req.namespace)
 	}
+	if len(req.idList) > 0 {
+		queryOpt.WithIdList(req.idList)
+	}
 	queryOpt.WithTimeRange(req.start, req.end)
 	resSvc, ok := assets.GetResourcesService(ctx)
 	if !ok {
 		return nil, 0, errors.New("service instance get error")
 	}
 	return resSvc.ListIngress(ctx, queryOpt, req.offset, req.limit)
+}
+
+type IngressWithTags struct {
+	*model.TensorIngress
+	Tags []string `json:"tags"`
 }
 
 // ingress 列表
@@ -3181,10 +3377,33 @@ func (api *api) getIngresses() http.HandlerFunc {
 			return
 		}
 
-		response.Ok(w, response.WithItems(ingresses),
-			response.WithTotalItems(total),
-			response.WithStartIndex(int64(req.offset+len(ingresses))),
-		)
+		hideTags, _ := param.QueryBool(r, "hideTags")
+		if !hideTags {
+			var objIdList []string
+			for _, item := range ingresses {
+				objIdList = append(objIdList, strconv.Itoa(int(item.ID)))
+			}
+			resSvc, _ := assets.GetResourcesService(ctx)
+			tagsMapByAssetsIds, err := resSvc.GetTagsMapByAssetsIds(ctx, model.ObjType_endpoints, objIdList)
+			if err != nil {
+				logging.Get().Err(err).Msg("query ingress's tags failed")
+				response.Ok(w, response.WithItems(ingresses), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(ingresses))))
+				return
+			}
+			var withTags []*IngressWithTags
+			for _, item := range ingresses {
+				tmp := &IngressWithTags{
+					TensorIngress: item,
+				}
+				tmp.Tags = tagsMapByAssetsIds[strconv.Itoa(int(item.ID))]
+				tmp.Tags = append(tmp.Tags, dal.ObjTypeBuiltInTagMap[model.ObjType_endpoints]...)
+				withTags = append(withTags, tmp)
+			}
+			response.Ok(w, response.WithItems(withTags), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(ingresses))))
+			return
+		}
+
+		response.Ok(w, response.WithItems(ingresses), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(ingresses))))
 	}
 }
 
@@ -3330,6 +3549,7 @@ type GetServicesReq struct {
 	clusterIp   string
 	serviceType string
 	clusterKey  string
+	idList      []string
 	start       time.Time
 	end         time.Time
 	limit       int
@@ -3343,6 +3563,10 @@ func (req *GetServicesReq) Render(r *http.Request) error {
 	req.namespace = getNormalizedQueryParam(r, "namespace")
 	req.clusterIp = getNormalizedQueryParam(r, "ip")
 	req.serviceType = getNormalizedQueryParam(r, "type")
+	idList, _ := param.QueryString(r, "idList")
+	if idList != "" {
+		req.idList = strings.Split(idList, ",")
+	}
 	var start, end time.Time
 	var err error
 	startTime, _ := param.QueryString(r, "start_time")
@@ -3366,6 +3590,11 @@ func (req *GetServicesReq) Render(r *http.Request) error {
 	return nil
 }
 
+type ServiceWithTags struct {
+	*model.TensorService
+	Tags []string `json:"tags"`
+}
+
 func (req *GetServicesReq) Execute(ctx context.Context) ([]*model.TensorService, int64, error) {
 
 	queryOpt := dal.ServicesQuery()
@@ -3386,6 +3615,9 @@ func (req *GetServicesReq) Execute(ctx context.Context) ([]*model.TensorService,
 	if req.serviceType != "" {
 		types := strings.Split(req.serviceType, ",")
 		queryOpt.WithServiceTypes(types)
+	}
+	if len(req.idList) > 0 {
+		queryOpt.WithIdList(req.idList)
 	}
 	queryOpt.WithTimeRange(req.start, req.end)
 	resSvc, ok := assets.GetResourcesService(ctx)
@@ -3413,6 +3645,32 @@ func (api *api) getServices() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
+		hideTags, _ := param.QueryBool(r, "hideTags")
+		if !hideTags {
+			var objIdList []string
+			for _, service := range services {
+				objIdList = append(objIdList, strconv.Itoa(int(service.ID)))
+			}
+			resSvc, _ := assets.GetResourcesService(ctx)
+			tagsMapByAssetsIds, err := resSvc.GetTagsMapByAssetsIds(ctx, model.ObjType_service, objIdList)
+			if err != nil {
+				logging.Get().Err(err).Msg("query service's tags failed")
+				response.Ok(w, response.WithItems(services), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(services))))
+				return
+			}
+			var serviceWithT []*ServiceWithTags
+			for _, item := range services {
+				tmp := &ServiceWithTags{
+					TensorService: item,
+				}
+				tmp.Tags = tagsMapByAssetsIds[strconv.Itoa(int(item.ID))]
+				tmp.Tags = append(tmp.Tags, dal.ObjTypeBuiltInTagMap[model.ObjType_service]...)
+				serviceWithT = append(serviceWithT, tmp)
+			}
+			response.Ok(w, response.WithItems(serviceWithT), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(services))))
+			return
+		}
+
 		response.Ok(w, response.WithItems(services),
 			response.WithTotalItems(total),
 			response.WithStartIndex(int64(req.offset+len(services))),
@@ -3499,6 +3757,7 @@ type GetEndpoints struct {
 	serviceName   string
 	namespace     string
 	clusterKey    string
+	idList        []string
 	start         time.Time
 	end           time.Time
 	limit         int
@@ -3511,6 +3770,10 @@ func (req *GetEndpoints) Render(r *http.Request) error {
 	req.serviceName = getNormalizedQueryParam(r, "service_name")
 	req.clusterKey = getNormalizedQueryParam(r, "cluster_key")
 	req.namespace = getNormalizedQueryParam(r, "namespace")
+	idList, _ := param.QueryString(r, "idList")
+	if idList != "" {
+		req.idList = strings.Split(idList, ",")
+	}
 	var start, end time.Time
 	var err error
 	startTime, _ := param.QueryString(r, "start_time")
@@ -3549,12 +3812,20 @@ func (req *GetEndpoints) Execute(ctx context.Context) ([]*model.TensorEndpoints,
 	if req.namespace != "" {
 		queryOpt.WhereLikeCondition["namespace"] = req.namespace
 	}
+	if len(req.idList) > 0 {
+		queryOpt.WhereInCondition["id"] = req.idList
+	}
 	queryOpt.WithTimeRange(req.start, req.end)
 	resSvc, ok := assets.GetResourcesService(ctx)
 	if !ok {
 		return nil, 0, errors.New("service instance get error")
 	}
 	return resSvc.ListEndpoint(ctx, queryOpt, req.offset, req.limit)
+}
+
+type EndpointsWithTags struct {
+	*model.TensorEndpoints
+	Tags []string `json:"tags"`
 }
 
 // endpoints 列表
@@ -3570,18 +3841,40 @@ func (api *api) getEndpointsList() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, err))
 			return
 		}
-		ingresses, total, err := req.Execute(ctx)
+		endpoints, total, err := req.Execute(ctx)
 
 		if err != nil {
 			logging.Get().Err(err).Msg("get Ingresses error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
+		hideTags, _ := param.QueryBool(r, "hideTags")
+		if !hideTags {
+			var objIdList []string
+			for _, item := range endpoints {
+				objIdList = append(objIdList, strconv.Itoa(int(item.ID)))
+			}
+			resSvc, _ := assets.GetResourcesService(ctx)
+			tagsMapByAssetsIds, err := resSvc.GetTagsMapByAssetsIds(ctx, model.ObjType_endpoints, objIdList)
+			if err != nil {
+				logging.Get().Err(err).Msg("query service's tags failed")
+				response.Ok(w, response.WithItems(endpoints), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(endpoints))))
+				return
+			}
+			var withTags []*EndpointsWithTags
+			for _, item := range endpoints {
+				tmp := &EndpointsWithTags{
+					TensorEndpoints: item,
+				}
+				tmp.Tags = tagsMapByAssetsIds[strconv.Itoa(int(item.ID))]
+				tmp.Tags = append(tmp.Tags, dal.ObjTypeBuiltInTagMap[model.ObjType_endpoints]...)
+				withTags = append(withTags, tmp)
+			}
+			response.Ok(w, response.WithItems(withTags), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(endpoints))))
+			return
+		}
 
-		response.Ok(w, response.WithItems(ingresses),
-			response.WithTotalItems(total),
-			response.WithStartIndex(int64(req.offset+len(ingresses))),
-		)
+		response.Ok(w, response.WithItems(endpoints), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(endpoints))))
 	}
 }
 
@@ -3735,6 +4028,7 @@ type GetSecretsReq struct {
 	name       string
 	namespace  string
 	clusterKey string
+	idList     []string
 	start      time.Time
 	end        time.Time
 	offset     int
@@ -3744,6 +4038,11 @@ type GetSecretsReq struct {
 type SecretsView struct {
 	*model.TensorSecret
 	LabelList []Label
+}
+
+type SecretsWithTags struct {
+	SecretsView
+	Tags []string
 }
 
 func (api *api) getSecrets() http.HandlerFunc {
@@ -3756,6 +4055,10 @@ func (api *api) getSecrets() http.HandlerFunc {
 		req.name = getNormalizedQueryParam(r, "name")
 		req.namespace = getNormalizedQueryParam(r, "namespace")
 		req.clusterKey = getNormalizedQueryParam(r, "cluster_key")
+		idList, _ := param.QueryString(r, "idList")
+		if idList != "" {
+			req.idList = strings.Split(idList, ",")
+		}
 		req.limit, req.offset = getLimitAndOffsetWithDefault(r)
 
 		var start, end time.Time
@@ -3796,6 +4099,9 @@ func (api *api) getSecrets() http.HandlerFunc {
 			split := strings.Split(req.clusterKey, ",")
 			opt.WhereInCondition["cluster_key"] = split
 		}
+		if len(req.idList) > 0 {
+			opt.WhereInCondition["id"] = req.idList
+		}
 		opt.WithTimeRange(req.start, req.end)
 
 		secrets, total, err := resSvc.ListSecret(ctx, opt, req.offset, req.limit)
@@ -3805,7 +4111,9 @@ func (api *api) getSecrets() http.HandlerFunc {
 			return
 		}
 		var result []SecretsView
+		var objIdList []string
 		for _, sec := range secrets {
+			objIdList = append(objIdList, strconv.Itoa(int(sec.ID)))
 			tmp := SecretsView{TensorSecret: sec}
 			for k, v := range sec.Labels {
 				tmp.LabelList = append(tmp.LabelList, Label{
@@ -3816,10 +4124,30 @@ func (api *api) getSecrets() http.HandlerFunc {
 			tmp.Labels = nil
 			result = append(result, tmp)
 		}
-		response.Ok(w, response.WithItems(result),
-			response.WithTotalItems(total),
-			response.WithStartIndex(int64(req.offset+len(secrets))),
-		)
+
+		hideTags, _ := param.QueryBool(r, "hideTags")
+		if !hideTags {
+			resSvc, _ := assets.GetResourcesService(ctx)
+			tagsMapByAssetsIds, err := resSvc.GetTagsMapByAssetsIds(ctx, model.ObjType_secret, objIdList)
+			if err != nil {
+				logging.Get().Err(err).Msg("query secret's tags failed")
+				response.Ok(w, response.WithItems(result), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(secrets))))
+				return
+			}
+			var withTags []*SecretsWithTags
+			for _, item := range result {
+				tmp := &SecretsWithTags{
+					SecretsView: item,
+				}
+				tmp.Tags = tagsMapByAssetsIds[strconv.Itoa(int(item.ID))]
+				tmp.Tags = append(tmp.Tags, dal.ObjTypeBuiltInTagMap[model.ObjType_secret]...)
+				withTags = append(withTags, tmp)
+			}
+			response.Ok(w, response.WithItems(withTags), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(secrets))))
+			return
+		}
+
+		response.Ok(w, response.WithItems(result), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(secrets))))
 	}
 }
 
@@ -3832,6 +4160,7 @@ type GetPVsReq struct {
 	volumeMode                    string
 	pvStatus                      string
 	persistentVolumeReclaimPolicy string
+	idList                        []string
 	start                         time.Time
 	end                           time.Time
 	offset                        int
@@ -3847,7 +4176,10 @@ func (g *GetPVsReq) Render(r *http.Request) error {
 	g.pvStatus = getNormalizedQueryParam(r, "pv_status")
 	g.clusterKey = getNormalizedQueryParam(r, "cluster_key")
 	g.persistentVolumeReclaimPolicy = getNormalizedQueryParam(r, "persistent_volume_reclaim_policy")
-
+	idList, _ := param.QueryString(r, "idList")
+	if idList != "" {
+		g.idList = strings.Split(idList, ",")
+	}
 	var start, end time.Time
 	var err error
 	startTime, _ := param.QueryString(r, "start_time")
@@ -3903,9 +4235,17 @@ func (g *GetPVsReq) Execute(ctx context.Context) ([]*model.TensorPV, int64, erro
 		models := strings.Split(g.clusterKey, ",")
 		pvQuery.WhererInCondition["cluster_key"] = models
 	}
+	if len(g.idList) > 0 {
+		pvQuery.WhererInCondition["id"] = g.idList
+	}
 	pvQuery.WithTimeRange(g.start, g.end)
 
 	return resSvc.ListPV(ctx, pvQuery, g.offset, g.limit)
+}
+
+type PVWithTags struct {
+	*model.TensorPV
+	Tags []string `json:"tags"`
 }
 
 func (api *api) getPVs() http.HandlerFunc {
@@ -3926,10 +4266,34 @@ func (api *api) getPVs() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
-		response.Ok(w, response.WithItems(pvs),
-			response.WithTotalItems(total),
-			response.WithStartIndex(int64(req.offset+len(pvs))),
-		)
+
+		hideTags, _ := param.QueryBool(r, "hideTags")
+		if !hideTags {
+			var objIdList []string
+			for _, item := range pvs {
+				objIdList = append(objIdList, strconv.Itoa(int(item.ID)))
+			}
+			resSvc, _ := assets.GetResourcesService(ctx)
+			tagsMapByAssetsIds, err := resSvc.GetTagsMapByAssetsIds(ctx, model.ObjType_pv, objIdList)
+			if err != nil {
+				logging.Get().Err(err).Msg("query pv's tags failed")
+				response.Ok(w, response.WithItems(pvs), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(pvs))))
+				return
+			}
+			var withTags []*PVWithTags
+			for _, item := range pvs {
+				tmp := &PVWithTags{
+					TensorPV: item,
+				}
+				tmp.Tags = tagsMapByAssetsIds[strconv.Itoa(int(item.ID))]
+				tmp.Tags = append(tmp.Tags, dal.ObjTypeBuiltInTagMap[model.ObjType_pv]...)
+				withTags = append(withTags, tmp)
+			}
+			response.Ok(w, response.WithItems(withTags), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(pvs))))
+			return
+		}
+
+		response.Ok(w, response.WithItems(pvs), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(pvs))))
 	}
 }
 
@@ -3941,6 +4305,7 @@ type GetPVCsReq struct {
 	accessMode       string // 转换
 	volumeMode       string
 	pvcStatus        string
+	idList           []string
 	start            time.Time
 	end              time.Time
 	offset           int
@@ -3956,6 +4321,10 @@ func (g *GetPVCsReq) Render(r *http.Request) error {
 	g.volumeMode = getNormalizedQueryParam(r, "volume_mode")
 	g.pvcStatus = getNormalizedQueryParam(r, "pv_status")
 	g.clusterKey = getNormalizedQueryParam(r, "cluster_key")
+	idList, _ := param.QueryString(r, "idList")
+	if idList != "" {
+		g.idList = strings.Split(idList, ",")
+	}
 
 	var start, end time.Time
 	var err error
@@ -4012,9 +4381,17 @@ func (g *GetPVCsReq) Execute(ctx context.Context) ([]*model.TensorPVC, int64, er
 		models := strings.Split(g.clusterKey, ",")
 		pvQuery.WhereInCondition["cluster_key"] = models
 	}
+	if len(g.idList) > 0 {
+		pvQuery.WhereInCondition["id"] = g.idList
+	}
 	pvQuery.WithTimeRange(g.start, g.end)
 
 	return resSvc.ListPVC(ctx, pvQuery, g.offset, g.limit)
+}
+
+type PVCWithTags struct {
+	*model.TensorPVC
+	Tags []string `json:"tags"`
 }
 
 func (api *api) getPVCs() http.HandlerFunc {
@@ -4036,10 +4413,34 @@ func (api *api) getPVCs() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
-		response.Ok(w, response.WithItems(pvcs),
-			response.WithTotalItems(total),
-			response.WithStartIndex(int64(req.offset+len(pvcs))),
-		)
+
+		hideTags, _ := param.QueryBool(r, "hideTags")
+		if !hideTags {
+			var objIdList []string
+			for _, item := range pvcs {
+				objIdList = append(objIdList, strconv.Itoa(int(item.ID)))
+			}
+			resSvc, _ := assets.GetResourcesService(ctx)
+			tagsMapByAssetsIds, err := resSvc.GetTagsMapByAssetsIds(ctx, model.ObjType_pvc, objIdList)
+			if err != nil {
+				logging.Get().Err(err).Msg("query pv's tags failed")
+				response.Ok(w, response.WithItems(pvcs), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(pvcs))))
+				return
+			}
+			var withTags []*PVCWithTags
+			for _, item := range pvcs {
+				tmp := &PVCWithTags{
+					TensorPVC: item,
+				}
+				tmp.Tags = tagsMapByAssetsIds[strconv.Itoa(int(item.ID))]
+				tmp.Tags = append(tmp.Tags, dal.ObjTypeBuiltInTagMap[model.ObjType_pvc]...)
+				withTags = append(withTags, tmp)
+			}
+			response.Ok(w, response.WithItems(withTags), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(pvcs))))
+			return
+		}
+
+		response.Ok(w, response.WithItems(pvcs), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(pvcs))))
 	}
 }
 
@@ -4098,6 +4499,11 @@ func (g *getNamespaceLabels) Execute(ctx context.Context) ([]*model.TensorNamesp
 
 }
 
+type LabelsWithTags struct {
+	*model.TensorNamespaceLabel
+	Tags []string `json:"tags"`
+}
+
 func (api *api) getNamespaceLabels() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -4117,10 +4523,20 @@ func (api *api) getNamespaceLabels() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
-		response.Ok(w, response.WithItems(labels),
-			response.WithTotalItems(total),
-			response.WithStartIndex(int64(req.offset+len(labels))),
-		)
+		hideTags, _ := param.QueryBool(r, "hideTags")
+		if !hideTags {
+			var result []*LabelsWithTags
+			for _, label := range labels {
+				item := LabelsWithTags{
+					TensorNamespaceLabel: label,
+					Tags:                 []string{dal.BuiltInTag_k8s},
+				}
+				result = append(result, &item)
+			}
+			response.Ok(w, response.WithItems(labels), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(labels))))
+			return
+		}
+		response.Ok(w, response.WithItems(labels), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(labels))))
 	}
 }
 
@@ -4222,6 +4638,7 @@ type BusiServiceReq struct {
 	svcVersion    string
 	svcTypeList   []string
 	userList      []string
+	idList        []string
 	limit         int
 	offset        int
 }
@@ -4242,6 +4659,10 @@ func (g *BusiServiceReq) Render(r *http.Request) {
 	if users != "" {
 		g.userList = strings.Split(users, ",")
 	}
+	idList := getNormalizedQueryParam(r, "idList")
+	if idList != "" {
+		g.idList = strings.Split(idList, ",")
+	}
 }
 
 func (g *BusiServiceReq) Execute(ctx context.Context) ([]*dal.PodBusiSvcBase, int64, error) {
@@ -4261,12 +4682,20 @@ func (g *BusiServiceReq) Execute(ctx context.Context) ([]*dal.PodBusiSvcBase, in
 	if len(g.userList) > 0 {
 		query.WhereInCondition["ivan_assets_raw_containers_svcs.user"] = g.userList
 	}
+	if len(g.idList) > 0 {
+		query.WhereInCondition["ivan_assets_raw_containers_svcs.id"] = g.idList
+	}
 
 	resSvc, ok := assets.GetResourcesService(ctx)
 	if !ok {
 		return nil, 0, errors.New("service instance get error")
 	}
 	return resSvc.ListBusiSvc(ctx, query, g.offset, g.limit)
+}
+
+type BusiSvcWithTags struct {
+	*dal.PodBusiSvcBase
+	Tags []string `json:"tags"`
 }
 
 func (api *api) getBusiServices() http.HandlerFunc {
@@ -4276,17 +4705,41 @@ func (api *api) getBusiServices() http.HandlerFunc {
 
 		req := &BusiServiceReq{}
 		req.Render(r)
-		labels, total, err := req.Execute(ctx)
+		svcBases, total, err := req.Execute(ctx)
 
 		if err != nil {
 			logging.Get().Err(err).Msg("get Ingresses error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
-		response.Ok(w, response.WithItems(labels),
-			response.WithTotalItems(total),
-			response.WithStartIndex(int64(req.offset+len(labels))),
-		)
+
+		hideTags, _ := param.QueryBool(r, "hideTags")
+		if !hideTags {
+			var objIdList []string
+			for _, item := range svcBases {
+				objIdList = append(objIdList, strconv.Itoa(int(item.Id)))
+			}
+			resSvc, _ := assets.GetResourcesService(ctx)
+			tagsMapByAssetsIds, err := resSvc.GetTagsMapByAssetsIds(ctx, model.ObjType_app, objIdList)
+			if err != nil {
+				logging.Get().Err(err).Msg("query app's tags failed")
+				response.Ok(w, response.WithItems(svcBases), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(svcBases))))
+				return
+			}
+			var withTags []*BusiSvcWithTags
+			for _, item := range svcBases {
+				tmp := &BusiSvcWithTags{
+					PodBusiSvcBase: item,
+				}
+				tmp.Tags = tagsMapByAssetsIds[strconv.Itoa(int(item.Id))]
+				tmp.Tags = append(tmp.Tags, dal.ObjTypeBuiltInTagMap[model.ObjType_app]...)
+				withTags = append(withTags, tmp)
+			}
+			response.Ok(w, response.WithItems(withTags), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(svcBases))))
+			return
+		}
+
+		response.Ok(w, response.WithItems(svcBases), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(svcBases))))
 	}
 }
 
@@ -4298,16 +4751,40 @@ func (api *api) getWebBusiServices() http.HandlerFunc {
 		req := &BusiServiceReq{}
 		req.Render(r)
 		req.svcTypeList = []string{assetsPkg.BusiSvcTypeWebEn}
-		labels, total, err := req.Execute(ctx)
+		svcBases, total, err := req.Execute(ctx)
 		if err != nil {
 			logging.Get().Err(err).Msg("get Ingresses error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
-		response.Ok(w, response.WithItems(labels),
-			response.WithTotalItems(total),
-			response.WithStartIndex(int64(req.offset+len(labels))),
-		)
+
+		hideTags, _ := param.QueryBool(r, "hideTags")
+		if !hideTags {
+			var objIdList []string
+			for _, item := range svcBases {
+				objIdList = append(objIdList, strconv.Itoa(int(item.Id)))
+			}
+			resSvc, _ := assets.GetResourcesService(ctx)
+			tagsMapByAssetsIds, err := resSvc.GetTagsMapByAssetsIds(ctx, model.ObjType_webApp, objIdList)
+			if err != nil {
+				logging.Get().Err(err).Msg("query app_db's tags failed")
+				response.Ok(w, response.WithItems(svcBases), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(svcBases))))
+				return
+			}
+			var withTags []*BusiSvcWithTags
+			for _, item := range svcBases {
+				tmp := &BusiSvcWithTags{
+					PodBusiSvcBase: item,
+				}
+				tmp.Tags = tagsMapByAssetsIds[strconv.Itoa(int(item.Id))]
+				tmp.Tags = append(tmp.Tags, dal.ObjTypeBuiltInTagMap[model.ObjType_webApp]...)
+				withTags = append(withTags, tmp)
+			}
+			response.Ok(w, response.WithItems(withTags), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(svcBases))))
+			return
+		}
+
+		response.Ok(w, response.WithItems(svcBases), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(svcBases))))
 	}
 }
 
@@ -4346,16 +4823,40 @@ func (api *api) getDbBusiServices() http.HandlerFunc {
 		req := &BusiServiceReq{}
 		req.Render(r)
 		req.svcTypeList = []string{assetsPkg.BusiSvcTypeDbEn}
-		labels, total, err := req.Execute(ctx)
+		svcBases, total, err := req.Execute(ctx)
 		if err != nil {
 			logging.Get().Err(err).Msg("get Ingresses error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
-		response.Ok(w, response.WithItems(labels),
-			response.WithTotalItems(total),
-			response.WithStartIndex(int64(req.offset+len(labels))),
-		)
+
+		hideTags, _ := param.QueryBool(r, "hideTags")
+		if !hideTags {
+			var objIdList []string
+			for _, item := range svcBases {
+				objIdList = append(objIdList, strconv.Itoa(int(item.Id)))
+			}
+			resSvc, _ := assets.GetResourcesService(ctx)
+			tagsMapByAssetsIds, err := resSvc.GetTagsMapByAssetsIds(ctx, model.ObjType_dbApp, objIdList)
+			if err != nil {
+				logging.Get().Err(err).Msg("query app's tags failed")
+				response.Ok(w, response.WithItems(svcBases), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(svcBases))))
+				return
+			}
+			var withTags []*BusiSvcWithTags
+			for _, item := range svcBases {
+				tmp := &BusiSvcWithTags{
+					PodBusiSvcBase: item,
+				}
+				tmp.Tags = tagsMapByAssetsIds[strconv.Itoa(int(item.Id))]
+				tmp.Tags = append(tmp.Tags, dal.ObjTypeBuiltInTagMap[model.ObjType_dbApp]...)
+				withTags = append(withTags, tmp)
+			}
+			response.Ok(w, response.WithItems(withTags), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(svcBases))))
+			return
+		}
+
+		response.Ok(w, response.WithItems(svcBases), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(svcBases))))
 	}
 }
 
@@ -4469,6 +4970,7 @@ func (api *api) getBusiServiceDbKind() http.HandlerFunc {
 type ExposeHostReq struct {
 	webDesc  string
 	protocol []string
+	hosts    []string
 	limit    int
 	offset   int
 	//Ip            string //?
@@ -4480,8 +4982,12 @@ func (e *ExposeHostReq) Render(r *http.Request) {
 	e.limit, e.offset = getLimitAndOffsetWithDefault(r)
 	e.webDesc = getNormalizedQueryParam(r, "webDesc")
 	protocol := getNormalizedQueryParam(r, "protocol")
+	idList := getNormalizedQueryParam(r, "idList")
 	if protocol != "" {
 		e.protocol = strings.Split(protocol, ",")
+	}
+	if idList != "" {
+		e.hosts = strings.Split(idList, ",")
 	}
 }
 
@@ -4491,7 +4997,7 @@ func (g *ExposeHostReq) Execute(ctx context.Context) ([]*dal.ExposeHostItem, int
 	if !ok {
 		return nil, 0, errors.New("service instance get error")
 	}
-	return resSvc.ListExposeHost(ctx, g.webDesc, g.protocol, g.offset, g.limit)
+	return resSvc.ListExposeHost(ctx, g.webDesc, g.protocol, g.hosts, g.offset, g.limit)
 }
 
 func (api *api) getExposeHosts() http.HandlerFunc {
@@ -4501,17 +5007,34 @@ func (api *api) getExposeHosts() http.HandlerFunc {
 
 		req := &ExposeHostReq{}
 		req.Render(r)
-		labels, total, err := req.Execute(ctx)
+		hostItems, total, err := req.Execute(ctx)
 
 		if err != nil {
 			logging.Get().Err(err).Msg("get getExposeHosts error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
-		response.Ok(w, response.WithItems(labels),
-			response.WithTotalItems(total),
-			response.WithStartIndex(int64(req.offset+len(labels))),
-		)
+
+		hideTags, _ := param.QueryBool(r, "hideTags")
+		if !hideTags {
+			var objIdList []string
+			for _, item := range hostItems {
+				objIdList = append(objIdList, item.Host)
+			}
+			resSvc, _ := assets.GetResourcesService(ctx)
+			tagsMapByAssetsIds, err := resSvc.GetTagsMapByAssetsIds(ctx, model.ObjType_webSit, objIdList)
+			if err != nil {
+				logging.Get().Err(err).Msg("query pv's tags failed")
+				response.Ok(w, response.WithItems(hostItems), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(hostItems))))
+				return
+			}
+			for _, item := range hostItems {
+				item.Tags = tagsMapByAssetsIds[item.Host]
+				item.Tags = append(item.Tags, dal.ObjTypeBuiltInTagMap[model.ObjType_webSit]...)
+			}
+		}
+
+		response.Ok(w, response.WithItems(hostItems), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(hostItems))))
 	}
 }
 

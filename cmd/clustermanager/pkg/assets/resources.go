@@ -655,6 +655,7 @@ func (cl *ResourcesClusterListener) AfterDataSynced(ctx context.Context, dataSyn
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("CleanUpUnUpdatedPVCs error. refreshTime: %v", cl.refreshTime)
 	}
+	dal.CleanExpireContainerStatus(ctx, cl.parent.rdb.Get(), clusterKey, cl.refreshTime, "", "")
 }
 
 func (cl *ResourcesClusterListener) Name() string {

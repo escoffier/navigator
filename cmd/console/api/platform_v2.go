@@ -14,6 +14,7 @@ func (api *api) platform() func(chi.Router) {
 		r.Route("/networkTopo", api.networkTopo())
 		r.Route("/apiscan", api.apiScan())
 		r.Route("/assets", api.assets())
+		r.Route("/monitor", api.monitor())
 		r.Route("/audit", api.audit())
 		r.Route("/drift", api.drift())
 		r.Route("/hunter", api.kubeHunter())

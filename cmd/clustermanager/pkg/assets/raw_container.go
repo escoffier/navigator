@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime/debug"
 	"time"
 
 	rs "github.com/March-deng/godisearch/redisearch"
@@ -96,7 +97,8 @@ func (cb *RawContainerCallBack) doOnRawContainerEvent(ctx context.Context, e con
 			if e.container != nil {
 				containerName = fmt.Sprintf("%s/%s", e.container.Namespace, e.container.Name)
 			}
-			logging.Get().Error().Msgf("Panic when do on pod (%s) event: %v. event: %+v", containerName, r, e)
+			logging.Get().Error().Msgf("Panic when do on raw_container (%s) event: %v. event: %+v", containerName, r, e)
+			debug.PrintStack()
 			err = errors.New("panic")
 		}
 	}()
@@ -121,11 +123,10 @@ func (cb *RawContainerCallBack) doOnRawContainerEvent(ctx context.Context, e con
 		}
 		deleteErr = dal.DeleteRawContainerSyncReason(tctx, cb.parent.rdb.Get(), e.container.ClusterKey, e.container.Namespace, e.container.ContainerID)
 		if deleteErr != nil {
-			logging.Get().Err(deleteErr).Msgf("delete raw container sync reason in rdb error.%s", e.container.ContainerID)
+			logging.Get().Warn().Msgf("delete raw container sync reason in rdb error.%s,error:%s", e.container.ContainerID, deleteErr.Error())
 		}
 
 	case assets.ActionUpdate, assets.ActionAdd:
-
 		var upsertErr error
 		// 同步更新 container 表的 image_uuid
 		upsertErr = dal.UpsertContainerImageUuid(tctx, cb.parent.rdb.Get(),
@@ -142,6 +143,11 @@ func (cb *RawContainerCallBack) doOnRawContainerEvent(ctx context.Context, e con
 
 		if upsertErr != nil {
 			logging.Get().Err(upsertErr).Msg("upsert raw container rel in rdb error,containerId:" + e.container.ContainerID)
+			if e.container.Discovery != nil && len(e.container.Discovery.Frameworks) > 0 {
+				for _, f := range e.container.Discovery.Frameworks {
+					logging.Get().Error().Msgf("containerId:%s,podName:%s,containerName:%s,frameworkName:%s,language_version:%v", e.container.ContainerID, e.container.PodName, e.container.Name, f.FrameworkName, []byte(f.LanguageVersion))
+				}
+			}
 		}
 	}
 	return nil

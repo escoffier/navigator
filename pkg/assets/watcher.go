@@ -163,8 +163,7 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 	cbs := w.getOrCreateClusterCallbacks(event.ClusterKey)
 	switch event.Type {
 	case AssetsSync:
-		logging.Get().Info().Msgf("cluster synced :%s ", string(message.Key))
-
+		logging.Get().Info().Msgf("cluster synced,clusterKey:%s,action:%d", string(message.Key), event.Action)
 		for _, cb := range cbs.callbacks {
 			cb.AfterDataSynced(context.Background(), true, string(message.Key))
 		}
