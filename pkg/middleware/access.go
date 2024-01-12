@@ -53,6 +53,7 @@ var accessUrlMap = map[string][]string{
 		"/api/v2/containerSec/scanner/vulns/topNImage",
 		"/api/v2/containerSec/export/task/list",
 		"/api/v2/containerSec/export/task/download",
+		"/api/v2/usercenter/openapi/token",
 	},
 	moduleAudit: {
 		"/api/v2/platform/assets",
