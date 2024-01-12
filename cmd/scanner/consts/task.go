@@ -63,6 +63,6 @@ const SubTaskBatchInsertCount = 200
 
 const (
 	DetectAtHour             = 18 // 每天03点的时候加检测任务(服务器中用的是 utc 时间)
-	DefaultHmEnginCnt        = 5  // 默认河马引擎的个数
+	DefaultHmEnginCnt        = 10 // 默认河马引擎的个数
 	DefaultFileExpirationDay = 30 // 上传的文件默认保存30天
 )

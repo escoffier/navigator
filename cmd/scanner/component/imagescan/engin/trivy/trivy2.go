@@ -24,7 +24,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
-	imagesecType "gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
+	imagesecTypes "gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -289,8 +289,8 @@ func (s *TrivySrv) GetMatcher(ctx context.Context) (*vulnmatch.Matcher, error) {
 	}
 }
 
-func (s *TrivySrv) getCnnvdFromBolt(vulnName string) (*imagesecType.CnnvdInfo, error) {
-	cnnvdRes := imagesecType.CnnvdInfo{}
+func (s *TrivySrv) getCnnvdFromBolt(vulnName string) (*imagesecTypes.CnnvdInfo, error) {
+	cnnvdRes := imagesecTypes.CnnvdInfo{}
 	err := s.CustomDB.View(func(tx *bolt.Tx) error {
 		var err error
 		cnvdBucket := tx.Bucket([]byte("cnnvd"))
@@ -311,8 +311,8 @@ func (s *TrivySrv) getCnnvdFromBolt(vulnName string) (*imagesecType.CnnvdInfo, e
 	return &cnnvdRes, err
 }
 
-func (s *TrivySrv) getCnvdFromBolt(vulnName string) ([]imagesecType.CnvdInfo, error) {
-	cnvdRes := make([]imagesecType.CnvdInfo, 0)
+func (s *TrivySrv) getCnvdFromBolt(vulnName string) ([]imagesecTypes.CnvdInfo, error) {
+	cnvdRes := make([]imagesecTypes.CnvdInfo, 0)
 	err := s.CustomDB.View(func(tx *bolt.Tx) error {
 		var err error
 		cnvdBucket := tx.Bucket([]byte("cnvd"))
@@ -331,6 +331,15 @@ func (s *TrivySrv) getCnvdFromBolt(vulnName string) ([]imagesecType.CnvdInfo, er
 		return nil
 	})
 	return cnvdRes, err
+}
+
+func (s *TrivySrv) logScanEnd(start int64, pre *imagesecTypes.PrepareScan) {
+	s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).
+		Int64("cost", time.Now().Unix()-start).Msg("scan job end")
+}
+
+func (s *TrivySrv) logScanStart(pre *imagesecTypes.PrepareScan) {
+	s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).Msg("scan job start")
 }
 
 func OpenBoltDB(path string) (*bolt.DB, error) {

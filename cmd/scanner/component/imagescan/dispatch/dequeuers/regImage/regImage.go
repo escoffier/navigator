@@ -430,17 +430,20 @@ func modelToType(
 
 	sub.UniqueID = sub.GenUniqueID()
 	// 加缓存
-	for i := range cache {
-		ca := cache[i]
-		switch ca.Issue {
-		case imagesecModel.WebshellCacheData:
-			sub.WebshellCache[ca.Layer] = true
-		case imagesecModel.MalwareCacheData:
-			sub.MalwareCache[ca.Layer] = true
-		case imagesecModel.SensitiveCacheData:
-			sub.SensitiveCache[ca.Layer] = true
-		case imagesecModel.LicenseCacheData:
-			sub.LicenseCache[ca.Layer] = true
+	// 加一个环境变量，便于测试
+	if os.Getenv("SCAN_NOT_USE_CACHE") != consts.TrueString {
+		for i := range cache {
+			ca := cache[i]
+			switch ca.Issue {
+			case imagesecModel.WebshellCacheData:
+				sub.WebshellCache[ca.Layer] = true
+			case imagesecModel.MalwareCacheData:
+				sub.MalwareCache[ca.Layer] = true
+			case imagesecModel.SensitiveCacheData:
+				sub.SensitiveCache[ca.Layer] = true
+			case imagesecModel.LicenseCacheData:
+				sub.LicenseCache[ca.Layer] = true
+			}
 		}
 	}
 

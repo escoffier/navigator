@@ -201,21 +201,23 @@ func (s *AviraSrv) ScanFile(ctx context.Context, filenames []string) ([]imagesec
 		// engin.ScanFile 会卡死
 		malware, err := s.DoTask(ctx, engin, fi)
 		if err != nil {
-			s.Log.Err(err).Str("filenames", fi).
-				Str("EnginName", s.EnginName).Msg("AviraSrv ScanFile")
+			s.Log.Err(err).Str("filename", fi).Str("EnginName", s.EnginName).Msg("AviraSrv ScanFile")
 			/*
 				1,write tcp 127.0.0.1:56610->127.0.0.1:9200: write: broken pipe
 				2，扫描超时
 				3,read tcp 127.0.0.1:54936->127.0.0.1:9200:use of closed network connection
 				这种情况下就要重新生成 client 了
 			*/
-			if strings.Contains(err.Error(), "write: broken pipe") || errors.Is(err, ErrScanTimeout) ||
-				strings.Contains(err.Error(), "closed network connection") {
-				s.Log.Error().Int("clientNo", cli.ClientNO).Msg("AviraSrv client is abnormal need create new client")
+			if strings.Contains(err.Error(), "write: broken pipe") || strings.Contains(err.Error(), "closed network connection") {
+				s.Log.Err(err).Int("clientNo", cli.ClientNO).Msg("AviraSrv client is abnormal need create new client")
 				cli.Status = AviraClientAbnormal
 				return nil, err
 			}
-			// just log
+			if errors.Is(err, ErrScanTimeout) {
+				// just log
+				s.Log.Err(err).Int("clientNo", cli.ClientNO).Str("filename", fi).Msg("AviraSrv scan")
+			}
+
 			continue
 		}
 		for i := range malware {
@@ -290,13 +292,13 @@ func (s *AviraSrv) GetClient(ctx context.Context) (*AviraClient, error) {
 		s.ClientWG.Unlock()
 		s.Log.Debug().Msg("AviraSrv not get client and wait next")
 
-		if time.Now().Unix()-start > s.ScanTimeout*int64(s.ClientPollCnt) {
+		if time.Now().Unix()-start > s.SingeFileTimeout*int64(s.ClientPollCnt) {
 			err := fmt.Errorf("get avira client engin timeout")
 			s.Log.Err(err).Msg("AviraSrv get client timeout")
 			return nil, err
 		}
 
-		ticker.Reset(time.Duration(rand.Int63nRange(1000, 3000)) * time.Millisecond)
+		ticker.Reset(time.Duration(rand.Int63nRange(100, 1000)) * time.Millisecond)
 		<-ticker.C
 	}
 }
@@ -317,7 +319,9 @@ func (s *AviraSrv) monitorClient(ctx context.Context) error {
 				if ci.Status != AviraClientAbnormal {
 					continue
 				}
-				_ = ci.Client.Close()
+				if err := ci.Client.Close(); err != nil {
+					s.Log.Err(err).Int("clientCnt", i).Msg("AviraSrv close client")
+				}
 
 				s.Log.Info().Int("clintCnt", i).Msg("AviraSrv client is abnormal need recreate a new client")
 				// 新建一个
@@ -372,7 +376,7 @@ func (s *AviraSrv) BackClient(ctx context.Context, eng *AviraClient) {
 
 // 病毒扫描可能卡死
 func (s *AviraSrv) DoTask(ctx context.Context, eng *avira.SavClient, filename string) ([]avira.Malware, error) {
-	ctxT, can := context.WithTimeout(ctx, time.Minute*2)
+	ctxT, can := context.WithTimeout(ctx, time.Duration(s.SingeFileTimeout)*time.Second)
 	defer can()
 
 	for {
@@ -646,6 +650,15 @@ func (s *AviraSrv) monitorService(ctx context.Context) error {
 	return nil
 }
 
+func (s *AviraSrv) logScanEnd(start int64, pre *imagesecTypes.PrepareScan) {
+	s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).
+		Int64("cost", time.Now().Unix()-start).Msg("scan job end")
+}
+
+func (s *AviraSrv) logScanStart(pre *imagesecTypes.PrepareScan) {
+	s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).Msg("scan job start")
+}
+
 var (
-	ErrScanTimeout = fmt.Errorf("scan time out")
+	ErrScanTimeout = fmt.Errorf("avira timeout")
 )

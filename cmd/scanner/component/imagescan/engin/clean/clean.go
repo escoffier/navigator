@@ -3,6 +3,7 @@ package clean
 import (
 	"context"
 	"os"
+	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	imageCache "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-cache"
@@ -31,9 +32,11 @@ func NewScanClear() *ScanClear {
 }
 
 func (s *ScanClear) Clear(ctx context.Context, pre *imagesecTypes.PrepareScan) imagesecTypes.ScanJobResult {
+	start := time.Now().Unix()
+	s.logScanStart(pre)
+	defer s.logScanEnd(start, pre)
+
 	res := imagesecTypes.ScanJobResult{}
-	s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).Str(consts.ScanJobLogName, "ScanClear").Msg("scan job start")
-	defer s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).Str(consts.ScanJobLogName, "ScanClear").Msg("scan job end")
 
 	_ = s.deleteCacheFile(ctx, pre)
 	_ = s.reduceLayerQuote(ctx, pre)
@@ -74,4 +77,13 @@ func (s *ScanClear) reduceLayerQuote(ctx context.Context, pre *imagesecTypes.Pre
 		}
 	}
 	return nil
+}
+
+func (s *ScanClear) logScanEnd(start int64, pre *imagesecTypes.PrepareScan) {
+	s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).
+		Int64("cost", time.Now().Unix()-start).Msg("scan job end")
+}
+
+func (s *ScanClear) logScanStart(pre *imagesecTypes.PrepareScan) {
+	s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).Msg("scan job start")
 }

@@ -7,8 +7,8 @@ podName=$(kubectl get pod -n tensorsec | grep prod-scanner | sed -n 1p | awk '{p
 
 while [ "$podNameRun" != "Running" ]; do
   sleep 1s
-  podNameRun=$(kubectl get pod -n tensorsec | grep prod-scanner | sed -n 1p | awk '{print $3}')
-  podName=$(kubectl get pod -n tensorsec | grep prod-scanner | sed -n 1p | awk '{print $1}')
+  podNameRun=$(kubectl get pod -n tensorsec | grep -v prod-scanner-dockerregistry | grep -v prod-scanner-scan-report | grep prod-scanner | sed -n 1p | awk '{print $3}')
+  podName=$(kubectl get pod -n tensorsec | grep -v prod-scanner-dockerregistry | grep -v prod-scanner-scan-report | grep prod-scanner | sed -n 1p | awk '{print $1}')
 done
 echo "podName is $podName"
 echo "podNameRun is $podNameRun"

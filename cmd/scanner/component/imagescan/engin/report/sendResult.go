@@ -22,10 +22,9 @@ type SendResult struct {
 }
 
 func (s *SendResult) Send(ctx context.Context, pre *imagesecTypes.PrepareScan, result *imagesecTypes.ReportScanResult) error {
-	startAt := time.Now().Unix()
-	s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).Str(consts.ScanJobLogName, "SendResult").Msg("scan job start")
-	defer s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).Str(consts.ScanJobLogName, "SendResult").
-		Int64("cost", time.Now().Unix()-startAt).Msg("scan job end")
+	start := time.Now().Unix()
+	s.logScanStart(pre)
+	defer s.logScanEnd(start, pre)
 
 	sendData, err := json.Marshal(result)
 	if err != nil {
@@ -65,6 +64,15 @@ func (s *SendResult) Send(ctx context.Context, pre *imagesecTypes.PrepareScan, r
 	}
 	s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).Msg("send to kafka success")
 	return nil
+}
+
+func (s *SendResult) logScanEnd(start int64, pre *imagesecTypes.PrepareScan) {
+	s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).
+		Int64("cost", time.Now().Unix()-start).Msg("scan job end")
+}
+
+func (s *SendResult) logScanStart(pre *imagesecTypes.PrepareScan) {
+	s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).Msg("scan job start")
 }
 
 var sendResultSinge *SendResult
