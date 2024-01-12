@@ -1,21 +1,15 @@
 package prepare
 
 import (
-	"archive/tar"
 	"context"
 	"encoding/json"
 	"fmt"
-	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
-	"sync"
+	"sort"
 	"time"
 
 	"github.com/docker/distribution/manifest/schema2"
-	dockerarchive "github.com/docker/docker/pkg/archive"
-	"go.uber.org/atomic"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd/global"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
@@ -54,54 +48,47 @@ func NewRegImagePreparer(scanCachePath string) *RegImagePrepare {
 		regImagePrepareSinge.Semaphore = NewSemaphore(int64(global.ScannerOpts.ParallelExtractNum))
 	}
 	_ = os.MkdirAll(regImagePrepareSinge.ScanCachePath, os.ModePerm)
-
 	return regImagePrepareSinge
 }
 
-func (s *RegImagePrepare) genRootDir(ctx context.Context, subtask imagesecTypes.ScanSubTask) (string, error) {
-	// 每次任务的 ID 是不一样的，且只有失败的任务才可以重试,所以不会有误删除情况
-	dir := filepath.Join(s.ScanCachePath, fmt.Sprintf("%d", subtask.SubTaskID))
-	s.Log.Info().Str("taskRootPath", dir).Msg("genRootDir")
-	err := os.MkdirAll(dir, os.ModePerm)
-	if err != nil {
-		return "", err
+// 解压一层就返回一层
+func (s *RegImagePrepare) PrepareImageLayer(ctx context.Context, prep *imagesecTypes.PrepareScan, out chan *imagesecTypes.ImageLayer) {
+	s.Log.Info().Int("ParallelExtractNum", global.ScannerOpts.ParallelExtractNum).Msg("PrepareImageLayer")
+	layers := make([]*imagesecTypes.ImageLayer, 0)
+	for i := range prep.Layers {
+		layers = append(layers, prep.Layers[i])
 	}
-	return dir, nil
+	sort.Sort(imagesecTypes.ImageLayers(layers))
+
+	// 并行解压
+	for i := range layers {
+		go func(ctx context.Context, prep *imagesecTypes.PrepareScan, ly *imagesecTypes.ImageLayer, out chan *imagesecTypes.ImageLayer) {
+			err2 := s.PrepareFile(ctx, prep, ly)
+			if err2 != nil {
+				s.Log.Err(err2).Interface("layer", ly).Str("subtask", prep.Subtask.LogStr()).Msg("PrepareScan")
+				ly.NotReady = true
+			}
+			out <- ly
+		}(ctx, prep, layers[i], out)
+	}
+
+	s.Log.Debug().Interface("prep", prep).Str("subtask", prep.Subtask.LogStr()).Msg("RegImagePrepare")
+	return
 }
 
+// 会持续等待解压完成
 func (s *RegImagePrepare) ImageScanJob(ctx context.Context, subtask imagesecTypes.ScanSubTask) *imagesecTypes.PrepareScan {
-	prep := &imagesecTypes.PrepareScan{
-		Subtask: subtask,
-		Layers:  make(map[string]*imagesecTypes.ImageLayer),
-	}
-	s.Log.Info().Str(consts.SubtaskLogName, prep.Subtask.LogStr()).Str(consts.ScanJobLogName, "RegImagePrepare").Msg("scan job start")
-	defer s.Log.Info().Str(consts.SubtaskLogName, prep.Subtask.LogStr()).Str(consts.ScanJobLogName, "RegImagePrepare").Msg("scan job end")
+	prep := s.PrepareImageMate(ctx, subtask)
 
-	rooDir, err := s.genRootDir(ctx, prep.Subtask)
-	if err != nil {
-		s.Log.Err(err).Str(consts.SubtaskLogName, subtask.LogStr()).Msg("genRootDir")
-		prep.Errors = append(prep.Errors, err)
-		return prep
-	}
+	start := time.Now().Unix()
+	s.logScanStart(prep)
+	defer s.logScanEnd(start, prep)
 
-	prep.TaskRootDir = rooDir
-
-	ta := subtask
-	pullStart := time.Now().Unix()
-	layers, err := s.PullImage(ctx, subtask, prep)
-	if err != nil {
-		s.Log.Err(err).Str("subtask", ta.LogStr()).Msg("PrepareScan")
-		prep.Errors = append(prep.Errors, err)
-		return prep
+	layers := make([]*imagesecTypes.ImageLayer, 0)
+	for i := range prep.Layers {
+		layers = append(layers, prep.Layers[i])
 	}
-	s.Log.Info().Str(consts.SubtaskLogName, prep.Subtask.LogStr()).Str(consts.ScanJobLogName, "PullImage").
-		Int64("cost", time.Now().Unix()-pullStart).Msg("scan job end")
-	// 因为第一个不是镜像层文件,是镜像inspect 的信息
-	// 糟糕的设计，因为这个设计，后面如果和节点镜像整合时会有麻烦
-	if len(layers) > 0 {
-		layers = layers[1:]
-	}
-	pullStart = time.Now().Unix()
+	sort.Sort(imagesecTypes.ImageLayers(layers))
 
 	// 并行解压
 	out := make(chan error)
@@ -110,7 +97,7 @@ func (s *RegImagePrepare) ImageScanJob(ctx context.Context, subtask imagesecType
 		go func(ctx context.Context, prep *imagesecTypes.PrepareScan, ly *imagesecTypes.ImageLayer, out chan error) {
 			err2 := s.PrepareFile(ctx, prep, ly)
 			if err2 != nil {
-				s.Log.Err(err2).Interface("layer", ly).Str("subtask", ta.LogStr()).Msg("PrepareScan")
+				s.Log.Err(err2).Interface("layer", ly).Str("subtask", subtask.LogStr()).Msg("PrepareScan")
 			}
 			out <- err2
 		}(ctx, prep, layers[i], out)
@@ -122,68 +109,41 @@ func (s *RegImagePrepare) ImageScanJob(ctx context.Context, subtask imagesecType
 			prep.Errors = append(prep.Errors, err3)
 		}
 	}
-
-	s.Log.Info().Str(consts.SubtaskLogName, prep.Subtask.LogStr()).Str(consts.ScanJobLogName, "PrepareFile").
-		Int64("cost", time.Now().Unix()-pullStart).Msg("scan job end")
-
-	for i := range layers {
-		prep.Layers[layers[i].Digest] = layers[i]
-	}
-
-	s.Log.Debug().Interface("prep", prep).Str("subtask", subtask.LogStr()).Msg("RegImagePrepare")
 	return prep
 }
 
-// func (s *RegImagePrepare) ImageScanJob2(ctx context.Context, subtask imagesecTypes.ScanSubTask) *imagesecTypes.PrepareScan {
-// 	prep := &imagesecTypes.PrepareScan{
-// 		Subtask:   subtask,
-// 		Layers:    make(map[string]*imagesecTypes.ImageLayer),
-// 		LayerChan: make(chan *imagesecTypes.ImageLayer),
-// 	}
-// 	rooDir, err := s.genRootDir(ctx, subtask)
-// 	if err != nil {
-// 		s.Log.Err(err).Str(consts.SubtaskLogName, subtask.LogStr()).Msg("genRootDir")
-// 		prep.Errors = append(prep.Errors, err)
-// 	}
-// 	prep.TaskRootDir = rooDir
-//
-// 	ta := subtask
-// 	pullStart := time.Now().Unix()
-// 	layers, err := s.PullImage(ctx, subtask, prep)
-// 	if err != nil {
-// 		s.Log.Err(err).Str("subtask", ta.LogStr()).Msg("PrepareScan")
-// 		prep.Errors = append(prep.Errors, err)
-// 	}
-// 	s.Log.Info().Str(consts.SubtaskLogName, prep.Subtask.LogStr()).Str(consts.ScanJobLogName, "PullImage").
-// 		Int64("cost", time.Now().Unix()-pullStart).Msg("scan job end")
-//
-// 	go func() {
-// 		defer close(prep.LayerChan)
-// 		out := make(chan error)
-// 		defer close(out)
-// 		for i := range layers {
-// 			ly := layers[i]
-//
-// 			go func(ctx context.Context, prep *imagesecTypes.PrepareScan, ly *imagesecTypes.ImageLayer, out chan error) {
-// 				err2 := s.PrepareFile(ctx, prep, ly)
-// 				if err2 != nil {
-// 					s.Log.Err(err2).Interface("layer", ly).Str("subtask", ta.LogStr()).Msg("PrepareScan")
-// 				}
-// 				out <- err2
-// 			}(ctx, prep, ly, out)
-// 		}
-//
-// 		for i := 0; i < len(layers); i++ {
-// 			err3 := <-out
-// 			if err3 != nil {
-// 				prep.Errors = append(prep.Errors, err3)
-// 			}
-// 		}
-// 	}()
-// 	return prep
-// }
+// 获取镜像元信息，并下载好 tar 包
+func (s *RegImagePrepare) PrepareImageMate(ctx context.Context, subtask imagesecTypes.ScanSubTask) *imagesecTypes.PrepareScan {
 
-// 这里是最慢的，而且很容易OOM
+	prep := &imagesecTypes.PrepareScan{
+		Subtask: subtask,
+		Layers:  make(map[string]*imagesecTypes.ImageLayer),
+		Errors:  make([]error, 0),
+	}
+
+	rooDir, err := s.genRootDir(ctx, subtask)
+	if err != nil {
+		s.Log.Err(err).Str(consts.SubtaskLogName, subtask.LogStr()).Msg("genRootDir")
+		prep.Errors = append(prep.Errors, err)
+		return prep
+	}
+
+	prep.TaskRootDir = rooDir
+
+	ta := prep.Subtask
+
+	layers, err := s.PullImage(ctx, ta, prep)
+	if err != nil {
+		s.Log.Err(err).Str("subtask", ta.LogStr()).Msg("PrepareScan")
+		prep.Errors = append(prep.Errors, err)
+		return prep
+	}
+
+	prep.Layers = layers
+	// 有不同层，但是是一样的层级 ID，tensorsecurity/scan-report:ci
+	return prep
+}
+
 func (s *RegImagePrepare) PrepareFile(ctx context.Context, prep *imagesecTypes.PrepareScan, ly *imagesecTypes.ImageLayer) error {
 	// 如果不开启动深度扫描，则不需要解压文件
 	if !prep.Subtask.DeepScan {
@@ -202,39 +162,32 @@ func (s *RegImagePrepare) PrepareFile(ctx context.Context, prep *imagesecTypes.P
 	s.Semaphore.Acquire()
 	defer s.Semaphore.Release()
 
-	pullStart := time.Now().Unix()
 	// linux 下不可以同时解压同一个文件,但是可以同时复制一个文件
-	// if err := s.CopyFile(ctx, ly.OriginalTarFile, ly.TarFilename); err != nil {
-	// 	s.Log.Err(err).Interface("layer", ly).Msg("PrepareScan CopyFile")
-	// 	return fmt.Errorf("copy file:%s,TarFilename:%s", err.Error(), ly.TarFilename)
-	// }
-	// s.Log.Info().Str("digest", ly.Digest).Str(consts.ScanJobLogName, "CopyFile").
-	// 	Int64("cost", time.Now().Unix()-pullStart).Msg("scan job end")
-
-	pullStart = time.Now().Unix()
-	if err2 := s.ExtractDockerTar(ly.OriginalTarFile, ly.LayerFilePath); err2 != nil {
-		s.Log.Err(err2).Interface("layer", ly).Msg("PrepareScan ExtractDockerTar")
+	start := time.Now().Unix()
+	if err2 := s.extractDockerTar3(ly.OriginalTarFile, ly.LayerFilePath); err2 != nil {
+		s.Log.Err(err2).Interface("layer", ly).Msg("PrepareScan extractDockerTar1")
 		return fmt.Errorf("extract tar file:%s,layerFilePath:%s", err2.Error(), ly.LayerFilePath)
 	}
-	s.Log.Info().Str("digest", ly.Digest).Str(consts.ScanJobLogName, "ExtractDockerTar").
-		Int64("cost", time.Now().Unix()-pullStart).Msg("scan job end ExtractFile success")
+
+	s.Log.Info().Int64("cost", time.Now().Unix()-start).Str("subtask", prep.Subtask.LogStr()).
+		Msg("scan job end ExtractFile Layer success")
 
 	return nil
 }
 
-func (s *RegImagePrepare) PullImage(ctx context.Context, subtask imagesecTypes.ScanSubTask, res *imagesecTypes.PrepareScan) ([]*imagesecTypes.ImageLayer, error) {
+func (s *RegImagePrepare) PullImage(ctx context.Context, subtask imagesecTypes.ScanSubTask, res *imagesecTypes.PrepareScan) (map[string]*imagesecTypes.ImageLayer, error) {
+	start := time.Now().Unix()
 
-	layers := make([]*imagesecTypes.ImageLayer, 0)
 	client, err := imageCache.NewLocalLayerManageClientT("/manifest")
 	if err != nil {
 		s.Log.Err(err).Msg("new manifest client error")
-		return layers, err
+		return nil, err
 	}
 
 	client1, err := imageCache.NewLocalLayerManageClientT("/layer")
 	if err != nil {
 		s.Log.Err(err).Msg("new layer client error")
-		return layers, err
+		return nil, err
 	}
 
 	manifestV1 := new(model.ManifestV1)
@@ -273,67 +226,59 @@ func (s *RegImagePrepare) PullImage(ctx context.Context, subtask imagesecTypes.S
 	}
 
 	lys := imagesecTypes.GenLayerDigest(v1v2)
-
-	s.Log.Debug().Strs("layers", lys).Msg("GenLayerDigest")
-	// 检测所有的层是否都在缓存中，如果不在缓存中，缓存会自动pull
-	for i := range lys {
-		if _, _, err := client1.GetLayer(reg.Username, reg.Password, reg.Url, image.Repo, lys[i], true); err != nil {
-			s.Log.Err(err).Interface("image", image).Msg("GetLayer")
-			// 保证能pull所有层级
-			return nil, err
-		}
-		srcTarFile := filepath.Join(s.LayerCachePath, lys[i], s.TarFilename)
-
-		layers = append(layers, &imagesecTypes.ImageLayer{
-			Digest:          lys[i],
-			OriginalTarFile: srcTarFile,
-		})
+	if len(lys) == 0 {
+		return nil, fmt.Errorf("not get imageLayer")
 	}
 
+	ly := lys[0]
+	ly.OriginalTarFile = filepath.Join(s.LayerCachePath, ly.Digest, s.TarFilename)
+	if _, _, err := client1.GetLayer(reg.Username, reg.Password, reg.Url, image.Repo, ly.Digest, true); err != nil {
+		s.Log.Err(err).Interface("image", image).Msg("GetLayer")
+		return nil, err
+	}
+	// 要特别注意
+	// 因为第一个不是镜像层文件,是镜像inspect 的信息
+	// 糟糕的设计，因为这个设计，后面如果和节点镜像整合时会有麻烦
+	lys = lys[1:]
+	s.Log.Debug().Interface("layers", lys).Msg("GenLayerDigest")
+	// 检测所有的层是否都在缓存中，如果不在缓存中，缓存会自动pull
+	out := make(chan *imagesecTypes.ImageLayer)
+	defer close(out)
+
+	for i := 0; i < len(lys); i++ {
+		go func(ctx context.Context, reg imagesecTypes.RegInfo, ly *imagesecTypes.ImageLayer, out chan *imagesecTypes.ImageLayer) {
+			ly.OriginalTarFile = filepath.Join(s.LayerCachePath, ly.Digest, s.TarFilename)
+			if _, _, err := client1.GetLayer(reg.Username, reg.Password, reg.Url, image.Repo, ly.Digest, true); err != nil {
+				s.Log.Err(err).Interface("image", image).Msg("GetLayer")
+				ly.NotReady = true
+			}
+			out <- ly
+		}(ctx, reg, lys[i], out)
+	}
+
+	// 等待完成
+	layers := make(map[string]*imagesecTypes.ImageLayer)
+	for i := 0; i < len(lys); i++ {
+		ou := <-out
+		if ou.Digest == "" {
+			continue
+		}
+		layers[ou.Digest] = ou
+	}
+
+	for i := range layers {
+		if layers[i].NotReady {
+			return nil, fmt.Errorf("image layer not ready:%s", layers[i].Digest)
+		}
+	}
+
+	s.Log.Info().Str(consts.SubtaskLogName, subtask.LogStr()).Int64("cost", time.Now().Unix()-start).
+		Str(consts.ScanJobLogName, "PullImage").Int("layerCnt", len(layers)).Msg("scan job end")
 	return layers, nil
 }
 
-func (s *RegImagePrepare) CopyFile(ctx context.Context, src string, des string) error {
-	ctx, cancelFunc := context.WithTimeout(ctx, 1*time.Minute)
-
-	defer cancelFunc()
-
-	cmd := exec.CommandContext(ctx, "cp", "-f", src, des)
-
-	// 设置命令的输出和错误输出
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	s.Log.Debug().Strs("cmd", cmd.Args).Msg("CopyFile")
-	// 执行命令
-	err := cmd.Run()
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (s *RegImagePrepare) ExtractTar(ctx context.Context, tarFile, targetDir string) error {
-
-	_ = os.RemoveAll(targetDir)
-	_ = os.MkdirAll(targetDir, os.ModePerm)
-
-	ctx, cancelFunc := context.WithTimeout(ctx, 5*time.Minute)
-
-	defer cancelFunc()
-	cmd := exec.CommandContext(ctx, "tar", "-xf", tarFile, "-C", targetDir)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	s.Log.Debug().Strs("cmd", cmd.Args).Msg("ExtractDockerTar")
-	err := cmd.Run()
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-func (s *RegImagePrepare) CleanUp(ctx context.Context, pre *imagesecTypes.PrepareScan) error {
-	s.Log.Debug().Str("ImageName", pre.Subtask.RegImageMeta.ImageName()).Msg("CleanUp start")
+func (s *RegImagePrepare) CleanUpScan(ctx context.Context, pre *imagesecTypes.PrepareScan) error {
+	s.Log.Debug().Str("ImageName", pre.Subtask.RegImageMeta.ImageName()).Msg("CleanUpScan start")
 	client1, err := imageCache.NewLocalLayerManageClientT("/layer")
 	if err != nil {
 		s.Log.Err(err).Msg("DeleteLayer")
@@ -354,164 +299,6 @@ func (s *RegImagePrepare) CleanUp(ctx context.Context, pre *imagesecTypes.Prepar
 		s.Log.Err(err).Str("TaskRootDir", pre.TaskRootDir).Msg("RemoveAll TaskRootDir")
 		return err
 	}
-	s.Log.Info().Str("ImageName", pre.Subtask.RegImageMeta.ImageName()).Str("path", pre.TaskRootDir).Msg("CleanUp end")
+	s.Log.Info().Str("ImageName", pre.Subtask.RegImageMeta.ImageName()).Str("path", pre.TaskRootDir).Msg("CleanUpScan end")
 	return nil
-}
-
-// 测试用时更多
-func (s *RegImagePrepare) ExtractDockerTar2(tarFile, destDir string) error {
-	_ = filepath.Clean(destDir)
-	if err := os.MkdirAll(destDir, os.ModePerm); err != nil {
-		return err
-	}
-	file, err := os.Open(tarFile)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = file.Close() }()
-	// 不能使用自带的包直接解压，一定得有这一步
-	decompressStreamReader, err := dockerarchive.DecompressStream(file)
-	if err != nil {
-		s.Log.Err(err).Str("tarFile", tarFile).Str("destDir", destDir).Msg("ExtractDockerTar")
-		return err
-	}
-	defer func() { _ = decompressStreamReader.Close() }()
-	// 直接调用 docker 提供的方法
-	if _, err := dockerarchive.UnpackLayer(destDir, decompressStreamReader, nil); err != nil {
-		s.Log.Err(err).Str("tarFile", tarFile).Str("destDir", destDir).Msg("ExtractDockerTar")
-		return err
-	}
-	s.Log.Debug().Str("tarFile", tarFile).Str("destDir", destDir).Msg("ExtractDockerTar success")
-	return nil
-}
-
-func (s *RegImagePrepare) ExtractDockerTar(tarFile, destDir string) error {
-	_ = filepath.Clean(destDir)
-	if err := os.MkdirAll(destDir, os.ModePerm); err != nil {
-		return err
-	}
-
-	file, err := os.Open(tarFile)
-	if err != nil {
-		return err
-	}
-	defer func() { _ = file.Close() }()
-	// 不能使用自带的包直接解压，一定得有这一步
-	decompressStreamReader, err := dockerarchive.DecompressStream(file)
-	if err != nil {
-		s.Log.Err(err).Str("tarFile", tarFile).Str("destDir", destDir).Msg("ExtractDockerTar")
-		return err
-	}
-
-	defer func() { _ = decompressStreamReader.Close() }()
-
-	tarReader := tar.NewReader(decompressStreamReader)
-
-	for {
-		header, err := tarReader.Next()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			s.Log.Err(err).Str("tarFile", tarFile).Str("destDir", destDir).Msg("ExtractDockerTar tarReader")
-			return err
-		}
-
-		target := filepath.Join(destDir, header.Name)
-		switch header.Typeflag {
-		case tar.TypeDir:
-			if err := os.MkdirAll(target, os.ModePerm); err != nil {
-				s.Log.Err(err).Str("tarFile", tarFile).Str("target", target).Msg("ExtractDockerTar MkdirAll")
-				return err
-			}
-		case tar.TypeReg:
-			if err := scannerUtils.SaveFileFromTarReader(tarReader, target); err != nil {
-				s.Log.Err(err).Str("tarFile", tarFile).Str("target", target).Msg("ExtractDockerTar writeFile")
-				continue
-			}
-		}
-	}
-	s.Log.Debug().Str("tarFile", tarFile).Str("destDir", destDir).Msg("ExtractDockerTar success")
-	return nil
-}
-
-var webshellMap = map[string]bool{
-	".php":      true,
-	".php5":     true,
-	".php4":     true,
-	".asp":      true,
-	".aspx":     true,
-	".asmx":     true,
-	".ashx":     true,
-	".jsp":      true,
-	".jspa":     true,
-	".jspx":     true,
-	".jspf":     true,
-	".cer":      true,
-	".htaccess": true,
-}
-
-// 判断webshell文件后缀是否是给定的后缀
-func FilterWebshell(fi os.FileInfo) bool {
-	ext := filepath.Ext(fi.Name())
-	return webshellMap[ext]
-}
-
-// 判断webshell文件后缀是否是给定的后缀
-func FilterMalware(fi os.FileInfo) bool {
-	/*
-		这几个目录加白
-		/proc: 包含系统进程信息。
-		/sys: 包含与内核和硬件相关的信息。
-		/dev: 包含设备文件。
-		/run: 包含运行时信息。
-		/var/log: 包含系统和应用程序日志
-	*/
-	dn := fi.Name()
-	if !strings.HasPrefix(dn, "/") {
-		dn = "/" + dn
-	}
-
-	if strings.HasPrefix(dn, "/proc") || strings.HasPrefix(dn, "/sys") ||
-		strings.HasPrefix(dn, "/dev") || strings.HasPrefix(dn, "/var/log") {
-		return false
-	}
-
-	return true
-}
-
-type Semaphore struct {
-	MG    sync.Locker
-	Max   int64
-	value *atomic.Int64
-}
-
-func NewSemaphore(initialValue int64) *Semaphore {
-	s := &Semaphore{
-		MG:    &sync.Mutex{},
-		value: atomic.NewInt64(0),
-		Max:   initialValue,
-	}
-	return s
-}
-
-func (s *Semaphore) Acquire() {
-	ticker := time.NewTicker(time.Second)
-	defer ticker.Stop()
-	for {
-		s.MG.Lock()
-		if s.value.Load() < s.Max {
-			s.value.Add(1)
-			s.MG.Unlock()
-			return
-		}
-		s.MG.Unlock()
-		<-ticker.C
-	}
-}
-
-func (s *Semaphore) Release() {
-	s.MG.Lock()
-	defer s.MG.Unlock()
-	s.value.Dec()
 }

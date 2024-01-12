@@ -150,8 +150,9 @@ func (s *TrivySrv) UpdateDB(ctx context.Context, param imagesecModel.UpdateDbPar
 // 扫描
 func (s *TrivySrv) ImageScan(ctx context.Context, pre *imagesecTypes.PrepareScan) []imagesecTypes.ScanJobResult {
 	// 如果需要统一节点镜像的扫描时再做
-	s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).Str(consts.ScanJobLogName, "TrivySrv").Msg("scan job start")
-	defer s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).Str(consts.ScanJobLogName, "TrivySrv").Msg("scan job end")
+	start := time.Now().Unix()
+	s.logScanStart(pre)
+	defer s.logScanEnd(start, pre)
 
 	result := make([]imagesecTypes.ScanJobResult, 0)
 	res := imagesecTypes.ScanJobResult{}

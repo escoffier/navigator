@@ -56,7 +56,7 @@ type AviraSrv struct {
 	ClientWG         sync.Locker     // 保证只会有一个线程更新ClientPoll
 	ClientPollCnt    int
 	ServerAddr       string
-	ScanTimeout      int64
+	SingeFileTimeout int64
 	Log              *scannerUtils.LogEvent
 	MaxSingeFileSize int64         // 过于大的文件不再扫描
 	HeatBeat         *atomic.Int64 // 心跳时间，如果长时间没有扫描任务，最好停止小红伞服务
@@ -79,9 +79,9 @@ func NewSavServer(opts ...Option) (*AviraSrv, error) {
 		WorkDBPathInfo:   types.GetAviraDBPathInfo(),
 		TaskWG:           &sync.WaitGroup{},
 		ClientWG:         &sync.Mutex{},
-		ScanTimeout:      5 * 60, // 单个文件扫描的超时时间2分种
-		ClientPollCnt:    20,     // 应该做成可配置的,测试超过24个时就会卡死，不会直接报错，会直接卡死
-		MaxSingeFileSize: (1 << 20) * 10,
+		SingeFileTimeout: 2 * 60,           // 单个文件扫描的超时时间2分种
+		ClientPollCnt:    20,               // 应该做成可配置的,测试超过24个时就会卡死，不会直接报错，会直接卡死
+		MaxSingeFileSize: 1024 * 1024 * 10, // 文件过大就不再进行扫描,默认10M,单 byte
 		HeatBeat:         atomic.NewInt64(0),
 		Log: scannerUtils.NewLogEvent(
 			scannerUtils.WithSubModule("AviraSrv"),
@@ -147,8 +147,10 @@ func NewSavEngin(opts ...avira.Option) *avira.SavServer {
 }
 
 func (s *AviraSrv) ImageScan(ctx context.Context, pre *imagesecTypes.PrepareScan) []imagesecTypes.ScanJobResult {
-	s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).Str(consts.ScanJobLogName, "AviraSrv").Msg("scan job start")
-	defer s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).Str(consts.ScanJobLogName, "AviraSrv").Msg("scan job end")
+
+	start := time.Now().Unix()
+	s.logScanStart(pre)
+	defer s.logScanEnd(start, pre)
 
 	result := make([]imagesecTypes.ScanJobResult, 0)
 	out := make(chan imagesecTypes.ScanJobResult)
@@ -188,7 +190,7 @@ func (s *AviraSrv) scanJob(ctx context.Context, ly *imagesecTypes.ImageLayer, pr
 		if err != nil {
 			return err
 		}
-		if !FilterMalware(ly, path, info) {
+		if !s.filterMalware(ly, path, info) {
 			return nil
 		}
 		fis = append(fis, path)
@@ -275,7 +277,7 @@ func (s *AviraSrv) Collect(ctx context.Context, rootDir string, filter scannerUt
 	return res, err
 }
 
-func FilterMalware(ly *imagesecTypes.ImageLayer, filename string, fi os.FileInfo) bool {
+func (s *AviraSrv) filterMalware(ly *imagesecTypes.ImageLayer, filename string, fi os.FileInfo) bool {
 
 	/*
 		这几个目录加白
@@ -297,5 +299,14 @@ func FilterMalware(ly *imagesecTypes.ImageLayer, filename string, fi os.FileInfo
 		return false
 	}
 
-	return fi.Mode().IsRegular()
+	if !fi.Mode().IsRegular() {
+		return false
+	}
+	if fi.Size() == 0 {
+		return false
+	}
+	if fi.Size() > s.MaxSingeFileSize {
+		return false
+	}
+	return true
 }

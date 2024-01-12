@@ -111,7 +111,7 @@ func (vi *ScanSubTask) LogStr() string {
 	}
 	// 说明是仓库镜像
 	if vi.RegInfo.Username != "" {
-		s = fmt.Sprintf("%s,reg:%s,image:%s", s, vi.RegInfo.LogStr(), vi.RegImageMeta.ImageName())
+		s = fmt.Sprintf("%s,reg:%s,image:[%s/%s:%s]", s, vi.RegInfo.Name, vi.RegImageMeta.Host, vi.RegImageMeta.Repo, vi.RegImageMeta.Tag)
 	}
 
 	return s
@@ -172,7 +172,7 @@ type ScanJobResult struct {
 func (vi *ReportScanResult) LogStr() string {
 	s1 := fmt.Sprintf("task:%d-%d-%d", vi.TaskID, vi.SubTaskID, vi.ImageUniqueID)
 	// 说明是节点镜像
-	s2 := fmt.Sprintf("ses:%d,webshell:%d,mal:%d,license:%d,artiface:%d,files:%d,status:%s,msg:%s",
+	s2 := fmt.Sprintf("sensitive:%d,webshell:%d,malware:%d,license:%d,artifact:%d,seendFile:%d,status:%s,msg:%s",
 		len(vi.Sensitives.SensitiveFiles), len(vi.Webshell.HmWebshells), len(vi.Malware.AviraScanResults),
 		len(vi.License), len(vi.OriginArtifact), len(vi.SaveFileToKafka), vi.StatusStr, vi.Msg)
 	return fmt.Sprintf("%s,%s", s1, s2)

@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"time"
 
 	dockerarchive "github.com/docker/docker/pkg/archive"
 
@@ -92,8 +93,9 @@ func (s *ScanSensitive) ScanLocalFile(ctx context.Context, pre *imagesecTypes.Pr
 }
 
 func (s *ScanSensitive) ImageScan(ctx context.Context, pre *imagesecTypes.PrepareScan) []imagesecTypes.ScanJobResult {
-	s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).Str(consts.ScanJobLogName, "ScanSensitive").Msg("scan job start")
-	defer s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).Str(consts.ScanJobLogName, "ScanSensitive").Msg("scan job end")
+	start := time.Now().Unix()
+	s.logScanStart(pre)
+	defer s.logScanEnd(start, pre)
 	// if pre.Subtask.DeepScan {
 	// 	return s.ScanLocalFile(ctx, pre)
 	// }
@@ -305,4 +307,13 @@ func HasWeakPassword(line string) bool {
 		}
 	}
 	return false
+}
+
+func (s *ScanSensitive) logScanEnd(start int64, pre *imagesecTypes.PrepareScan) {
+	s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).
+		Int64("cost", time.Now().Unix()-start).Msg("scan job end")
+}
+
+func (s *ScanSensitive) logScanStart(pre *imagesecTypes.PrepareScan) {
+	s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).Msg("scan job start")
 }

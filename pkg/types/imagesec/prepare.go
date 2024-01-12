@@ -10,11 +10,13 @@ import (
 
 type ImageLayer struct {
 	Digest          string // 层级 digest
+	Size            int64  // 层级大小
 	OriginalTarFile string // 文件服务器的tar,多个镜像共用
 	LayerFilePath   string // 该层文件的绝对路径
 	TarFilename     string // 解圧前复制该文件
 	PreFix          string // 文件的前缀，去除这个，才是镜像中的文件路径
-	Ready           bool   // 文件是否已准备好
+	// ScanLayerErr    []error
+	NotReady bool // 文件是否已准备好
 }
 
 func (vi *ImageLayer) ContainerFilename(file string) string {
@@ -33,8 +35,23 @@ type PrepareScan struct {
 	Layers        map[string]*ImageLayer // 层级信息
 	TaskRootDir   string                 // 扫描完成后删除该目录
 	UserDockerCli bool                   // 是否使用了 docker pull 命令，如果使用该命令，就只能扫描 PKG
-	Errors        []error                `json:"-"`
-	LayerChan     chan *ImageLayer
+	LayerCnt      int
+	Errors        []error `json:"-"`
+}
+
+func (vi *PrepareScan) DeepCopy() *PrepareScan {
+	return &PrepareScan{
+		Subtask:       vi.Subtask,
+		Layers:        vi.Layers,
+		TaskRootDir:   vi.TaskRootDir,
+		UserDockerCli: vi.UserDockerCli,
+		Errors:        vi.Errors,
+	}
+}
+
+func (vi *PrepareScan) ReplaceLayer(ly *ImageLayer) {
+	vi.Layers = make(map[string]*ImageLayer)
+	vi.Layers[ly.Digest] = ly
 }
 
 type ManifestV2AndV1 struct {
@@ -42,17 +59,23 @@ type ManifestV2AndV1 struct {
 	V1 *model.ManifestV1
 }
 
-func GenLayerDigest(v *ManifestV2AndV1) []string {
+func GenLayerDigest(v *ManifestV2AndV1) []*ImageLayer {
 
-	res := make([]string, 0)
+	res := make([]*ImageLayer, 0)
 	if v.V2 != nil {
 		// 一定要加这个，不然不能扫描，后面再去弄明白
 		// 因为这一个文件是镜像inspect 的结果，在扫描调用接口时会用到
 		// 这个文件是.tar结尾，但他却是一个文本文件，可以用 cat 命令查看
-		res = append(res, v.V2.Manifest.Config.Digest.String())
+
+		res = append(res, &ImageLayer{
+			Digest: v.V2.Manifest.Config.Digest.String(),
+		})
 
 		for i := range v.V2.Layers {
-			res = append(res, v.V2.Layers[i].Digest.String())
+			res = append(res, &ImageLayer{
+				Digest: v.V2.Layers[i].Digest.String(),
+				Size:   v.V2.Layers[i].Size,
+			})
 		}
 		return res
 	}
@@ -60,10 +83,28 @@ func GenLayerDigest(v *ManifestV2AndV1) []string {
 		for i := range v.V1.HistoryV1 {
 			vv := v.V1.HistoryV1[i]
 			if !vv.Throwaway {
-				res = append(res, "sha256:"+vv.LayerDigest)
+				res = append(res, &ImageLayer{
+					Digest: "sha256:" + vv.LayerDigest,
+					Size:   v.V2.Layers[i].Size,
+				})
 			}
 		}
 		return res
 	}
+
 	return res
+}
+
+type ImageLayers []*ImageLayer
+
+func (vi ImageLayers) Len() int {
+	return len(vi)
+}
+
+func (vi ImageLayers) Less(i, j int) bool {
+	return vi[i].Size > vi[j].Size
+}
+
+func (vi ImageLayers) Swap(i, j int) {
+	vi[i], vi[j] = vi[j], vi[i]
 }

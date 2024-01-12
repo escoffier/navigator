@@ -2,7 +2,9 @@ package scannerUtils
 
 import (
 	"fmt"
+	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestParseImageName(t *testing.T) {
@@ -39,6 +41,28 @@ func BenchmarkExtractTar(b *testing.B) {
 			fmt.Println("error is ", err)
 		}
 	}
+}
+
+func TestExtractTar(b *testing.T) {
+	des := fmt.Sprintf("/Users/liuqianli/Documents/hello")
+	file := "/Users/liuqianli/Documents/layer.tar"
+
+	err := ExtractDockerTar3(file, des)
+	if err != nil {
+		fmt.Println("error is ", err)
+	}
+}
+
+func TestExtractDockerTar(b *testing.T) {
+	des := fmt.Sprintf("/Users/liuqianli/Documents/hello")
+	file := "/Users/liuqianli/Documents/layer.tar"
+	filepath.Clean(des)
+	start := time.Now().UnixMilli()
+	err := ExtractDockerTar(file, des)
+	if err != nil {
+		fmt.Println("error is ", err)
+	}
+	fmt.Println(time.Now().UnixMilli() - start)
 }
 
 func BenchmarkExtractDockerTar(b *testing.B) {

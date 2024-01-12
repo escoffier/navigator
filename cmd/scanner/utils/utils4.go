@@ -15,6 +15,7 @@ import (
 	"time"
 
 	dockerarchive "github.com/docker/docker/pkg/archive"
+	"github.com/docker/docker/pkg/pools"
 	"github.com/yeka/zip"
 
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
@@ -178,7 +179,7 @@ func ExtractDockerTar(tarFile, destDir string) error {
 			}
 		case tar.TypeReg:
 			if err := SaveFileFromTarReader(tarReader, target); err != nil {
-				continue
+				return err
 			}
 		}
 	}
@@ -204,12 +205,20 @@ func ExtractTar(tarFile, targetDir string) error {
 	return nil
 }
 
-func SaveFileFromTarReader(tr *tar.Reader, target string) error {
+func SaveFileFromTarReader(tr io.Reader, target string) error {
+	bufReader := bufio.NewReader(tr)
+
 	file, err := os.OpenFile(target, os.O_RDWR|os.O_CREATE|os.O_TRUNC, os.ModePerm)
 	if err != nil {
 		return err
 	}
-	_, err = io.Copy(file, tr)
+
+	bufWriter := bufio.NewWriter(file)
+	_, err = io.Copy(bufWriter, bufReader)
+	if err != nil {
+		return err
+	}
+	err = bufWriter.Flush()
 	if err != nil {
 		return err
 	}
@@ -330,4 +339,62 @@ func UnzipByteSlice(data []byte) []byte {
 		return data
 	}
 	return uncompressedData
+}
+
+func ExtractDockerTar3(tarFile, destDir string) error {
+	_ = filepath.Clean(destDir)
+	if err := os.MkdirAll(destDir, os.ModePerm); err != nil {
+		return err
+	}
+
+	file, err := os.Open(tarFile)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = file.Close() }()
+	// 不能使用自带的包直接解压，一定得有这一步
+	decompressStreamReader, err := dockerarchive.DecompressStream(file)
+	if err != nil {
+		return err
+	}
+	//
+	defer func() { _ = decompressStreamReader.Close() }()
+
+	tr := tar.NewReader(decompressStreamReader)
+	trBuf := pools.BufioReader32KPool.Get(tr)
+	defer pools.BufioReader32KPool.Put(trBuf)
+
+	for {
+		hdr, err := tr.Next()
+		if err == io.EOF {
+			// end of tar archive
+			break
+		}
+		if err != nil {
+			return err
+		}
+
+		trBuf.Reset(tr)
+		srcData := io.Reader(trBuf)
+
+		if err := createTarFile(destDir, hdr, srcData); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func createTarFile(destDir string, header *tar.Header, red io.Reader) error {
+	target := filepath.Join(destDir, header.Name)
+	switch header.Typeflag {
+	case tar.TypeDir:
+		if err := os.MkdirAll(target, os.ModePerm); err != nil {
+			return err
+		}
+	case tar.TypeReg:
+		if err := SaveFileFromTarReader(red, target); err != nil {
+			return err
+		}
+	}
+	return nil
 }

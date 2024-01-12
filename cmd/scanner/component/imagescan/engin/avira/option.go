@@ -10,7 +10,13 @@ func WithClientPollCnt(cnt int) Option {
 
 func WithScanTimeout(to int64) Option {
 	return func(srv *AviraSrv) {
-		srv.ScanTimeout = to
+		srv.SingeFileTimeout = to
+	}
+}
+
+func WithMaxSingeFileSize(to int64) Option {
+	return func(srv *AviraSrv) {
+		srv.MaxSingeFileSize = to
 	}
 }
 

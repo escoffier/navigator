@@ -213,14 +213,11 @@ func (s *ImageUpdateSrv) updateTrustedImage(ctx context.Context) error {
 	}
 	changed, tr := trustedChanged(s.TrustedDigest, trustedDigest)
 	if !changed {
-		s.Log.Info().Int("TrustedDigest", len(trustedDigest)).
-			Msg("updateTrustedImage not changed")
+		s.Log.Info().Int("TrustedDigest", len(tr)).Msg("updateTrustedImage not changed")
 		return nil
 	}
-	s.TrustedDigest = tr
-	s.Log.Info().Int("TrustedDigest", len(trustedDigest)).
-		Msg("updateTrustedImage find trusted digest")
-	// NotTrusted ---> trusted
+
+	// NotTrusted--->trusted
 	if len(trustedDigest) > 0 {
 		cnt := 0
 		var startID int64
@@ -263,8 +260,7 @@ func (s *ImageUpdateSrv) updateTrustedImage(ctx context.Context) error {
 				}
 			}
 		}
-		s.Log.Info().Int("change", cnt).
-			Msg("updateTrustedImage NotTrusted->trusted")
+		s.Log.Info().Int("change", cnt).Msg("updateTrustedImage NotTrusted->trusted")
 	}
 
 	// trusted ----> notTrusted
@@ -303,15 +299,14 @@ func (s *ImageUpdateSrv) updateTrustedImage(ctx context.Context) error {
 				ID:      images[i].ID,
 				Updater: updater,
 			}); err != nil {
-				s.Log.Err(err).Int64("imageID", images[i].ID).
-					Msg("updateTrustedImage UpdateImage")
+				s.Log.Err(err).Int64("imageID", images[i].ID).Msg("updateTrustedImage UpdateImage")
 				return err
 			}
 		}
 	}
 
-	s.Log.Info().Int("changed", cnt).
-		Msg("updateTrustedImage trusted-->untrusted")
+	s.TrustedDigest = tr
+	s.Log.Info().Int("TrustedDigest", len(tr)).Msg("updateTrustedImage")
 	return nil
 }
 
@@ -358,19 +353,16 @@ func (s *ImageUpdateSrv) updateOnlineImage(ctx context.Context) error {
 		s.Log.Err(err).Msg("updateOnlineImage")
 		return err
 	}
-	s.Log.Info().Int("uuidCnt", len(uuids)).Msg("updateOnlineImage get uuid")
+	s.Log.Info().Int("uuidCnt", len(uuids)).Msg("updateOnlineImage get resource uuid")
 
 	// 程序开始时做一次全量检测
 	add, sub, nw := onlineUUID(s.OnlineUUID, uuids)
 	if len(add) == 0 && len(sub) == 0 {
-		s.Log.Info().Int("add", len(add)).Int("sub", len(sub)).
-			Int("online", len(s.OnlineUUID)).Msg("updateOnlineImage")
+		s.Log.Info().Int("add", len(add)).Int("sub", len(sub)).Int("nowImage", len(nw)).Msg("updateOnlineImage")
 		return nil
 	}
-	s.OnlineUUID = nw
 
-	s.Log.Info().Int("add", len(add)).Int("sub", len(sub)).
-		Int("online", len(s.OnlineUUID)).Msg("updateOnlineImage")
+	s.Log.Info().Int("add", len(add)).Int("sub", len(sub)).Int("nowImage", len(nw)).Msg("updateOnlineImage")
 
 	// NotOnline ---> online
 	for j := range add {
@@ -383,8 +375,7 @@ func (s *ImageUpdateSrv) updateOnlineImage(ctx context.Context) error {
 			return err
 		}
 
-		s.Log.Debug().Uint32("uuid", add[j]).
-			Int("imageCnt", len(images)).Msg("updateOnlineImage search online image")
+		s.Log.Debug().Uint32("uuid", add[j]).Int("imageCnt", len(images)).Msg("updateOnlineImage search online image")
 		for i := range images {
 			flag := util.SetBit0(util.SetBit1(images[i].Flag, imagesecModel.FlagImageOnline), imagesecModel.FlagImageNotOnline)
 			if images[i].Flag == flag {
@@ -436,13 +427,13 @@ func (s *ImageUpdateSrv) updateOnlineImage(ctx context.Context) error {
 					ID:      images[i].ID,
 					Updater: updater,
 				}); err != nil {
-				s.Log.Err(err).Int64("imageID", images[i].ID).
-					Msg("updateOnlineImage UpdateImage")
+				s.Log.Err(err).Int64("imageID", images[i].ID).Msg("updateOnlineImage UpdateImage")
 				return err
 			}
 		}
 	}
-	s.Log.Info().Msg("updateOnlineImage online --> notOnline succeed")
+	s.OnlineUUID = nw
+	s.Log.Info().Int("onlineImageUUID", len(s.OnlineUUID)).Msg("updateOnlineImage succeed")
 	return nil
 }
 

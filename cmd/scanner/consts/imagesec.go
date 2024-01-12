@@ -67,3 +67,8 @@ const (
 const (
 	DefaultAviraSavServerListenPort = 9200
 )
+
+const (
+	ImageScnDimensionImage = "image"
+	ImageScnDimensionLayer = "layer"
+)

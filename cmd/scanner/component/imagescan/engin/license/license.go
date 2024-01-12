@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	dockerarchive "github.com/docker/docker/pkg/archive"
 
@@ -111,8 +112,9 @@ func (s *ScanLicense) ScanTarFile(ctx context.Context, pre *imagesecTypes.Prepar
 }
 
 func (s *ScanLicense) ImageScan(ctx context.Context, pre *imagesecTypes.PrepareScan) []imagesecTypes.ScanJobResult {
-	s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).Str(consts.ScanJobLogName, "ScanLicense").Msg("scan job start")
-	defer s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).Str(consts.ScanJobLogName, "ScanLicense").Msg("scan job end")
+	start := time.Now().Unix()
+	s.logScanStart(pre)
+	defer s.logScanEnd(start, pre)
 
 	// if pre.Subtask.DeepScan {
 	// 	return s.ScanLocalFile(ctx, pre)
@@ -212,6 +214,15 @@ func (s *ScanLicense) getLicense(ctx context.Context, filename string, reader io
 	kaf = append(kaf, ka)
 
 	return res, kaf, nil
+}
+
+func (s *ScanLicense) logScanEnd(start int64, pre *imagesecTypes.PrepareScan) {
+	s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).
+		Int64("cost", time.Now().Unix()-start).Msg("scan job end")
+}
+
+func (s *ScanLicense) logScanStart(pre *imagesecTypes.PrepareScan) {
+	s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).Msg("scan job start")
 }
 
 func GetLicenseName(data []byte) string {

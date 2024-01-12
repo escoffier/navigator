@@ -24,10 +24,9 @@ type SendFile struct {
 }
 
 func (s *SendFile) Send(ctx context.Context, pre *imagesecTypes.PrepareScan, result *imagesecTypes.ReportScanResult) error {
-	startAt := time.Now().Unix()
-	s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).Str(consts.ScanJobLogName, "SendFile").Msg("scan job start")
-	defer s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).Str(consts.ScanJobLogName, "SendFile").
-		Int64("cost", time.Now().Unix()-startAt).Msg("scan job end")
+	start := time.Now().Unix()
+	s.logScanStart(pre)
+	defer s.logScanEnd(start, pre)
 
 	need := make(map[string]*imagesecTypes.SaveFileToKafka)
 
@@ -52,12 +51,15 @@ func (s *SendFile) Send(ctx context.Context, pre *imagesecTypes.PrepareScan, res
 		wg.Add(1)
 		// 耗时的操作
 		go func(param *imagesecTypes.SaveFileToKafka, wg *sync.WaitGroup) {
+
 			defer func() {
 				if r := recover(); r != nil {
 					s.Log.Error().Str("Stack", string(debug.Stack())).Msg("SendFileToKafka")
 				}
 			}()
-			_ = s.SendFileToKafka(ctx, param, wg)
+
+			defer wg.Done()
+			_ = s.SendFileToKafka(ctx, param)
 		}(param, wg)
 	}
 
@@ -65,8 +67,7 @@ func (s *SendFile) Send(ctx context.Context, pre *imagesecTypes.PrepareScan, res
 	return nil
 }
 
-func (s *SendFile) SendFileToKafka(ctx context.Context, param *imagesecTypes.SaveFileToKafka, wg *sync.WaitGroup) error {
-	defer wg.Done()
+func (s *SendFile) SendFileToKafka(ctx context.Context, param *imagesecTypes.SaveFileToKafka) error {
 	if param == nil {
 		return nil
 	}
@@ -196,4 +197,13 @@ func (s *SendFile) AddNeedSendFile(ctx context.Context, result *imagesecTypes.Re
 	}
 
 	return all
+}
+
+func (s *SendFile) logScanEnd(start int64, pre *imagesecTypes.PrepareScan) {
+	s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).
+		Int64("cost", time.Now().Unix()-start).Msg("scan job end")
+}
+
+func (s *SendFile) logScanStart(pre *imagesecTypes.PrepareScan) {
+	s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).Msg("scan job start")
 }
