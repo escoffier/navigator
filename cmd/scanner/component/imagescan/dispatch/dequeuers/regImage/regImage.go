@@ -275,14 +275,16 @@ func (s *RegImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, task
 
 			// 未升级的集群也要开始任务,然后超时失败，不然可能会一直卡住,结束不了，但是就会存在一个问题：老集群和新版本调度执行的任务不同
 			if !util.ThanVersion(imageData.ToImageBaseResponse().ScanInsVer, consts.ScannerVersion220) {
-				up := types.UpdateSubTask{
-					SubtaskID: sub.ID,
-					Status:    imagesecModel.TaskStatusSendFinished,
-					CreatedAt: time.Now().Unix(),
+				// 对于老版本的扫描器，只能发送一次，不然会一直更新扫描开始时间
+				if sub.StatusStr == imagesecModel.TaskStatusPendingStr {
+					up := types.UpdateSubTask{
+						SubtaskID: sub.ID,
+						Status:    imagesecModel.TaskStatusSendFinished,
+						CreatedAt: time.Now().Unix(),
+					}
+
+					go func() { s.updateSubtaskChan <- up }()
 				}
-
-				go func() { s.updateSubtaskChan <- up }()
-
 				continue
 			}
 			if sub.ScanUUID == imageData.ScanInstance.ScannerPodID && sub.StatusStr == imagesecModel.TaskStatusSendFinishedStr {
