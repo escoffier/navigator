@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"github.com/containerd/cgroups"
 	"github.com/pkg/errors"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/heartbeat"
 	"gitlab.com/security-rd/go-pkg/logging"
 	cri "k8s.io/cri-api/pkg/apis"
@@ -84,6 +85,10 @@ func (d *crioMetrics) getMetricsByAppLabels(appLabels []string) (heartbeat.DataT
 		if isMatch == false {
 			continue
 		}
+		containerName := container.Labels["io.kubernetes.container.name"]
+		if appLabel == dal.AppLabel_clusterManager && containerName != dal.AppLabel_clusterManager {
+			continue
+		}
 		logging.Get().Info().Msgf("handler container appLabel:%s", appLabel)
 		containerMetrics := heartbeat.ContainerMetric{
 			SelfInfo: &heartbeat.SelfInfo{
@@ -92,7 +97,7 @@ func (d *crioMetrics) getMetricsByAppLabels(appLabels []string) (heartbeat.DataT
 				Version:       d.self.Version,
 				Namespace:     d.self.Namespace,
 				PodName:       container.Labels["io.kubernetes.pod.name"],
-				ContainerName: container.Labels["io.kubernetes.container.name"],
+				ContainerName: containerName,
 				AppLabel:      appLabel,
 			},
 			MetricsInfo: &heartbeat.MetricsInfo{CollectTime: now},

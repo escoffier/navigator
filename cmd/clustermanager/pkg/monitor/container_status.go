@@ -107,7 +107,6 @@ func (c *ContainerStatusCallback) OnTensorPod(pod *assets.TensorPod, action asse
 	for _, monitorValue := range c.monitorPodLabelApp {
 		if appName == monitorValue {
 			isMonitorObject = true
-			logging.GetLogger().Info().Msg("ContainerStatusCallback find container,app:" + appName)
 			break
 		}
 	}
@@ -133,7 +132,11 @@ func (c *ContainerStatusCallback) OnTensorPod(pod *assets.TensorPod, action asse
 		totalContainer := len(pod.Status.ContainerStatuses)
 		var normalCount int
 		var changedContainers []*model.TensorsecContainerMonitor
+		isClusterManager := appName == dal.AppLabel_clusterManager
 		for _, status := range pod.Status.ContainerStatuses {
+			if isClusterManager && status.Name != dal.AppLabel_clusterManager {
+				continue
+			}
 			oldStatus, isOk := c.containerStatusMap[pod.Name+":"+status.ContainerID]
 			currentStatus := dal.GetContainerCRIState(&status.State, status.Ready)
 			if currentStatus == dal.ContainerStatus_normal_int {

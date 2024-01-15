@@ -7,6 +7,7 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/client"
 	"github.com/pkg/errors"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/heartbeat"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"os"
@@ -99,6 +100,10 @@ func (d *dockerMetrics) getMetricsByApplabels(ctx context.Context, appLabels []s
 		if isMatch == false {
 			continue
 		}
+		containerName := c.Labels["io.kubernetes.container.name"]
+		if appLabel == dal.AppLabel_clusterManager && containerName != dal.AppLabel_clusterManager {
+			continue
+		}
 		logging.Get().Info().Msgf("handler container appLabel:%s", appLabel)
 		// limit
 		containerMetrics := heartbeat.ContainerMetric{
@@ -108,7 +113,7 @@ func (d *dockerMetrics) getMetricsByApplabels(ctx context.Context, appLabels []s
 				Version:       d.self.Version,
 				Namespace:     d.self.Namespace,
 				PodName:       c.Labels["io.kubernetes.pod.name"],
-				ContainerName: c.Labels["io.kubernetes.container.name"],
+				ContainerName: containerName,
 				AppLabel:      appLabel,
 			},
 			MetricsInfo: &heartbeat.MetricsInfo{},

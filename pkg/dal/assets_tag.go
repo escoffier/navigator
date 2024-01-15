@@ -556,13 +556,12 @@ func SaveAssetsTagRel(ctx context.Context, rdb *gorm.DB, detail *AssetsTagRelDet
 	return rdb.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		now := time.Now()
 		tmpTag := model.TensorAssetsTag{}
-		var c int64
-		err = tx.Model(&tmpTag).Where("name=?", detail.Tag.Name).Count(&c).Error
-		if err != nil {
+		err = tx.Model(&tmpTag).Where("name=?", detail.Tag.Name).Take(&tmpTag).Error
+		if err != nil && err != gorm.ErrRecordNotFound {
 			logging.Get().Err(err).Msgf("check name unique failed.")
 			return errors.New("check name unique failed")
 		}
-		if c > 0 {
+		if tmpTag.ID != "" && tmpTag.ID != detail.Tag.ID {
 			logging.Get().Err(err).Msgf("tag's name is already existed.")
 			return errors.New("tag's name is already existed")
 		}

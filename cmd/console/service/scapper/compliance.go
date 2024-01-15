@@ -207,7 +207,7 @@ func (n *ContainerMetricsProxyHandler) OnCreate(s rpcstream.Stream, reqID string
 	for _, nodeName := range req.NodeName {
 		wg.Add(1)
 		go func(nodeName string) {
-			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 7*time.Second)
 			defer cancel()
 			logging.Get().Info().Msgf("ContainerMetricsProxyHandler-OnCreate:nodeName:%s", nodeName)
 			resp, err := n.ServerStream.GetContainerMetrics(ctx, nodeName+"-monitor", req)

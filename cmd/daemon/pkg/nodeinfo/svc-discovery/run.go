@@ -67,6 +67,11 @@ func (ds *DiscoveryHandler) Discovery(containerId, pid string, cwd string) ([]*a
 		}
 		framework := frameworkDiscovery.FrameworkDiscovery(containerId, cmdList)
 		if framework != nil {
+			if framework.FrameworkName == "" && framework.FrameworkVersion != "" {
+				// todo
+				logging.Get().Warn().Msgf("find err, containerId:%s,framework:%v", framework)
+				framework.FrameworkVersion = ""
+			}
 			frameworkList = append(frameworkList, framework)
 		}
 	}
