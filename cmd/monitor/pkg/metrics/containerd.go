@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	wstats "github.com/Microsoft/hcsshim/cmd/containerd-shim-runhcs-v1/stats"
+	v11 "github.com/containerd/cgroups/stats/v1"
 	statsV1 "github.com/containerd/cgroups/v3/cgroup1/stats"
 	v1 "github.com/containerd/cgroups/v3/cgroup1/stats"
 	"github.com/containerd/containerd"
@@ -13,6 +14,7 @@ import (
 	"github.com/containerd/typeurl/v2"
 	"github.com/docker/docker/api/types"
 	"github.com/pkg/errors"
+	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/heartbeat"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"os"
@@ -111,6 +113,10 @@ func (d *containerdMetrics) getMetricsByAppLabels(nsCtx context.Context, appLabe
 		if isMatch == false {
 			continue
 		}
+		containerName := labels["io.kubernetes.container.name"]
+		if appLabel == dal.AppLabel_clusterManager && containerName != dal.AppLabel_clusterManager {
+			continue
+		}
 		logging.Get().Info().Msgf("handler container appLabel:%s", appLabel)
 
 		containerMetrics := heartbeat.ContainerMetric{
@@ -120,7 +126,7 @@ func (d *containerdMetrics) getMetricsByAppLabels(nsCtx context.Context, appLabe
 				Version:       d.self.Version,
 				Namespace:     d.self.Namespace,
 				PodName:       labels["io.kubernetes.pod.name"],
-				ContainerName: labels["io.kubernetes.container.name"],
+				ContainerName: containerName,
 				AppLabel:      appLabel,
 			},
 			MetricsInfo: &heartbeat.MetricsInfo{
@@ -155,12 +161,15 @@ func (d *containerdMetrics) getMetricsByAppLabels(nsCtx context.Context, appLabe
 
 		var (
 			data  *v1.Metrics
+			data1 *v11.Metrics
 			data2 *v2.Metrics
 			//windowsStats *wstats.Statistics
 		)
 		switch v := anydata.(type) {
 		case *v1.Metrics:
 			data = v
+		case *v11.Metrics:
+			data1 = v
 		case *v2.Metrics:
 			data2 = v
 		case *wstats.Statistics:
@@ -189,12 +198,12 @@ func (d *containerdMetrics) getMetricsByAppLabels(nsCtx context.Context, appLabe
 					//SystemUsage: ,
 					OnlineCPUs: uint32(len(data.CPU.Usage.PerCPU)),
 				}
-				if data.Memory != nil && data.Memory.Usage != nil {
-					containerMetrics.MemUsage = data.Memory.Usage.Usage
-				}
-				if data.Blkio != nil {
-					containerMetrics.BlockITotal, containerMetrics.BLockOTotal = heartbeat.CalculateBlockIO(translateToTypesBlkio(data.Blkio))
-				}
+			}
+			if data.Memory != nil && data.Memory.Usage != nil {
+				containerMetrics.MemUsage = data.Memory.Usage.Usage
+			}
+			if data.Blkio != nil {
+				containerMetrics.BlockITotal, containerMetrics.BLockOTotal = heartbeat.CalculateBlockIO(translateToTypesBlkio(data.Blkio))
 			}
 		} else if data2 != nil {
 			if data2.CPU != nil {
@@ -208,8 +217,22 @@ func (d *containerdMetrics) getMetricsByAppLabels(nsCtx context.Context, appLabe
 			if data2.Io != nil {
 				containerMetrics.BlockITotal, containerMetrics.BLockOTotal = calculateIO(data2.Io)
 			}
-		} else {
-		} //windows
+		} else if data1 != nil {
+			if data1.CPU != nil && data1.CPU.Usage != nil {
+				containerMetrics.CpuStats = heartbeat.CpuStats{
+					TotalUsage: data1.CPU.Usage.Total / 1000,
+					//SystemUsage: ,
+					OnlineCPUs: uint32(len(data1.CPU.Usage.PerCPU)),
+				}
+			}
+			if data1.Memory != nil && data1.Memory.Usage != nil {
+				containerMetrics.MemUsage = data1.Memory.Usage.Usage
+			}
+			if data1.Blkio != nil {
+				containerMetrics.BlockITotal, containerMetrics.BLockOTotal = heartbeat.CalculateBlockIO(translateToTypesBlkioV1(data1.Blkio))
+			}
+		} else { //windows
+		}
 		result.ContainerMetricList = append(result.ContainerMetricList, &containerMetrics)
 	}
 	return result, nil
@@ -232,8 +255,37 @@ func translateToTypesBlkio(blkio *v1.BlkIOStat) types.BlkioStats {
 	}
 	return result
 }
+func translateToTypesBlkioV1(blkio *v11.BlkIOStat) types.BlkioStats {
+	var result types.BlkioStats
+	if blkio == nil {
+		return result
+	}
+	result = types.BlkioStats{
+		IoServiceBytesRecursive: copyBlkioEntryV1(blkio.IoServiceBytesRecursive),
+		IoServicedRecursive:     copyBlkioEntryV1(blkio.IoServicedRecursive),
+		IoQueuedRecursive:       copyBlkioEntryV1(blkio.IoQueuedRecursive),
+		IoServiceTimeRecursive:  copyBlkioEntryV1(blkio.IoServiceTimeRecursive),
+		IoWaitTimeRecursive:     copyBlkioEntryV1(blkio.IoWaitTimeRecursive),
+		IoMergedRecursive:       copyBlkioEntryV1(blkio.IoMergedRecursive),
+		IoTimeRecursive:         copyBlkioEntryV1(blkio.IoTimeRecursive),
+		SectorsRecursive:        copyBlkioEntryV1(blkio.SectorsRecursive),
+	}
+	return result
+}
 
 func copyBlkioEntry(entries []*statsV1.BlkIOEntry) []types.BlkioStatEntry {
+	out := make([]types.BlkioStatEntry, len(entries))
+	for i, re := range entries {
+		out[i] = types.BlkioStatEntry{
+			Major: re.Major,
+			Minor: re.Minor,
+			Op:    re.Op,
+			Value: re.Value,
+		}
+	}
+	return out
+}
+func copyBlkioEntryV1(entries []*v11.BlkIOEntry) []types.BlkioStatEntry {
 	out := make([]types.BlkioStatEntry, len(entries))
 	for i, re := range entries {
 		out[i] = types.BlkioStatEntry{

@@ -139,7 +139,7 @@ func (api *api) saveAssetsTag(w http.ResponseWriter, r *http.Request) {
 	err = resSvc.SaveAssetsTagRel(ctx, &request)
 	if err != nil {
 		logging.Get().Err(err).Msg("get assetsTagList failed")
-		RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+		RespAndLog(w, ctx, NewAnErrorWithErrMsg(http.StatusInternalServerError, err))
 		return
 	}
 	response.Ok(w)

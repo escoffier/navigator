@@ -41,13 +41,13 @@ func (api *api) GetMonitorTotal(w http.ResponseWriter, r *http.Request) {
 }
 
 type monitorHolmes struct {
-	Limit      int    `in:"query" name:"limit"`
-	Offset     int    `in:"query" name:"offset"`
-	PodName    string `in:"query" name:"name"`
-	Version    string
-	PodStatus  string
-	ClusterKey string `in:"query" name:"cluster_key"`
-	NodeName   string `in:"query" name:"node_name"`
+	Limit          int    `in:"query" name:"limit"`
+	Offset         int    `in:"query" name:"offset"`
+	PodName        string `in:"query" name:"name"`
+	Version        string
+	PodStatus      string
+	ClusterKeyList []string `in:"query" name:"cluster_key"`
+	NodeName       string   `in:"query" name:"node_name"`
 }
 
 func (req *monitorHolmes) Render(r *http.Request) error {
@@ -60,7 +60,10 @@ func (req *monitorHolmes) Render(r *http.Request) error {
 	req.PodName = getNormalizedQueryParam(r, "podName")
 	req.Version = getNormalizedQueryParam(r, "version")
 	req.PodStatus = getNormalizedQueryParam(r, "podStatus")
-	req.ClusterKey = getNormalizedQueryParam(r, "clusterKey")
+	clusterKeys := getNormalizedQueryParam(r, "clusterKey")
+	if clusterKeys != "" {
+		req.ClusterKeyList = strings.Split(clusterKeys, ",")
+	}
 	req.NodeName = getNormalizedQueryParam(r, "nodName")
 	return nil
 }
@@ -92,8 +95,8 @@ func (api *api) GetMonitorHolmes(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	if req.ClusterKey != "" {
-		opt.WhereLikeCondition["cluster_key"] = req.ClusterKey
+	if len(req.ClusterKeyList) > 0 {
+		opt.WhereInCondition["cluster_key"] = req.ClusterKeyList
 	}
 	if req.NodeName != "" {
 		opt.WhereLikeCondition["node_name"] = req.NodeName
@@ -119,9 +122,9 @@ type monitorComponent struct {
 	Component string
 	PodName   string `in:"query" name:"name"`
 	//Version    string
-	PodStatus  string
-	ClusterKey string `in:"query" name:"cluster_key"`
-	NodeName   string `in:"query" name:"node_name"`
+	PodStatus      string
+	ClusterKeyList []string `in:"query" name:"cluster_key"`
+	NodeName       string   `in:"query" name:"node_name"`
 }
 
 func (req *monitorComponent) Render(r *http.Request) error {
@@ -134,7 +137,10 @@ func (req *monitorComponent) Render(r *http.Request) error {
 	req.PodName = getNormalizedQueryParam(r, "podName")
 	req.Component = getNormalizedQueryParam(r, "component")
 	req.PodStatus = getNormalizedQueryParam(r, "podStatus")
-	req.ClusterKey = getNormalizedQueryParam(r, "clusterKey")
+	clusterKeys := getNormalizedQueryParam(r, "clusterKey")
+	if clusterKeys != "" {
+		req.ClusterKeyList = strings.Split(clusterKeys, ",")
+	}
 	req.NodeName = getNormalizedQueryParam(r, "nodeName")
 	return nil
 }
@@ -168,8 +174,8 @@ func (api *api) GetMonitorComponent(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 	}
-	if req.ClusterKey != "" {
-		opt.WhereLikeCondition["cluster_key"] = req.ClusterKey
+	if len(req.ClusterKeyList) > 0 {
+		opt.WhereInCondition["cluster_key"] = req.ClusterKeyList
 	}
 	if req.NodeName != "" {
 		opt.WhereLikeCondition["node_name"] = req.NodeName
