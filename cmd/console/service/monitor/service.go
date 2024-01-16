@@ -157,12 +157,16 @@ func (m *MonitorService) refreshMetrics(refreshCtx context.Context, component st
 	logging.Get().Info().Msgf("get component:%s podList length:%d in clusterKey:%s", component, len(podList.Items), key)
 	var version string
 	nodeNames := make(map[string]struct{})
+	isClusterManager := component == dal.AppLabel_clusterManager
 	for _, pod := range podList.Items {
 		var containers []*model.TensorsecContainerMonitor
 		var containerRunning int
 		var isHealth bool
 		nodeNames[pod.Spec.NodeName] = struct{}{}
 		for _, status := range pod.Status.ContainerStatuses {
+			if isClusterManager && status.Name != dal.AppLabel_clusterManager {
+				continue
+			}
 			tmp := model.TensorsecContainerMonitor{
 				TableBase: model.TableBase{
 					ID:        util.GenerateUUID(key, pod.Name, status.Name),
@@ -202,7 +206,7 @@ func (m *MonitorService) refreshMetrics(refreshCtx context.Context, component st
 		}
 	}
 	//clean
-	if component != dal.AppLabel_clusterManager { // cluster-manager 只在心跳时更新时间
+	if !isClusterManager { // cluster-manager 只在心跳时更新时间
 		dal.CleanExpireContainerStatus(refreshCtx, m.rdb.Get(), key, now, component, "")
 	}
 	//	 metrics
@@ -271,7 +275,7 @@ func (m *MonitorService) refreshMetrics(refreshCtx context.Context, component st
 			monitor.TimeGap = monitor.MetricsLastTime.Sub(oldMetrics.MetricsLastTime).Microseconds()
 		}
 	}
-	if component == dal.AppLabel_clusterManager {
+	if isClusterManager {
 		err = dal.UpsertContainerMetrics(refreshCtx, m.rdb.Get(), nil, tensorsecMonitorList)
 	} else {
 		err = dal.UpsertContainerMetrics(refreshCtx, m.rdb.Get(), tensorsecMonitorList, nil)

@@ -131,8 +131,9 @@ func GetMonitorAppLabels() []string {
 }
 
 func IsMonitorAppLabel(appLabels []string, envs []string) (appLabel string, isMatch bool) {
+	lowAppLabel := strings.ToLower(env.PodAppLabel)
 	for _, e := range envs {
-		if strings.HasPrefix(e, env.PodAppLabel) {
+		if strings.HasPrefix(strings.ToLower(e), lowAppLabel) {
 			appLabel = e[len(env.PodAppLabel)+1:]
 			break
 		}

@@ -122,12 +122,10 @@ func (c *ContainerStatusCallback) OnTensorPod(pod *assets.TensorPod, action asse
 		tctx, _ := context.WithTimeout(context.Background(), 3*time.Second)
 		// version  从资产表中获取
 		fullContainerId := pod.Status.ContainerStatuses[0].ContainerID
-		logging.GetLogger().Info().Msg("fullContainerId:" + fullContainerId)
 		if fullContainerId == "" {
 			return nil
 		}
-		containerId := strings.Split(fullContainerId, "://")[1]
-		version := dal.GetSoftVersionFromAssetsByCId(tctx, c.rdb.Get(), containerId)
+		version := dal.GetSoftVersionFromAssetsByKeyAndNs(tctx, c.rdb.Get(), pod.Cluster, pod.Namespace)
 		now := time.Now()
 		totalContainer := len(pod.Status.ContainerStatuses)
 		var normalCount int

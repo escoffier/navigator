@@ -4533,7 +4533,7 @@ func (api *api) getNamespaceLabels() http.HandlerFunc {
 				}
 				result = append(result, &item)
 			}
-			response.Ok(w, response.WithItems(labels), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(labels))))
+			response.Ok(w, response.WithItems(result), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(labels))))
 			return
 		}
 		response.Ok(w, response.WithItems(labels), response.WithTotalItems(total), response.WithStartIndex(int64(req.offset+len(labels))))

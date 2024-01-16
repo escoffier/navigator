@@ -382,7 +382,7 @@ func CountNamespacesWithOption(ctx context.Context, rdb *gorm.DB, queryOpt *Name
 			db = db.Where(fmt.Sprintf("%s LIKE ?", column), GetLikeExpr(val))
 		}
 		for k, v := range queryOpt.whereInCondition {
-			rdb = rdb.Where(fmt.Sprintf("%s in ?", k), v)
+			rdb = db.Where(fmt.Sprintf("%s in ?", k), v)
 		}
 		return db.Count(&nsCount).Error
 	})
