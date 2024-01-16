@@ -27,7 +27,7 @@ const (
 	ObjType_label     TagRelObjType = "label"
 )
 
-var TagRelObjList = []TagRelObjType{ObjType_cluster, ObjType_namespace, ObjType_resource, ObjType_pod, ObjType_pod, ObjType_container, ObjType_service, ObjType_endpoints, ObjType_ingress,
+var TagRelObjList = []TagRelObjType{ObjType_cluster, ObjType_namespace, ObjType_resource, ObjType_pod, ObjType_container, ObjType_service, ObjType_endpoints, ObjType_ingress,
 	ObjType_api, ObjType_secret, ObjType_pv, ObjType_pvc, ObjType_label, ObjType_node, ObjType_webSit, ObjType_app, ObjType_webApp, ObjType_dbApp}
 
 type TensorAssetsTag struct {

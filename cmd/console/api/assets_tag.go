@@ -151,7 +151,7 @@ func checkTagName(tagName string, tagDesc string) error {
 		return errors.New("tag name's char length is limited to 1-15")
 	}
 	if tagName == "全部资产" || strings.ToLower(tagName) == "all assets" {
-		return errors.New("tag name " + tagName + " is limit,try another name")
+		return errors.New("标签名称无法使用，请输入其他名称")
 	}
 	reg := `^[\u4e00-\u9fa5A-Za-z0-9_-]+$`
 	compile, err := regexp2.Compile(reg, regexp2.None)
@@ -163,11 +163,11 @@ func checkTagName(tagName string, tagDesc string) error {
 		return err
 	}
 	if !isMatch {
-		return errors.New("合法字符范围：中文、英文大小写、数字、下划线、短线")
+		return errors.New("仅支持输入中文、英文、数字、下划线和短线")
 	}
 	descLen := utf8.RuneCountInString(tagDesc)
 	if descLen > 100 {
-		return errors.New("tag desc's char length is limited to 0-100")
+		return errors.New("标签名称合法长度为：1-100")
 	}
 	return nil
 }

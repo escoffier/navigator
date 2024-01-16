@@ -85,7 +85,7 @@ func GetEnableAssetsTagList(ctx context.Context, rdb *gorm.DB) (tagList []*model
 	pgCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer cancel()
 
-	err = rdb.WithContext(pgCtx).Model(&model.TensorAssetsTag{}).Where("status = 0").Find(&tagList).Order("type desc").Order("created_at desc").Error
+	err = rdb.WithContext(pgCtx).Model(&model.TensorAssetsTag{}).Where("status = 0").Order("type desc").Order("created_at desc").Find(&tagList).Error
 	if err != nil {
 		return nil, err
 	}
@@ -105,7 +105,7 @@ func GetAssetsTagList(ctx context.Context, rdb *gorm.DB, tagName string, offset 
 	if tagName != "" {
 		db = db.Where("name like ?", GetLikeExpr(tagName))
 	}
-	err = db.WithContext(pgCtx).Model(&model.TensorAssetsTag{}).Scan(&tagList).Order("type desc").Order("created_at desc").Error
+	err = db.WithContext(pgCtx).Model(&model.TensorAssetsTag{}).Order("type desc").Order("created_at desc").Scan(&tagList).Error
 	if err != nil {
 		return nil, err
 	}
@@ -229,17 +229,13 @@ func ChangeAssetsTagStatus(ctx context.Context, rdb *gorm.DB, enableIds []string
 
 	return rdb.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if len(enableIds) > 0 {
-			err := tx.Model(&model.TensorAssetsTag{}).Where("id in ?", enableIds).Select("status").Updates(map[string]interface{}{
-				"status": 0,
-			}).Error
+			err := tx.Model(&model.TensorAssetsTag{}).Where("id in ?", enableIds).UpdateColumn("status", 0).Error
 			if err != nil {
 				return err
 			}
 		}
 		if len(disableIds) > 0 {
-			err := tx.Model(&model.TensorAssetsTag{}).Where("id in ?", disableIds).Select("status").Updates(map[string]interface{}{
-				"status": 1,
-			}).Error
+			err := tx.Model(&model.TensorAssetsTag{}).Where("id in ?", disableIds).UpdateColumn("status", 1).Error
 			if err != nil {
 				return err
 			}
@@ -507,8 +503,8 @@ func getBuiltInTagAssetsCount(ctx context.Context, rdb *gorm.DB, types []model.T
 				item.Count, err = CountEndpoints(ctx, rdb, EndpointsQuery())
 			case model.ObjType_ingress:
 				item.Count, err = CountIngress(ctx, rdb, IngressesQuery())
-			//case model.ObjType_api:
-			//	item.Count, err = item.Count(ctx,rdb,IngressesQuery() )
+			case model.ObjType_api:
+				err = rdb.Model(&model.TensorApi{}).Count(&item.Count).Error
 			case model.ObjType_secret:
 				item.Count, err = CountSecrets(ctx, rdb, SecretsQuery())
 			case model.ObjType_pv:
@@ -517,8 +513,8 @@ func getBuiltInTagAssetsCount(ctx context.Context, rdb *gorm.DB, types []model.T
 				item.Count, err = CountPVCs(ctx, rdb, PVCQuery())
 			case model.ObjType_node:
 				item.Count, err = CountNodes(ctx, rdb, NodeQuery())
-			//case model.ObjType_webSit:
-			//	item.Count, err = c(ctx,rdb,SecretsQuery() )
+			case model.ObjType_webSit:
+				item.Count, err = CountExposeHost(ctx, rdb, "", nil, nil)
 			case model.ObjType_app:
 				item.Count, err = CountBusiSvcs(ctx, rdb, GetBusiSvcQueryOption())
 			case model.ObjType_webApp:
@@ -529,6 +525,8 @@ func getBuiltInTagAssetsCount(ctx context.Context, rdb *gorm.DB, types []model.T
 				option := GetBusiSvcQueryOption()
 				option.WhereEqCondition["svc_type"] = assets.BusiSvcTypeDbEn
 				item.Count, err = CountBusiSvcs(ctx, rdb, option)
+			case model.ObjType_label:
+				item.Count, err = CountNamespaceLabels(ctx, rdb, NamespaceLabelQuery())
 			}
 			if err != nil {
 				logging.Get().Err(err).Msgf("query count for %s failed.", t)
@@ -563,7 +561,7 @@ func SaveAssetsTagRel(ctx context.Context, rdb *gorm.DB, detail *AssetsTagRelDet
 		}
 		if tmpTag.ID != "" && tmpTag.ID != detail.Tag.ID {
 			logging.Get().Err(err).Msgf("tag's name is already existed.")
-			return errors.New("tag's name is already existed")
+			return errors.New("标签名称已存在，请输入其他名称")
 		}
 		if isCreate { // create
 			detail.Tag.ID = strconv.Itoa(int(util.GenerateUUID(time.Now().String())))
