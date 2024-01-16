@@ -75,7 +75,6 @@ require (
 	k8s.io/apimachinery v0.27.2
 	k8s.io/apiserver v0.27.2
 	k8s.io/client-go v0.27.2
-	scm.tensorsecurity.cn/tensorsecurity-rd/cloudwalker v0.0.5
 	scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.2.63
 	scm.tensorsecurity.cn/tensorsecurity-rd/trivy v1.0.6
 )
@@ -83,7 +82,6 @@ require (
 require (
 	github.com/March-deng/godisearch v0.0.0-20230510033050-3ae5e895e766
 	github.com/afex/hystrix-go v0.0.0-20180502004556-fa1af6a1f4f5
-	github.com/agnivade/levenshtein v1.1.1
 	github.com/ahmetb/go-linq/v3 v3.2.0
 	github.com/apache/pulsar-client-go v0.11.0
 	github.com/containerd/cgroups/v3 v3.0.1
@@ -134,6 +132,7 @@ require (
 require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230106234847-43070de90fa1 // indirect
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20221215162035-5330a85ea652 // indirect
+	github.com/agnivade/levenshtein v1.1.1 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/moby/sys/signal v0.7.0 // indirect
 	github.com/onsi/gomega v1.27.6 // indirect
@@ -148,8 +147,6 @@ require (
 	github.com/AthenZ/athenz v1.10.39 // indirect
 	github.com/Azure/go-ansiterm v0.0.0-20210617225240-d185dfc1b5a1 // indirect
 	github.com/Azure/go-autorest/autorest/date v0.3.0 // indirect
-	github.com/CyrusF/go-bayesian v0.0.0-20180928040635-c6aa877814bd // indirect
-	github.com/CyrusF/libsvm-go v0.0.0-20180928035651-2210b124fd3d // indirect
 	github.com/DataDog/zstd v1.5.0 // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
 	github.com/Masterminds/semver/v3 v3.2.1 // indirect
@@ -253,7 +250,6 @@ require (
 	github.com/felixge/httpsnoop v1.0.3 // indirect
 	github.com/frankban/quicktest v1.14.5 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.2 // indirect
-	github.com/glaslos/ssdeep v0.3.1 // indirect
 	github.com/go-errors/errors v1.4.2 // indirect
 	github.com/go-gorp/gorp/v3 v3.0.5 // indirect
 	github.com/go-ini/ini v1.67.0 // indirect
@@ -274,7 +270,6 @@ require (
 	github.com/gorilla/schema v1.2.0 // indirect
 	github.com/gosuri/uitable v0.0.4 // indirect
 	github.com/grantae/certinfo v0.0.0-20170412194111-59d56a35515b // indirect
-	github.com/grd/stat v0.0.0-20130623202159-138af3fd5012 // indirect
 	github.com/gregjones/httpcache v0.0.0-20190611155906-901d90724c79 // indirect
 	github.com/gsterjov/go-libsecret v0.0.0-20161001094733-a6f4afe4910c // indirect
 	github.com/hako/durafmt v0.0.0-20200710122514-c0fb7b4da026 // indirect
