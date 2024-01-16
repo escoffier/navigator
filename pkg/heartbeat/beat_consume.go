@@ -68,11 +68,13 @@ func (b *BeatReceive) process(ctx context.Context, message kafka.Message) error 
 			PodName:         beatMessage.PodName,
 			AppLabel:        beatMessage.AppLabel,
 			ContainerName:   beatMessage.ContainerName,
+			Version:         beatMessage.Version,
 			MetricsLastTime: now,
 		}
 		if value.NodeName == "" || value.ContainerName == "" { // for case: cluster-manager report heartbeat
 			var rawcontainer model.TensorRawContainer
-			err = db.Where("cluster_key=? and pod_name=? and status =0", value.ClusterKey, value.PodName).Select("node_name,name").Find(&rawcontainer).Error
+			err = db.Where("cluster_key=? and pod_name=? and name like ? and status =0",
+				value.ClusterKey, value.PodName, dal.GetLikeExpr(dal.AppLabel_clusterManager)).Select("node_name,name").Take(&rawcontainer).Error
 			if err != nil || rawcontainer.NodeName == "" || rawcontainer.Name == "" {
 				logging.Get().Err(err).Msgf("find nodeName failed. clusterKey:%s,podName:%s", value.ClusterKey, value.PodName)
 				return err

@@ -190,7 +190,7 @@ func (m *MonitorService) refreshMetrics(refreshCtx context.Context, component st
 				containerRunning++
 			}
 			if tmp.Version == "" {
-				version = dal.GetSoftVersionFromAssetsByKey(refreshCtx, m.rdb.Get(), tmp.ClusterKey, tmp.Namespace)
+				version = dal.GetSoftVersionFromAssetsByKeyAndNs(refreshCtx, m.rdb.Get(), tmp.ClusterKey, tmp.Namespace)
 				tmp.Version = version
 			}
 			containers = append(containers, &tmp)
