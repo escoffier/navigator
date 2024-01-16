@@ -133,21 +133,8 @@ func CleanExpireContainerStatus(ctx context.Context, rdb *gorm.DB, clusterKey st
 
 func GetSoftVersionFromAssetsByKeyAndNs(ctx context.Context, rdb *gorm.DB, clusterKey string, namespace string) string {
 	var rawContainer model.TensorRawContainer
-	err := rdb.WithContext(ctx).Where("cluster_key = ? and namespace = ? and status=0", clusterKey, namespace).Select("environment").Take(&rawContainer).Error
-	if err != nil {
-		logging.Get().Err(err).Msgf("get env from rawContainer failed.clusterKey:%s,namespace:%s", clusterKey, namespace)
-		return ""
-	}
-	for _, str := range rawContainer.Environment {
-		if strings.Contains(str, env.SoftVersionEnv) {
-			return str[len(env.SoftVersionEnv)+1:]
-		}
-	}
-	return ""
-}
-func GetSoftVersionFromAssetsByKey(ctx context.Context, rdb *gorm.DB, clusterKey string, namespace string) string {
-	var rawContainer model.TensorRawContainer
-	err := rdb.WithContext(ctx).Where("cluster_key = ? and namespace = ?", clusterKey, namespace).Select("environment").Find(&rawContainer).Error
+	err := rdb.WithContext(ctx).Where("cluster_key = ? and namespace = ? and pod_name like ? and status=0",
+		clusterKey, namespace, GetLikeExpr(AppLabel_clusterManager)).Select("environment").Take(&rawContainer).Error
 	if err != nil {
 		logging.Get().Err(err).Msgf("get env from rawContainer failed.clusterKey:%s,namespace:%s", clusterKey, namespace)
 		return ""
