@@ -3827,8 +3827,8 @@ scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.2.63 h1:rlC7a54rTUP+Uqsf/w
 scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.2.63/go.mod h1:wGvHhUyoHdxk1be1UG7dzMBcbmv5AlRl/OsnE7nrdtg=
 scm.tensorsecurity.cn/tensorsecurity-rd/fanal v1.1.4 h1:F2n2D9GncWMEP0yUEwjIQjRDMHYDNZ3HuSHG1J9hrj8=
 scm.tensorsecurity.cn/tensorsecurity-rd/fanal v1.1.4/go.mod h1:bundoOq4JwUNgwhAe2zcvVx0zx65eE7OL9HaqaFmK1M=
-scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.91 h1:QbyK9LdCeXh0pE2BK0Ay8lYoVKhYURD4jAmPzlOIk1Y=
-scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.91/go.mod h1:NCNnjcnKiyzfMexukTQ1P36CJVfevIk4JBy3tM5WIaE=
+scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.92 h1:zOO5SFkKlUQzs0ASeZ83ByL3vvXl9vSO3bry6TIhAAY=
+scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.92/go.mod h1:NCNnjcnKiyzfMexukTQ1P36CJVfevIk4JBy3tM5WIaE=
 scm.tensorsecurity.cn/tensorsecurity-rd/podman/v3 v3.4.6-20220425170000 h1:rDGiAo7tgLYDTzUOVlK31AfAcRHqr1DCtI24mi+LzyE=
 scm.tensorsecurity.cn/tensorsecurity-rd/podman/v3 v3.4.6-20220425170000/go.mod h1:ITId80W6JXHyW8fOwmaPCQtzMYkbL/F7EGE0A2nJmDI=
 scm.tensorsecurity.cn/tensorsecurity-rd/trivy v1.0.6 h1:91vz9n7Bbs7R32N9cAV/bhkWBuP7wYaTP/iygGWW0iU=
