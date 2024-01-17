@@ -114,7 +114,7 @@ require (
 	github.com/sony/gobreaker v0.5.0
 	github.com/tealeg/xlsx/v3 v3.3.0
 	github.com/xuri/excelize/v2 v2.6.0
-	gitlab.com/security-rd/go-pkg v0.2.77
+	gitlab.com/security-rd/go-pkg v0.2.92
 	go.uber.org/atomic v1.11.0
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 	gomodules.xyz/jsonpatch/v3 v3.0.1
@@ -609,7 +609,7 @@ require (
 replace (
 	github.com/containernetworking/cni => github.com/containernetworking/cni v0.8.1
 	github.com/containers/podman/v3 => scm.tensorsecurity.cn/tensorsecurity-rd/podman/v3 v3.4.6-20220425170000
-	gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.91
+	gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.92
 	go.opentelemetry.io/otel/metric => go.opentelemetry.io/otel/metric v0.35.0
 	helm.sh/helm/v3 => helm.sh/helm/v3 v3.11.1
 	k8s.io/api => k8s.io/kubernetes/staging/src/k8s.io/api v0.0.0-20220503133649-4ce5a8954017
