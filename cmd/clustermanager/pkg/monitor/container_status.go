@@ -65,8 +65,6 @@ type ContainerStatusCallback struct {
 // 获取container status，比较变化
 func (c *ContainerStatusCallback) OnTensorPod(pod *assets.TensorPod, action assets.Action) error {
 	var isMonitorObject bool
-	logging.GetLogger().Info().Msgf("ContainerStatusCallback action:%d,podName:%s", action, pod.Name)
-
 	if action == assets.ActionDelete { //  pod.Spec.Containers is empty
 		affected, err := dal.DeleteContainerStatusByPodName(context.Background(), c.rdb.Get(), pod.Name)
 		if err != nil {
@@ -143,7 +141,7 @@ func (c *ContainerStatusCallback) OnTensorPod(pod *assets.TensorPod, action asse
 			if isOk && oldStatus == currentStatus {
 				continue
 			}
-			logging.GetLogger().Info().Msgf("ContainerStatusCallback change %s:%s status from %d to %d ", pod.Name, status.Name, oldStatus, currentStatus)
+			logging.GetLogger().Debug().Msgf("ContainerStatusCallback change %s:%s status from %d to %d ", pod.Name, status.Name, oldStatus, currentStatus)
 			c.containerStatusMap[pod.Name+":"+status.ContainerID] = currentStatus
 			changedContainers = append(changedContainers, &model.TensorsecContainerMonitor{
 				TableBase: model.TableBase{

@@ -554,7 +554,7 @@ func (p *RubyFramework) FrameworkDiscovery(containerId string, cmdList []*cmdIte
 }
 
 // node.js    eg:node /usr/local/bin/sails lift
-var regexpLanguageNodejs = `^[^\s]*node`
+var regexpLanguageNodejs = `^[^\s]*node\s`
 var regexpNodejsFramework = `^[^\s]*sails` //Rails
 
 type NodejsFramework struct {

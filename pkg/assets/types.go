@@ -3,6 +3,7 @@ package assets
 import (
 	// don't replace it; need the order of fields for marshal
 	"encoding/json"
+	"fmt"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	netv1 "k8s.io/api/networking/v1"
 	"strconv"
@@ -104,7 +105,7 @@ var BusiSvcTypeMap = map[string]string{
 	BusiSvcMysql:      BusiSvcTypeDbEn,
 	BusiSvcPostgreSQL: BusiSvcTypeDbEn,
 	BusiSvcMogoDB:     BusiSvcTypeDbEn,
-	BusiSvcRsyslog:    BusiSvcTypeDbEn,
+	BusiSvcRsyslog:    BusiSvcTypeMonitorEn,
 }
 
 func GetRawContainerStatus(status int) string {
@@ -235,6 +236,8 @@ func getContainerStatusStr(cs []corev1.ContainerStatus) string {
 		s.WriteString(c.ImageID)
 		s.WriteRune('\n')
 		s.WriteString(c.State.String())
+		s.WriteRune('\n')
+		s.WriteString(fmt.Sprintf("%v", c.Ready))
 	}
 	return s.String()
 }
