@@ -166,15 +166,15 @@ func getTagRelCountsByTagIds(ctx context.Context, rdb *gorm.DB, builtTagNameList
 		case model.ObjType_pod:
 			err = db.Joins("join  ivan_assets_pod_res_relations c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Scan(&tagRelCounts).Error
 		case model.ObjType_container:
-			err = db.Joins("join  ivan_assets_raw_containers c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status < 5").Scan(&tagRelCounts).Error
+			err = db.Joins("join  ivan_assets_raw_containers c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status < ?", 5).Scan(&tagRelCounts).Error
 		case model.ObjType_service:
 			err = db.Joins("join  ivan_assets_services c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Scan(&tagRelCounts).Error
 		case model.ObjType_endpoints:
 			err = db.Joins("join  ivan_assets_endpoints c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Scan(&tagRelCounts).Error
 		case model.ObjType_ingress:
 			err = db.Joins("join  ivan_assets_ingresses c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Scan(&tagRelCounts).Error
-		//case model.ObjType_api:
-		//	err =db.Joins("join  ivan_assets_clusters c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Scan(&tagRelCounts).Error
+		case model.ObjType_api:
+			err = db.Joins("join  ivan_assets_apis c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Scan(&tagRelCounts).Error
 		case model.ObjType_secret:
 			err = db.Joins("join  ivan_assets_secrets c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Scan(&tagRelCounts).Error
 		case model.ObjType_pv:
@@ -305,15 +305,15 @@ func GetAssetsTagRelIdsCounts(ctx context.Context, rdb *gorm.DB, tagId string) (
 		case model.ObjType_pod:
 			err = db.Joins("join  ivan_assets_pod_res_relations c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Pluck("obj_id", &item.ObjIds).Error
 		case model.ObjType_container:
-			err = db.Joins("join  ivan_assets_raw_containers c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status < 5").Pluck("obj_id", &item.ObjIds).Error
+			err = db.Joins("join  ivan_assets_raw_containers c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status <", 5).Pluck("obj_id", &item.ObjIds).Error
 		case model.ObjType_service:
 			err = db.Joins("join  ivan_assets_services c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Pluck("obj_id", &item.ObjIds).Error
 		case model.ObjType_endpoints:
 			err = db.Joins("join  ivan_assets_endpoints c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Pluck("obj_id", &item.ObjIds).Error
 		case model.ObjType_ingress:
 			err = db.Joins("join  ivan_assets_ingresses c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Pluck("obj_id", &item.ObjIds).Error
-		//case model.ObjType_api:
-		//	err =db.Joins("join  ivan_assets_clusters c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Pluck("obj_type",&item.ObjIds).Error
+		case model.ObjType_api:
+			err = db.Joins("join  ivan_assets_apis c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Pluck("obj_type", &item.ObjIds).Error
 		case model.ObjType_secret:
 			err = db.Joins("join  ivan_assets_secrets c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Pluck("obj_id", &item.ObjIds).Error
 		case model.ObjType_pv:
@@ -388,15 +388,15 @@ func GetAssetsTagRelCounts(ctx context.Context, rdb *gorm.DB, tagId string) (rel
 		case model.ObjType_pod:
 			err = db.Joins("join  ivan_assets_pod_res_relations c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Pluck("obj_id", &item.ObjIds).Error
 		case model.ObjType_container:
-			err = db.Joins("join  ivan_assets_raw_containers c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status < 5").Pluck("obj_id", &item.ObjIds).Error
+			err = db.Joins("join  ivan_assets_raw_containers c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status <", 5).Pluck("obj_id", &item.ObjIds).Error
 		case model.ObjType_service:
 			err = db.Joins("join  ivan_assets_services c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Pluck("obj_id", &item.ObjIds).Error
 		case model.ObjType_endpoints:
 			err = db.Joins("join  ivan_assets_endpoints c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Pluck("obj_id", &item.ObjIds).Error
 		case model.ObjType_ingress:
 			err = db.Joins("join  ivan_assets_ingresses c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Pluck("obj_id", &item.ObjIds).Error
-		//case model.ObjType_api:
-		//	err =db.Joins("join  ivan_assets_clusters c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Pluck("obj_type",&item.ObjIds).Error
+		case model.ObjType_api:
+			err = db.Joins("join  ivan_assets_apis c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Pluck("obj_type", &item.ObjIds).Error
 		case model.ObjType_secret:
 			err = db.Joins("join  ivan_assets_secrets c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Pluck("obj_id", &item.ObjIds).Error
 		case model.ObjType_pv:
@@ -422,52 +422,6 @@ func GetAssetsTagRelCounts(ctx context.Context, rdb *gorm.DB, tagId string) (rel
 			relCounts.RelCounts = append(relCounts.RelCounts, &item)
 		}
 	}
-	/*for _, objType := range targetObjType {
-		item := AssetsTagRelCount{
-			ObjType: objType,
-		}
-		db := rdb.WithContext(ctx).Model(&model.TensorAssetsTagRel{}).Where("tag_id = ? and obj_type=?", tagId, objType)
-		switch objType {
-		case model.ObjType_cluster:
-			err = db.Joins("join  ivan_assets_clusters c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Count(&item.Count).Error
-		case model.ObjType_namespace:
-			err = db.Joins("join  ivan_assets_namespaces c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Count(&item.Count).Error
-		case model.ObjType_resource:
-			err = db.Joins("join  ivan_assets_resources c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Count(&item.Count).Error
-		case model.ObjType_pod:
-			err = db.Joins("join  ivan_assets_pod_res_relations c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Count(&item.Count).Error
-		case model.ObjType_container:
-			err = db.Joins("join  ivan_assets_raw_containers c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status < 5").Count(&item.Count).Error
-		case model.ObjType_service:
-			err = db.Joins("join  ivan_assets_services c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Count(&item.Count).Error
-		case model.ObjType_endpoints:
-			err = db.Joins("join  ivan_assets_endpoints c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Count(&item.Count).Error
-		case model.ObjType_ingress:
-			err = db.Joins("join  ivan_assets_ingresses c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Count(&item.Count).Error
-		//case model.ObjType_api:
-		//	err =db.Joins("join  ivan_assets_clusters c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Pluck("obj_type",&item.ObjIds).Error
-		case model.ObjType_secret:
-			err = db.Joins("join  ivan_assets_secrets c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Count(&item.Count).Error
-		case model.ObjType_pv:
-			err = db.Joins("join  ivan_assets_pvs c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Count(&item.Count).Error
-		case model.ObjType_pvc:
-			err = db.Joins("join  ivan_assets_pvcs c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Count(&item.Count).Error
-		case model.ObjType_node:
-			err = db.Joins("join  ivan_assets_nodes c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Count(&item.Count).Error
-		case model.ObjType_webSit:
-			err = db.Joins("join  ivan_assets_ingress_rules c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Count(&item.Count).Error
-		case model.ObjType_app:
-			err = db.Joins("join  ivan_assets_raw_containers_svcs c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Count(&item.Count).Error
-		case model.ObjType_webApp:
-			err = db.Joins("join  ivan_assets_raw_containers_svcs c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0 and svc_type = ?", assets.BusiSvcTypeWebEn).Count(&item.Count).Error
-		case model.ObjType_dbApp:
-			err = db.Joins("join  ivan_assets_raw_containers_svcs c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0 and svc_type = ?", assets.BusiSvcTypeDbEn).Count(&item.Count).Error
-		}
-		if err != nil {
-			logging.Get().Err(err).Msgf("get assets count failed.tagId:%s,objType:%s", tagId, string(objType))
-		}
-		relCounts.RelCounts = append(relCounts.RelCounts, &item)
-	}*/
 	return relCounts, nil
 }
 

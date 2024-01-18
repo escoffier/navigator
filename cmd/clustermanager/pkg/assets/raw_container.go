@@ -143,11 +143,6 @@ func (cb *RawContainerCallBack) doOnRawContainerEvent(ctx context.Context, e con
 
 		if upsertErr != nil {
 			logging.Get().Err(upsertErr).Msg("upsert raw container rel in rdb error,containerId:" + e.container.ContainerID)
-			if e.container.Discovery != nil && len(e.container.Discovery.Frameworks) > 0 {
-				for _, f := range e.container.Discovery.Frameworks {
-					logging.Get().Error().Msgf("containerId:%s,podName:%s,containerName:%s,frameworkName:%s,language_version:%v", e.container.ContainerID, e.container.PodName, e.container.Name, f.FrameworkName, []byte(f.LanguageVersion))
-				}
-			}
 		}
 	}
 	return nil

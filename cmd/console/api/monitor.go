@@ -64,7 +64,7 @@ func (req *monitorHolmes) Render(r *http.Request) error {
 	if clusterKeys != "" {
 		req.ClusterKeyList = strings.Split(clusterKeys, ",")
 	}
-	req.NodeName = getNormalizedQueryParam(r, "nodName")
+	req.NodeName = getNormalizedQueryParam(r, "nodeName")
 	return nil
 }
 
@@ -117,11 +117,11 @@ func (api *api) GetMonitorHolmes(w http.ResponseWriter, r *http.Request) {
 }
 
 type monitorComponent struct {
-	Limit     int `in:"query" name:"limit"`
-	Offset    int `in:"query" name:"offset"`
-	Component string
-	PodName   string `in:"query" name:"name"`
-	//Version    string
+	Limit          int `in:"query" name:"limit"`
+	Offset         int `in:"query" name:"offset"`
+	Component      string
+	PodName        string `in:"query" name:"name"`
+	Version        string
 	PodStatus      string
 	ClusterKeyList []string `in:"query" name:"cluster_key"`
 	NodeName       string   `in:"query" name:"node_name"`
@@ -142,6 +142,7 @@ func (req *monitorComponent) Render(r *http.Request) error {
 		req.ClusterKeyList = strings.Split(clusterKeys, ",")
 	}
 	req.NodeName = getNormalizedQueryParam(r, "nodeName")
+	req.Version = getNormalizedQueryParam(r, "version")
 	return nil
 }
 
@@ -179,6 +180,9 @@ func (api *api) GetMonitorComponent(w http.ResponseWriter, r *http.Request) {
 	}
 	if req.NodeName != "" {
 		opt.WhereLikeCondition["node_name"] = req.NodeName
+	}
+	if req.Version != "" {
+		opt.WhereLikeCondition["version"] = req.Version
 	}
 
 	svc, ok := monitor.GetService()

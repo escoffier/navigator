@@ -2,12 +2,9 @@ package dal
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"github.com/shopspring/decimal"
-	pkgasserts "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/env"
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
@@ -384,8 +381,8 @@ func GetMonitorHolmesPodTotal(ctx context.Context, rdb *gorm.DB, queryOpt *Monit
 }
 
 type MonitorComponentResp struct {
-	PodName string `json:"podName"`
-	//Version          string `json:"version"`
+	PodName    string `json:"podName"`
+	Version    string `json:"version"`
 	PodStatus  string `json:"podStatus"`
 	ClusterKey string `json:"clusterKey"`
 	NodeName   string `json:"nodeName"`
@@ -427,6 +424,7 @@ func GetMonitorComponentPod(ctx context.Context, rdb *gorm.DB, queryOpt *Monitor
 			PodName:    c.PodName,
 			ClusterKey: c.ClusterKey,
 			NodeName:   c.NodeName,
+			Version:    c.Version,
 			//LastUpdateTime: c.UpdatedAt,
 			LastUpdateTimeStamp: c.UpdatedAt.UnixMilli(),
 		}
@@ -541,19 +539,4 @@ func getMem(memoryByte uint64) string {
 	}
 	rate := float64(memoryByte) / (1024 * 1024)
 	return fmt.Sprintf("%.1fMB", rate)
-}
-
-func getK8sClient(_ context.Context, clusterKey string) (*pkgasserts.Clientset, error) {
-	clusterManager, ok := k8s.GetClusterManager()
-	if !ok {
-		return nil, errors.New("get cluster falied")
-	}
-
-	// get client
-	k8sClient, ok := clusterManager.GetClient(clusterKey)
-	if !ok {
-		return nil, errors.New("get k8s client error")
-	}
-
-	return k8sClient, nil
 }
