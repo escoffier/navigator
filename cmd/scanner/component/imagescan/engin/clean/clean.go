@@ -70,9 +70,12 @@ func (s *ScanClear) reduceLayerQuote(ctx context.Context, pre *imagesecTypes.Pre
 		s.Log.Err(err).Msg("NewLocalLayerManageClientT")
 		return err
 	}
-	for k := range pre.Layers {
-		if err := client1.DeleteLayer(scannerUtils.GetSha256Digest(k)); err != nil {
-			s.Log.Err(err).Str("layer", k).Msg("DeleteLayer")
+	for ly := range pre.Layers {
+		if !pre.Layers[ly].NeedPull {
+			continue
+		}
+		if err := client1.DeleteLayer(scannerUtils.GetSha256Digest(ly)); err != nil {
+			s.Log.Err(err).Str("layer", ly).Msg("DeleteLayer")
 			continue
 		}
 	}

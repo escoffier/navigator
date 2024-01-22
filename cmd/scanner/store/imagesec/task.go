@@ -3,6 +3,7 @@ package imagesecStore
 import (
 	"context"
 	"fmt"
+	"sort"
 	"time"
 
 	"gitlab.com/security-rd/go-pkg/databases"
@@ -146,6 +147,7 @@ func (dal *ScanTaskDao) SearchScanTask(ctx context.Context, param imagesecModel.
 }
 
 func (dal *ScanTaskDao) CreateScanSubtask(ctx context.Context, data2 []*imagesecModel.ImageScanSubTask) error {
+
 	data := make([]*imagesecModel.ImageScanSubTask, 0)
 
 	for i := range data2 {
@@ -156,6 +158,8 @@ func (dal *ScanTaskDao) CreateScanSubtask(ctx context.Context, data2 []*imagesec
 		}
 		data = append(data, data2[i])
 	}
+	// 更好的利用扫描缓存
+	sort.Sort(imagesecModel.ImageScanSubtasks(data))
 
 	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()

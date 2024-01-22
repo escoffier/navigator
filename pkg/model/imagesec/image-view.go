@@ -27,13 +27,13 @@ type ImageSearchApiParam struct {
 	ImageAttrView          []string `json:"imageAttr"`       // 镜像属性,前端以列表的方式传递
 	SafeAttr               []string `json:"safeAttr"`        // safe，unsafe,unknown
 	VulnStatic             []string `json:"vulnStatic"`      // 镜像漏洞统计
-	ImageIds               []int64  `json:"imageIds"`        // 镜像ID列表
-	ImageID                int64    `json:"imageID"`         // 镜像ID
+	ImageIds               []int64  `json:"imageIds"`        // 镜像ID列表，前端统一使用ImageUniqueIDStr
 	JustReturnImage        bool     `json:"justReturnImage"` // 只需要镜像信息，不需要镜像关联信息
 	ReturnMalicious        bool     `json:"returnMalicious"` // 是否返回恶义文件
 	UUIDs                  []uint32 `json:"uuids"`           // 镜像uuid
-	UniqueIds              []uint64 `json:"uniqueIds"`
-	UniqueId               uint64   `json:"uniqueId,string"`
+	ImageUniqueIds         []uint64 `json:"-"`
+	ImageUniqueIdsStr      []string `json:"imageUniqueID"` // 镜像列表传参
+	UniqueId               uint64   `json:"-"`
 	Projects               []string `json:"projects"`               // 仓库和repo的筛选
 	AttrIntersection       string   `json:"attrIntersection"`       // 属性交集还是并集 and or
 	IssueIntersection      string   `json:"issueIntersection"`      // 安全问题交集还是并集 and or
@@ -83,7 +83,7 @@ func (sp *ImageSearchApiParam) ToImageDalParam() ImageDalParam {
 		StartID:                sp.StartID,
 		Fields:                 sp.Fields,
 		UUIDs:                  sp.UUIDs,
-		UniqueIds:              sp.UniqueIds,
+		UniqueIds:              sp.ImageUniqueIds,
 		UniqueId:               sp.UniqueId,
 		WebshellMD5:            sp.WebshellMD5,
 		MalwareMD5:             sp.MalwareMD5,
@@ -132,6 +132,17 @@ func (sp *ImageSearchApiParam) ToImageDalParam() ImageDalParam {
 		}
 	}
 	daoParam.Projects = repos
+
+	// 转数据
+	for i := range sp.ImageUniqueIdsStr {
+		if daoParam.UniqueIds == nil {
+			daoParam.UniqueIds = make([]uint64, 0)
+		}
+		num, err := strconv.ParseUint(sp.ImageUniqueIdsStr[i], 10, 64)
+		if err == nil {
+			daoParam.UniqueIds = append(daoParam.UniqueIds, num)
+		}
+	}
 
 	return daoParam
 }
@@ -482,14 +493,12 @@ type ImageWithCorrelateData2 struct {
 	ImageInReg        []ImageInReg
 	Registry          *Registry
 	NodeInfo          *NodeInfo
-	// TrustedDigest     []string
-	ScanInstance *ScannerInstanceInfo
-	// RegIds            []int64
-	RiskPolicy    []SecurityPolicy                // 镜像的风险来源
-	TotalPolicy   []SecurityPolicy                // 已使用的安全策略
-	DetectResult  map[string][]*ImageDetectResult // 检测结果
-	DeployRecord  *DeployRecord                   // 阻断结果
-	DeployInWhite bool                            // 是否在白名单中
+	ScanInstance      *ScannerInstanceInfo
+	RiskPolicy        []SecurityPolicy                // 镜像的风险来源
+	TotalPolicy       []SecurityPolicy                // 已使用的安全策略
+	DetectResult      map[string][]*ImageDetectResult // 检测结果
+	DeployRecord      *DeployRecord                   // 阻断结果
+	DeployInWhite     bool                            // 是否在白名单中
 }
 
 func GetDetectBriefFlag(detectResult map[string][]*ImageDetectResult) uint64 {

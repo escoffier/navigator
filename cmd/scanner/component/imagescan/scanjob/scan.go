@@ -52,120 +52,122 @@ func (s *RegImageScan) Check() error {
 }
 
 // 按层级维度并行
-func (s *RegImageScan) ScanAndSend(ctx context.Context, subtask imagesecTypes.ScanSubTask) error {
-
-	start := time.Now().UnixMilli()
-
-	defer s.DeleteTaskQueue(ctx, subtask.SubTaskID)
-
-	if subtask.ScanTimeout <= 0 {
-		subtask.ScanTimeout = consts.DefaultScanTimeout
-	}
-
-	result := &imagesecTypes.ReportScanResult{
-		UUID:          subtask.GenUniqueID(),
-		TaskID:        subtask.TaskID,
-		SubTaskID:     subtask.SubTaskID,
-		ImageUniqueID: subtask.RegImageMeta.UniqueID,
-		Errors:        make([]error, 0),
-	}
-
-	// 准备工作
-	modifyJob := modify.NewResultModify()
-
-	cleJob := clean.NewScanClear()
-
-	trivyJob, err := scanTrivy.NewTrivySrv(scanTrivy.WithRedisCli(s.RedisCli))
-	if err != nil {
-		s.Log.Err(err).Msg("can not create trivyJob")
-		result.Errors = append(result.Errors, err)
-	}
-
-	sendFileJob := report.NewSendFile(s.MqWriter, s.Config.MaxSingeFileSize)
-	sendResultJob := report.NewSendResult(s.MqWriter)
-
-	prepJob := prepare.NewRegImagePreparer(s.ScanCachePath)
-
-	prep := prepJob.PrepareImageMate(ctx, subtask)
-
-	result.Errors = append(result.Errors, prep.Errors...)
-
-	jobCnt := 0
-
-	jobs, err := s.GetImageScanJob(ctx, prep)
-	if err != nil {
-		result.Errors = append(result.Errors, err)
-	}
-
-	if len(result.Errors) == 0 {
-		scanResultChan := make(chan []imagesecTypes.ScanJobResult)
-		defer close(scanResultChan)
-		jobCnt++
-		go func(job types.ImageScanJob, prep *imagesecTypes.PrepareScan, out chan []imagesecTypes.ScanJobResult) {
-			res := trivyJob.ImageScan(ctx, prep)
-			out <- res
-		}(trivyJob, prep, scanResultChan)
-
-		lyChan := make(chan *imagesecTypes.ImageLayer, len(prep.Layers))
-		defer close(lyChan)
-
-		prepJob.PrepareImageLayer(ctx, prep, lyChan)
-
-		for j := 0; j < len(prep.Layers); j++ {
-			ly := <-lyChan
-			if ly.NotReady {
-				s.Log.Error().Str("subtask", subtask.LogStr()).Interface("layer", ly).Msg("layer not ready")
-				result.Errors = append(result.Errors, fmt.Errorf("layer not ready:%s", ly.Digest))
-				continue
-			}
-			af := prep.DeepCopy()
-			af.ReplaceLayer(ly)
-
-			jobCnt += len(jobs)
-
-			for i := range jobs {
-				go func(job types.ImageScanJob, prep *imagesecTypes.PrepareScan, out chan []imagesecTypes.ScanJobResult) {
-					res := job.ImageScan(ctx, prep)
-					out <- res
-				}(jobs[i], af, scanResultChan)
-			}
-		}
-
-		// 等待接收结果
-		s.Log.Info().Int("jobCnt", jobCnt).Str("subtask", subtask.LogStr()).Msg("ScanAndSend wait result")
-		for i := 0; i < jobCnt; i++ {
-			res := <-scanResultChan
-			for j := range res {
-				result = Merge(result, res[j])
-			}
-		}
-		s.Log.Info().Int("jobCnt", jobCnt).Str("subtask", subtask.LogStr()).Msg("ScanAndSend receive result finished")
-	}
-
-	// 千万注意，这些job 是有顺序的
-	_ = modifyJob.ConvertScanStatus(ctx, result)
-	_ = modifyJob.ConvertToContainerPath(ctx, prep, result)
-	_ = sendResultJob.Send(ctx, prep, result)
-
-	s.Log.Info().Str("subtask", subtask.LogStr()).Str("result", result.LogStr()).
-		Int64("cost", time.Now().UnixMilli()-start).Msg("scanResult scan registry image end")
-
-	go func() {
-		// 发送文件
-		_ = modifyJob.ConvertToHostPath(ctx, prep, result)
-		_ = sendFileJob.Send(ctx, prep, result)
-		// 执行清理操作
-		_ = cleJob.Clear(ctx, prep)
-	}()
-
-	s.Log.Debug().Str("subtask", subtask.LogStr()).Interface("result", result).
-		Msg("scanResult scan registry image end")
-
-	return nil
-}
+// func (s *RegImageScan) ScanAndSend(ctx context.Context, subtask imagesecTypes.ScanSubTask) error {
+//
+// 	start := time.Now().UnixMilli()
+//
+// 	defer s.DeleteTaskQueue(ctx, subtask.SubTaskID)
+//
+// 	if subtask.ScanTimeout <= 0 {
+// 		subtask.ScanTimeout = consts.DefaultScanTimeout
+// 	}
+//
+// 	result := &imagesecTypes.ReportScanResult{
+// 		UUID:          subtask.GenUniqueID(),
+// 		TaskID:        subtask.TaskID,
+// 		SubTaskID:     subtask.SubTaskID,
+// 		ImageUniqueID: subtask.RegImageMeta.UniqueID,
+// 		Errors:        make([]error, 0),
+// 	}
+//
+// 	// 准备工作
+// 	modifyJob := modify.NewResultModify()
+//
+// 	cleJob := clean.NewScanClear()
+//
+// 	trivyJob, err := scanTrivy.NewTrivySrv(scanTrivy.WithRedisCli(s.RedisCli))
+// 	if err != nil {
+// 		s.Log.Err(err).Msg("can not create trivyJob")
+// 		result.Errors = append(result.Errors, err)
+// 	}
+//
+// 	sendFileJob := report.NewSendFile(s.MqWriter, s.Config.MaxSingeFileSize)
+// 	sendResultJob := report.NewSendResult(s.MqWriter)
+//
+// 	prepJob := prepare.NewRegImagePreparer(s.ScanCachePath)
+//
+// 	prep := prepJob.PrepareImageMate(ctx, subtask)
+//
+// 	result.Errors = append(result.Errors, prep.Errors...)
+//
+// 	jobCnt := 0
+//
+// 	jobs, err := s.GetImageScanJob(ctx, prep)
+// 	if err != nil {
+// 		result.Errors = append(result.Errors, err)
+// 	}
+//
+// 	if len(result.Errors) == 0 {
+// 		scanResultChan := make(chan []imagesecTypes.ScanJobResult)
+// 		defer close(scanResultChan)
+// 		jobCnt++
+// 		go func(job types.ImageScanJob, prep *imagesecTypes.PrepareScan, out chan []imagesecTypes.ScanJobResult) {
+// 			res := trivyJob.ImageScan(ctx, prep)
+// 			out <- res
+// 		}(trivyJob, prep, scanResultChan)
+//
+// 		lyChan := make(chan *imagesecTypes.ImageLayer, len(prep.Layers))
+// 		defer close(lyChan)
+//
+// 		prepJob.PrepareImageLayer(ctx, prep, lyChan)
+//
+// 		for j := 0; j < len(prep.Layers); j++ {
+// 			ly := <-lyChan
+// 			if ly.NotReady {
+// 				s.Log.Error().Str("subtask", subtask.LogStr()).Interface("layer", ly).Msg("layer not ready")
+// 				result.Errors = append(result.Errors, fmt.Errorf("layer not ready:%s", ly.Digest))
+// 				continue
+// 			}
+// 			af := prep.DeepCopy()
+// 			af.ReplaceLayer(ly)
+//
+// 			jobCnt += len(jobs)
+//
+// 			for i := range jobs {
+// 				go func(job types.ImageScanJob, prep *imagesecTypes.PrepareScan, out chan []imagesecTypes.ScanJobResult) {
+// 					res := job.ImageScan(ctx, prep)
+// 					out <- res
+// 				}(jobs[i], af, scanResultChan)
+// 			}
+// 		}
+//
+// 		// 等待接收结果
+// 		s.Log.Info().Int("jobCnt", jobCnt).Str("subtask", subtask.LogStr()).Msg("ScanAndSend wait result")
+// 		for i := 0; i < jobCnt; i++ {
+// 			res := <-scanResultChan
+// 			for j := range res {
+// 				result = Merge(result, res[j])
+// 			}
+// 		}
+// 		s.Log.Info().Int("jobCnt", jobCnt).Str("subtask", subtask.LogStr()).Msg("ScanAndSend receive result finished")
+// 	}
+//
+// 	// 千万注意，这些job 是有顺序的
+// 	_ = modifyJob.ConvertScanStatus(ctx, result)
+// 	_ = modifyJob.ConvertToContainerPath(ctx, prep, result)
+// 	_ = sendResultJob.Send(ctx, prep, result)
+//
+// 	s.Log.Info().Str("subtask", subtask.LogStr()).Str("result", result.LogStr()).
+// 		Int64("cost", time.Now().UnixMilli()-start).Msg("scanResult scan registry image end")
+//
+// 	go func() {
+// 		// 发送文件
+// 		_ = modifyJob.ConvertToHostPath(ctx, prep, result)
+// 		_ = sendFileJob.Send(ctx, prep, result)
+// 		// 执行清理操作
+// 		_ = cleJob.Clear(ctx, prep)
+// 	}()
+//
+// 	s.Log.Debug().Str("subtask", subtask.LogStr()).Interface("result", result).
+// 		Msg("scanResult scan registry image end")
+//
+// 	return nil
+// }
 
 // 按镜像维度并行
 func (s *RegImageScan) ScanAndSend2(ctx context.Context, subtask imagesecTypes.ScanSubTask) error {
+
+	s.Log.Debug().Interface("subtask", subtask).Msg("ScanAndSend2")
 
 	start := time.Now().Unix()
 
@@ -176,6 +178,7 @@ func (s *RegImageScan) ScanAndSend2(ctx context.Context, subtask imagesecTypes.S
 	}
 
 	result := &imagesecTypes.ReportScanResult{
+		DBVersion:     subtask.DBVersion,
 		UUID:          subtask.GenUniqueID(),
 		TaskID:        subtask.TaskID,
 		SubTaskID:     subtask.SubTaskID,
@@ -199,7 +202,10 @@ func (s *RegImageScan) ScanAndSend2(ctx context.Context, subtask imagesecTypes.S
 	scanResultChan := make(chan []imagesecTypes.ScanJobResult)
 	defer close(scanResultChan)
 
-	prep := prepJob.ImageScanJob(ctx, subtask)
+	prep := prepJob.PrepareImageMate(ctx, subtask)
+
+	// 准备文件
+	prepJob.PrepareAllLayer(ctx, prep)
 
 	result.Errors = append(result.Errors, prep.Errors...)
 
@@ -235,7 +241,7 @@ func (s *RegImageScan) ScanAndSend2(ctx context.Context, subtask imagesecTypes.S
 	_ = sendResultJob.Send(ctx, prep, result)
 
 	s.Log.Info().Str("subtask", subtask.LogStr()).Str("result", result.LogStr()).
-		Int64("cost", time.Now().UnixMilli()-start).Msg("scanResult scan registry image end")
+		Int64("cost", time.Now().Unix()-start).Msg("scanResult scan registry image end")
 
 	go func() {
 		// 发送文件
@@ -284,10 +290,10 @@ func (s *RegImageScan) DoScanImageTask(ctx context.Context) error {
 					}
 				}()
 
-				if os.Getenv("IMAGE_SCAN_DIMENSION") == consts.ImageScnDimensionLayer {
-					_ = s.ScanAndSend(ctx, ta)
-					return
-				}
+				// if os.Getenv("IMAGE_SCAN_DIMENSION") == consts.ImageScnDimensionLayer {
+				// 	_ = s.ScanAndSend(ctx, ta)
+				// 	return
+				// }
 
 				// 默认按镜像并行
 				_ = s.ScanAndSend2(ctx, ta)
@@ -379,10 +385,7 @@ func (s *RegImageScan) GetImageScanJob(ctx context.Context, pre *imagesecTypes.P
 			scanJobs = append(scanJobs, srv)
 		}
 
-		hmOpts := make([]hm.Option, 0)
-		hmOpts = append(hmOpts, hm.WithScanTimeout(global2.ScannerOpts.SingeScanTimeout))
-
-		if hmJob, err := hm.NewScanHM(hmOpts...); err != nil {
+		if hmJob, err := hm.NewScanHM(); err != nil {
 			s.Log.Err(err).Msg("can not create NewScanHM")
 			pre.Errors = append(pre.Errors, err)
 			return scanJobs, err
@@ -465,6 +468,8 @@ func Merge(result *imagesecTypes.ReportScanResult, res imagesecTypes.ScanJobResu
 		result.SensitiveCache = append(result.SensitiveCache, ca)
 	case imagesecModel.LicenseCacheData:
 		result.LicenseCache = append(result.LicenseCache, ca)
+	case imagesecModel.VulnCacheData:
+		result.VulnCache = append(result.VulnCache, ca)
 	}
 
 	return result

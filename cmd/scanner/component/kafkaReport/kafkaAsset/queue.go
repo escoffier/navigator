@@ -1,4 +1,4 @@
-package imagesecReport
+package kafkaAsset
 
 import (
 	"sync"

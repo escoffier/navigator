@@ -11,7 +11,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts/preConsts"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -367,7 +367,7 @@ func (vu *Vuln) GenCheckSum() uint64 {
 }
 
 func (vu *Vuln) GenUniqueVuln() uint64 {
-	key := fmt.Sprintf(consts.UniqueVulnFamat, vu.Name, vu.PkgName, vu.PkgVersion)
+	key := fmt.Sprintf(preConsts.UniqueVulnFamat, vu.Name, vu.PkgName, vu.PkgVersion)
 	uid := util.GenerateUUID64(key)
 	return uid
 }

@@ -8,7 +8,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/service"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/types"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -69,12 +68,8 @@ func (s *ExportHtmlApiSrv) GetImageVulns(ctx *gin.Context) {
 	taskID := util.GetInt64FromQuery(ctx, "taskID")
 	startID := util.GetInt64FromQuery(ctx, "startID")
 	imageID := util.GetInt64FromQuery(ctx, "imageID")
+	severity := util.GetKeywordFromQuery(ctx, "severity")
 
-	severity := imagesec.GetSeverityInt(ctx.Query("severity"))
-	if severity <= model.SeverityNegligibleInt || severity > model.SeverityCriticalInt {
-		response.JSONError(ctx, fmt.Errorf("no severity"))
-		return
-	}
 	driver, err := s.GetExportHtmlDriver(ctx, taskID)
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -97,13 +92,7 @@ func (s *ExportHtmlApiSrv) GetExportVulns(ctx *gin.Context) {
 	taskID := util.GetInt64FromQuery(ctx, "taskID")
 	startID := util.GetInt64FromQuery(ctx, "startID")
 	limit := util.GetInt64FromQuery(ctx, "limit")
-
-	severity := imagesec.GetSeverityInt(ctx.Query("severity"))
-	if severity <= 0 || severity > imagesec.SeverityCriticalInt {
-		response.JSONError(ctx, fmt.Errorf("no severity"))
-		return
-	}
-
+	severity := util.GetKeywordFromQuery(ctx, "severity")
 	canFixed := ctx.Query("canFixed")
 
 	if canFixed != consts.TrueString && canFixed != consts.FalseString {

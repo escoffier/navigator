@@ -10,6 +10,7 @@ import (
 
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm/clause"
+	"k8s.io/apimachinery/pkg/util/rand"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd/global"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/types"
@@ -29,6 +30,7 @@ type RegImageScanQueue struct {
 	scanInstanceDal           imagesecStore.ScanInstanceDal
 	scanImageConfigDal        imagesecStore.ScanImageConfigDal
 	sensitiveRuleDal          imagesecStore.SensitiveRuleDal
+	dbMetaDal                 imagesecStore.ScanDbMetaDal
 	maxProgressTask           int64
 	maxProgressSubtaskPerNode int64
 	Log                       *scannerUtils.LogEvent
@@ -63,13 +65,18 @@ func (s *RegImageScanQueue) updateSubtask(ctx context.Context) {
 			updater["started_at"] = time.Now().UnixMilli()
 			updater["scan_uuid"] = up.ScanUUID
 		}
+		// 直接使用缓存
+		if up.Status == imagesecModel.TaskStatusDetectFinished {
+			updater["finished_at"] = time.Now().UnixMilli() + rand.Int63nRange(2000, 5000)
+			updater["started_at"] = time.Now().UnixMilli()
+		}
 
 		param := imagesecModel.UpdateTaskParam{
 			ID:      up.SubtaskID,
 			Updater: updater,
 		}
-		if up.Status != imagesecModel.TaskStatusFailed {
-			param.Where = fmt.Sprintf("status < %d", imagesecModel.TaskStatusPause)
+		if up.Status > 0 {
+			param.Where = fmt.Sprintf("status < %d", up.Status)
 		}
 
 		if err := s.ScanTaskDal.UpdateScanSubtask(ctx, param); err != nil {
@@ -195,11 +202,6 @@ func (s *RegImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, task
 		return err
 	}
 
-	config, err := s.scanImageConfigDal.GetScanImageConfig(ctx, imagesecModel.ConfigTypeRegScanImage)
-	if err != nil {
-		s.Log.Err(err).Msg("GetScanImageConfig")
-		return err
-	}
 	filter := imagesecModel.EmptyFilter().SetSortDesc().SetSortFiled("status")
 
 	for i := range instance {
@@ -208,7 +210,7 @@ func (s *RegImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, task
 		subtaskParam := imagesecModel.SearchTaskParam{
 			TaskID:       task.ID,
 			NodeUniqueID: uint64(no.ID),
-			// TaskStatusInprogress 但是可能发送失败
+			// TaskStatusInprogress 可能发送失败
 			ScanStatus:      []int64{imagesecModel.TaskStatusPending, imagesecModel.TaskStatusInprogress, imagesecModel.TaskStatusSendFinished},
 			IsSearchSubtask: true,
 			// 这里一次不取更多，是因为前端更新 task 任务之后需要快速感知
@@ -223,7 +225,7 @@ func (s *RegImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, task
 
 		if len(subtask) > 0 {
 			// 已开始发送子任务时才更新任务已开始
-			// 如果任务1开始了，但是扫描的有其他子任务在执行，不能执行该任务下的子任务，这时不应该认为该任务已开始
+			// 如果任务开始了，但是扫描的有其他子任务在执行，不能执行该任务下的子任务，这时不应该认为该任务已开始
 			if err := s.UpdateTaskInprogress(ctx, task.ID); err != nil {
 				s.Log.Err(err).Int64("taskID", task.ID).Msg("start task")
 				continue
@@ -247,7 +249,7 @@ func (s *RegImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, task
 					Status:    imagesecModel.TaskStatusFailed,
 					Err:       err,
 					Reason:    imagesecModel.TaskFailedReasonNotFindImage,
-					CreatedAt: time.Now().Unix(),
+					CreatedAt: time.Now().UnixMilli(),
 				}
 
 				go func() { s.updateSubtaskChan <- up }()
@@ -265,7 +267,7 @@ func (s *RegImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, task
 					Status:    imagesecModel.TaskStatusFailed,
 					Err:       e,
 					Reason:    imagesecModel.TaskFailedReasonNotFindScanner,
-					CreatedAt: time.Now().Unix(),
+					CreatedAt: time.Now().UnixMilli(),
 				}
 
 				go func() { s.updateSubtaskChan <- up }()
@@ -291,7 +293,7 @@ func (s *RegImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, task
 				sendSubtask++
 				// 已经发送过，不再发送
 				// 如果pod重启，就会再一次发送
-				s.Log.Info().Str("scanInstance", no.LogStr()).Str("subtask", sub.LogInfo()).Msg("subtask has being send")
+				s.Log.Debug().Str("scanInstance", no.LogStr()).Str("subtask", sub.LogInfo()).Msg("subtask has being sent")
 				if sendSubtask >= s.maxProgressSubtaskPerNode {
 					// 如果任务队列满了，就休眠一段时间，减少数据库压力,
 					s.Log.Info().Str("scanInstance", no.LogStr()).Int64("cnt", sendSubtask).Msg("has subtask running")
@@ -300,16 +302,19 @@ func (s *RegImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, task
 				continue
 			}
 
-			// 查询缓存
-			imageLayer := make([]string, 0)
-			for _, ly := range imageData.Image.Layer {
-				imageLayer = append(imageLayer, ly.Digest)
+			typesSubTask, err2 := s.BuildScanTask(ctx, sub, imageData)
+			if err2 != nil {
+				up := types.UpdateSubTask{
+					SubtaskID: sub.ID,
+					Status:    imagesecModel.TaskStatusFailed,
+					Err:       err2,
+					Reason:    imagesecModel.TaskFailedReasonSendNode,
+					CreatedAt: time.Now().Unix(),
+				}
+
+				go func() { s.updateSubtaskChan <- up }()
+				continue
 			}
-			// 加缓存
-			cacheLayer, _ := s.ScanResultDal.SearchScanLayerData(ctx, imagesecModel.SearchScanLayerParam{Layers: imageLayer})
-			// 查询配置
-			// 为啥要实时查呢，因为配置更新之后要快速感知
-			typesSubTask := modelToType(sub, imageData, s.SearchAllSensitiveRule(ctx), config.ImageScanConfig, cacheLayer)
 
 			go func() {
 				up := types.UpdateSubTask{
@@ -376,82 +381,6 @@ func (s *RegImageScanQueue) SearchAllSensitiveRule(ctx context.Context) []string
 	return ans
 }
 
-func modelToType(
-	subtask *imagesecModel.ImageScanSubTask,
-	data *imagesecModel.ImageWithCorrelateData2,
-	ses []string,
-	config *imagesecModel.ImageScanConfig,
-	cache []*imagesecModel.ScanLayerData,
-) imagesecTypes.ScanSubTask {
-	sub := imagesecTypes.ScanSubTask{
-		TaskID:        subtask.TaskID,
-		SubTaskID:     subtask.ID,
-		NodeInfo:      imagesecTypes.NodeInfo{},
-		NodeImageMeta: imagesecTypes.ImageMeta{},
-		RegImageMeta: imagesecTypes.ScanImageMeta{
-			ImageUUID: data.Image.ImageUUID,
-			UniqueID:  data.Image.UniqueID,
-			Host:      data.Image.Host,
-			Digest:    data.Image.Digest,
-			Repo:      data.Image.Repo,
-			Tag:       data.Image.Tag,
-		},
-		ScanInstance:   imagesecTypes.ScanInstance{},
-		RegInfo:        imagesecTypes.RegInfo{},
-		SensitiveRules: ses,
-		UniqueID:       "",
-		ScanTimeout:    0,
-		WebshellCache:  make(imagesecTypes.LayerInCache),
-		LicenseCache:   make(imagesecTypes.LayerInCache),
-		SensitiveCache: make(imagesecTypes.LayerInCache),
-		MalwareCache:   make(imagesecTypes.LayerInCache),
-	}
-	if config != nil {
-		sub.ScanTimeout = config.ScanTimeout
-		sub.DeepScan = config.DeepScan
-	}
-
-	if data.ScanInstance != nil {
-		sub.ScanInstance = imagesecTypes.ScanInstance{
-			ClusterKey:      data.ScanInstance.ClusterKey,
-			ClusterName:     data.ScanInstance.ClusterName,
-			ScannerPodID:    data.ScanInstance.ScannerPodID,
-			ScannerInstance: data.ScanInstance.ScannerInstance,
-			ScannerVersion:  data.ScanInstance.ScannerVersion,
-		}
-	}
-	if data.Registry != nil {
-		sub.RegInfo = imagesecTypes.RegInfo{
-			Name:     data.Registry.Name,
-			RegID:    data.Registry.ID,
-			Url:      data.Registry.Url,
-			Username: data.Registry.Username,
-			Password: data.Registry.PasswordString,
-		}
-	}
-
-	sub.UniqueID = sub.GenUniqueID()
-	// 加缓存
-	// 加一个环境变量，便于测试
-	if os.Getenv("SCAN_NOT_USE_CACHE") != consts.TrueString {
-		for i := range cache {
-			ca := cache[i]
-			switch ca.Issue {
-			case imagesecModel.WebshellCacheData:
-				sub.WebshellCache[ca.Layer] = true
-			case imagesecModel.MalwareCacheData:
-				sub.MalwareCache[ca.Layer] = true
-			case imagesecModel.SensitiveCacheData:
-				sub.SensitiveCache[ca.Layer] = true
-			case imagesecModel.LicenseCacheData:
-				sub.LicenseCache[ca.Layer] = true
-			}
-		}
-	}
-
-	return sub
-}
-
 func NewScanRegImageQueue(
 	nodeScanTaskDal imagesecStore.ScanTaskDal,
 	nodeImageSrv types.ImageService,
@@ -459,6 +388,7 @@ func NewScanRegImageQueue(
 	sensitiveRuleDal imagesecStore.SensitiveRuleDal,
 	scanImageConfigDal imagesecStore.ScanImageConfigDal,
 	scanResultDal imagesecStore.ScanResultDal,
+	dbMetaDal imagesecStore.ScanDbMetaDal,
 ) *RegImageScanQueue {
 	nodeQueue := &RegImageScanQueue{
 		ScanTaskDal:               nodeScanTaskDal,
@@ -468,6 +398,7 @@ func NewScanRegImageQueue(
 		sensitiveRuleDal:          sensitiveRuleDal,
 		scanImageConfigDal:        scanImageConfigDal,
 		ScanResultDal:             scanResultDal,
+		dbMetaDal:                 dbMetaDal,
 		maxProgressTask:           consts.MaxInprogressTask,
 		maxProgressSubtaskPerNode: consts.MaxInprogressSubtaskPerNode,
 		Log: scannerUtils.NewLogEvent(

@@ -20,7 +20,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts/preConsts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
@@ -57,7 +57,7 @@ func (aa *AliAcrEE) Ping() error {
 	}
 
 	if err := aa.RegistryClient.Ping(); err != nil {
-		return consts.ErrNotConnectOrWrongUsernameOrPasswd
+		return warehouse.ErrNotConnectOrWrongUsernameOrPasswd
 	}
 	return nil
 }
@@ -159,7 +159,7 @@ func (aa *AliAcrEE) ListImages(ctx context.Context, extender warehouse.Extender,
 				im, err := extender.CreateImageExtender(ctx, preImage)
 				if err != nil {
 					res.HasErr = true
-					if err != consts.ErrNotNodeImage {
+					if err != preConsts.ErrNotNodeImage {
 						logging.Get().Err(err).Str("module", "RegistryImage").Msg("Insert imagelist error")
 					}
 					continue
@@ -328,14 +328,14 @@ func openRegistry(config warehouse.RegistrableComponentConfig) (warehouse.Regist
 	rc, err := warehouse.NewDockerRegistryClient(aa.Config.URL, aa.Config.Username, aa.Config.Password, aa.Config.SkipTLSVerify)
 	if err != nil {
 		logging.Get().Err(err).Str("module", "RegistryImage").Msg("openRegistry.NewDockerRegistryClient")
-		return nil, consts.ErrNotConnectOrWrongUsernameOrPasswd
+		return nil, warehouse.ErrNotConnectOrWrongUsernameOrPasswd
 	}
 	aa.RegistryClient = rc
 
 	sc, err := sdk.NewClientWithAccessKey(aa.Config.RegionID, aa.Config.AccessKey, aa.Config.AccessSecret)
 	if err != nil {
 		logging.Get().Err(err).Str("module", "RegistryImage").Msg("openRegistry.NewClientWithAccessKey")
-		return nil, consts.ErrAccessKeyOrAccessSecret
+		return nil, warehouse.ErrAccessKeyOrAccessSecret
 	}
 
 	aa.AliAcrClient = sc

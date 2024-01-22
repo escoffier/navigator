@@ -260,17 +260,12 @@ func (m *ScanTaskManager) syncResult(t imagesec.ScanSubTask) error {
 	scanResult := m.transformResult(&tmpRes)
 	scanResult.TaskID = t.TaskID
 	scanResult.SubTaskID = t.SubTaskID
-	// 后续优化
-	scanResult.Malware.Scanned = true
-	scanResult.Webshell.Scanned = true
 	if tmpRes.ExitCode == 0 {
 		scanResult.StatusStr = imagesecModel.TaskStatusScanFinishedStr
 	} else {
 		scanResult.StatusStr = imagesecModel.TaskStatusFailedStr
 		scanResult.Msg = tmpRes.ExistMsg
 	}
-	scanResult.Webshell.Scanned = true
-	scanResult.Malware.Scanned = true
 
 	logging.Get().Debug().
 		Int64("subTaskID", t.SubTaskID).

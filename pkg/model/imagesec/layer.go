@@ -13,12 +13,14 @@ const (
 	SensitiveCacheData = "sensitive"
 	WebshellCacheData  = "webshell"
 	LicenseCacheData   = "license"
+	VulnCacheData      = "vuln"
+	PKGCacheData       = "pkg"
 )
 
 type ScanLayerData struct {
 	ID        int64  `gorm:"column:id" json:"id"`
 	UniqueID  uint64 `gorm:"column:unique_id" json:"uniqueID,string"`
-	Layer     string `gorm:"column:layer" json:"layer"`
+	Layer     string `gorm:"column:layer" json:"layer"` // 对于漏洞来说，这里就是镜像的 digest
 	Issue     string `gorm:"column:issue" json:"issue"`
 	DbVersion string `gorm:"column:db_version" json:"dbVersion"`
 	DataJson  string `gorm:"column:data" json:"-"`                                    //
@@ -29,11 +31,15 @@ type ScanLayerData struct {
 	SensitiveUnique []uint64 `gorm:"-" json:"sensitiveUnique"`
 	WebshellUnique  []uint64 `gorm:"-" json:"webshellUnique"`
 	MalwareUnique   []uint64 `gorm:"-" json:"malwareUnique"`
+	PkgUnique       []uint64 `gorm:"-" json:"pkgUnique"`
+	VulnUnique      []uint64 `gorm:"-" json:"vulnUnique"`
 
 	License   []*License       `gorm:"-" json:"license"`
 	Sensitive []*SensitiveFile `gorm:"-" json:"sensitive"`
 	Webshell  []*Webshell      `gorm:"-" json:"hmWebshell"`
 	Malware   []*Malware       `gorm:"-" json:"aviraMalware"`
+	Vuln      []*Vuln          `gorm:"-" json:"vuln"`
+	Pkg       []*Pkg           `gorm:"-" json:"pkg"`
 }
 
 type ScanCache struct {
@@ -85,8 +91,9 @@ func (vi *ScanLayerData) GenLayerFile() []*LayerFile {
 	return res
 }
 
+// 缓存只保留最后的一个版本
 func (vi *ScanLayerData) GenUniqueID() uint64 {
-	uid := util.GenerateUUID64(fmt.Sprintf("%s-%s-%s", vi.Issue, vi.Layer, vi.DbVersion))
+	uid := util.GenerateUUID64(fmt.Sprintf("%s-%s", vi.Issue, vi.Layer))
 	return uid
 }
 
@@ -104,6 +111,12 @@ func (vi *ScanLayerData) SetEmpty() {
 	if len(vi.Sensitive) == 0 {
 		vi.Sensitive = make([]*SensitiveFile, 0)
 	}
+	if len(vi.Vuln) == 0 {
+		vi.Vuln = make([]*Vuln, 0)
+	}
+	if len(vi.Pkg) == 0 {
+		vi.Pkg = make([]*Pkg, 0)
+	}
 
 	if len(vi.LicenseUnique) == 0 {
 		vi.LicenseUnique = make([]uint64, 0)
@@ -117,6 +130,12 @@ func (vi *ScanLayerData) SetEmpty() {
 
 	if len(vi.SensitiveUnique) == 0 {
 		vi.SensitiveUnique = make([]uint64, 0)
+	}
+	if len(vi.VulnUnique) == 0 {
+		vi.VulnUnique = make([]uint64, 0)
+	}
+	if len(vi.PkgUnique) == 0 {
+		vi.PkgUnique = make([]uint64, 0)
 	}
 }
 
@@ -135,14 +154,14 @@ func (vi *ScanLayerData) Check() error {
 }
 
 func (vi *ScanLayerData) Same(after *ScanLayerData) bool {
-	return vi.UniqueID == after.UniqueID && vi.DataJson == after.DataJson
+	return vi.UniqueID == after.UniqueID && vi.DbVersion == after.DbVersion
 }
 
 func (vi *ScanLayerData) TableName() string {
 	return "ivan_scan_data_layer"
 }
 
-func (vi *ScanLayerData) Deserialize(container *ScanLayerData) {
+func (vi *ScanLayerData) Deserialize(layerData *ScanLayerData) {
 
 	if !strings.HasPrefix(vi.Layer, "sha256:") {
 		vi.Layer = fmt.Sprintf("sha256:%s", vi.Layer)
@@ -171,36 +190,60 @@ func (vi *ScanLayerData) Deserialize(container *ScanLayerData) {
 		if err := json.Unmarshal([]byte(vi.DataJson), &ss); err == nil {
 			vi.LicenseUnique = ss
 		}
+	case VulnCacheData:
+		ss := make([]uint64, 0)
+		if err := json.Unmarshal([]byte(vi.DataJson), &ss); err == nil {
+			vi.VulnUnique = ss
+		}
+	case PKGCacheData:
+		ss := make([]uint64, 0)
+		if err := json.Unmarshal([]byte(vi.DataJson), &ss); err == nil {
+			vi.PkgUnique = ss
+		}
 	}
 
-	if container != nil {
+	if layerData != nil {
 		for _, ml := range vi.MalwareUnique {
-			for j := range container.Malware {
-				if ml == container.Malware[j].UniqueID {
-					vi.Malware = append(vi.Malware, container.Malware[j])
+			for j := range layerData.Malware {
+				if ml == layerData.Malware[j].UniqueID {
+					vi.Malware = append(vi.Malware, layerData.Malware[j])
 				}
 			}
 		}
 
 		for _, ml := range vi.SensitiveUnique {
-			for j := range container.Sensitive {
-				if ml == container.Sensitive[j].UniqueID {
-					vi.Sensitive = append(vi.Sensitive, container.Sensitive[j])
+			for j := range layerData.Sensitive {
+				if ml == layerData.Sensitive[j].UniqueID {
+					vi.Sensitive = append(vi.Sensitive, layerData.Sensitive[j])
 				}
 			}
 		}
 
 		for _, ml := range vi.LicenseUnique {
-			for j := range container.License {
-				if ml == container.License[j].UniqueID {
-					vi.License = append(vi.License, container.License[j])
+			for j := range layerData.License {
+				if ml == layerData.License[j].UniqueID {
+					vi.License = append(vi.License, layerData.License[j])
 				}
 			}
 		}
 		for _, ml := range vi.WebshellUnique {
-			for j := range container.Webshell {
-				if ml == container.Webshell[j].UniqueID {
-					vi.Webshell = append(vi.Webshell, container.Webshell[j])
+			for j := range layerData.Webshell {
+				if ml == layerData.Webshell[j].UniqueID {
+					vi.Webshell = append(vi.Webshell, layerData.Webshell[j])
+				}
+			}
+		}
+		for _, ml := range vi.VulnUnique {
+			for j := range layerData.Vuln {
+				if ml == layerData.Vuln[j].UniqueID {
+					vi.Vuln = append(vi.Vuln, layerData.Vuln[j])
+				}
+			}
+		}
+		for _, ml := range vi.PkgUnique {
+			for j := range layerData.Pkg {
+				if ml == layerData.Pkg[j].UniqueID {
+					vi.Pkg = append(vi.Pkg, layerData.Pkg[j])
 				}
 			}
 		}
@@ -220,6 +263,7 @@ func (vi *ScanLayerData) Deserialize(container *ScanLayerData) {
 		vi.Sensitive[i].Layer = vi.Layer
 	}
 
+	// fixme 漏洞和 pkg 没有使用
 	vi.SetEmpty()
 }
 
@@ -243,11 +287,19 @@ func (vi *ScanLayerData) Serialize() {
 	for j := range vi.License {
 		vi.LicenseUnique = append(vi.LicenseUnique, vi.License[j].UniqueID)
 	}
+	for j := range vi.Vuln {
+		vi.VulnUnique = append(vi.VulnUnique, vi.Vuln[j].UniqueID)
+	}
+	for j := range vi.Pkg {
+		vi.PkgUnique = append(vi.PkgUnique, vi.Pkg[j].UniqueID)
+	}
 
 	vi.WebshellUnique = util.DuplicateUint64Slice(vi.WebshellUnique)
 	vi.SensitiveUnique = util.DuplicateUint64Slice(vi.SensitiveUnique)
 	vi.MalwareUnique = util.DuplicateUint64Slice(vi.MalwareUnique)
 	vi.LicenseUnique = util.DuplicateUint64Slice(vi.LicenseUnique)
+	vi.PkgUnique = util.DuplicateUint64Slice(vi.PkgUnique)
+	vi.VulnUnique = util.DuplicateUint64Slice(vi.VulnUnique)
 
 	switch vi.Issue {
 
@@ -266,6 +318,14 @@ func (vi *ScanLayerData) Serialize() {
 		}
 	case LicenseCacheData:
 		if bys, err := json.Marshal(vi.LicenseUnique); err == nil {
+			vi.DataJson = string(bys)
+		}
+	case VulnCacheData:
+		if bys, err := json.Marshal(vi.VulnUnique); err == nil {
+			vi.DataJson = string(bys)
+		}
+	case PKGCacheData:
+		if bys, err := json.Marshal(vi.PkgUnique); err == nil {
 			vi.DataJson = string(bys)
 		}
 	}

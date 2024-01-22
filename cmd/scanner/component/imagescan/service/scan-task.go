@@ -29,15 +29,16 @@ type ScanTaskService interface {
 var scanTaskSing *ScanTaskSrv
 
 type ScanTaskSrv struct {
-	taskDal           imagesecStore.ScanTaskDal
-	preImageDal       imagesecStore.PreImageDal
-	preTaskDal        imagesecStore.ScanTaskPreDal
-	detectDal         imagesecStore.DetectTaskDal
-	imageSrv          types.ImageService
-	imageDal          imagesecStore.ImageMetaDal
-	userDal           imagesecStore.UserDal
-	scanConfigDal     imagesecStore.ScanImageConfigDal
-	Log               *scannerUtils.LogEvent
+	taskDal       imagesecStore.ScanTaskDal
+	preImageDal   imagesecStore.PreImageDal
+	preTaskDal    imagesecStore.ScanTaskPreDal
+	detectDal     imagesecStore.DetectTaskDal
+	imageSrv      types.ImageService
+	imageDal      imagesecStore.ImageMetaDal
+	nodeDal       imagesecStore.NodeInfoDal
+	userDal       imagesecStore.UserDal
+	scanConfigDal imagesecStore.ScanImageConfigDal
+	Log           *scannerUtils.LogEvent
 }
 
 // 在api 调用时会实例化
@@ -60,6 +61,7 @@ func NewScanTaskSrv(
 	scanConfigDal imagesecStore.ScanImageConfigDal,
 	preImageDal imagesecStore.PreImageDal,
 	userDal imagesecStore.UserDal,
+	nodeDal imagesecStore.NodeInfoDal,
 ) *ScanTaskSrv {
 	// 主要是为了兼容,这后会删除，所以这里直接取，后续方便删除
 	if scanTaskSing != nil {
@@ -75,6 +77,7 @@ func NewScanTaskSrv(
 		imageDal:      imageDal,
 		scanConfigDal: scanConfigDal,
 		userDal:       userDal,
+		nodeDal:       nodeDal,
 		Log: scannerUtils.NewLogEvent(
 			scannerUtils.WithSubModule("ScanTaskSrv"),
 			scannerUtils.WithModule(consts.ModuleImageScan)),
@@ -194,31 +197,47 @@ func (s *ScanTaskSrv) SearchScanSubtask(ctx context.Context, param imagesecModel
 		return nil, 0, scani18.NotGetScanTaskID()
 	}
 
-	tasks, cnt, err := s.taskDal.SearchScanSubtask(ctx, param)
+	subtasks, cnt, err := s.taskDal.SearchScanSubtask(ctx, param)
 	if err != nil {
 		s.Log.Err(err).Interface("param", param).Msg("SearchScanTask")
 		return nil, 0, scani18.SearchScanTask(err)
 	}
-	uid := make([]uint64, 0)
-	for i := range tasks {
-		uid = append(uid, tasks[i].ImageUniqueID)
+	imageUniqueIds := make([]uint64, 0)
+	nodeUniqueIds := make([]uint64, 0)
+	for i := range subtasks {
+		imageUniqueIds = append(imageUniqueIds, subtasks[i].ImageUniqueID)
+		nodeUniqueIds = append(nodeUniqueIds, subtasks[i].NodeUniqueID)
 	}
-	image, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{UniqueIds: uid})
+	image, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{UniqueIds: imageUniqueIds})
 	if err != nil {
 		s.Log.Err(err).Interface("param", param).Msg("SearchImage")
 		return nil, 0, scani18.SearchScanTask(err)
 	}
-	for i := range tasks {
-		tasks[i].ImageCleared = true
+
+	nodes, _, err := s.nodeDal.SearchNodeInfo(ctx, imagesecModel.SearchNodeInfoParam{UniqueIds: nodeUniqueIds})
+	if err != nil {
+		s.Log.Err(err).Interface("param", param).Msg("SearchImage")
+		return nil, 0, scani18.SearchScanTask(err)
+	}
+
+	for i := range subtasks {
+		subtasks[i].ImageCleared = true
 		for j := range image {
-			if tasks[i].ImageUniqueID == image[j].UniqueID {
-				tasks[i].ImageCleared = false
+			if subtasks[i].ImageUniqueID == image[j].UniqueID {
+				subtasks[i].ImageCleared = false
+				break
+			}
+		}
+
+		for j := range nodes {
+			if subtasks[i].NodeUniqueID == nodes[j].UniqueID {
+				subtasks[i].ClusterKey = nodes[j].ClusterKey
 				break
 			}
 		}
 	}
 
-	return tasks, cnt, nil
+	return subtasks, cnt, nil
 }
 
 // 重新调度子任务

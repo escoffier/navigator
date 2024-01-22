@@ -75,26 +75,38 @@ func (v *NodeReport) LogStr() string {
 
 // ScanSubTask 节点镜像 扫描任务的子任务，即单个镜像
 type ScanSubTask struct {
-	TaskID         int64         `json:"taskID"`    // 任务id
-	SubTaskID      int64         `json:"subTaskID"` // 子任务id,因为任务可以重新调度,所以不能使用 SubTaskID 来确认一次唯一的扫描任务
-	ImageFromType  string        `json:"imageFromType"`
+	TaskID         int64         `json:"taskID"`        // 任务id
+	SubTaskID      int64         `json:"subTaskID"`     // 子任务id,因为任务可以重新调度,所以不能使用 SubTaskID 来确认一次唯一的扫描任务
 	NodeInfo       NodeInfo      `json:"nodeInfo"`      // 镜像所属节点，用于校验
 	NodeImageMeta  ImageMeta     `json:"nodeImageMeta"` // 节点镜像元数据
 	RegImageMeta   ScanImageMeta `json:"regImageMeta"`  // 仓库镜像元数据
 	ScanInstance   ScanInstance  `json:"scanInstance"`  // scanInstance
 	RegInfo        RegInfo       `json:"regInfo"`
 	SensitiveRules []string      `json:"sensitiveRules"` // 扫描所用的敏感文件规则规则（不包含默认敏感文件规则）
+	DBVersion      RuleVersion   `json:"dbVersion"`      // 主集群下发任务时，当前所使用的版本号
 	UniqueID       string        `json:"uuid"`           // 生成方式 taskID+SubtaskID+time.Now().UnixMilli()
 	ScanTimeout    int64         `json:"scanTimeout"`    // 单位 秒
+	WebshellCache  LayerInCache  `json:"webshellCache"`
+	VulnCache      LayerInCache  `json:"vulnCache"`
+	LicenseCache   LayerInCache  `json:"licenseCache"`
+	SensitiveCache LayerInCache  `json:"sensitiveCache"`
+	MalwareCache   LayerInCache  `json:"malwareCache"`
+	DeepScan       bool          `json:"deepScan"`
+}
 
-	WebshellCache  LayerInCache `json:"webshellCache"`
-	LicenseCache   LayerInCache `json:"licenseCache"`
-	SensitiveCache LayerInCache `json:"sensitiveCache"`
-	MalwareCache   LayerInCache `json:"malwareCache"`
-	DeepScan       bool         `json:"deepScan"`
+type RuleVersion struct {
+	Sensitive string
+	Vuln      string
+	Webshell  string
+	Avira     string
+	License   string
 }
 
 type LayerInCache map[string]bool
+
+type Cache struct {
+	DBVersion string
+}
 
 func (vi LayerInCache) In(ly string) bool {
 	if vi == nil {
@@ -111,7 +123,7 @@ func (vi *ScanSubTask) LogStr() string {
 	}
 	// 说明是仓库镜像
 	if vi.RegInfo.Username != "" {
-		s = fmt.Sprintf("%s,reg:%s,image:[%s/%s:%s]", s, vi.RegInfo.Name, vi.RegImageMeta.Host, vi.RegImageMeta.Repo, vi.RegImageMeta.Tag)
+		s = fmt.Sprintf("%s,reg:%s,image:%s/%s:%s", s, vi.RegInfo.Name, vi.RegImageMeta.Host, vi.RegImageMeta.Repo, vi.RegImageMeta.Tag)
 	}
 
 	return s
@@ -143,14 +155,16 @@ type ReportScanResult struct {
 	SensitiveCache   []CacheScan             `json:"sensitiveCache,omitempty"`
 	LicenseCache     []CacheScan             `json:"licenseCache,omitempty"`
 	WebshellCache    []CacheScan             `json:"webshellCache,omitempty"`
-	IgnoreVulnAndPkg bool                    `json:"ignoreVulnAndPkg"`
+	VulnCache        []CacheScan             `json:"vulnCache,omitempty"`
+	DBVersion        RuleVersion             `json:"dbVersion,omitempty"`        // 主集群下发任务时，当前所使用的版本号
+	IgnoreVulnAndPkg bool                    `json:"ignoreVulnAndPkg,omitempty"` // 这个参数是为了做数据迁移及兼容老版本的扫描器
 }
 
 type CacheScan struct {
 	Issue      string `json:"issue"`      // 结果类型
 	CanInCache bool   `json:"canInCache"` // 扫描上报结果标识扫描没有出错，可以保存进入缓存，以供后续扫描所用
 	InCache    bool   `json:"inCache"`    // 扫描上报结果标识已在缓存中，保存镜像结果时需要查询该缓存
-	Layer      string `json:"layer"`
+	Layer      string `json:"layer"`      // 层级或镜像Digest
 }
 
 type ScanJobResult struct {
@@ -167,6 +181,7 @@ type ScanJobResult struct {
 	SaveFileToKafka []SaveFileToKafka       `json:"-"`
 	Layer           string                  `json:"layer"`
 	Issue           string                  `json:"issue"`
+	DBVersion       string                  `json:"dbVersion"` // 扫描job所用的版本号
 }
 
 func (vi *ReportScanResult) LogStr() string {

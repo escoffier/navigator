@@ -8,14 +8,15 @@ import (
 	"runtime/debug"
 	"time"
 
+	"gitlab.com/security-rd/go-pkg/logging"
 	"go.uber.org/atomic"
 
 	"github.com/xuri/excelize/v2"
-	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/types"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -23,28 +24,27 @@ import (
 
 type ExcelExportSrv struct {
 	ExportTaskDal imagesecStore.ExportTaskDal
-	LibImageSrv   types.ImageSrvInterface
-	NodeImageSrv  types.ImageSrvInterface
+	ImageSrv      types.ImageSrvInterface
 	FileDir       string // 文件存储的决对路径
 	UpdateTask    types.UpdateExportTask
 	MaxVulnCol    int64
+	Log           *scannerUtils.LogEvent
 }
 
 func NewExcelExportSrv(
 	exportTaskDal imagesecStore.ExportTaskDal,
-	libImageSrv types.ImageSrvInterface,
-	nodeImageSrv types.ImageSrvInterface,
+	imageSrv types.ImageSrvInterface,
 	fileDir string, // 文件存储的决对路径
 	updateTask types.UpdateExportTask,
 	maxVulnCol int64,
 ) *ExcelExportSrv {
 	return &ExcelExportSrv{
 		ExportTaskDal: exportTaskDal,
-		LibImageSrv:   libImageSrv,
-		NodeImageSrv:  nodeImageSrv,
+		ImageSrv:      imageSrv,
 		FileDir:       fileDir,
 		UpdateTask:    updateTask,
 		MaxVulnCol:    maxVulnCol,
+		Log:           scannerUtils.NewLogEvent(scannerUtils.WithModule("ExportImage"), scannerUtils.WithSubModule("excel")),
 	}
 }
 
@@ -54,7 +54,7 @@ func (s *ExcelExportSrv) GenExcelFileChan(ctx context.Context, dataChan chan typ
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("GenExcelFileChan")
+				s.Log.Error().Str("stack", string(debug.Stack())).Msg("GenExcelFileChan")
 			}
 		}()
 
@@ -66,11 +66,11 @@ func (s *ExcelExportSrv) GenExcelFileChan(ctx context.Context, dataChan chan typ
 			excelFile, err := WriteToExcel(fmt.Sprintf("%s_%d", excelData.Filepath, idx),
 				excelData.ExcelMeta, excelData.ExcelExportImageData)
 			if err != nil {
-				logging.Get().Err(err).Msg("Export.WriteToExcel")
+				s.Log.Err(err).Msg("Export.WriteToExcel")
 				continue
 			}
 			out <- excelFile
-			logging.Get().Info().Str("excelFile", excelFile.Path).Msg("GenExcelFileChan Send excel file")
+			s.Log.Info().Str("excelFile", excelFile.Path).Msg("GenExcelFileChan Send excel file")
 		}
 	}()
 
@@ -85,7 +85,7 @@ func (s *ExcelExportSrv) GenExcelDataChan(ctx context.Context, excelData types.E
 	go func(imageIdChan chan imagesecModel.Image) {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("GenExcelFileChan")
+				s.Log.Error().Str("stack", string(debug.Stack())).Msg("GenExcelFileChan")
 			}
 		}()
 		defer close(out)
@@ -98,10 +98,10 @@ func (s *ExcelExportSrv) GenExcelDataChan(ctx context.Context, excelData types.E
 
 			data, err := s.GetExcelData(ctx, ima, vulnCol, excelData.ExportTask)
 			if err != nil {
-				logging.Get().Err(err).Int64("imageId", ima.ID).Uint64("imageUniqueID", ima.UniqueID).Msg("Export.GetExcelData")
+				s.Log.Err(err).Int64("imageId", ima.ID).Uint64("imageUniqueID", ima.UniqueID).Msg("Export.GetExcelData")
 				continue
 			}
-			logging.Get().Info().Int64("imageId", ima.ID).Uint64("imageUniqueID", ima.UniqueID).Msg("Export.GetExcelData")
+			s.Log.Info().Int64("imageId", ima.ID).Uint64("imageUniqueID", ima.UniqueID).Msg("Export.GetExcelData")
 
 			if convertDataFunc != nil {
 				data = convertDataFunc(data, excelData.ExportTask.Lang)
@@ -138,16 +138,16 @@ func (s *ExcelExportSrv) Export(ctx context.Context, excelData types.ExcelDataWi
 	excelFileChan := s.GenExcelFileChan(ctx, excelDataChan)
 
 	if err := s.ZipAndSave(ctx, excelData.Filepath, excelFileChan); err != nil {
-		logging.Get().Err(err).Int64("taskID", excelData.ExportTask.ID).Msg("ZipAndSave")
+		s.Log.Err(err).Int64("taskID", excelData.ExportTask.ID).Msg("ZipAndSave")
 
 		if err := s.UpdateTask.Failure(ctx, excelData.ExportTask.ID, err.Error()); err != nil {
-			logging.Get().Err(err).Int64("taskID", excelData.ExportTask.ID).Msg("Failure export task failure update task")
+			s.Log.Err(err).Int64("taskID", excelData.ExportTask.ID).Msg("Failure export task failure update task")
 		}
 		return err
 	}
 	// 成功之后更新任务
 	if err := s.UpdateTask.Success(ctx, excelData.ExportTask.ID, fmt.Sprintf("%s/%s.zip", s.FileDir, excelData.Filepath)); err != nil {
-		logging.Get().Err(err).Int64("taskID", excelData.ExportTask.ID).Msg("Success export task success update task")
+		s.Log.Err(err).Int64("taskID", excelData.ExportTask.ID).Msg("Success export task success update task")
 	}
 
 	_ = s.UpdateTask.DeleteRedisData(ctx, excelData.ExportTask.ID)
@@ -162,7 +162,7 @@ func (s *ExcelExportSrv) RunExport(ctx context.Context, executeType string, imag
 	for task := range taskChan {
 
 		if err := s.UpdateTask.Start(ctx, task.ID); err != nil {
-			logging.Get().Err(err).Int64("taskID", task.ID).Msg("Clean Start")
+			s.Log.Err(err).Int64("taskID", task.ID).Msg("Clean Start")
 			continue
 		}
 
@@ -174,20 +174,20 @@ func (s *ExcelExportSrv) RunExport(ctx context.Context, executeType string, imag
 		}
 
 		if err := s.Export(ctx, excelData, imageChanFunc(ctx, task), convertDataFunc); err != nil {
-			logging.Get().Err(err).Interface("task", task).Msg("Export fail")
+			s.Log.Err(err).Interface("task", task).Msg("Export fail")
 			continue
 		}
-		logging.Get().Info().Interface("task", task).Msg("Export succeed")
+		s.Log.Info().Interface("task", task).Msg("Export succeed")
 	}
 }
 
 func (s *ExcelExportSrv) GetExcelData(ctx context.Context, image imagesecModel.Image, vulnCol *atomic.Int32, task imagesecModel.ExportTensorTask) (
 	map[types.SheetName]chan []string, error) {
 	// 获取镜像详情
-	logging.Get().Info().Int64("imageID", image.ID).Uint64("ImageUniqueID", image.UniqueID).
+	s.Log.Info().Int64("imageID", image.ID).Uint64("ImageUniqueID", image.UniqueID).
 		Msg("GetExcelData GetImageDetail start")
 
-	data, err := s.getImageSrv(ctx, image.ImageFromType).GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
+	data, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 		ImageUniqueID:   image.UniqueID,
 		ImageId:         image.ID,
 		VulnEnable:      true,
@@ -206,7 +206,7 @@ func (s *ExcelExportSrv) GetExcelData(ctx context.Context, image imagesecModel.I
 		NodeInfoEnable:  true,
 	})
 	if err != nil {
-		logging.Get().Info().Int64("imageID", image.ID).Uint64("ImageUniqueID", image.UniqueID).
+		s.Log.Info().Int64("imageID", image.ID).Uint64("ImageUniqueID", image.UniqueID).
 			Msg("GetDataAndCreateExcelFile.GetImageDetail")
 		return nil, err
 	}
@@ -238,7 +238,7 @@ func (s *ExcelExportSrv) GetExcelData(ctx context.Context, image imagesecModel.I
 		vulnCol.Add(int32(len(data.Vuln)))
 	}
 
-	logging.Get().Info().Int64("imageID", image.ID).Uint64("ImageUniqueID", image.UniqueID).
+	s.Log.Info().Int64("imageID", image.ID).Uint64("ImageUniqueID", image.UniqueID).
 		Int("vulnCount", len(data.Vuln)).Msg("GetExcelData GetImageDetail end")
 
 	return res, nil
@@ -252,39 +252,39 @@ func (s *ExcelExportSrv) ZipAndSave(ctx context.Context, filename string, excelF
 	defer func() {
 		if filePath != "" {
 			if err := os.RemoveAll(filePath); err != nil {
-				logging.Get().Err(err).Str("filePath", filePath).Msg("ZipAndSave defer RemoveAll")
+				s.Log.Err(err).Str("filePath", filePath).Msg("ZipAndSave defer RemoveAll")
 			}
-			logging.Get().Info().Str("filePath", filePath).Msg("ZipAndSave defer RemoveAll")
+			s.Log.Info().Str("filePath", filePath).Msg("ZipAndSave defer RemoveAll")
 		}
 	}()
 
 	if err := util.MkdirIfNotExist(filePath, true); err != nil {
-		logging.Get().Info().Str("filePath", filePath).Msg("ZipAndSave MkdirIfNotExist")
+		s.Log.Info().Str("filePath", filePath).Msg("ZipAndSave MkdirIfNotExist")
 		return err
 	}
 
 	for file := range excelFileChan {
 		// 检测目录是否存在
 		if err := file.SaveAs(filePath + "/" + file.Path); err != nil {
-			logging.Get().Err(err).Str("filename", filename).Msg("ZipAndSave")
+			s.Log.Err(err).Str("filename", filename).Msg("ZipAndSave")
 			continue
 		}
-		logging.Get().Info().Str("filePath", filePath).Str("excelFile", file.Path).Msg("ZipAndSave save excel file")
+		s.Log.Info().Str("filePath", filePath).Str("excelFile", file.Path).Msg("ZipAndSave save excel file")
 		if err := file.Close(); err != nil {
-			logging.Get().Info().Str("filePath", filePath).Str("excelFile", file.Path).Msg("ZipAndSave close excel file")
+			s.Log.Info().Str("filePath", filePath).Str("excelFile", file.Path).Msg("ZipAndSave close excel file")
 		}
 		file = nil // For GC
 	}
-	logging.Get().Info().Str("filePath", filePath).Msg("ZipAndSave save all  excel file start zip files")
+	s.Log.Info().Str("filePath", filePath).Msg("ZipAndSave save all  excel file start zip files")
 
 	if filePath != "" {
 		// 调用用命令进行压缩
 		zipFilename := filePath + ".zip"
-		logging.Get().Info().Str("zipFilename", zipFilename).Str("filePath", filePath).Msg("ZipAndSave use zip start zip")
+		s.Log.Info().Str("zipFilename", zipFilename).Str("filePath", filePath).Msg("ZipAndSave use zip start zip")
 
 		cmd := exec.Command("zip", "-j", "-r", zipFilename, filePath)
 		if err := cmd.Run(); err != nil {
-			logging.Get().Err(err).Str("zipFilename", zipFilename).Str("filePath", filePath).Msg("ZipAndSave use zip")
+			s.Log.Err(err).Str("zipFilename", zipFilename).Str("filePath", filePath).Msg("ZipAndSave use zip")
 			return err
 		}
 	}
@@ -298,7 +298,7 @@ func (s *ExcelExportSrv) GenTensorExportTaskChan(ctx context.Context, executeTyp
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("GenTensorExportTaskChan")
+				s.Log.Error().Str("stack", string(debug.Stack())).Msg("GenTensorExportTaskChan")
 			}
 		}()
 		defer close(out)
@@ -318,7 +318,7 @@ func (s *ExcelExportSrv) GenTensorExportTaskChan(ctx context.Context, executeTyp
 			})
 			if err != nil {
 
-				logging.Get().Err(err).Str("ExecuteType", executeType).Msg("GetTensorTask")
+				s.Log.Err(err).Str("ExecuteType", executeType).Msg("GetTensorTask")
 				continue
 			}
 			for i := range task {
@@ -327,13 +327,6 @@ func (s *ExcelExportSrv) GenTensorExportTaskChan(ctx context.Context, executeTyp
 		}
 	}()
 	return out
-}
-
-func (s *ExcelExportSrv) getImageSrv(ctx context.Context, imageFromType string) types.ImageSrvInterface {
-	if imageFromType == imagesecModel.ImageFromNode {
-		return s.NodeImageSrv
-	}
-	return s.LibImageSrv
 }
 
 func ConvertData(res map[types.SheetName]chan []string, lang string) map[types.SheetName]chan []string {

@@ -31,16 +31,15 @@ const (
 )
 
 const (
-	LangEN        = "en"
-	LangCH        = "zh"
-	LangKey       = "lang"
-	PolicyDefault = "default"
+	LangEN  = "en"
+	LangCH  = "zh"
+	LangKey = "lang"
 )
 
 func GetExportTypeView(exportType string, lang string) string {
 	if strings.ToLower(lang) == LangCH {
 		switch exportType {
-		case ExportCIReport, ExportScanTask:
+		case ExportCIReport, ExportScanTask, ExportImageSearch:
 			return ExportImageViewCH
 		case ExportVuln:
 			return ExportVulnViewCH
@@ -55,7 +54,7 @@ func GetExportTypeView(exportType string, lang string) string {
 
 	if strings.ToLower(lang) == LangEN {
 		switch exportType {
-		case ExportCIReport, ExportScanTask:
+		case ExportCIReport, ExportScanTask, ExportImageSearch:
 			return ExportImageViewEN
 		case ExportVuln:
 			return ExportVulnViewEN
@@ -79,20 +78,13 @@ const (
 )
 
 const (
-	ExportVulnDupUseTypeForGRiskOverView = 1
-	ExportVulnDupUseTypeForExportVuln    = 2
-)
+	TaskExporting         = true
+	DefaultExportBathSize = 1000
+	ExportTimeFormat      = "2006-01-02 15:04:05"
 
-const (
-	TaskExporting               = true
-	DefaultExportBathSize       = 1000
-	ExportTimeFormatForFilename = "2006-01-02T15:04:05"
-	ExportTimeFormat            = "2006-01-02 15:04:05"
-
-	KoaCodeSuccess      = 200 // html生成服务调用成功的状态码
-	KoaStatusSuccess    = "success"
-	KoaStatusInprogress = "inprogress"
-	KoaStatusFailed     = "failed"
-	KoaAddr             = "http://localhost:8090"
-	ExportHtmlReady     = 1
+	KoaCodeSuccess   = 200 // html生成服务调用成功的状态码
+	KoaStatusSuccess = "success"
+	KoaStatusFailed  = "failed"
+	KoaAddr          = "http://localhost:8090"
+	ExportHtmlReady  = 1
 )

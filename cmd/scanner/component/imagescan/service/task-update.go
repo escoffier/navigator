@@ -68,7 +68,8 @@ func (s *ScanTaskSrv) UpdateTaskFinished(ctx context.Context) error {
 		for {
 			<-ticker.C
 			tasks, _, err := s.taskDal.SearchScanTask(ctx, imagesecModel.SearchTaskParam{
-				ScanStatusStr: []string{imagesecModel.TaskStatusInprogressStr},
+				// 如果一个任务中只有一个子任务，且这个子任务还是老版本，那子任务可能先调度
+				ScanStatusStr: []string{imagesecModel.TaskStatusInprogressStr, imagesecModel.TaskStatusPendingStr},
 				Filter:        imagesecModel.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiledByID().SetSortAsc(),
 			})
 

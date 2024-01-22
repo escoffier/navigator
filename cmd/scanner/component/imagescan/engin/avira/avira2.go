@@ -55,7 +55,7 @@ func (s *AviraSrv) CreateClientPoll(ctx context.Context) error {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	cnt := 0
-	for i := 0; i < s.ClientPollCnt; i++ {
+	for cliNo := 0; cliNo < s.ClientPollCnt; cliNo++ {
 		for {
 			<-ticker.C
 			client, err := avira.NewSavClient(s.ServerAddr)
@@ -68,11 +68,11 @@ func (s *AviraSrv) CreateClientPoll(ctx context.Context) error {
 				continue
 			}
 			cl := &AviraClient{
-				ClientNO: i,
+				ClientNO: cliNo,
 				Client:   client,
 				Status:   AviraClientUnUsing,
 			}
-			s.Log.Info().Int("clintCnt", i).Msg("NewSavClient create a client")
+			s.Log.Info().Int("clintCnt", cliNo).Msg("NewSavClient create a client")
 			s.ClientPoll = append(s.ClientPoll, cl)
 			break
 		}
@@ -195,7 +195,7 @@ func (s *AviraSrv) ScanFile(ctx context.Context, filenames []string) ([]imagesec
 
 	engin := cli.Client
 
-	s.Log.Info().Int("fileCnt", len(filenames)).Str("EnginName", s.EnginName).Msg("AviraSrv ScanFile")
+	s.Log.Info().Int("fileCnt", len(filenames)).Msg("AviraSrv ScanFile")
 	for j := range filenames {
 		fi := filenames[j]
 		// engin.ScanFile 会卡死
@@ -255,7 +255,7 @@ func (s *AviraSrv) scanWithTimeout(ctx context.Context, eng *avira.SavClient, fi
 		}
 		out <- res
 
-		s.Log.Debug().Str("filename", filename).Str("EnginName", s.EnginName).Msg("AviraSrv scan end")
+		s.Log.Debug().Str("filename", filename).Msg("AviraSrv scan end")
 	}()
 	return out
 }
@@ -266,16 +266,17 @@ func (s *AviraSrv) GetClient(ctx context.Context) (*AviraClient, error) {
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	for {
-		running, err := s.AviraServer.IsServerRunning()
-		if s.HeatBeat.Load() == 0 || err != nil || !running {
-			// 重新启动
-			s.AviraServer = NewSavEngin(avira.WithListenPort(consts.DefaultAviraSavServerListenPort))
-			if err := s.CreateClientPoll(ctx); err != nil {
-				s.Log.Err(err).Msg("can not CreateClientPoll AviraServer")
-				continue
-			}
-			s.Log.Info().Msg("rerun AviraSrv success")
-		}
+		// 下期功能
+		// running, err := s.AviraServer.IsServerRunning()
+		// if s.HeatBeat.Load() == 0 || err != nil || !running {
+		// 	重新启动
+		// s.AviraServer = NewSavEngin(avira.WithListenPort(consts.DefaultAviraSavServerListenPort))
+		// if err := s.CreateClientPoll(ctx); err != nil {
+		// 	s.Log.Err(err).Msg("can not CreateClientPoll AviraServer")
+		// 	continue
+		// }
+		// s.Log.Info().Msg("rerun AviraSrv success")
+		// }
 
 		s.ClientWG.Lock()
 		for i := range s.ClientPoll {
@@ -320,10 +321,10 @@ func (s *AviraSrv) monitorClient(ctx context.Context) error {
 					continue
 				}
 				if err := ci.Client.Close(); err != nil {
-					s.Log.Err(err).Int("clientCnt", i).Msg("AviraSrv close client")
+					s.Log.Err(err).Int("ClientNO", ci.ClientNO).Msg("AviraSrv close client")
 				}
 
-				s.Log.Info().Int("clintCnt", i).Msg("AviraSrv client is abnormal need recreate a new client")
+				s.Log.Info().Int("ClientNO", ci.ClientNO).Msg("AviraSrv client is abnormal need recreate a new client")
 				// 新建一个
 				cli, err := avira.NewSavClient(s.ServerAddr)
 				if err != nil {

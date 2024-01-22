@@ -1151,11 +1151,13 @@ func (dal *ScanResultDao) CreateScanLayerData(ctx context.Context, data2 []*imag
 	deleteData := make([]int64, 0)
 
 	// find need delete data
+	// 因为深度扫描的开关，所以要特殊处理
 	for i := range dbPre {
-		needDelete := true
+		needDelete := false
+		// 本次写入的数据不同
 		for j := range data {
-			if dbPre[i].Same(data[j]) {
-				needDelete = false
+			if dbPre[i].UniqueID == data[j].UniqueID && !dbPre[i].Same(data[j]) {
+				needDelete = true
 				break
 			}
 		}
@@ -1245,11 +1247,15 @@ func (dal *ScanResultDao) SearchScanLayerData(ctx context.Context, param imagese
 		wss := make([]uint64, 0)
 		mal := make([]uint64, 0)
 		ses := make([]uint64, 0)
+		vuln := make([]uint64, 0)
+		pkg := make([]uint64, 0)
 		for i := range res {
 			lic = append(lic, res[i].LicenseUnique...)
 			wss = append(wss, res[i].WebshellUnique...)
 			ses = append(ses, res[i].SensitiveUnique...)
 			mal = append(mal, res[i].MalwareUnique...)
+			pkg = append(pkg, res[i].PkgUnique...)
+			vuln = append(vuln, res[i].VulnUnique...)
 		}
 		if len(lic) > 0 {
 			ans, _, err := dal.SearchLicense(ctx, imagesecModel.ScanResultSearchParam{UniqueIds: lic})
@@ -1281,6 +1287,21 @@ func (dal *ScanResultDao) SearchScanLayerData(ctx context.Context, param imagese
 			}
 			all.Sensitive = append(all.Sensitive, ans...)
 		}
+		if len(pkg) > 0 {
+			ans, _, err := dal.SearchPkg(ctx, imagesecModel.ScanResultSearchParam{UniqueIds: ses})
+			if err != nil {
+				return nil, err
+			}
+			all.Pkg = append(all.Pkg, ans...)
+		}
+
+		if len(vuln) > 0 {
+			ans, _, err := dal.SearchVuln(ctx, imagesecModel.SearchVulnDalParam{VulnUniqueIds: vuln})
+			if err != nil {
+				return nil, err
+			}
+			all.Vuln = append(all.Vuln, ans...)
+		}
 
 		for i := range res {
 			res[i].Deserialize(all)
@@ -1299,7 +1320,7 @@ func (dal *ScanResultDao) DeleteScanLayerData(ctx context.Context, param imagese
 	mod := &imagesecModel.ScanLayerData{}
 
 	for i := range data {
-		if err := dal.db.Get().WithContext(ctx).Table(mod.TableName()).Where("id +  ? ", data[i].ID).
+		if err := dal.db.Get().WithContext(ctx).Table(mod.TableName()).Where("id =  ? ", data[i].ID).
 			Delete(&imagesecModel.Malware{}).Error; err != nil {
 			return err
 		}

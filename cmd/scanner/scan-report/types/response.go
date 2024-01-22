@@ -281,9 +281,9 @@ type KoaResponse struct {
 }
 
 type KoaDataResponse struct {
-	Status    string      `json:"status"` // inprogress，success，failed
-	FilePath  string      `json:"filePath"`
-	FailedMsg []FailedMsg `json:"failedMsg"`
+	Status    string    `json:"status"` // inprogress，success，failed
+	FilePath  string    `json:"filePath"`
+	FailedMsg FailedMsg `json:"failedMsg"`
 }
 
 type FailedMsg struct {

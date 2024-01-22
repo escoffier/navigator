@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts/preConsts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -33,7 +33,7 @@ var LevelToString = map[int]string{
 }
 
 func (w *Webshell) GenUniqueVuln() uint64 {
-	key := fmt.Sprintf(consts.UniqueWebshellFamat, w.FileMd5, w.LayerDigest, w.FileName)
+	key := fmt.Sprintf(preConsts.UniqueWebshellFamat, w.FileMd5, w.LayerDigest, w.FileName)
 	uid := util.GenerateUUID64(key)
 	if uid == 0 {
 		logging.GetLogger().Warn().Msgf("UID IS 0 KEY:%s", key)

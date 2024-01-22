@@ -16,6 +16,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	imagesecStream "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/stream"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts/preConsts"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
@@ -115,7 +116,7 @@ func (s *RegistrySrv) DeleteRegistry(ctx context.Context, id int64) error {
 }
 
 func (s *RegistrySrv) CreateRegistry(ctx context.Context, reg *imagesecModel.Registry) error {
-	if err := reg.Validate(consts.ValidateCreate); err != nil {
+	if err := reg.Validate(preConsts.ValidateCreate); err != nil {
 		return response.NewHttpError(http.StatusExpectationFailed, err)
 	}
 
@@ -197,7 +198,7 @@ func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg imagesec
 	if prePass == "" {
 		reg.PasswordString = registries[0].PasswordString
 	}
-	if err := reg.Validate(consts.ValidateUpdate); err != nil {
+	if err := reg.Validate(preConsts.ValidateUpdate); err != nil {
 		return scani18.UpdateRegistry(err)
 	}
 	if err := s.CheckHealth(ctx, &reg); err != nil {
@@ -205,7 +206,7 @@ func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg imagesec
 	}
 
 	if prePass != "" {
-		encryPass, err := util.DesEncrypt([]byte(prePass), []byte(consts.EncryptPasswordKey))
+		encryPass, err := util.DesEncrypt([]byte(prePass), []byte(preConsts.EncryptPasswordKey))
 		if err != nil {
 			s.Log.Err(err).Msg("DesEncrypt")
 			return scani18.UpdateRegistry(err)

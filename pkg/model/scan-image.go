@@ -7,7 +7,7 @@ import (
 
 	json "github.com/json-iterator/go"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts/preConsts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -317,7 +317,7 @@ func (vi *ImageVirus) TableName() string {
 }
 
 func (vi *ImageVirus) GenUniqueID() uint64 {
-	key := fmt.Sprintf(consts.UniqueVirusFamat, vi.Name, vi.Filename, vi.Filepath)
+	key := fmt.Sprintf(preConsts.UniqueVirusFamat, vi.Name, vi.Filename, vi.Filepath)
 	uid := util.GenerateUUID64(key)
 	vi.UniqueID = uid
 	return uid
@@ -339,7 +339,7 @@ func (ws *ImageWebShell) TableName() string {
 }
 
 func (ws *ImageWebShell) GenUniqueVuln() uint64 {
-	key := fmt.Sprintf(consts.UniqueWebshellFamat, ws.Filename, ws.Filepath, strings.Join(ws.Codes, "|"))
+	key := fmt.Sprintf(preConsts.UniqueWebshellFamat, ws.Filename, ws.Filepath, strings.Join(ws.Codes, "|"))
 	uid := util.GenerateUUID64(key)
 	return uid
 }
@@ -360,7 +360,7 @@ func (ws *ImageSensitiveFile) TableName() string {
 }
 
 func (ws *ImageSensitiveFile) GenUniqueID() uint64 {
-	key := fmt.Sprintf(consts.UniqueSensitiveFamat, ws.Name, ws.Description)
+	key := fmt.Sprintf(preConsts.UniqueSensitiveFamat, ws.Name, ws.Description)
 	uid := util.GenerateUUID64(key)
 	ws.UniqueID = uid
 	return uid
@@ -508,7 +508,7 @@ type ImageSoftware struct {
 }
 
 func (s *ImageSoftware) GenUniqueID() uint64 {
-	key := fmt.Sprintf(consts.UniqueSoftwareFamat, s.Name, s.Version)
+	key := fmt.Sprintf(preConsts.UniqueSoftwareFamat, s.Name, s.Version)
 	uid := util.GenerateUUID64(key)
 	s.UniqueID = uid
 	return uid
@@ -537,7 +537,7 @@ type ImageEnv struct {
 }
 
 func (vi *ImageEnv) GenUniqueID() uint64 {
-	key := fmt.Sprintf(consts.UniqueENVFamat, vi.Key, vi.Value, vi.Normal)
+	key := fmt.Sprintf(preConsts.UniqueENVFamat, vi.Key, vi.Value, vi.Normal)
 	uid := util.GenerateUUID64(key)
 	return uid
 }

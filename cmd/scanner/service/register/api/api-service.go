@@ -75,7 +75,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	ciDal := adaptStore.NewCiDao(rdbInstance)
 	scannerInstanceDal := imagesecStore.NewScannerInstanceDao(rdbInstance)
 	nodeImageDal := imagesecStore.NewImageMetaDao(rdbInstance)
-	nodeReportDal := imagesecStore.NewNodeReportDao(rdbInstance)
+	nodeDal := imagesecStore.NewNodeReportDao(rdbInstance)
 	policyDal := imagesecStore.NewDetectPolicyDao(rdbInstance)
 	userDal := imagesecStore.NewUserDao(rdbInstance)
 	scanInstanceDal := imagesecStore.NewScannerInstanceDao(rdbInstance)
@@ -105,7 +105,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 		registryDal,
 		scanResultDal,
 		resourceDal,
-		nodeReportDal,
+		nodeDal,
 		policyDal,
 		detectResultDal,
 		trustedImageDal,
@@ -124,11 +124,11 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	detectTaskSrv := detect.NewImageDetectTaskSrv(imageSrv, detectTaskDal, policyDal, detectResultDal)
 	policySrv := detect.NewPolicySrv(policyDal, detectTaskSrv, sensitiveRuleDal, userDal)
 	scanInfoSrv := imagesecSrv.NewScanInstanceSrv(imagesecStore.NewScannerInstanceDao(rdbInstance))
-	scanTaskSrv := imagescanSrv.NewScanTaskSrv(scanTaskDal, scanTaskPreDal, detectTaskDal, imageSrv, imageDal, scannerConfigDal, imageDal, userDal)
+	scanTaskSrv := imagescanSrv.NewScanTaskSrv(scanTaskDal, scanTaskPreDal, detectTaskDal, imageSrv, imageDal, scannerConfigDal, imageDal, userDal, nodeDal)
 	scanImageConfigSrv := imagesecSrv.NewScannerConfigSrv(scannerConfigDal)
 	sensitiveRuleSrv := imagesecSrv.NewSensitiveRuleSrv(sensitiveRuleDal, scanImageConfigSrv)
 
-	nodeInfoSrv := imagesecSrv.NewNodeReportSrv(nodeReportDal)
+	nodeInfoSrv := imagesecSrv.NewNodeReportSrv(nodeDal)
 
 	// aviraUpdateSrv := aviraengin.NewAviraUpdateSrv()
 	// trivyUpdateSrv, err := scanTrivy.NewTrivySrv(scanTrivy.WithRedisCli(redCli))

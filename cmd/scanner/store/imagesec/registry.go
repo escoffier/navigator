@@ -10,6 +10,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/databases"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts/preConsts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -156,7 +157,7 @@ func (dal *RegistryDao) SearchRegistry(ctx context.Context, param imagesecModel.
 		return nil, 0, err
 	}
 	for i := range res {
-		decryPass, err := util.DesDecrypt(res[i].Password, []byte(consts.EncryptPasswordKey))
+		decryPass, err := util.DesDecrypt(res[i].Password, []byte(preConsts.EncryptPasswordKey))
 		if err == nil {
 			res[i].PasswordString = string(decryPass)
 			tmpStr := res[i].Username + ":" + string(decryPass)
@@ -173,7 +174,7 @@ func (dal *RegistryDao) SearchRegistry(ctx context.Context, param imagesecModel.
 func (dal *RegistryDao) CreateRegistry(ctx context.Context, reg *imagesecModel.Registry) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*1)
 	defer cancelFunc()
-	encryPass, err := util.DesEncrypt([]byte(reg.PasswordString), []byte(consts.EncryptPasswordKey))
+	encryPass, err := util.DesEncrypt([]byte(reg.PasswordString), []byte(preConsts.EncryptPasswordKey))
 	if err != nil {
 		return err
 	}

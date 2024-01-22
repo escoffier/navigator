@@ -1,4 +1,4 @@
-package imagesecReport
+package scanIns
 
 import (
 	"context"

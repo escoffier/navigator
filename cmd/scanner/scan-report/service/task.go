@@ -185,13 +185,24 @@ func (s *ExportTaskSrv) CreateScanTaskImage(ctx context.Context, exportTaskID in
 			break
 		}
 		lastID = subtasks[len(subtasks)-1].ID
+		uniqueIds := make([]uint64, 0)
+		for i := range subtasks {
+			uniqueIds = append(uniqueIds, subtasks[i].ImageUniqueID)
+		}
+		images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, imagesecModel.ImageSearchApiParam{ImageUniqueIds: uniqueIds})
+		if err != nil {
+			logging.Get().Err(err).Int64("exportTaskID", exportTaskID).Int64("scanTaskID", scanTaskID).
+				Msg("CreateScanTaskImage ListImageWithScanInfo")
+			return err
+		}
 
 		data := make([]*imagesecModel.ExportTaskImage, 0)
-		for i := range subtasks {
+		for i := range images {
 			data = append(data, &imagesecModel.ExportTaskImage{
-				TaskID:    exportTaskID,
-				ImageID:   subtasks[i].ID,
-				ImageName: subtasks[i].ImageName,
+				ImageID:       images[i].ImageID,
+				ImageUniqueID: images[i].ImageUniqueID,
+				TaskID:        exportTaskID,
+				ImageName:     images[i].GetImageName(),
 			})
 		}
 
@@ -222,11 +233,12 @@ func (s *ExportTaskSrv) CreateSearchImage(ctx context.Context, exportTaskID int6
 		}
 		startID = images[len(images)-1].ID
 		data := make([]*imagesecModel.ExportTaskImage, 0)
+
 		for i := range images {
 			data = append(data, &imagesecModel.ExportTaskImage{
 				TaskID:        exportTaskID,
+				ImageUniqueID: images[i].ImageUniqueID,
 				ImageID:       images[i].ID,
-				ImageUniqueID: images[i].UniqueID,
 				ImageName:     images[i].GetImageName(),
 			})
 		}
@@ -282,7 +294,7 @@ func (s *ExportTaskSrv) CreateCiExportData(ctx context.Context, taskID int64, da
 		}
 		for j := range results.Vulnerabilities {
 			vu := results.Vulnerabilities[j]
-			vulnUnique = append(vulnUnique, util.GenerateUUID64(fmt.Sprintf(consts.UniqueVulnFamat,
+			vulnUnique = append(vulnUnique, util.GenerateUUID64(fmt.Sprintf("%s-%s-%s",
 				vu.VulnerabilityID, vu.PkgName, vu.InstalledVersion)))
 		}
 	}

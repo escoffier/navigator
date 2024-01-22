@@ -205,7 +205,7 @@ func start(config starter.Config) {
 	policyDal := imagesecStore.NewDetectPolicyDao(config.Rdb)
 	detectResultDal := imagesecStore.NewImageDetectResultDao(config.Rdb)
 	detectTaskDal := imagesecStore.NewDetectTaskDao(config.Rdb)
-	nodeReportDal := imagesecStore.NewNodeReportDao(config.Rdb)
+	nodeDal := imagesecStore.NewNodeReportDao(config.Rdb)
 	scannerConfigDal := imagesecStore.NewScanImageConfigDao(config.Rdb)
 	nodeTaskDal := imagesecStore.NewScanTaskDao(config.Rdb)
 	scanTaskDal := imagesecStore.NewScanTaskDao(config.Rdb)
@@ -218,7 +218,7 @@ func start(config starter.Config) {
 		registryDal,
 		scanResultDal,
 		resourceDal,
-		nodeReportDal,
+		nodeDal,
 		policyDal,
 		detectResultDal,
 		trustedImageDal,
@@ -239,7 +239,9 @@ func start(config starter.Config) {
 		imageDal,
 		scannerConfigDal,
 		imageDal,
-		userDal)
+		userDal,
+		nodeDal,
+	)
 
 	exportTask := service.NewExportTaskSrv(
 

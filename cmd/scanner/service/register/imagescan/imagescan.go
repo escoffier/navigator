@@ -71,6 +71,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	deployDal := imagesecStore.NewDeployDao(rdbInstance)
 	nodeScanTaskDal := imagesecStore.NewScanTaskDao(rdbInstance)
 	scanResultDal := imagesecStore.NewScanResultDao(rdbInstance)
+	dbMetaDal := imagesecStore.NewScanDbMetaDao(rdbInstance)
 	cacheDal := imagesecStore.NewImageCacheDao(rdbInstance)
 
 	imageSvc := imagemataSrv.NewImageMetaSrv(nodeImageDal, registryDal, nodeScanResultDal,
@@ -78,7 +79,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 		nodeScanTaskDal, scannerInstanceDal, deployDal, cacheDal)
 
 	imageTaskDispatcher := dispatcherSrv.NewImageScanTaskDispatcher(nodeScanTaskDal, imageSvc,
-		nodeReportDal, scannerInstanceDal, sensitiveRuleDal, scannerConfigDal, scanResultDal)
+		nodeReportDal, scannerInstanceDal, sensitiveRuleDal, scannerConfigDal, scanResultDal, dbMetaDal)
 
 	// aviraUpdateSrv := aviraengin.NewAviraUpdateSrv()
 	// clamavUpdateSrv := clamavengin.NewClamavUpdateSrv()

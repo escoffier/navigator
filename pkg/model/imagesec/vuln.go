@@ -232,10 +232,9 @@ type Vuln struct {
 	FixedVersion       string          `gorm:"column:fixed_version" json:"fixedVersion"`
 	Target             string          `gorm:"column:target" json:"target"`
 	AttackPath         string          `gorm:"column:attack_path" json:"attackPath"`
-	Flag               uint64          `gorm:"column:flag" json:"flag,string"` // 把在线镜像的漏洞更新到这里
-
-	CreatedAt int64 `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
-	UpdatedAt int64 `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
+	Flag               uint64          `gorm:"column:flag" json:"flag,string"`                          // 把在线镜像的漏洞更新到这里
+	CreatedAt          int64           `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
+	UpdatedAt          int64           `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
 }
 
 type VulnToPkg struct {
@@ -514,8 +513,7 @@ type VulnView struct {
 	AttrKeyView        map[string]string `json:"attrKeyView"`   // 漏洞详情中雷达图的数据,key 适配中英文
 	CreatedAt          int64             `json:"createdAt"`     // milliseconds
 	UpdatedAt          int64             `json:"updatedAt"`     // milliseconds
-
-	PolicyDetect PolicyDetect `json:"policyDetect"` // 对各个策略的检测结果
+	PolicyDetect       PolicyDetect      `json:"policyDetect"`  // 对各个策略的检测结果
 }
 
 func (vi *VulnView) Simplify() *VulnView {

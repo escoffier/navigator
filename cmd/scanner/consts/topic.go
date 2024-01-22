@@ -16,5 +16,4 @@ const (
 	WebshellKafkaTopic   = "ivan_scanner_webshell"
 	WebshellKafkaKey     = "ivan_scanner_webshell_key"
 	WebshellKafkaGroupID = "ivan_scanner_webshell_scanner"
-	WebshellSize         = (1 << 20) * 10
 )

@@ -296,11 +296,19 @@ type SensitiveRule struct {
 }
 
 func (vi *SensitiveRule) ToUpdater() map[string]interface{} {
+	if vi.IsDefault {
+		// 只可以编辑是否启动用
+		return map[string]interface{}{
+			"enable": vi.Enable,
+		}
+	}
+
 	return map[string]interface{}{
 		"description": vi.Description,
 		"value":       vi.Value,
 		"enable":      vi.Enable,
 		"updater":     vi.Updater,
+		"updated_at":  vi.UpdatedAt,
 	}
 }
 
@@ -331,4 +339,13 @@ func (vi *SensitiveRule) Check() error {
 	}
 
 	return nil
+}
+
+func (vi *SensitiveRule) Serialize() {
+	if vi.UpdatedAt <= 0 {
+		vi.UpdatedAt = time.Now().UnixMilli()
+	}
+	if vi.CreatedAt <= 0 {
+		vi.CreatedAt = time.Now().UnixMilli()
+	}
 }

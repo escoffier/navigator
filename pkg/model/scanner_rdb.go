@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"regexp"
-	"strings"
 	"time"
 	"unicode/utf8"
 
@@ -15,7 +14,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnnvd"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-updata/cnvd"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts/preConsts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -94,7 +93,7 @@ func (sl *ScanLayer) Deserialize() {
 				for i := range preVulns {
 					for j := range preVulns[i].Vulns {
 						for k := range preVulns[i].Vulns[j].Trivy {
-							vulnUnique := util.GenerateUUID64(fmt.Sprintf(consts.UniqueVulnFamat,
+							vulnUnique := util.GenerateUUID64(fmt.Sprintf(preConsts.UniqueVulnFamat,
 								preVulns[i].Vulns[j].CVEID,
 								preVulns[i].Vulns[j].Trivy[k].PkgName,
 								preVulns[i].Vulns[j].Trivy[k].InstalledVersion))
@@ -540,11 +539,11 @@ func (Task) TableName() string {
 // 新需求:空
 func (vi *Task) ChangeTaskCreator() {
 	zh := map[int]string{
-		consts.CiCdTrigger:            "",
-		consts.VulDataUpdateTrigger:   "",
-		consts.VirusDataUpdateTrigger: "",
-		consts.ScheduleTrigger:        "",
-		consts.ImageSyncTrigger:       "",
+		preConsts.CiCdTrigger:            "",
+		preConsts.VulDataUpdateTrigger:   "",
+		preConsts.VirusDataUpdateTrigger: "",
+		preConsts.ScheduleTrigger:        "",
+		preConsts.ImageSyncTrigger:       "",
 	}
 	if _, ok := zh[vi.Trigger]; ok {
 		vi.Operator = ""
@@ -586,15 +585,6 @@ type SubTask struct {
 	FullRepoName string `gorm:"column:full_repo_name" json:"full_repo_name"` // eg:library/redis,may not use,could fetch by image list table
 	Tag          string `gorm:"column:tag" json:"tag"`                       // eg:1.10, may not use
 	Library      string `gorm:"column:library" json:"library"`               // registry name
-}
-
-func (st *SubTask) Deserialize() {
-	split := strings.Split(st.FullRepoName, "/")
-	// 节点镜像上传的tag:	NodeSafeTage="%s/" + NodeSafeSalt + "/%s/%s/%s/%s" // 仓库地址/tensorsec/hostname/ip/os/library/镜像名
-	// tensorsecurity/tensorsec-safe-node-image-v2x54/10.65.72.54/linux/registry.t-appagile.com/google_containers/coredns
-	if len(split) >= NodeImageSplitCount && split[0] == consts.NodeSafeSalt {
-		st.FullRepoName = strings.Join(split[5:], "/")
-	}
 }
 
 func (SubTask) TableName() string {
@@ -675,7 +665,7 @@ type SyncRetryImage struct {
 }
 
 func (sri *SyncRetryImage) GenUniqueImage() uint64 {
-	uid := util.GenerateUUID64(fmt.Sprintf(consts.UniqueImageFamat, sri.FullRepoName, sri.Tag, 0, sri.RegistryID))
+	uid := util.GenerateUUID64(fmt.Sprintf(preConsts.UniqueImageFamat, sri.FullRepoName, sri.Tag, 0, sri.RegistryID))
 	return uid
 }
 

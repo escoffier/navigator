@@ -144,7 +144,7 @@ func (s *Detector) DetectImage(ctx context.Context) {
 }
 
 func (s *Detector) detectTask(ctx context.Context, task *imagesecModel.ImageDetectTask) error {
-	s.Log.Debug().Int64("taskID", task.ID).Msg("get task")
+	s.Log.Debug().Str("task", task.LogStr()).Msg("get task")
 
 	if err := s.UpdateTask(ctx, task.ID, getStartUpdater()); err != nil {
 		s.Log.Err(err).Int64("taskID", task.ID).Msg("UpdateTask")
@@ -232,8 +232,7 @@ func (s *Detector) detectTask(ctx context.Context, task *imagesecModel.ImageDete
 				DetectType:    dt,
 				Data:          res,
 			}); err != nil {
-				s.Log.Err(err).Uint64("ImageUniqueID", subData.ImageUniqueID).
-					Msg("CreateDetectResult")
+				s.Log.Err(err).Uint64("ImageUniqueID", subData.ImageUniqueID).Msg("CreateDetectResult")
 				continue
 			}
 		}
@@ -661,10 +660,9 @@ func (s *Detector) updateScanSubtask(ctx context.Context, scanSubtaskID int64, s
 			Msg("detect image bug update scan subtask error")
 		return err
 	}
-	s.Log.Info().Int64("subtaskID", scanSubtaskID).Interface("statusStr", updater["status_str"]).
+	s.Log.Debug().Int64("subtaskID", scanSubtaskID).Interface("statusStr", updater["status_str"]).
 		Msg("detect image finished and update scan subtask")
 	return nil
-
 }
 
 func getStartUpdater() map[string]interface{} {

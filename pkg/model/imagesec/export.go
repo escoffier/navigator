@@ -59,7 +59,7 @@ type ExportTaskImage struct {
 	ID            int64  `gorm:"id"  json:"id"`
 	TaskID        int64  `gorm:"task_id" json:"taskID"`
 	ImageID       int64  `gorm:"column:image_id" json:"imageID"`
-	ImageUniqueID uint64 `gorm:"column:image_unique_id" json:"imageUniqueID"`
+	ImageUniqueID uint64 `gorm:"column:image_unique_id" json:"imageUniqueID,string"` // 查漏洞关联的镜像要使用
 	ImageName     string `gorm:"column:image_name" json:"imageName"`
 }
 

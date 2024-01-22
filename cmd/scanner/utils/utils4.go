@@ -398,3 +398,12 @@ func createTarFile(destDir string, header *tar.Header, red io.Reader) error {
 	}
 	return nil
 }
+
+func InStrSlice(va string, li []string) bool {
+	for i := range li {
+		if strings.TrimSpace(li[i]) == strings.TrimSpace(va) {
+			return true
+		}
+	}
+	return false
+}

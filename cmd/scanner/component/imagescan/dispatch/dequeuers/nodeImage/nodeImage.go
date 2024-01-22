@@ -63,8 +63,8 @@ func (s *NodeImageScanQueue) updateSubtask(ctx context.Context) {
 			ID:      up.SubtaskID,
 			Updater: updater,
 		}
-		if up.Status != imagesecModel.TaskStatusFailed {
-			param.Where = fmt.Sprintf("status < %d", imagesecModel.TaskStatusPause)
+		if up.Status > 0 {
+			param.Where = fmt.Sprintf("status < %d", up.Status)
 		}
 
 		if err := s.ScanTaskDal.UpdateScanSubtask(ctx, param); err != nil {
@@ -252,7 +252,7 @@ func (s *NodeImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, tas
 				s.Log.Err(err).Int64("taskID", task.ID).Uint64("ImageUniqueID",
 					subtask[0].ImageUniqueID).Msg("GetImageCorrelateData")
 				up := types.UpdateSubTask{SubtaskID: subtask[j].ID, Status: imagesecModel.TaskStatusFailed,
-					Err: err, Reason: imagesecModel.TaskFailedReasonNotFindImage, CreatedAt: time.Now().Unix()}
+					Err: err, Reason: imagesecModel.TaskFailedReasonNotFindImage, CreatedAt: time.Now().UnixMilli()}
 				go func() { s.updateSubtaskChan <- up }()
 				continue
 			}
@@ -262,7 +262,7 @@ func (s *NodeImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, tas
 					Msg("not get node info")
 
 				up := types.UpdateSubTask{SubtaskID: subtask[j].ID, Status: imagesecModel.TaskStatusFailed,
-					Err: err, Reason: imagesecModel.TaskFailedReasonNotFindNodeInfo, CreatedAt: time.Now().Unix()}
+					Err: err, Reason: imagesecModel.TaskFailedReasonNotFindNodeInfo, CreatedAt: time.Now().UnixMilli()}
 
 				go func() { s.updateSubtaskChan <- up }()
 
@@ -275,7 +275,7 @@ func (s *NodeImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, tas
 				up := types.UpdateSubTask{
 					SubtaskID: subtask[j].ID,
 					Status:    imagesecModel.TaskStatusInprogress,
-					CreatedAt: time.Now().Unix(),
+					CreatedAt: time.Now().UnixMilli(),
 				}
 				s.updateSubtaskChan <- up
 			}()

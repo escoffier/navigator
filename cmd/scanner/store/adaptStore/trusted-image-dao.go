@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts/preConsts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
@@ -44,9 +45,9 @@ func (s *TrustedImageDao) SearchTrustedImage(ctx context.Context, param SearchTr
 		db = db.Where("digest IN ?", param.Digests)
 	}
 	if param.IsTrusted == consts.TrueString {
-		db = db.Where("is_trusted = ?", consts.TrustedImage)
+		db = db.Where("is_trusted = ?", preConsts.TrustedImage)
 	} else if param.IsTrusted == consts.FalseString {
-		db = db.Where("is_trusted = ?", consts.NotTrustedImage)
+		db = db.Where("is_trusted = ?", preConsts.NotTrustedImage)
 	}
 	res := make([]*model.TrustedImages, 0)
 	err := db.Find(&res).Error
@@ -68,10 +69,10 @@ func (s *TrustedImageDao) SearchTrustedImageIDs(ctx context.Context, param Searc
 	if len(param.Digests) > 0 {
 		db = db.Where("t.digest IN ?", param.Digests)
 	}
-	if param.IsTrusted == consts.TrueString || param.IsTrusted == consts.IsTrustedImageString {
-		db = db.Where("t.is_trusted = ? ", consts.IsTrustedImage)
-	} else if param.IsTrusted == consts.FalseString || param.IsTrusted == consts.NotTrustedImageString {
-		db = db.Where("t.is_trusted = ? ", consts.NotTrustedImage)
+	if param.IsTrusted == consts.TrueString || param.IsTrusted == preConsts.IsTrustedImageString {
+		db = db.Where("t.is_trusted = ? ", preConsts.IsTrustedImage)
+	} else if param.IsTrusted == consts.FalseString || param.IsTrusted == preConsts.NotTrustedImageString {
+		db = db.Where("t.is_trusted = ? ", preConsts.NotTrustedImage)
 	}
 	db = db.Select(filed)
 	if err := db.Find(&result).Error; err != nil {

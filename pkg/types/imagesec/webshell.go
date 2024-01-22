@@ -22,7 +22,6 @@ type HmWebshell struct {
 
 // WebshellResults webshell扫描结果
 type WebshellResults struct {
-	Scanned         bool            `json:"scanned"`
 	HmWebshells     []HmWebshell    `json:"webshells,omitempty"` // 所有webshell结果
 	HmEngineVersion HmEngineVersion `json:"hmEngineVersion"`
 }

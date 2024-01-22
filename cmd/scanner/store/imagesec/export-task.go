@@ -53,8 +53,8 @@ func (dal *ExportTaskDao) SearchHTMLVulnImage(ctx context.Context, param imagese
 	if param.CanFixed == imagesecModel.FalseString {
 		db = db.Where("can_fixed  = ?", false)
 	}
-	if param.Severity > 0 {
-		db = db.Where("severity  = ?", param.Severity)
+	if param.Severity != "" {
+		db = db.Where("severity = ?", imagesecModel.GetSeverityInt(param.Severity))
 	}
 	if param.StartID > 0 {
 		db = db.Where("id > ?", param.StartID)

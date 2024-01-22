@@ -34,6 +34,7 @@ type TaskDispatcher struct {
 	scannerInstanceDal imagesecStore.ScanInstanceDal
 	sensitiveRuleDal   imagesecStore.SensitiveRuleDal
 	scanResultDal      imagesecStore.ScanResultDal
+	dbMetaDal          imagesecStore.ScanDbMetaDal
 	scanImageConfigDal imagesecStore.ScanImageConfigDal
 	Log                *scannerUtils.LogEvent
 }
@@ -46,6 +47,7 @@ func NewImageScanTaskDispatcher(
 	sensitiveRuleDal imagesecStore.SensitiveRuleDal,
 	scanImageConfigDal imagesecStore.ScanImageConfigDal,
 	scanResultDal imagesecStore.ScanResultDal,
+	dbMetaDal imagesecStore.ScanDbMetaDal,
 ) *TaskDispatcher {
 	return &TaskDispatcher{
 		taskDal:            taskDal,
@@ -55,6 +57,7 @@ func NewImageScanTaskDispatcher(
 		sensitiveRuleDal:   sensitiveRuleDal,
 		scanImageConfigDal: scanImageConfigDal,
 		scanResultDal:      scanResultDal,
+		dbMetaDal:          dbMetaDal,
 		Log: scannerUtils.NewLogEvent(
 			scannerUtils.WithSubModule("ScanTaskDispatcher"),
 			scannerUtils.WithModule(consts.ModuleImageScan),
@@ -204,7 +207,9 @@ func (s *TaskDispatcher) PublishSubtask(ctx context.Context) error {
 
 	scanRegImageQueue := regImageTask.NewScanRegImageQueue(
 		s.taskDal, s.nodeImageSrv, s.scannerInstanceDal,
-		s.sensitiveRuleDal, s.scanImageConfigDal, s.scanResultDal)
+		s.sensitiveRuleDal, s.scanImageConfigDal, s.scanResultDal,
+		s.dbMetaDal,
+	)
 
 	go func(dequeue types.ScanImageTaskDequeue) {
 		defer func() {
