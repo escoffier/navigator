@@ -35,10 +35,7 @@ func (s *SendFile) Send(ctx context.Context, pre *imagesecTypes.PrepareScan, res
 		need[sed.FileMd5] = &sed
 	}
 
-	outer := s.AddNeedSendFile(ctx, result)
-	for i := range outer {
-		need[outer[i].FileMd5] = outer[i]
-	}
+	need = s.AddNeedSendFile(ctx, result, need)
 
 	s.Log.Info().Str("image", pre.Subtask.RegImageMeta.ImageName()).Int("sendfileCnt", len(need)).Msg("sendFile")
 
@@ -51,7 +48,6 @@ func (s *SendFile) Send(ctx context.Context, pre *imagesecTypes.PrepareScan, res
 		wg.Add(1)
 		// 耗时的操作
 		go func(param *imagesecTypes.SaveFileToKafka, wg *sync.WaitGroup) {
-
 			defer func() {
 				if r := recover(); r != nil {
 					s.Log.Error().Str("Stack", string(debug.Stack())).Msg("SendFileToKafka")
@@ -141,9 +137,7 @@ func NewSendFile(mqWriter mq.Writer, maxSingeFileSize int64) *SendFile {
 	return sendFileSinge
 }
 
-func (s *SendFile) AddNeedSendFile(ctx context.Context, result *imagesecTypes.ReportScanResult) []*imagesecTypes.SaveFileToKafka {
-
-	all := make([]*imagesecTypes.SaveFileToKafka, 0)
+func (s *SendFile) AddNeedSendFile(ctx context.Context, result *imagesecTypes.ReportScanResult, need map[string]*imagesecTypes.SaveFileToKafka) map[string]*imagesecTypes.SaveFileToKafka {
 
 	for i := range result.Sensitives.SensitiveFiles {
 		ses := result.Sensitives.SensitiveFiles[i]
@@ -152,8 +146,12 @@ func (s *SendFile) AddNeedSendFile(ctx context.Context, result *imagesecTypes.Re
 			FileMd5:  ses.MD5,
 			Filename: ses.Filename,
 		}
-		all = append(all, param)
 
+		if _, ok := need[ses.MD5]; ok {
+			continue
+		}
+
+		need[param.FileMd5] = param
 	}
 	for i := range result.Webshell.HmWebshells {
 		ses := result.Webshell.HmWebshells[i]
@@ -162,7 +160,11 @@ func (s *SendFile) AddNeedSendFile(ctx context.Context, result *imagesecTypes.Re
 			FileMd5:  ses.MD5,
 			Filename: ses.Filename,
 		}
-		all = append(all, param)
+		if _, ok := need[ses.MD5]; ok {
+			continue
+		}
+
+		need[param.FileMd5] = param
 	}
 
 	for i := range result.Malware.AviraScanResults {
@@ -172,7 +174,11 @@ func (s *SendFile) AddNeedSendFile(ctx context.Context, result *imagesecTypes.Re
 			FileMd5:  ses.MD5,
 			Filename: ses.Filename,
 		}
-		all = append(all, param)
+		if _, ok := need[ses.MD5]; ok {
+			continue
+		}
+
+		need[param.FileMd5] = param
 	}
 
 	for i := range result.Malware.ClamAvScanResults {
@@ -182,7 +188,11 @@ func (s *SendFile) AddNeedSendFile(ctx context.Context, result *imagesecTypes.Re
 			FileMd5:  ses.MD5,
 			Filename: ses.Filename,
 		}
-		all = append(all, param)
+		if _, ok := need[ses.MD5]; ok {
+			continue
+		}
+
+		need[param.FileMd5] = param
 	}
 
 	for i := range result.License {
@@ -193,10 +203,14 @@ func (s *SendFile) AddNeedSendFile(ctx context.Context, result *imagesecTypes.Re
 			FileMd5:  ses.MD5,
 			Filename: ses.Filename,
 		}
-		all = append(all, param)
+		if _, ok := need[ses.MD5]; ok {
+			continue
+		}
+
+		need[param.FileMd5] = param
 	}
 
-	return all
+	return need
 }
 
 func (s *SendFile) logScanEnd(start int64, pre *imagesecTypes.PrepareScan) {

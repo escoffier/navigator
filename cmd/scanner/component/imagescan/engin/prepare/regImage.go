@@ -220,7 +220,7 @@ func (s *RegImagePrepare) PrepareLayerFile(ctx context.Context, prep *imagesecTy
 	// linux 下不可以同时解压同一个文件,但是可以同时复制一个文件
 	start := time.Now().Unix()
 	if err2 := s.extractDockerTar3(ly.OriginalTarFile, ly.LayerFilePath); err2 != nil {
-		s.Log.Info().Interface("layer", ly).Msg("PrepareScan extractDockerTar1 try extractTarUseTar")
+		s.Log.Info().Interface("layer", ly).Str("Err", err2.Error()).Msg("PrepareScan extractDockerTar1 try extractTarUseTar")
 		// 说明格式不对，尝试直接用 tar 命令解压
 		// 对应的Bug: https://project.feishu.cn/tensorsecurity/issue/detail/3003143912
 		if err := s.copyFile(ctx, ly.OriginalTarFile, ly.TarFilename); err != nil {

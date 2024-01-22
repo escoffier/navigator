@@ -26,6 +26,8 @@ func (s *SendResult) Send(ctx context.Context, pre *imagesecTypes.PrepareScan, r
 	s.logScanStart(pre)
 	defer s.logScanEnd(start, pre)
 
+	result = s.simplifyResult(ctx, result)
+
 	sendData, err := json.Marshal(result)
 	if err != nil {
 		s.Log.Err(err).Str("subtask", pre.Subtask.LogStr()).Msg("send to kafka")
@@ -69,6 +71,14 @@ func (s *SendResult) Send(ctx context.Context, pre *imagesecTypes.PrepareScan, r
 func (s *SendResult) logScanEnd(start int64, pre *imagesecTypes.PrepareScan) {
 	s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).
 		Int64("cost", time.Now().Unix()-start).Msg("scan job end")
+}
+
+func (s *SendResult) simplifyResult(ctx context.Context, result *imagesecTypes.ReportScanResult) *imagesecTypes.ReportScanResult {
+	// 精简数据
+	for i := range result.License {
+		result.License[i].Content = nil
+	}
+	return result
 }
 
 func (s *SendResult) logScanStart(pre *imagesecTypes.PrepareScan) {

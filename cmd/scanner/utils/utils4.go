@@ -342,7 +342,7 @@ func UnzipByteSlice(data []byte) []byte {
 }
 
 func ExtractDockerTar3(tarFile, destDir string) error {
-	_ = filepath.Clean(destDir)
+	_ = os.RemoveAll(destDir)
 	if err := os.MkdirAll(destDir, os.ModePerm); err != nil {
 		return err
 	}
