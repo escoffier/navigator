@@ -43,7 +43,7 @@ type SingeImageExportParam struct {
 
 type ScanTaskExportParam struct {
 	ScanTaskID    int64  `json:"scanTaskId"`
-	TaskCreateAt  string `json:"taskCreateAt"`
+	TaskCreateAt  int64  `json:"taskCreateAt"`
 	ImageFromType string `json:"imageFromType"`
 }
 

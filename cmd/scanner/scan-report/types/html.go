@@ -30,7 +30,7 @@ type ScanTaskService interface {
 type GetExportVulnParam struct {
 	TaskID   int64
 	ImageID  int64
-	Severity int64
+	Severity string
 	CanFixed string
 	StartID  int64
 	Limit    int64

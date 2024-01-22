@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts/preConsts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -78,10 +78,10 @@ func (im *ImageManager) GetHoursOverview(record []scanner_ci.CiScan, intervalTyp
 	var timeParse string
 	mp := make(map[string]scanner_ci.ImageOverviewNode, 0)
 	switch intervalType {
-	case consts.IntervalHour:
-		timeParse = consts.TimeFormatWithHour
-	case consts.IntervalDay:
-		timeParse = consts.TimeFormatWithDay
+	case preConsts.IntervalHour:
+		timeParse = preConsts.TimeFormatWithHour
+	case preConsts.IntervalDay:
+		timeParse = preConsts.TimeFormatWithDay
 	}
 	fixedZone := time.FixedZone("CST", 8*3600)
 	for k := range record {
@@ -135,12 +135,12 @@ func (im *ImageManager) GenerationInterval(interval int, intervalType string) []
 	fixedZone := time.FixedZone("CST", 8*3600)
 	now := time.Now().In(fixedZone)
 	switch intervalType {
-	case consts.IntervalHour:
+	case preConsts.IntervalHour:
 		for i := interval - 1; i >= 0; i-- {
 			endAt := time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), 0, 0, 0, fixedZone).Add(-time.Duration(i) * time.Hour)
 			res = append(res, endAt)
 		}
-	case consts.IntervalDay:
+	case preConsts.IntervalDay:
 		for i := interval - 1; i >= 0; i-- {
 			endAt := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, fixedZone).AddDate(0, 0, -i)
 			res = append(res, endAt)
@@ -163,9 +163,9 @@ func (im *ImageManager) GetImageOverView(ctx context.Context, interval int) ([]s
 		return nodes, err
 	}
 	if interval == 24 {
-		nodes = im.GetHoursOverview(res, consts.IntervalHour, interval)
+		nodes = im.GetHoursOverview(res, preConsts.IntervalHour, interval)
 	} else {
-		nodes = im.GetHoursOverview(res, consts.IntervalDay, interval)
+		nodes = im.GetHoursOverview(res, preConsts.IntervalDay, interval)
 	}
 	return nodes, nil
 }
@@ -390,7 +390,7 @@ func (im *ImageManager) GetRecordPkgs(ctx context.Context, limit int64, offset i
 		for j := range res[i].UniqueVuln {
 			un := res[i].UniqueVuln[j]
 			vul := vulnSerMap[un]
-			key := fmt.Sprintf(consts.UniqueVulnFamat, vul.Name, res[i].PkgName, res[i].PkgVersion)
+			key := fmt.Sprintf("%s-%s-%s", vul.Name, res[i].PkgName, res[i].PkgVersion)
 			uid := util.GenerateUUID64(key)
 			if uid != un {
 				continue

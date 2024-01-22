@@ -10,6 +10,7 @@ import (
 	"gorm.io/gorm"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts/preConsts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
@@ -123,13 +124,13 @@ func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParam, filter 
 
 	if param.OnlineImageVuln == consts.TrueString {
 		defer func() {
-			_ = db.Exec(consts.DropOnlineImageTempTableSql).Error
+			_ = db.Exec(preConsts.DropOnlineImageTempTableSql).Error
 		}()
 
-		if err := db.Exec(consts.CreateOnlineImageTempTableSql).Error; err != nil {
+		if err := db.Exec(preConsts.CreateOnlineImageTempTableSql).Error; err != nil {
 			return nil, 0, err
 		}
-		if err := db.Exec(consts.InsertOnlineImageTempTableSql).Error; err != nil {
+		if err := db.Exec(preConsts.InsertOnlineImageTempTableSql).Error; err != nil {
 			return nil, 0, err
 		}
 
@@ -157,10 +158,10 @@ func (v *VulnDao) SearchVuln(ctx context.Context, param SearchVulnParam, filter 
 	if len(param.Sources) > 0 {
 		db = db.Where("source IN ？", param.Sources)
 	}
-	if param.CanFixed == consts.TrueString || param.CanFixed == consts.YesString {
+	if param.CanFixed == consts.TrueString || param.CanFixed == preConsts.YesString {
 		db = db.Where("fixed_by != ''")
 	}
-	if param.CanFixed == consts.FalseString || param.CanFixed == consts.NoString {
+	if param.CanFixed == consts.FalseString || param.CanFixed == preConsts.NoString {
 		db = db.Where("fixed_by = '' OR fixed_by is null")
 	}
 	if param.PkgKeyword != "" {

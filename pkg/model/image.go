@@ -7,7 +7,7 @@ import (
 
 	json "github.com/json-iterator/go"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts/preConsts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -328,7 +328,7 @@ func (ImageList) TableName() string {
 }
 
 func (im *ImageList) GenUniqueImage() uint64 {
-	uid := util.GenerateUUID64(fmt.Sprintf(consts.UniqueImageFamat, im.FullRepoName, im.Tags, im.FromType, im.RegistryID))
+	uid := util.GenerateUUID64(fmt.Sprintf(preConsts.UniqueImageFamat, im.FullRepoName, im.Tags, im.FromType, im.RegistryID))
 	return uid
 }
 

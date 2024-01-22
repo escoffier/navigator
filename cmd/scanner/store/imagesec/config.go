@@ -15,26 +15,33 @@ import (
 type SensitiveRuleDal interface {
 	CreateSensitiveRule(ctx context.Context, data *imagesecModel.SensitiveRule) error
 	SearchSensitiveRule(ctx context.Context, param imagesecModel.SearchSensitiveRuleParam) ([]*imagesecModel.SensitiveRule, int64, error)
-	UpdateSensitiveRule(ctx context.Context, id int64, updater map[string]interface{}) error
+	UpdateSensitiveRule(ctx context.Context, param imagesecModel.UpdateSensitiveRuleParam) error
 	DeleteSensitiveRule(ctx context.Context, id int64) error
 }
 
 type SensitiveRuleDao struct {
-	db *databases.RDBInstance
+	ScanDbMetaDal ScanDbMetaDal
+	db            *databases.RDBInstance
 }
 
 func NewSensitiveRuleDao(db *databases.RDBInstance) *SensitiveRuleDao {
-	return &SensitiveRuleDao{db: db}
+	scanDbMetaDal := NewScanDbMetaDao(db)
+	return &SensitiveRuleDao{db: db, ScanDbMetaDal: scanDbMetaDal}
 }
 
 func (dal *SensitiveRuleDao) CreateSensitiveRule(ctx context.Context, data *imagesecModel.SensitiveRule) error {
+	data.Serialize()
 	if err := data.Check(); err != nil {
 		return err
 	}
 
 	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
-	return dal.db.Get().WithContext(cancelCtx).Table(data.TableName()).Create(data).Error
+	err := dal.db.Get().WithContext(cancelCtx).Table(data.TableName()).Create(data).Error
+
+	_ = dal.createSensitiveDBVersion(ctx)
+
+	return err
 }
 
 func (dal *SensitiveRuleDao) SearchSensitiveRule(ctx context.Context, param imagesecModel.SearchSensitiveRuleParam) (
@@ -73,27 +80,26 @@ func (dal *SensitiveRuleDao) SearchSensitiveRule(ctx context.Context, param imag
 	return res, cnt, err
 }
 
-func (dal *SensitiveRuleDao) UpdateSensitiveRule(ctx context.Context, id int64, updater map[string]interface{}) error {
-	if id <= 0 || len(updater) == 0 {
+func (dal *SensitiveRuleDao) UpdateSensitiveRule(ctx context.Context, param imagesecModel.UpdateSensitiveRuleParam) error {
+	if param.ID <= 0 || param.SensitiveRule == nil {
 		return fmt.Errorf("not get id or updater")
 	}
 	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
 	defer cancelFunc()
 	pre := &imagesecModel.SensitiveRule{}
 	tb := pre.TableName()
-	if err := dal.db.Get().WithContext(cancelCtx).Table(tb).Where("id = ?", id).First(pre).Error; err != nil {
+	if err := dal.db.Get().WithContext(cancelCtx).Table(tb).Where("id = ?", param).First(pre).Error; err != nil {
 		return err
 	}
-	if pre.IsDefault {
-		enable, ok := updater["enable"]
-		if ok {
-			updater = map[string]interface{}{"enable": enable}
-		} else {
-			return fmt.Errorf("update default rule is not permitted")
-		}
-	}
 
-	return dal.db.Get().WithContext(cancelCtx).Table(tb).Where("id = ?", id).Updates(updater).Error
+	param.SensitiveRule.Serialize()
+	updater := param.SensitiveRule.ToUpdater()
+
+	err := dal.db.Get().WithContext(cancelCtx).Table(tb).Where("id = ?", param.ID).Updates(updater).Error
+
+	_ = dal.createSensitiveDBVersion(ctx)
+
+	return err
 }
 
 func (dal *SensitiveRuleDao) DeleteSensitiveRule(ctx context.Context, id int64) error {
@@ -112,7 +118,11 @@ func (dal *SensitiveRuleDao) DeleteSensitiveRule(ctx context.Context, id int64) 
 	}
 
 	db := dal.db.Get().WithContext(cancelCtx).Table(tb).Where("id = ?", id)
-	return db.Delete(&imagesecModel.SensitiveRule{}).Error
+
+	err := db.Delete(&imagesecModel.SensitiveRule{}).Error
+	_ = dal.createSensitiveDBVersion(ctx)
+
+	return err
 }
 
 type ScanImageConfigDal interface {
@@ -188,6 +198,41 @@ func (dal *ScanImageConfigDao) UpdateScanImageConfig(ctx context.Context, id int
 	updater := data.ToUpdater()
 
 	return dal.db.Get().WithContext(cancelCtx).Table(tb).Where("id = ?", id).Updates(updater).Error
+}
+
+func (dal *SensitiveRuleDao) createSensitiveDBVersion(ctx context.Context) error {
+	filter := imagesecModel.EmptyFilter().SetSortDesc().SetSortFiled("updated_at").SetLimit(1)
+	rule, _, err := dal.SearchSensitiveRule(ctx, imagesecModel.SearchSensitiveRuleParam{Filter: filter})
+	if err != nil {
+		return err
+	}
+	if len(rule) == 0 {
+		return fmt.Errorf("not find sensitive rule")
+	}
+	data := &imagesecModel.ScanConfigDB{
+		DBVersion: fmt.Sprintf("%d", rule[0].UpdatedAt),
+		DBType:    imagesecModel.SensitiveCacheData,
+		Updater:   consts.DefaultAdminUser,
+	}
+	data.Serialize()
+	meta, _, err := dal.ScanDbMetaDal.SearchScanDbMeta(ctx, imagesecModel.SearchScanDbParam{DBType: imagesecModel.SensitiveCacheData})
+	if err != nil {
+		return err
+	}
+	if len(meta) > 0 {
+		cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
+		defer cancelFunc()
+
+		db := dal.db.Get().WithContext(cancelCtx).Table(new(imagesecModel.ScanConfigDB).TableName())
+		update := map[string]interface{}{
+			"db_version": fmt.Sprintf("%d", rule[0].UpdatedAt),
+			"unique_id":  data.UniqueID,
+		}
+
+		return db.Where("id = ?", meta[0].ID).Updates(update).Error
+	}
+
+	return dal.ScanDbMetaDal.CreateScanDbMeta(ctx, data)
 }
 
 func NewScanImageConfigDao(db *databases.RDBInstance) *ScanImageConfigDao {

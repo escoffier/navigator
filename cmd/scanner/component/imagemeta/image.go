@@ -2,6 +2,8 @@ package imagemeta
 
 import (
 	"context"
+	"fmt"
+	"strings"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta/metaGlobal"
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
@@ -211,10 +213,15 @@ func (s *ImageInfoMetaSrv) GetImageCorrelateData(ctx context.Context,
 	errs = append(errs, s.addPkgAllVulnData(ctx, &param, ans))
 	errs = append(errs, s.addRootBootData(ctx, &param, ans))
 
+	notNilErr := make([]string, 0)
 	for i := range errs {
 		if errs[i] != nil {
-			s.Log.Err(errs[i]).Msg("GetImageCorrelateData")
+			s.Log.Err(errs[i]).Int64("imageID", ans.Image.ID).Msg("GetImageCorrelateData")
+			notNilErr = append(notNilErr, errs[i].Error())
 		}
+	}
+	if len(notNilErr) > 0 {
+		return ans, fmt.Errorf(strings.Join(notNilErr, ","))
 	}
 
 	ans.AddDetectResult()

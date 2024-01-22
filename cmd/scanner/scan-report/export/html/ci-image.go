@@ -177,7 +177,7 @@ func (s *ExportCiImageHtmlSrv) GetExportVuln(ctx context.Context, param types2.G
 		return nil, fmt.Errorf("GetExportVuln not get taskID:%d", param.TaskID)
 	}
 
-	logging.Get().Info().Int64("taskID", param.TaskID).Int64("imageID", param.ImageID).Int64("severity", param.Severity).
+	logging.Get().Info().Int64("taskID", param.TaskID).Int64("imageID", param.ImageID).Str("severity", param.Severity).
 		Msg("ExportCiImageHtmlSrv.GetImageVuln start")
 
 	res := &types2.VulnWithImageResponse{
@@ -212,7 +212,7 @@ func (s *ExportCiImageHtmlSrv) GetExportVuln(ctx context.Context, param types2.G
 		for j := range taskImages[i].Vuln {
 			vu := taskImages[i].Vuln[j]
 			// 只取当前层级的漏洞
-			if vu.SeverityInt != param.Severity {
+			if vu.Severity != param.Severity {
 				continue
 			}
 			if (param.CanFixed == consts.TrueString && vu.FixedVersion == "") || (param.CanFixed == consts.FalseString && vu.FixedVersion != "") {
@@ -225,7 +225,7 @@ func (s *ExportCiImageHtmlSrv) GetExportVuln(ctx context.Context, param types2.G
 		}
 	}
 
-	logging.Get().Info().Int64("taskID", param.TaskID).Int64("severity", param.Severity).Str("canFixed", param.CanFixed).
+	logging.Get().Info().Int64("taskID", param.TaskID).Str("severity", param.Severity).Str("canFixed", param.CanFixed).
 		Int("vulns", len(res.Vulns)).Bool("isEnd", res.End).Msg("ExportCiImageHtmlSrv.GetExportVuln finished")
 	return res, nil
 }
@@ -240,7 +240,7 @@ func (s *ExportCiImageHtmlSrv) GetImageVuln(ctx context.Context, param types2.Ge
 	if param.ImageID <= 0 {
 		return nil, fmt.Errorf("GetExportVuln not get imageID:%d", param.ImageID)
 	}
-	logging.Get().Info().Int64("taskID", param.TaskID).Int64("imageID", param.ImageID).Int64("severity", param.Severity).
+	logging.Get().Info().Int64("taskID", param.TaskID).Int64("imageID", param.ImageID).Str("severity", param.Severity).
 		Msg("ExportLibImageHtmlSrv.GetImageVuln start")
 
 	res := &types2.VulnWithImageResponse{
@@ -277,7 +277,7 @@ func (s *ExportCiImageHtmlSrv) GetImageVuln(ctx context.Context, param types2.Ge
 		for j := range taskImages[i].Vuln {
 			vu := taskImages[i].Vuln[j]
 			// 只取当前层级的漏洞
-			if vu.SeverityInt != param.Severity {
+			if vu.Severity != param.Severity {
 				continue
 			}
 			res.Vulns = append(res.Vulns, types2.VulnWithImage{
@@ -287,7 +287,7 @@ func (s *ExportCiImageHtmlSrv) GetImageVuln(ctx context.Context, param types2.Ge
 		}
 	}
 
-	logging.Get().Info().Int64("taskID", param.TaskID).Int64("severity", param.Severity).Int64("imageID", param.ImageID).
+	logging.Get().Info().Int64("taskID", param.TaskID).Str("severity", param.Severity).Int64("imageID", param.ImageID).
 		Int("vulnCnt", len(res.Vulns)).Msg("ExportCiImageHtmlSrv.GetImageVuln finished")
 	return res, nil
 }
@@ -546,15 +546,7 @@ func (s *ExportCiImageHtmlSrv) Run(ctx context.Context) {
 		} else if status.Data.Status == consts.KoaStatusFailed || status.Data.Status == "" {
 			// 保存状态
 			logging.Get().Info().Int64("taskID", task.ID).Msg("export html execute failure")
-			if len(status.Data.FailedMsg) == 0 {
-				if status.Msg != "" {
-					status.Data.FailedMsg = []types2.FailedMsg{{Message: status.Msg}}
-				}
-				status.Data.FailedMsg = []types2.FailedMsg{{Message: "未知错误"}}
-			}
-			errMsg := status.Data.FailedMsg[len(status.Data.FailedMsg)-1].Message
-
-			if err := s.UpdateTask.Failure(ctx, task.ID, errMsg); err != nil {
+			if err := s.UpdateTask.Failure(ctx, task.ID, status.Data.FailedMsg.Message); err != nil {
 				logging.Get().Err(err).Int64("taskID", task.ID).Msg("ExportCiImageHtmlSrv UpdateExportTask Failure")
 			}
 			break

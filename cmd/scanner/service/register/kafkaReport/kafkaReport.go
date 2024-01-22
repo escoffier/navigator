@@ -12,7 +12,10 @@ import (
 	scanTrivy "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/engin/trivy"
 	imagescanSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/service"
 	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagesec"
-	imagesecReport "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/kafkaReport"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/kafkaReport/kafkaAsset"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/kafkaReport/kafkaFile"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/kafkaReport/kafkaScan"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/kafkaReport/scanIns"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -27,12 +30,12 @@ const (
 )
 
 type KafkaReport struct {
-	ImageReport        *imagesecReport.ImageReport
-	ScanInstanceReport *imagesecReport.ScanInstanceReport
-	FileUploadSrv      *imagesecReport.FileUploadSrv
+	ImageReport        *kafkaAsset.ImageReport
+	ScanInstanceReport *scanIns.ScanInstanceReport
+	FileUploadSrv      *kafkaFile.FileUploadSrv
 	ScanTaskSrv        *imagescanSrv.ScanTaskSrv
 	ImageUpdateSrv     *imageMetaSrv.ImageUpdateSrv
-	scanResultService  *imagesecReport.ScanResultReportSrv
+	scanResultService  *kafkaScan.ScanResultReportSrv
 	detectTaskService  detect.ImageDetectTaskService
 	syncConfigService  dispatch.ScanImageConfigSyncService
 }
@@ -203,9 +206,10 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 		scannerConfigDal,
 		imageDal,
 		userDal,
+		nodeDal,
 	)
 
-	imageReportSrv := imagesecReport.NewImageReport(
+	imageReportSrv := kafkaAsset.NewImageReport(
 		imageDal,
 		nodeReportDal,
 		scanResultDal,
@@ -216,8 +220,8 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 		registryDal,
 	)
 
-	scanInstanceReport := imagesecReport.NewScanInstanceReport(scanInstanceDal, mqReader, mqWriter)
-	fileUploadSrv := imagesecReport.NewFileUploadSrv(mqReader, scanResultDal)
+	scanInstanceReport := scanIns.NewScanInstanceReport(scanInstanceDal, mqReader, mqWriter)
+	fileUploadSrv := kafkaFile.NewFileUploadSrv(mqReader, scanResultDal)
 	nodeInfoSrv := imagesecSrv.NewNodeReportSrv(nodeReportDal)
 
 	// init trivy
@@ -226,7 +230,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 		return nil, err
 	}
 
-	scanResultSrv := imagesecReport.NewScanResultReportSrv(nodeScanTaskDal, imageDal, scanResultDal, issueDal,
+	scanResultSrv := kafkaScan.NewScanResultReportSrv(nodeScanTaskDal, imageDal, scanResultDal, issueDal,
 		versionDal, detectTaskSrv, trivySrv, mqReader, redisCli)
 
 	scanConfigSyncSrv := dispatch.NewScannerConfigSyncSrv(scannerConfigDal, nodeInfoSrv)

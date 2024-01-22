@@ -44,23 +44,24 @@ func NewScanSensitiveSrv() (*ScanSensitive, error) {
 	return s, nil
 }
 
-func (s *ScanSensitive) ScanTarFile(ctx context.Context, pre *imagesecTypes.PrepareScan) []imagesecTypes.ScanJobResult {
+func (s *ScanSensitive) ScanTarFile(ctx context.Context, prep *imagesecTypes.PrepareScan) []imagesecTypes.ScanJobResult {
 	result := make([]imagesecTypes.ScanJobResult, 0)
-	for i := range pre.Layers {
-		ly := pre.Layers[i]
+	for i := range prep.Layers {
+		ly := prep.Layers[i]
 
 		res := imagesecTypes.ScanJobResult{
-			Layer: ly.Digest,
-			Issue: imagesecModel.SensitiveCacheData,
+			Layer:     ly.Digest,
+			DBVersion: prep.Subtask.DBVersion.Sensitive,
+			Issue:     imagesecModel.SensitiveCacheData,
 		}
 
-		if pre.Subtask.SensitiveCache.In(ly.Digest) {
+		if prep.Subtask.SensitiveCache.In(ly.Digest) {
 			res.InCache = true
 			result = append(result, res)
 			continue
 		}
-
-		s2, k2, err := s.scanTarLayer(ctx, ly, pre.Subtask.SensitiveRules)
+		res.Scanned = true
+		s2, k2, err := s.scanTarLayer(ctx, ly, prep.Subtask.SensitiveRules)
 		if err != nil {
 			res.Errors = append(res.Errors, err)
 			s.Log.Err(err).Interface("layer", ly).Msg("ScanSensitive")
@@ -70,7 +71,6 @@ func (s *ScanSensitive) ScanTarFile(ctx context.Context, pre *imagesecTypes.Prep
 
 		res.Sensitive = append(res.Sensitive, s2...)
 		res.SaveFileToKafka = append(res.SaveFileToKafka, k2...)
-		res.Scanned = true
 		result = append(result, res)
 	}
 	return result

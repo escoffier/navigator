@@ -1,14 +1,16 @@
-package imagesecReport
+package kafkaAsset
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/segmentio/kafka-go"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/mq"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/detect"
 	imageMetaSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta/metaGlobal"
@@ -337,7 +339,7 @@ func (s *ImageReport) AddImageDetectTask(ctx context.Context, newImages []*image
 	}
 
 	imageSearchParam := imagesecModel.ImageSearchApiParam{
-		UniqueIds: uniqueIds,
+		ImageUniqueIds: uniqueIds,
 	}
 	if err := s.detectTaskSrv.CreateImageDetectTask(ctx,
 		imageSearchParam,
@@ -385,7 +387,7 @@ func (s *ImageReport) AddScanTask(ctx context.Context) {
 				ScanType:      imagesecModel.ImageSyncTrigger,
 			}
 
-			param := imagesecModel.ImageSearchApiParam{UniqueIds: ims, ImageFromType: imagesecModel.ImageFromRegistry}
+			param := imagesecModel.ImageSearchApiParam{ImageUniqueIds: ims, ImageFromType: imagesecModel.ImageFromRegistry}
 			if err := s.scanTaskSrv.CreateImageScanTask(ctx, param, taskInfo); err != nil {
 				s.Log.Err(err).Interface("taskInfo", taskInfo).Msg("CreateScanTask")
 				continue
@@ -415,7 +417,7 @@ func (s *ImageReport) AddScanTask(ctx context.Context) {
 				Status:        imagesecModel.TaskStatusPending,
 			}
 
-			param := imagesecModel.ImageSearchApiParam{UniqueIds: ims, ImageFromType: imagesecModel.ImageFromNode}
+			param := imagesecModel.ImageSearchApiParam{ImageUniqueIds: ims, ImageFromType: imagesecModel.ImageFromNode}
 			if err := s.scanTaskSrv.CreateImageScanTask(ctx, param, taskInfo); err != nil {
 				s.Log.Err(err).Interface("taskInfo", taskInfo).Msg("CreateScanTask")
 				continue
@@ -423,4 +425,89 @@ func (s *ImageReport) AddScanTask(ctx context.Context) {
 			s.Log.Info().Interface("taskInfo", taskInfo).Msg("CreateScanTask succeed")
 		}
 	}()
+}
+
+func (s *ImageReport) GetNodeImageInfo(data imagesecTypes.NodeReport) ([]*imagesecModel.Image, *imagesecModel.NodeInfo,
+	map[uint64][]*imagesecModel.ImageEnv) {
+	//  contanerd 会有这样的数据，要处理
+	//  digests=["docker.io/maohaoxin/syslog_upd_app_linux@sha256:b2d3f7e9af1d16382539dc3c330acc7d2d5cd2109d0eeff0f60679769bc91f55"]
+	//  imageId=sha256:f66e9f553ba9899c5802abc1ebd9868f7bebe7bee406b5489d47550b8b15c210
+	//  repoTags=["sha256:f66e9f553ba9899c5802abc1ebd9868f7bebe7bee406b5489d47550b8b15c210"]
+	/*
+		digests=["docker.io/573320328/liuqianli@sha256:c57b291c4f0f9b4b17cf56a4628b25c323a811d1784a89f66b1379bbaeb5599d"]
+			imageId=docker.io/573320328/liuqianli:v9
+					repoTags=["docker.io/573320328/liuqianli:v9"]
+					uuid=db336be30e3c4f4daf8704560a898072
+	*/
+
+	images := make([]*imagesecModel.Image, 0)
+	envs := make(map[uint64][]*imagesecModel.ImageEnv)
+
+	node := &imagesecModel.NodeInfo{
+		IP:         data.NodeInfo.Ip,
+		Hostname:   data.NodeInfo.HostName,
+		ClusterKey: data.NodeInfo.ClusterKey,
+		// AviraDB:    data.ReportDBVersion.AviraDBVersion, todo(下期功能)
+	}
+
+	node.UniqueID = node.GenUniqueID()
+
+	for _, image := range data.NodeImages {
+		im := &imagesecModel.Image{
+			Namespace:     image.Namespace,
+			ImageFromType: imagesecModel.ImageFromNode,
+			ImageID:       image.ImageId,
+			Size:          image.Size,
+			Layer:         image.Layers,
+			BuildAt:       GetBuildAt(image.Created),
+			User:          image.User,
+			NodeID:        node.UniqueID,
+			Heartbeat:     time.Now().UnixMilli(),
+		}
+		split := strings.Split(image.Os, ":")
+		if len(split) >= 2 {
+			im.OS = types.OS{Family: split[0], Name: split[1], Eosl: false} // Eosl 表示不再维护
+		}
+
+		// 对于重复构建的相同名的镜像，前一次的镜像只有ID，没有repoTags,但是可以通过这个ID运行起容器
+		if len(image.RepoTags) == 0 {
+			im.Serialize()
+			images = append(images, im)
+
+			envs[im.UniqueID] = append(envs[im.UniqueID], ParseImageEnv(im.UniqueID, image.ENVS)...)
+		}
+
+		for _, repoTag := range image.RepoTags {
+			host, repo, tag := scannerUtils.ParseImageName(repoTag)
+			// im.ImageName 一定要保持原样，不然在扫描时会找不到镜像
+			im.Host, im.Repo, im.Tag, im.Project, im.ImageName = host, repo, tag, GetProject(repo), repoTag
+
+			// 本地镜像没有推送到仓库，是没有digest的
+			if len(image.Digests) == 0 {
+				im2 := im.DeepCopy()
+				im2.Serialize()
+				images = append(images, im2)
+				envs[im2.UniqueID] = append(envs[im2.UniqueID], ParseImageEnv(im2.UniqueID, image.ENVS)...)
+			}
+			for _, digest := range image.Digests {
+				im.Digest = scannerUtils.GetSha256Digest(digest)
+				im2 := im.DeepCopy()
+				im2.Serialize()
+				images = append(images, im2)
+				envs[im2.UniqueID] = append(envs[im2.UniqueID], ParseImageEnv(im2.UniqueID, image.ENVS)...)
+				images = append(images, im.DeepCopy())
+			}
+		}
+	}
+
+	ans := make([]*imagesecModel.Image, 0)
+	for i := range images {
+		if err := images[i].Check(); err != nil {
+			s.Log.Debug().Interface("image", images[i]).Msg("image check")
+			continue
+		}
+		ans = append(ans, images[i])
+	}
+
+	return ans, node, envs
 }

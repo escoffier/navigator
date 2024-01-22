@@ -32,6 +32,11 @@ func (vi *ImageDetectTask) TableName() string {
 	return "ivan_image_detect_task"
 }
 
+func (vi *ImageDetectTask) LogStr() string {
+	ss := fmt.Sprintf("%d-%s-%d", vi.ID, vi.StatusStr, vi.ScanSubTaskID)
+	return ss
+}
+
 type ImageDetectSubTask struct {
 	ID            int64  `gorm:"primaryKey" json:"id"`
 	TaskID        int64  `gorm:"column:task_id" json:"taskID"`
@@ -89,6 +94,11 @@ func (vi *ImageDetectSubTask) Deserialize() {
 
 func (vi *ImageDetectSubTask) TableName() string {
 	return "ivan_image_detect_subtask"
+}
+
+func (vi *ImageDetectSubTask) LogStr() string {
+	ss := fmt.Sprintf("%d-%d-%s-%d-%d", vi.TaskID, vi.ID, vi.StatusStr, vi.ImageUniqueID, vi.PolicyID)
+	return ss
 }
 
 type ImageScanTask struct {
@@ -222,13 +232,13 @@ type ImageScanSubTask struct {
 	ImageName    string `gorm:"column:image_name" json:"imageName"`    // 冗余信息，前端展示
 	Hostname     string `gorm:"column:hostname" json:"hostname"`       // 冗余信息，前端展示,节点镜像：节点名，仓库镜像：仓库名
 	ScanInsVer   string `gorm:"column:scan_ins_ver" json:"scanInsVer"` // 扫描器版本，为了兼容老版本,对于老版本的扫描器，要使用原来2.20之前的扫描逻辑
-
 	// 扫描器的 uuid，扫描重启动后会变动，通过该字段来判断是否需要重新发送
-	ScanUUID     string `gorm:"column:scan_uuid" json:"scanUUID"`
-	ImageCleared bool   `gorm:"-" json:"imageCleared"` // 镜像是否被清理了
+	ScanUUID  string `gorm:"column:scan_uuid" json:"scanUUID"`
+	CreatedAt int64  `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
+	UpdatedAt int64  `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
 
-	CreatedAt int64 `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
-	UpdatedAt int64 `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
+	ImageCleared bool   `gorm:"-" json:"imageCleared"` // 镜像是否被清理了
+	ClusterKey   string `gorm:"-" json:"clusterKey"`   // 节点镜像跳转时要用
 }
 
 func (vi *ImageScanSubTask) TableName() string {
@@ -263,12 +273,15 @@ func (vi *ImageScanSubTask) Serialize() {
 }
 
 func (vi *ImageScanSubTask) Deserialize() {
-
 	// 任务发送到节点或扫描器才能算任务已开始，所以就会有部分情况导致任务失败，但是没有开始时间
 	// 比如：任务未发送到节点，任务对应的镜像已清理等
 	// 这里取个巧，认为任务是在5秒前开始的，这样页面上计算扫描用时就不会有错
 	if vi.FinishedAt > 0 && vi.StartedAt == 0 {
 		vi.StartedAt = vi.FinishedAt - 5*1000
+	}
+	// 因为缓存的原因
+	if vi.FinishedAt <= vi.StartedAt {
+		vi.FinishedAt = vi.StartedAt + 5*1000
 	}
 }
 
@@ -339,4 +352,18 @@ func GetTaskTypeView(lang string) map[string]string {
 	}
 
 	return avCH
+}
+
+type ImageScanSubtasks []*ImageScanSubTask
+
+func (vi ImageScanSubtasks) Len() int {
+	return len(vi)
+}
+
+func (vi ImageScanSubtasks) Less(i, j int) bool {
+	return vi[i].ImageUniqueID < vi[j].ImageUniqueID
+}
+
+func (vi ImageScanSubtasks) Swap(i, j int) {
+	vi[i], vi[j] = vi[j], vi[i]
 }

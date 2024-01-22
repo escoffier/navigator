@@ -90,6 +90,7 @@ func (vi *ScanConfigDB) Serialize() {
 	if bys, err := json.Marshal(vi.DBMeta); err != nil {
 		vi.MetaJson = string(bys)
 	}
+	vi.UniqueID = vi.GenUniqueID()
 }
 
 func (vi *ScanConfigDB) Deserialize() {
@@ -125,7 +126,6 @@ func (vi *ScanConfigDB) TableName() string {
 type SearchScanDbParam struct {
 	DBType    string
 	DBVersion string
-	Enable    string
 	Keyword   string
 	ID        int64
 	UniqueID  uint64

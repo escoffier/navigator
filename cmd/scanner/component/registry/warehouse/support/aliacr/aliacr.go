@@ -18,7 +18,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts/preConsts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
@@ -39,10 +39,10 @@ func (aa *AliAcr) CreateProject(projectName string, public bool) error {
 
 func (aa *AliAcr) Ping() error {
 	if err := aa.RegistryClient.Ping(); err != nil {
-		return consts.ErrNotConnectOrWrongUsernameOrPasswd
+		return warehouse.ErrNotConnectOrWrongUsernameOrPasswd
 	}
 	if _, err := aa.listNamespaces(aa.AliAcrClient); err != nil {
-		return consts.ErrNotConnectOrWrongUsernameOrPasswd
+		return warehouse.ErrNotConnectOrWrongUsernameOrPasswd
 	}
 	return nil
 }
@@ -130,7 +130,7 @@ func (aa *AliAcr) ListImages(ctx context.Context, extender warehouse.Extender, r
 				im, err := extender.CreateImageExtender(ctx, preImage)
 				if err != nil {
 					res.HasErr = true
-					if err != consts.ErrNotNodeImage {
+					if err != preConsts.ErrNotNodeImage {
 						logging.Get().Err(err).Str("module", "RegistryImage").Msgf("ali acr Insert imagelist error")
 					}
 					continue
@@ -266,14 +266,14 @@ func openRegistry(config warehouse.RegistrableComponentConfig) (warehouse.Regist
 	rc, err := warehouse.NewDockerRegistryClient(h.Config.URL, h.Config.Username, h.Config.Password, h.Config.SkipTLSVerify)
 	if err != nil {
 		logging.Get().Err(err).Str("module", "RegistryImage").Msg("openRegistry.NewClientWithAccessKey")
-		return nil, consts.ErrNotConnectOrWrongUsernameOrPasswd
+		return nil, warehouse.ErrNotConnectOrWrongUsernameOrPasswd
 	}
 	h.RegistryClient = rc
 
 	sc, err := cr.NewClientWithAccessKey(h.Config.Region, h.Config.AccessKey, h.Config.AccessSecret)
 	if err != nil {
 		logging.Get().Err(err).Str("module", "RegistryImage").Msg("openRegistry.NewClientWithAccessKey")
-		return nil, consts.ErrAccessKeyOrAccessSecret
+		return nil, warehouse.ErrAccessKeyOrAccessSecret
 	}
 
 	h.AliAcrClient = sc

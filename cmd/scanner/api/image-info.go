@@ -13,6 +13,7 @@ import (
 	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts/preConsts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -174,8 +175,8 @@ func (s *ImageInfoAPI) CreateBaseImage(ctx *gin.Context) {
 		return
 	}
 	images, _, err := s.ImageSrv.ListImageWithScanInfo(ctx, imagesecModel.ImageSearchApiParam{
-		UniqueIds:     uni,
-		ImageFromType: imageFromType,
+		ImageUniqueIds: uni,
+		ImageFromType:  imageFromType,
 	})
 	if err != nil {
 		response.JSONError(ctx, err)
@@ -550,7 +551,7 @@ func (s *ImageInfoAPI) RiskImageOverview(ctx *gin.Context) {
 			SensitiveFilesNum:  int32(data.SensitiveCnt),
 			WebshellNum:        int32(data.WebshellCnt),
 			IsTrusted:          util.ExistBit1(data.Image.Flag, imagesecModel.FlagImageTrusted), // 可信镜像查询
-			IsSecure:           data.GetRiskScore() <= consts.SecureImageRiskScore,
+			IsSecure:           data.GetRiskScore() <= preConsts.SecureImageRiskScore,
 		}
 	}
 
@@ -727,7 +728,7 @@ func (s *ImageInfoAPI) GetImageByVuln(ctx *gin.Context) {
 		response.JSONError(ctx, fmt.Errorf("vulnName,pkgName,pkgVersion must not empty"))
 		return
 	}
-	vulnUniqueID := util.GenerateUUID64(fmt.Sprintf(consts.UniqueVulnFamat, vulnName, pkgName, pkgVersion))
+	vulnUniqueID := util.GenerateUUID64(fmt.Sprintf("%s-%s-%s", vulnName, pkgName, pkgVersion))
 	logging.Get().Info().Str("vuln", fmt.Sprintf("%s-%s-%s", vulnName, pkgName, pkgVersion)).Uint64("vulnUniqueID", vulnUniqueID)
 	filter := imagesecModel.EmptyFilter().SetDefault().SetLimit(consts.DefaultMaxLimit)
 	res, cnt, err := s.ImageSrv.ListImageWithScanInfo(ctx, imagesecModel.ImageSearchApiParam{

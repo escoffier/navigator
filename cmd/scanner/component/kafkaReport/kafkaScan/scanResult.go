@@ -1,4 +1,4 @@
-package imagesecReport
+package kafkaScan
 
 import (
 	"context"
@@ -10,6 +10,7 @@ import (
 
 	"github.com/go-redis/redis/v8"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/kafkaReport"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 
 	"github.com/segmentio/kafka-go"
@@ -25,15 +26,15 @@ import (
 )
 
 type ScanResultReportSrv struct {
-	nodeTaskDal     imagesecStore.ScanTaskDal
+	taskDal         imagesecStore.ScanTaskDal
 	imageDal        imagesecStore.ImageMetaDal
 	scanResultDal   imagesecStore.ScanResultDal
 	issueDal        imagesecStore.ScanIssueDal
 	versionDal      imagesecStore.ScanDbMetaDal
 	mqReader        mq.Reader
-	vulnMatcher     VulnMatcher
+	vulnMatcher     imagesecReport.VulnMatcher
 	redisCli        *redis.Client
-	imageDetectSrv  ImageDetectTaskService
+	imageDetectSrv  imagesecReport.ImageDetectTaskService
 	detectImageChan chan DetectImageData
 	OnlineVulnChan  chan []*imagesecModel.Vuln
 	Log             *scannerUtils.LogEvent
@@ -44,23 +45,24 @@ type DetectImageData struct {
 	SubtaskID     int64
 	CreatedAt     int64
 	RetryCnt      int64
+	AllInCache    bool
 }
 
-func (s *ScanResultReportSrv) matchVuln(ctx context.Context, originRes *imagesecTypes.ReportScanResult) (report.Results, error) {
-	data := make(report.Results, 0)
-	for i := range originRes.OriginArtifact {
+func (s *ScanResultReportSrv) matchVuln(ctx context.Context, data *imagesecTypes.ReportScanResult) (report.Results, error) {
+	results := make(report.Results, 0)
+	for i := range data.OriginArtifact {
 		// match vuln by image artifact
-		rp, err := s.vulnMatcher.MatchVuln(ctx, originRes.OriginArtifact[i])
+		rp, err := s.vulnMatcher.MatchVuln(ctx, data.OriginArtifact[i])
 		if err != nil {
-			s.Log.Err(err).Int64("subtaskID", originRes.SubTaskID).Int64("taskID", originRes.TaskID).
+			s.Log.Err(err).Int64("subtaskID", data.SubTaskID).Int64("taskID", data.TaskID).
 				Msg("failed to match vuln")
 			return nil, err
 		}
-		data = append(data, rp...)
+		results = append(results, rp...)
 
 	}
 
-	return data, nil
+	return results, nil
 }
 
 func (s *ScanResultReportSrv) CreateScanResult(ctx context.Context, data imagesecTypes.ReportScanResult) error {
@@ -80,7 +82,7 @@ func (s *ScanResultReportSrv) CreateScanResult(ctx context.Context, data imagese
 	correlate.Image.OS = data.OS
 	if !data.IgnoreVulnAndPkg {
 		// fixme 如果都是老集群，那么漏洞发现就没有数据
-		vulns, _ := s.CreatePkgVuln(ctx, data, correlate)
+		vulns, _ := s.CreatePkgVuln(ctx, &data, correlate)
 		// 在线镜像的漏洞
 		if util.ExistBit1(image.Flag, imagesecModel.FlagImageOnline) {
 			go func() { s.OnlineVulnChan <- vulns }()
@@ -102,12 +104,13 @@ func (s *ScanResultReportSrv) CreateScanResult(ctx context.Context, data imagese
 			ImageUniqueID: image.UniqueID,
 			SubtaskID:     data.SubTaskID,
 			CreatedAt:     time.Now().Unix(),
+			AllInCache:    s.AllInCache(ctx, data),
 		}
 		s.detectImageChan <- dd
 	}()
 
 	// 存入缓存信息
-	go func() { _ = s.CreateScanLayer(ctx, data, correlate) }()
+	go func() { _ = s.CreateScanLayer(ctx, &data, correlate) }()
 
 	s.Log.Info().Str("result", data.LogStr()).
 		Str("image", image.GetImageName()).
@@ -116,13 +119,61 @@ func (s *ScanResultReportSrv) CreateScanResult(ctx context.Context, data imagese
 	return nil
 }
 
-func (s *ScanResultReportSrv) CreateScanLayer(ctx context.Context, data imagesecTypes.ReportScanResult,
+func (s *ScanResultReportSrv) CreateScanLayer(ctx context.Context, data *imagesecTypes.ReportScanResult,
 	correlate *imagesecModel.ImageWithCorrelateData2) error {
 
 	license := make(map[string]imagesecModel.ScanLayerData)
 	malware := make(map[string]imagesecModel.ScanLayerData)
 	webshell := make(map[string]imagesecModel.ScanLayerData)
 	sensitive := make(map[string]imagesecModel.ScanLayerData)
+	vuln := make(map[string]imagesecModel.ScanLayerData)
+	pkg := make(map[string]imagesecModel.ScanLayerData)
+
+	for i := range data.VulnCache {
+		v := data.VulnCache[i]
+		if !v.CanInCache {
+			continue
+		}
+		if _, ok := vuln[v.Layer]; !ok {
+			ca := imagesecModel.ScanLayerData{
+				DbVersion: data.DBVersion.Vuln,
+				Layer:     v.Layer,
+				Issue:     imagesecModel.VulnCacheData,
+			}
+			ca.SetEmpty()
+			vuln[v.Layer] = ca
+		}
+
+		for j := range correlate.Vuln {
+			lic := correlate.Vuln[j]
+			ca := vuln[v.Layer]
+			ca.Vuln = append(ca.Vuln, &imagesecModel.Vuln{UniqueID: lic.UniqueID})
+			vuln[v.Layer] = ca
+		}
+	}
+
+	for i := range data.VulnCache {
+		v := data.VulnCache[i]
+		if !v.CanInCache {
+			continue
+		}
+		if _, ok := pkg[v.Layer]; !ok {
+			ca := imagesecModel.ScanLayerData{
+				DbVersion: data.DBVersion.Vuln,
+				Layer:     v.Layer,
+				Issue:     imagesecModel.PKGCacheData,
+			}
+			ca.SetEmpty()
+			pkg[v.Layer] = ca
+		}
+
+		for j := range correlate.Pkg {
+			lic := correlate.Pkg[j]
+			ca := pkg[v.Layer]
+			ca.Pkg = append(ca.Pkg, lic)
+			pkg[v.Layer] = ca
+		}
+	}
 
 	for i := range data.LicenseCache {
 		v := data.LicenseCache[i]
@@ -131,8 +182,9 @@ func (s *ScanResultReportSrv) CreateScanLayer(ctx context.Context, data imagesec
 		}
 		if _, ok := license[v.Layer]; !ok {
 			ca := imagesecModel.ScanLayerData{
-				Layer: v.Layer,
-				Issue: imagesecModel.LicenseCacheData,
+				DbVersion: data.DBVersion.License,
+				Layer:     v.Layer,
+				Issue:     imagesecModel.LicenseCacheData,
 			}
 			ca.SetEmpty()
 			license[v.Layer] = ca
@@ -157,8 +209,9 @@ func (s *ScanResultReportSrv) CreateScanLayer(ctx context.Context, data imagesec
 		}
 		if _, ok := webshell[v.Layer]; !ok {
 			ca := imagesecModel.ScanLayerData{
-				Layer: v.Layer,
-				Issue: imagesecModel.WebshellCacheData,
+				DbVersion: data.DBVersion.Webshell,
+				Layer:     v.Layer,
+				Issue:     imagesecModel.WebshellCacheData,
 			}
 			ca.SetEmpty()
 			webshell[v.Layer] = ca
@@ -182,8 +235,9 @@ func (s *ScanResultReportSrv) CreateScanLayer(ctx context.Context, data imagesec
 		}
 		if _, ok := malware[v.Layer]; !ok {
 			ca := imagesecModel.ScanLayerData{
-				Layer: v.Layer,
-				Issue: imagesecModel.MalwareCacheData,
+				DbVersion: data.DBVersion.Avira,
+				Layer:     v.Layer,
+				Issue:     imagesecModel.MalwareCacheData,
 			}
 			ca.SetEmpty()
 			malware[v.Layer] = ca
@@ -208,8 +262,9 @@ func (s *ScanResultReportSrv) CreateScanLayer(ctx context.Context, data imagesec
 		}
 		if _, ok := sensitive[v.Layer]; !ok {
 			ca := imagesecModel.ScanLayerData{
-				Layer: v.Layer,
-				Issue: imagesecModel.SensitiveCacheData,
+				DbVersion: data.DBVersion.Sensitive,
+				Layer:     v.Layer,
+				Issue:     imagesecModel.SensitiveCacheData,
 			}
 			ca.SetEmpty()
 			sensitive[v.Layer] = ca
@@ -244,14 +299,24 @@ func (s *ScanResultReportSrv) CreateScanLayer(ctx context.Context, data imagesec
 		v := webshell[ly]
 		layerCache = append(layerCache, &v)
 	}
+	for ly := range vuln {
+		v := vuln[ly]
+		layerCache = append(layerCache, &v)
+	}
+	for ly := range pkg {
+		v := pkg[ly]
+		layerCache = append(layerCache, &v)
+	}
 
-	// fix 没有做版本管理，暂时就用发版时的版本
+	// 对于没做版本管理的 job，暂时就用发版时的版本
 	sv := os.Getenv("SOFT_VERSION")
 	if sv == "" {
 		sv = "latest"
 	}
 	for i := range layerCache {
-		layerCache[i].DbVersion = sv
+		if layerCache[i].DbVersion == "" {
+			layerCache[i].DbVersion = sv
+		}
 	}
 	if err := s.scanResultDal.CreateScanLayerData(ctx, layerCache); err != nil {
 		s.Log.Err(err).Int64("subtaskID", data.SubTaskID).Msg("create scan layer data")
@@ -373,7 +438,7 @@ func (s *ScanResultReportSrv) UpdateImage(ctx context.Context, imageID int64, da
 
 func (s *ScanResultReportSrv) GetImageInfo(ctx context.Context, taskID, subtaskID int64) (imagesecModel.Image, error) {
 	empty := imagesecModel.Image{}
-	subtask, _, err := s.nodeTaskDal.SearchScanSubtask(ctx, imagesecModel.SearchTaskParam{
+	subtask, _, err := s.taskDal.SearchScanSubtask(ctx, imagesecModel.SearchTaskParam{
 		SubtaskID: subtaskID,
 		TaskID:    taskID,
 	})
@@ -401,7 +466,7 @@ func (s *ScanResultReportSrv) GetImageInfo(ctx context.Context, taskID, subtaskI
 }
 
 func (s *ScanResultReportSrv) UpdateSubtaskScanFinished(ctx context.Context, data imagesecTypes.ReportScanResult) error {
-	subtask, _, err := s.nodeTaskDal.SearchScanSubtask(ctx, imagesecModel.SearchTaskParam{SubtaskID: data.SubTaskID})
+	subtask, _, err := s.taskDal.SearchScanSubtask(ctx, imagesecModel.SearchTaskParam{SubtaskID: data.SubTaskID})
 	if err != nil {
 		s.Log.Err(err).Int64("subTaskID", data.SubTaskID).Msg("SearchScanSubtask")
 		return err
@@ -409,7 +474,7 @@ func (s *ScanResultReportSrv) UpdateSubtaskScanFinished(ctx context.Context, dat
 	if len(subtask) == 0 {
 		return fmt.Errorf("not find subtask:%d", data.SubTaskID)
 	}
-	if subtask[0].Status > imagesecModel.TaskStatusSendFinished {
+	if subtask[0].Status >= imagesecModel.TaskStatusPause {
 		return fmt.Errorf("subtask now stastus is %s,can not update scan data", subtask[0].StatusStr)
 	}
 
@@ -425,7 +490,7 @@ func (s *ScanResultReportSrv) UpdateSubtaskScanFinished(ctx context.Context, dat
 		updater["reason"] = imagesecModel.TaskFailedReasonScanner
 	}
 
-	if err := s.nodeTaskDal.UpdateScanSubtask(ctx, imagesecModel.UpdateTaskParam{
+	if err := s.taskDal.UpdateScanSubtask(ctx, imagesecModel.UpdateTaskParam{
 		ID:      data.SubTaskID,
 		Updater: updater,
 	}); err != nil {
@@ -438,13 +503,12 @@ func (s *ScanResultReportSrv) UpdateSubtaskScanFinished(ctx context.Context, dat
 	return nil
 }
 
-func (s *ScanResultReportSrv) CreatePkgVuln(ctx context.Context, data imagesecTypes.ReportScanResult,
+func (s *ScanResultReportSrv) CreatePkgVuln(ctx context.Context, data *imagesecTypes.ReportScanResult,
 	correlate *imagesecModel.ImageWithCorrelateData2) ([]*imagesecModel.Vuln, error) {
 	emp := make([]*imagesecModel.Vuln, 0)
-
 	// match vuln
 	imageUniqueID := correlate.Image.UniqueID
-	results, err := s.matchVuln(ctx, &data)
+	results, err := s.matchVuln(ctx, data)
 	if err != nil {
 		s.Log.Err(err).Int64("taskID", data.TaskID).Int64("subtaskID", data.SubTaskID).
 			Msg("not match vuln")
@@ -557,6 +621,63 @@ func (s *ScanResultReportSrv) CreatePkgVuln(ctx context.Context, data imagesecTy
 			vulnView = append(vulnView, vu.GenVulnView())
 		}
 
+	}
+
+	// 加上漏洞缓存的数据
+	cacheLayer := make([]string, 0)
+	for _, ly := range data.VulnCache {
+		if ly.InCache {
+			cacheLayer = append(cacheLayer, ly.Layer)
+		}
+	}
+
+	vulnLayerParam := imagesecModel.SearchScanLayerParam{Layers: cacheLayer, Issue: imagesecModel.VulnCacheData, AddDetail: true}
+	vulnLayerData, err := s.scanResultDal.SearchScanLayerData(ctx, vulnLayerParam)
+	if err != nil {
+		s.Log.Err(err).Int64("subtaskID", data.SubTaskID).Int64("taskID", data.TaskID).
+			Msg("SearchScanLayerData")
+		return emp, err
+	}
+
+	for i := range vulnLayerData {
+		vuln = append(vuln, vulnLayerData[i].Vuln...)
+
+		for j := range vulnLayerData[i].Vuln {
+			ses := vulnLayerData[i].Vuln[j]
+			vulnView = append(vulnView, ses.GenVulnView())
+
+			vulnIssue = append(vulnIssue, &imagesecModel.VulnToImage{
+				UniqueTarget:  ses.UniqueID,
+				ImageUniqueID: imageUniqueID,
+			})
+		}
+	}
+
+	// 加上软件缓存的数据
+	pkgLayerParam := imagesecModel.SearchScanLayerParam{Layers: cacheLayer, Issue: imagesecModel.PKGCacheData, AddDetail: true}
+	pkgLayerData, err := s.scanResultDal.SearchScanLayerData(ctx, pkgLayerParam)
+	if err != nil {
+		s.Log.Err(err).Int64("subtaskID", data.SubTaskID).Int64("taskID", data.TaskID).
+			Msg("SearchScanLayerData")
+		return emp, err
+	}
+
+	for i := range pkgLayerData {
+		pkgs = append(pkgs, pkgLayerData[i].Pkg...)
+
+		for j := range pkgLayerData[i].Pkg {
+
+			ses := pkgLayerData[i].Pkg[j]
+			pkgMap[ses.UniqueID] = ses
+
+			p2i := &imagesecModel.PkgToImage{
+				UniqueTarget:  ses.UniqueID,
+				ImageUniqueID: imageUniqueID,
+			}
+			p2i.UniqueID = p2i.GenUniqueID()
+
+			pkgToImage = append(pkgToImage, p2i)
+		}
 	}
 
 	pkgs = imagesecModel.DuplicatePkg(pkgs)
@@ -704,6 +825,24 @@ func (s *ScanResultReportSrv) ContinueCreateDetectTask(ctx context.Context) erro
 		}()
 
 		for task := range s.detectImageChan {
+			// 不再进行检测
+			if task.AllInCache {
+				updater := map[string]interface{}{
+					"updated_at": time.Now().Unix(),
+					"status":     imagesecModel.TaskStatusDetectFinished,
+					"status_str": imagesecModel.ScanStatusToStr(imagesecModel.TaskStatusDetectFinished),
+				}
+
+				if err := s.taskDal.UpdateScanSubtask(ctx, imagesecModel.UpdateTaskParam{
+					ID:      task.SubtaskID,
+					Updater: updater,
+					Where:   fmt.Sprintf("status < %d", imagesecModel.TaskStatusPause),
+				}); err != nil {
+					s.Log.Err(err).Int64("subtaskID", task.SubtaskID).Interface("updater", updater).
+						Msg("detect image bug update scan subtask error")
+				}
+				continue
+			}
 
 			if task.RetryCnt > consts.DefaultMaxRetryCount {
 				s.Log.Info().Uint64("imageUniqueID", task.ImageUniqueID).
@@ -1164,14 +1303,52 @@ func (s *ScanResultReportSrv) StatisticsMathRes(data report.Results) (int, int) 
 	return vulnCnt, pkgCnt
 }
 
+func (s *ScanResultReportSrv) AllInCache(ctx context.Context, res imagesecTypes.ReportScanResult) bool {
+	// 说明是数据迁移或兼容老版本
+	if res.IgnoreVulnAndPkg {
+		return false
+	}
+	for i := range res.LicenseCache {
+		ly := res.LicenseCache[i]
+		if !ly.InCache {
+			return false
+		}
+	}
+	for i := range res.VulnCache {
+		ly := res.VulnCache[i]
+		if !ly.InCache {
+			return false
+		}
+	}
+	for i := range res.SensitiveCache {
+		ly := res.SensitiveCache[i]
+		if !ly.InCache {
+			return false
+		}
+	}
+	for i := range res.MalwareCache {
+		ly := res.MalwareCache[i]
+		if !ly.InCache {
+			return false
+		}
+	}
+	for i := range res.WebshellCache {
+		ly := res.WebshellCache[i]
+		if !ly.InCache {
+			return false
+		}
+	}
+	return true
+}
+
 func NewScanResultReportSrv(
 	nodeTaskDal imagesecStore.ScanTaskDal,
 	imageDal imagesecStore.ImageMetaDal,
 	scanResultDal imagesecStore.ScanResultDal,
 	issueDal imagesecStore.ScanIssueDal,
 	versionDal imagesecStore.ScanDbMetaDal,
-	imageDetectSrv ImageDetectTaskService,
-	vulnMatcher VulnMatcher,
+	imageDetectSrv imagesecReport.ImageDetectTaskService,
+	vulnMatcher imagesecReport.VulnMatcher,
 	mqReader mq.Reader,
 	redisCli *redis.Client,
 ) *ScanResultReportSrv {
@@ -1180,7 +1357,7 @@ func NewScanResultReportSrv(
 	}
 
 	srv := &ScanResultReportSrv{
-		nodeTaskDal:     nodeTaskDal,
+		taskDal:         nodeTaskDal,
 		imageDal:        imageDal,
 		scanResultDal:   scanResultDal,
 		issueDal:        issueDal,

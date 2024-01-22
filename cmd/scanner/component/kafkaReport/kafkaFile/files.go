@@ -1,4 +1,4 @@
-package imagesecReport
+package kafkaFile
 
 import (
 	"bytes"

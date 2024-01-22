@@ -148,19 +148,31 @@ func (s *TrivySrv) UpdateDB(ctx context.Context, param imagesecModel.UpdateDbPar
 }
 
 // 扫描
-func (s *TrivySrv) ImageScan(ctx context.Context, pre *imagesecTypes.PrepareScan) []imagesecTypes.ScanJobResult {
+func (s *TrivySrv) ImageScan(ctx context.Context, prep *imagesecTypes.PrepareScan) []imagesecTypes.ScanJobResult {
 	// 如果需要统一节点镜像的扫描时再做
 	start := time.Now().Unix()
-	s.logScanStart(pre)
-	defer s.logScanEnd(start, pre)
+	s.logScanStart(prep)
+	defer s.logScanEnd(start, prep)
 
 	result := make([]imagesecTypes.ScanJobResult, 0)
-	res := imagesecTypes.ScanJobResult{}
-	imageName := pre.Subtask.RegImageMeta.ImageName()
+	res := imagesecTypes.ScanJobResult{
+		DBVersion: s.WorkingVersion.TrivyVersion.Version,
+		Layer:     prep.ImageManifest.ImageDigest,
+		Issue:     imagesecModel.VulnCacheData,
+	}
+	// 检测缓存
+	if prep.Subtask.VulnCache.In(prep.ImageManifest.ImageDigest) {
+		res.InCache = true
+		result = append(result, res)
+		return result
+	}
+	res.Scanned = true
+
+	imageName := prep.Subtask.RegImageMeta.ImageName()
 	imageName, err := s.changCacheUrl(imageName)
 
 	if err != nil {
-		s.Log.Err(err).Str("subtask", pre.Subtask.LogStr()).Msg("changCacheUrl")
+		s.Log.Err(err).Str("subtask", prep.Subtask.LogStr()).Msg("changCacheUrl")
 		res.Errors = append(res.Errors, err)
 		result = append(result, res)
 		return result
@@ -169,7 +181,7 @@ func (s *TrivySrv) ImageScan(ctx context.Context, pre *imagesecTypes.PrepareScan
 	opt := NewTrivyScanOptions(imageName)
 	trivyRes, err := s.TrivyScanner.Scan(ctx, imageName, opt)
 	if err != nil {
-		s.Log.Err(err).Str("subtask", pre.Subtask.LogStr()).Msg("Scan")
+		s.Log.Err(err).Str("subtask", prep.Subtask.LogStr()).Msg("Scan")
 		res.Errors = append(res.Errors, err)
 		result = append(result, res)
 		return result
@@ -234,6 +246,21 @@ func (s *TrivySrv) AddDetailVuln(ctx context.Context, vuln *imagesecModel.Vuln) 
 	}
 	s.Log.Debug().Str("vulnID", vuln.Name).Msg("AddDetailVuln")
 	return vuln
+}
+
+func (s *TrivySrv) GetWorkVersion(ctx context.Context) (*imagesecModel.ScanConfigDB, error) {
+	db := &imagesecModel.ScanConfigDB{
+		DBVersion: s.WorkingVersion.TrivyVersion.Version,
+		DBType:    consts.TrivyName,
+		DBMd5:     s.WorkingVersion.TrivyVersion.Hash,
+		DBMeta: imagesecModel.DBMeta{
+			DBVersion: s.WorkingVersion.TrivyVersion.Version,
+			DBComment: s.WorkingVersion.TrivyVersion.Comment,
+			DBHash:    s.WorkingVersion.TrivyVersion.Hash,
+		},
+	}
+
+	return db, nil
 }
 
 type SingleTrivySrv struct {
@@ -334,7 +361,7 @@ func NewTrivySrv(opts ...Option) (*TrivySrv, error) {
 	s.genVulnMatcherChan(context.Background())
 
 	singleMeta.TrivySrv = s
-
+	s.Log.Info().Interface("WorkingVersion", s.WorkingVersion).Msg("get vuln db version")
 	return singleMeta.TrivySrv, nil
 }
 

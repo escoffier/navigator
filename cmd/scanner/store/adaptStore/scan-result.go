@@ -9,6 +9,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/databases"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts/preConsts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
@@ -134,7 +135,7 @@ func (dal *ImageScanResultDao) SearchScanImage(ctx context.Context, param images
 		}
 		// env
 		for i := range layer.EnvKeyValue {
-			if param.ExceptionEnv == consts.TrueString && layer.EnvKeyValue[i].IsAbnormal != consts.EnvIsAbnormal {
+			if param.ExceptionEnv == consts.TrueString && layer.EnvKeyValue[i].IsAbnormal != preConsts.EnvIsAbnormal {
 				continue
 			}
 			// env 统一大写

@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts/preConsts"
 )
 
 func Test_TaskStatusCheck(t *testing.T) {
@@ -15,61 +15,61 @@ func Test_TaskStatusCheck(t *testing.T) {
 		isValid []bool
 	}{
 		{
-			consts.Pending,
+			preConsts.Pending,
 			[]int{
-				consts.Pending,
-				consts.InProgress,
-				consts.Pause,
-				consts.Terminate,
-				consts.End,
+				preConsts.Pending,
+				preConsts.InProgress,
+				preConsts.Pause,
+				preConsts.Terminate,
+				preConsts.End,
 			},
 			[]bool{true, true, true, true, false},
 		},
 
 		{
-			consts.InProgress,
+			preConsts.InProgress,
 			[]int{
-				consts.Pending,
-				consts.InProgress,
-				consts.Pause,
-				consts.Terminate,
-				consts.End,
+				preConsts.Pending,
+				preConsts.InProgress,
+				preConsts.Pause,
+				preConsts.Terminate,
+				preConsts.End,
 			},
 			[]bool{false, true, true, true, true},
 		},
 
 		{
-			consts.Pause,
+			preConsts.Pause,
 			[]int{
-				consts.Pending,
-				consts.InProgress,
-				consts.Pause,
-				consts.Terminate,
-				consts.End,
+				preConsts.Pending,
+				preConsts.InProgress,
+				preConsts.Pause,
+				preConsts.Terminate,
+				preConsts.End,
 			},
 			[]bool{true, false, true, true, false},
 		},
 
 		{
-			consts.Terminate,
+			preConsts.Terminate,
 			[]int{
-				consts.Pending,
-				consts.InProgress,
-				consts.Pause,
-				consts.Terminate,
-				consts.End,
+				preConsts.Pending,
+				preConsts.InProgress,
+				preConsts.Pause,
+				preConsts.Terminate,
+				preConsts.End,
 			},
 			[]bool{false, false, false, true, false},
 		},
 
 		{
-			consts.End,
+			preConsts.End,
 			[]int{
-				consts.Pending,
-				consts.InProgress,
-				consts.Pause,
-				consts.Terminate,
-				consts.End,
+				preConsts.Pending,
+				preConsts.InProgress,
+				preConsts.Pause,
+				preConsts.Terminate,
+				preConsts.End,
 			},
 			[]bool{false, false, false, false, true},
 		},

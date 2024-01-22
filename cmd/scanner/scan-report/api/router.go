@@ -2,6 +2,7 @@ package api
 
 import (
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/gin-gonic/gin"
@@ -13,10 +14,18 @@ import (
 )
 
 func SetupGinRouter(exportSrv service.ExportTaskInterface, exportHtmlDriver map[string]types.ExportHtmlInterface) *gin.Engine {
-	router := gin.Default()
-	router.MaxMultipartMemory = 2 << 20
+	router := gin.New()
+	router.Use(gin.Logger(), LangMiddleware)
+	ginMode := os.Getenv("LOGGING_LEVE")
+	switch ginMode {
+	case consts.LOGGINGDebug:
+		router.Use(gin.Logger())
+		gin.SetMode(gin.TestMode)
+	default:
+		gin.SetMode(gin.ReleaseMode)
+	}
 
-	router.Use(gin.Logger(), gin.Recovery(), LangMiddleware)
+	router.MaxMultipartMemory = 2 << 20
 
 	exportApiSrv := NewExportApiSrv(exportSrv)
 
@@ -24,14 +33,12 @@ func SetupGinRouter(exportSrv service.ExportTaskInterface, exportHtmlDriver map[
 
 	v1 := router.Group("/api/v1/export/task")
 	{
-		// v1.POST("/image", exportApiSrv.CreateImageExportTask)
 		v1.POST("/scanTask", exportApiSrv.CreateScanResultExportTask)
 		v1.POST("/vuln", exportApiSrv.CreateVulnExportTask)
 		v1.POST("/imageSearch", exportApiSrv.CreateImageSearchExportTask)
 		v1.POST("/naviAudit", exportApiSrv.CreateAuditExportTask)
 		v1.POST("/yaml", exportApiSrv.CreateYamlExportTask)
 		v1.POST("/dockerfile", exportApiSrv.CreateDockerfileExportTask)
-		// v1.GET("/checkScanTask", exportApiSrv.CheckScanTask)
 		v1.GET("/detail", exportApiSrv.GetExportTaskDetail)
 		v1.GET("/list", exportApiSrv.GetReportTaskList)
 		v1.GET("/download", exportApiSrv.DownLoad)

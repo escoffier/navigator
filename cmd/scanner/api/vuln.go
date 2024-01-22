@@ -79,7 +79,7 @@ func (vp VulnPKG) GetSortScore() int64 {
 }
 
 func (vp VulnPKG) GenUniqueVuln() uint64 {
-	key := fmt.Sprintf(consts.UniqueSoftwareFamat, vp.PkgName, vp.PkgVersion)
+	key := fmt.Sprintf("%s-%s", vp.PkgName, vp.PkgVersion)
 	uid := util.GenerateUUID64(key)
 	return uid
 }

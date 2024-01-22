@@ -17,6 +17,7 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd/global"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts/preConsts"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -765,7 +766,7 @@ func (s *ScannerOrm) GetAuthFromRegistry(ctx context.Context, registryID int64) 
 	if res.Error != nil {
 		return ""
 	}
-	decryPass, err := util.DesDecrypt(tmp.Password, []byte(consts.EncryptPasswordKey))
+	decryPass, err := util.DesDecrypt(tmp.Password, []byte(preConsts.EncryptPasswordKey))
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("NewCipher Error")
 		return ""
@@ -1261,13 +1262,13 @@ func (s *ScannerOrm) OverviewForInterval(ctx context.Context, interval int, inte
 
 	switch intervalType {
 
-	case consts.IntervalHour:
+	case preConsts.IntervalHour:
 
 		startAt = time.Date(now.Year(), now.Month(), now.Day(), now.Hour(), 0, 0, 0, time.UTC).Add(-time.Duration(interval-1) * time.Hour).UTC()
-		timeParse = consts.TimeFormatWithHour
-	case consts.IntervalDay:
+		timeParse = preConsts.TimeFormatWithHour
+	case preConsts.IntervalDay:
 		startAt = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, time.UTC).AddDate(0, 0, -(interval - 1)).UTC()
-		timeParse = consts.TimeFormatWithDay
+		timeParse = preConsts.TimeFormatWithDay
 	}
 
 	db := s.rdb.Get().WithContext(ctx)
@@ -1470,7 +1471,7 @@ func (s *ScannerOrm) GetInprogressTaskAndSetStatus(ctx context.Context, maxInpro
 
 	inp := make([]model.Task, 0)
 
-	if err := s.rdb.Get().WithContext(ctx).Model(&model.Task{}).Where("status = ?", consts.InProgress).
+	if err := s.rdb.Get().WithContext(ctx).Model(&model.Task{}).Where("status = ?", preConsts.InProgress).
 		Where("registry_id IN ?", regIds).Limit(int(maxInprogress)).Find(&inp).Error; err != nil {
 		return nil, err
 	}
@@ -1485,7 +1486,7 @@ func (s *ScannerOrm) GetInprogressTaskAndSetStatus(ctx context.Context, maxInpro
 		limit = dequeNum
 	}
 
-	if err := s.rdb.Get().WithContext(ctx).Model(&model.Task{}).Where("status = ?", consts.Pending).
+	if err := s.rdb.Get().WithContext(ctx).Model(&model.Task{}).Where("status = ?", preConsts.Pending).
 		Where("registry_id IN ?", regIds).Limit(int(limit)).Find(&ans).Error; err != nil {
 		return nil, err
 	}
@@ -1498,7 +1499,7 @@ func (s *ScannerOrm) GetInprogressTaskAndSetStatus(ctx context.Context, maxInpro
 	}
 	updateInfo := make(map[string]interface{})
 	updateInfo["heart_beat"] = time.Now()
-	updateInfo["status"] = consts.InProgress
+	updateInfo["status"] = preConsts.InProgress
 	updateInfo["scanner_id"] = global.ScannerPodID
 
 	if err := s.rdb.Get().WithContext(ctx).Model(&model.Task{}).Where("id IN ?", ids).
@@ -1618,7 +1619,7 @@ func (s *ScannerOrm) AddTaskAndSubTask(ctx context.Context, task model.Task, sub
 		subtask[k].TaskID = task.ID
 	}
 
-	if err := tx.Model(model.SubTask{}).CreateInBatches(&subtask, consts.SubTaskBatchInsertCount).Error; err != nil {
+	if err := tx.Model(model.SubTask{}).CreateInBatches(&subtask, preConsts.SubTaskBatchInsertCount).Error; err != nil {
 		tx.Rollback()
 		return 0, err
 	}
@@ -1643,7 +1644,7 @@ func (s *ScannerOrm) AddTask(ctx context.Context, task model.Task) (int64, error
 func (s *ScannerOrm) AddSubTask(ctx context.Context, subtask []model.SubTask) error {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*30)
 	defer cancelFunc()
-	if err := s.rdb.Get().WithContext(ctx).Model(model.SubTask{}).CreateInBatches(&subtask, consts.SubTaskBatchInsertCount).Error; err != nil {
+	if err := s.rdb.Get().WithContext(ctx).Model(model.SubTask{}).CreateInBatches(&subtask, preConsts.SubTaskBatchInsertCount).Error; err != nil {
 		return err
 	}
 

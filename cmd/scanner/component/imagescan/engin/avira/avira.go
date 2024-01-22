@@ -45,7 +45,7 @@ type AviraClient struct {
 }
 
 type AviraSrv struct {
-	EnginName        string
+	EnginName        string // fixme 下期调试时应该把这个字段去调
 	ClientPoll       []*AviraClient
 	WorkingVersion   imagesecModel.DBVersionInfo
 	LastVersion      imagesecModel.DBVersionInfo
@@ -157,6 +157,7 @@ func (s *AviraSrv) ImageScan(ctx context.Context, pre *imagesecTypes.PrepareScan
 	defer close(out)
 	for i := range pre.Layers {
 		ly := pre.Layers[i]
+		s.Log.Debug().Str("layer", ly.Digest).Msg("AviraSrv scan")
 		go func(ctx context.Context, ly *imagesecTypes.ImageLayer, pre *imagesecTypes.PrepareScan, out chan imagesecTypes.ScanJobResult) {
 			s.scanJob(ctx, ly, pre, out)
 		}(ctx, ly, pre, out)
@@ -183,6 +184,8 @@ func (s *AviraSrv) scanJob(ctx context.Context, ly *imagesecTypes.ImageLayer, pr
 		out <- res
 		return
 	}
+
+	res.Scanned = true
 
 	fis := make([]string, 0)
 
@@ -228,7 +231,6 @@ func (s *AviraSrv) scanJob(ctx context.Context, ly *imagesecTypes.ImageLayer, pr
 		res.AviraScan = append(res.AviraScan, ma)
 	}
 
-	res.Scanned = true
 	out <- res
 }
 

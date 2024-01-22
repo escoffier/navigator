@@ -7,6 +7,7 @@ import (
 
 	ver210 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/dataMigrate/220"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts/preConsts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -38,10 +39,10 @@ func (s *ScanTaskSrv) AdaptCreateSubtask(ctx context.Context, images []*imagesec
 
 		task := &model.Task{
 			ID:               sub.ID,
-			ScopeType:        consts.FullScan,
-			Trigger:          consts.ManualTrigger,
+			ScopeType:        preConsts.FullScan,
+			Trigger:          preConsts.ManualTrigger,
 			FlowConf:         "defaultImageScanFlow",
-			Status:           consts.Pending,
+			Status:           preConsts.Pending,
 			Operator:         "AdaptCreateSubtask",
 			PolicyId:         strategy.ID,
 			GroupID:          time.Now().UnixMilli(),
@@ -73,7 +74,7 @@ func (s *ScanTaskSrv) AdaptCreateSubtask(ctx context.Context, images []*imagesec
 			ID:           sub.ID,
 			TaskID:       sub.ID,
 			ImageID:      image.ID,
-			Status:       consts.ImageScanPending,
+			Status:       preConsts.ImageScanPending,
 			RegID:        task.RegistryID,
 			FullRepoName: iml.FullRepoName,
 			Tag:          iml.Tags,
@@ -108,6 +109,7 @@ func (s *ScanTaskSrv) AdaptCreateSubtask(ctx context.Context, images []*imagesec
 }
 
 // 持续查询已完成或失败的任务
+// 兼容老版本
 func (s *ScanTaskSrv) MigratePreSubtask(ctx context.Context) error {
 
 	go func() {
@@ -128,7 +130,6 @@ func (s *ScanTaskSrv) MigratePreSubtask(ctx context.Context) error {
 			})
 			if err != nil {
 				s.Log.Err(err).Msg("AdaptPreScan get scan task")
-				time.Sleep(time.Minute * 5)
 				time.Sleep(time.Minute * 5)
 				continue
 			}
@@ -156,12 +157,11 @@ func (s *ScanTaskSrv) MigratePreSubtask(ctx context.Context) error {
 				for j := range subtask {
 					sub := subtask[j]
 					subtaskID := sub.ID
-					// sub.ScanInsVer == "" 表示1.19之前的版本
 					if util.ThanVersion(sub.ScanInsVer, consts.ScannerVersion220) {
 						continue
 					}
 
-					s.Log.Info().Int64("subtaskID", sub.ID).Int64("taskID", sub.TaskID).Msg("AdaptPreScan check subtask status")
+					s.Log.Info().Int64("subtaskID", sub.ID).Int64("taskID", sub.TaskID).Msg("AdaptPreScan get low version subtask")
 
 					preSub, err := s.preTaskDal.SearchScanSubtask(ctx, imagesecModel.SearchTaskParam{SubtaskID: subtaskID})
 					if err != nil {
@@ -173,14 +173,11 @@ func (s *ScanTaskSrv) MigratePreSubtask(ctx context.Context) error {
 						continue
 					}
 
-					s.Log.Info().Int64("taskID", sub.TaskID).Int64("subtaskID", sub.ID).
-						Str("ImageName", sub.ImageName).Msg("AdaptPreScan find pre subtask")
-
 					su := preSub[0]
 					switch su.Status {
-					case consts.ImageScanSuccess:
+					case preConsts.ImageScanSuccess:
 						_ = s.updateSuccess(ctx, su)
-					case consts.ImageScanFailed:
+					case preConsts.ImageScanFailed:
 						_ = s.updateFailed(ctx, su)
 					default:
 						s.Log.Info().Int64("taskID", sub.TaskID).Int64("subtaskID", sub.ID).
@@ -203,7 +200,7 @@ func (s *ScanTaskSrv) MigratePreSubtask(ctx context.Context) error {
 		defer ticker.Stop()
 		for {
 			<-ticker.C
-			subtask, err := s.preTaskDal.SearchScanSubtask(ctx, imagesecModel.SearchTaskParam{ScanStatus: []int64{consts.ImageScanSuccess, consts.ImageScanFailed}})
+			subtask, err := s.preTaskDal.SearchScanSubtask(ctx, imagesecModel.SearchTaskParam{ScanStatus: []int64{preConsts.ImageScanSuccess, preConsts.ImageScanFailed}})
 			if err != nil {
 				s.Log.Err(err).Msg("AdaptPreScan get scan task")
 				time.Sleep(time.Minute * 1)
@@ -220,9 +217,9 @@ func (s *ScanTaskSrv) MigratePreSubtask(ctx context.Context) error {
 			for i := range subtask {
 				su := subtask[i]
 				switch su.Status {
-				case consts.ImageScanSuccess:
+				case preConsts.ImageScanSuccess:
 					_ = s.updateSuccess(ctx, su)
-				case consts.ImageScanFailed:
+				case preConsts.ImageScanFailed:
 					_ = s.updateFailed(ctx, su)
 				}
 			}
@@ -232,14 +229,17 @@ func (s *ScanTaskSrv) MigratePreSubtask(ctx context.Context) error {
 	return nil
 }
 
-func (s *ScanTaskSrv) updateSuccess(ctx context.Context, sub *model.SubTask) error {
+func (s *ScanTaskSrv) updateSuccess(ctx context.Context, preSub *model.SubTask) error {
 
-	s.Log.Info().Int64("taskID", sub.TaskID).Int64("subtaskID", sub.ID).
-		Str("ImageName", sub.FullRepoName+":"+sub.Tag).Msg("AdaptPreScan subtask scan success")
+	/*
+		这个方法中，taskID,subtaskID 很容易出错，要特别小心
+	*/
+	s.Log.Info().Int64("subtaskID", preSub.ID).Str("ImageName", preSub.FullRepoName+":"+preSub.Tag).
+		Msg("AdaptPreScan low version subtask scan success")
 
 	// 新老版本的扫描器的调度不一致
 	// 当前任务已
-	subtask, _, err := s.taskDal.SearchScanSubtask(ctx, imagesecModel.SearchTaskParam{SubtaskID: sub.ID})
+	subtask, _, err := s.taskDal.SearchScanSubtask(ctx, imagesecModel.SearchTaskParam{SubtaskID: preSub.ID})
 	if err != nil {
 		s.Log.Err(err).Msg("AdaptPreSubtask SearchScanSubtask")
 		return err
@@ -248,23 +248,25 @@ func (s *ScanTaskSrv) updateSuccess(ctx context.Context, sub *model.SubTask) err
 		return nil
 	}
 
-	tasks, _, err := s.taskDal.SearchScanTask(ctx, imagesecModel.SearchTaskParam{TaskID: sub.TaskID})
+	tasks, _, err := s.taskDal.SearchScanTask(ctx, imagesecModel.SearchTaskParam{TaskID: subtask[0].TaskID})
 	if err != nil {
 		s.Log.Err(err).Msg("AdaptPreSubtask SearchScanSubtask")
 		return err
 	}
-	if len(tasks) == 0 || tasks[0].StatusStr == imagesecModel.TaskStatusTerminateStr {
+	if len(tasks) == 0 || tasks[0].Status >= imagesecModel.TaskStatusPause {
+		s.Log.Info().Str("status", tasks[0].StatusStr).Msg("AdaptPreSubtask task")
 		return nil
 	}
+	newSubtask, newTask := subtask[0], tasks[0]
 
-	if subtask[0].Reason == imagesecModel.TaskFailedReasonTimeout {
+	if newSubtask.Reason == imagesecModel.TaskFailedReasonTimeout {
 		config, err := s.scanConfigDal.GetScanImageConfig(ctx, imagesecModel.ConfigTypeRegScanImage)
 		if err != nil {
 			s.Log.Err(err).Msg("AdaptPreSubtask  SearchImageConfig")
 			return err
 		}
-		if (config.ImageScanConfig.ScanTimeout)*60 > sub.FinishedAt.Unix()-sub.StartedAt.Unix() {
-			_ = s.deleteAdaptedPreScanTask(ctx, sub.ID)
+		if (config.ImageScanConfig.ScanTimeout)*60 > preSub.FinishedAt.Unix()-preSub.StartedAt.Unix() {
+			_ = s.deleteAdaptedPreScanTask(ctx, preSub.ID)
 			return nil
 		}
 		taskUpdater := map[string]interface{}{
@@ -274,7 +276,7 @@ func (s *ScanTaskSrv) updateSuccess(ctx context.Context, sub *model.SubTask) err
 		}
 		// 更新主任务执行
 		if err := s.taskDal.UpdateScanTask(ctx, imagesecModel.UpdateTaskParam{
-			ID:      subtask[0].TaskID,
+			ID:      newTask.ID,
 			Updater: taskUpdater,
 		}); err != nil {
 			s.Log.Err(err).Msg("AdaptPreSubtask  UpdateScanTask")
@@ -282,7 +284,7 @@ func (s *ScanTaskSrv) updateSuccess(ctx context.Context, sub *model.SubTask) err
 		}
 		// 更新子任务
 		if err := s.taskDal.UpdateScanSubtask(ctx, imagesecModel.UpdateTaskParam{
-			ID:      subtask[0].ID,
+			ID:      newSubtask.ID,
 			Updater: taskUpdater,
 		}); err != nil {
 			s.Log.Err(err).Msg("AdaptPreSubtask  UpdateScanTask")
@@ -290,15 +292,30 @@ func (s *ScanTaskSrv) updateSuccess(ctx context.Context, sub *model.SubTask) err
 		}
 	}
 
-	updater := map[string]interface{}{
-		"status":     imagesecModel.TaskStatusScanFinished,
-		"status_str": imagesecModel.ScanStatusToStr(imagesecModel.TaskStatusScanFinished),
-		"started_at": sub.StartedAt.UnixMilli(),
+	// 如果一个任务中只有一个子任务，且这个子任务还是老版本，那子任务可能先调度,这时就会出现一个情况，子任务已经在执行，但是主任务还是等待中
+	// 更新任务执行中
+	taskUpdater := map[string]interface{}{
+		"status":     imagesecModel.TaskStatusInprogress,
+		"status_str": imagesecModel.ScanStatusToStr(imagesecModel.TaskStatusInprogress),
+		"started_at": preSub.StartedAt.UnixMilli(),
+	}
+	if err := s.taskDal.UpdateScanTask(ctx, imagesecModel.UpdateTaskParam{
+		ID:      newTask.ID,
+		Updater: taskUpdater,
+		Where:   fmt.Sprintf("status = %d", imagesecModel.TaskStatusPending),
+	}); err != nil {
+		s.Log.Err(err).Msg("AdaptPreSubtask  UpdateScanTask")
+		return err
 	}
 
+	subtaskUpdater := map[string]interface{}{
+		"status":     imagesecModel.TaskStatusScanFinished,
+		"status_str": imagesecModel.ScanStatusToStr(imagesecModel.TaskStatusScanFinished),
+		"started_at": preSub.StartedAt.UnixMilli(),
+	}
 	if err := s.taskDal.UpdateScanSubtask(ctx, imagesecModel.UpdateTaskParam{
-		ID:      sub.ID,
-		Updater: updater,
+		ID:      newSubtask.ID,
+		Updater: subtaskUpdater,
 		Where:   fmt.Sprintf("status < %d", imagesecModel.TaskStatusPause),
 	}); err != nil {
 		s.Log.Err(err).Msg("AdaptPreSubtask  UpdateScanSubtask")
@@ -310,15 +327,14 @@ func (s *ScanTaskSrv) updateSuccess(ctx context.Context, sub *model.SubTask) err
 		s.Log.Err(err).Msg("AdaptPreSubtask  not GetImageMigrate")
 		return err
 	}
-	if err := v210.MigrateScan(ctx, sub.ImageID, sub.ID); err != nil {
+	if err := v210.MigrateScan(ctx, preSub.ImageID, newSubtask.ID); err != nil {
 		s.Log.Err(err).Msg("AdaptPreSubtask  MigrateImage")
 		return err
 	}
 
-	_ = s.deleteAdaptedPreScanTask(ctx, sub.ID)
+	_ = s.deleteAdaptedPreScanTask(ctx, preSub.ID)
 
-	s.Log.Info().Int64("taskID", sub.TaskID).Int64("subtaskID", sub.ID).
-		Str("ImageName", sub.FullRepoName+":"+sub.Tag).Msg("AdaptPreScan task scan success and send data to kafka")
+	s.Log.Info().Str("subtask", newSubtask.LogInfo()).Msg("AdaptPreScan task scan success and send data to kafka")
 
 	return nil
 }
@@ -326,7 +342,7 @@ func (s *ScanTaskSrv) updateSuccess(ctx context.Context, sub *model.SubTask) err
 func (s *ScanTaskSrv) updateFailed(ctx context.Context, sub *model.SubTask) error {
 
 	s.Log.Info().Int64("taskID", sub.TaskID).Int64("subtaskID", sub.ID).
-		Str("ImageName", sub.FullRepoName+":"+sub.Tag).Msg("AdaptPreScan task scan failed")
+		Str("ImageName", sub.FullRepoName+":"+sub.Tag).Msg("AdaptPreScan low version  subtask scan failed")
 
 	updater := map[string]interface{}{
 		"status":      imagesecModel.TaskStatusFailed,
@@ -346,7 +362,7 @@ func (s *ScanTaskSrv) updateFailed(ctx context.Context, sub *model.SubTask) erro
 	_ = s.deleteAdaptedPreScanTask(ctx, sub.ID)
 
 	s.Log.Info().Int64("taskID", sub.TaskID).Int64("subtaskID", sub.ID).
-		Str("ImageName", sub.FullRepoName+":"+sub.Tag).Msg("AdaptPreScan task scan failed and update subtask status")
+		Str("ImageName", sub.FullRepoName+":"+sub.Tag).Msg("AdaptPreScan subtask scan failed and update subtask status")
 	return nil
 }
 
@@ -361,13 +377,13 @@ func (s *ScanTaskSrv) deleteAdaptedPreScanTask(ctx context.Context, subID int64)
 	}
 	sub := subtask[0]
 	switch sub.Status {
-	case consts.ImageScanSuccess:
+	case preConsts.ImageScanSuccess:
 		err = s.preTaskDal.DeleteScanSubtask(ctx, sub.ID)
 		if err != nil {
 			s.Log.Err(err).Int64("subtaskID", sub.ID).Msg("AdaptPreScan delete adapted subtask")
 			return err
 		}
-	case consts.ImageScanFailed:
+	case preConsts.ImageScanFailed:
 		// 不删除，便于排查原因
 		update := map[string]interface{}{
 			"status": consts.ImageStatusImageAdapted,
@@ -471,10 +487,10 @@ func (s *ScanTaskSrv) AdaptTaskPause(ctx context.Context, taskID int64) error {
 			continue
 		}
 		subtaskUpdater := map[string]interface{}{
-			"status": consts.ImageScanPending,
+			"status": preConsts.ImageScanPending,
 		}
 		taskUpdater := map[string]interface{}{
-			"status": consts.Pause,
+			"status": preConsts.Pause,
 		}
 		_ = s.preTaskDal.UpdateScanTask(ctx, subtaskIds, taskUpdater) // 一定是 subtask.ID 不是 subtask.taskID
 		_ = s.preTaskDal.UpdateScanSubtask(ctx, subtaskIds, subtaskUpdater)
@@ -521,12 +537,12 @@ func (s *ScanTaskSrv) AdaptTaskPending(ctx context.Context, taskID int64) error 
 		}
 
 		subtaskUpdater := map[string]interface{}{
-			"status":      consts.ImageScanPending,
+			"status":      preConsts.ImageScanPending,
 			"started_at":  nil,
 			"finished_at": nil,
 		}
 		taskUpdater := map[string]interface{}{
-			"status": consts.Pending,
+			"status": preConsts.Pending,
 		}
 		_ = s.preTaskDal.UpdateScanTask(ctx, subtaskIds, taskUpdater) // 一定是 subtask.ID 不是 subtask.taskID
 		_ = s.preTaskDal.UpdateScanSubtask(ctx, subtaskIds, subtaskUpdater)

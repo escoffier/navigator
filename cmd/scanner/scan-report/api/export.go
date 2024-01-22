@@ -50,8 +50,11 @@ func (s *ExportApiSrv) CreateImageSearchExportTask(ctx *gin.Context) {
 	}
 	now := time.Now()
 	if data.Filename == "" {
-		data.Filename = fmt.Sprintf("%d_image_search_%s.zip", now.UnixMilli(), data.TaskType)
+		data.Filename = fmt.Sprintf("%d_image_search", now.UnixMilli())
 	}
+
+	data.Filename = fmt.Sprintf("%s_%s.zip", data.Filename, data.TaskType)
+
 	task := &imagesec.ExportTensorTask{
 		ExecuteType: consts.ExportImageSearch,
 		Parameter:   string(bys),
@@ -94,66 +97,6 @@ func (s *ExportApiSrv) CreateImageSearchExportTask(ctx *gin.Context) {
 		response.WithTarget(&response.TargetRef{Name: "export", ID: "0"}))
 }
 
-//
-// func (s *ExportApiSrv) CreateImageExportTask(ctx *gin.Context) {
-//
-// 	type ExportTensorTask struct {
-// 		Parameter types2.SingeImageExportParam `json:"parameter"`
-// 		Creator   string                       `json:"creator"` // 任务创建人
-// 		TaskType  string                       `json:"taskType"`
-// 	}
-//
-// 	data := &ExportTensorTask{}
-// 	if err := ctx.BindJSON(data); err != nil {
-// 		response.JSONError(ctx, err)
-// 		return
-// 	}
-// 	if data.Parameter.ImageID <= 0 {
-// 		response.JSONError(ctx, fmt.Errorf("no image id"))
-// 		return
-// 	}
-//
-// 	bys, err := json.Marshal(data.Parameter)
-// 	if err != nil {
-// 		response.JSONError(ctx, err)
-// 		return
-// 	}
-//
-// 	now := time.Now()
-// 	fileName := fmt.Sprintf("%s_%s_%s_%d.zip", strings.ReplaceAll(data.Parameter.FullRepoName, "/", "_"),
-// 		data.Parameter.Tag, data.TaskType, now.Unix())
-// 	task := &model.ExportTensorTask{
-// 		ExecuteType: consts.ExportSingleImage,
-// 		Parameter:   string(bys),
-// 		FilePath:    fileName,
-// 		Creator:     data.Creator,
-// 		CreatedAt:   now,
-// 		TaskType:    data.TaskType,
-// 		Lang:        util.GetLanguage(ctx),
-// 	}
-//
-// 	if err := s.exportSrv.CreateExportTask(ctx, task); err != nil {
-// 		response.JSONError(ctx, err)
-// 		return
-// 	}
-// 	if data.TaskType == model.ExportHtml {
-// 		go func() {
-// 			if err := s.exportSrv.CreateSearchImage(ctx, task.ID, imagesec.ImageSearchApiParam{
-// 				ImageIds: []int64{data.Parameter.ImageID}, ImageFromType: data.Parameter.ImageFromType,
-// 			}); err != nil {
-// 				logging.Get().Err(err).Int64("taskID", task.ID).Msg("CreateSearchImage")
-// 			}
-// 			updater := map[string]interface{}{"start_at": consts.ExportHtmlReady}
-// 			if err := s.exportSrv.UpdateExportTask(ctx, task.ID, updater); err != nil {
-// 				logging.Get().Err(err).Int64("taskID", task.ID).Msg("UpdateExportTask")
-// 			}
-// 		}()
-// 	}
-// 	response.JSONOK(ctx, response.WithItem(
-// 		GenResponseMsg(ctx, task.ID, task.FilePath)),
-// 		response.WithTarget(&response.TargetRef{Name: "export", ID: "0"}))
-// }
-
 func (s *ExportApiSrv) CreateVulnExportTask(ctx *gin.Context) {
 
 	type VulnExportParma struct {
@@ -174,7 +117,7 @@ func (s *ExportApiSrv) CreateVulnExportTask(ctx *gin.Context) {
 	}
 	if data.Parameter.UniqueID != "" {
 		vu := data.Parameter
-		data.Parameter.UniqueID = fmt.Sprintf(consts.UniqueVulnFamat, vu.Name, vu.PkgName, vu.PkgVersion)
+		data.Parameter.UniqueID = fmt.Sprintf("%s-%s-%s", vu.Name, vu.PkgName, vu.PkgVersion)
 	}
 
 	bys, err := json.Marshal(data.Parameter)
@@ -233,8 +176,10 @@ func (s *ExportApiSrv) CreateScanResultExportTask(ctx *gin.Context) {
 	}
 	now := time.Now()
 	if data.Filename == "" {
-		data.Filename = fmt.Sprintf("%s_scan_result_export_%s_%d.zip", strings.ReplaceAll(data.Parameter.TaskCreateAt, " ", "T"), data.TaskType, now.Unix())
+		data.Filename = fmt.Sprintf("%d_d_scan_result_export", data.Parameter.TaskCreateAt)
 	}
+
+	data.Filename = fmt.Sprintf("%s_%s.zip", data.Filename, data.TaskType)
 
 	task := &imagesec.ExportTensorTask{
 		ExecuteType: consts.ExportScanTask,

@@ -114,7 +114,7 @@ func (s *ScanHM) scanJob(ctx context.Context, ly *imagesecTypes.ImageLayer, prep
 		out <- res
 		return
 	}
-
+	res.Scanned = true
 	webshell, err := s.scanWebshell(ctx, ly)
 	if err != nil {
 		res.Errors = append(res.Errors, err)
@@ -129,7 +129,7 @@ func (s *ScanHM) scanJob(ctx context.Context, ly *imagesecTypes.ImageLayer, prep
 		}
 		res.Webshell[j].Mod = stat.Mode().String()
 	}
-	res.Scanned = true
+
 	out <- res
 }
 

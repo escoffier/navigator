@@ -88,7 +88,9 @@ func (s *ConfigAPISrv) UpdateSensitiveRule(ctx *gin.Context) {
 		return
 	}
 	id := util.GetInt64FromQuery(ctx, "id")
-	if err := s.sensitiveRuleService.UpdateSensitiveRule(ctx, id, data.ToUpdater()); err != nil {
+	if err := s.sensitiveRuleService.UpdateSensitiveRule(ctx, imagesecModel.UpdateSensitiveRuleParam{
+		ID: id, SensitiveRule: &data,
+	}); err != nil {
 		response.JSONError(ctx, i18.UpdateErr(err))
 		return
 	}

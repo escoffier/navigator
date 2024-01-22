@@ -16,6 +16,7 @@ type ScanDbMetaDal interface {
 	CreateScanDbMeta(ctx context.Context, data *imagesecModel.ScanConfigDB) error
 	SearchScanDbMeta(ctx context.Context, param imagesecModel.SearchScanDbParam) ([]*imagesecModel.ScanConfigDB, int64, error)
 	GetLastDBVersion(ctx context.Context) (imagesecModel.LastDB, error)
+	UpdateScanDbMeta(ctx context.Context, id int64, updater map[string]interface{}) error
 }
 
 type ScanDbMetaDao struct {
@@ -43,6 +44,15 @@ func (dal *ScanDbMetaDao) CreateScanDbMeta(ctx context.Context, data *imagesecMo
 	return nil
 }
 
+func (dal *ScanDbMetaDao) UpdateScanDbMeta(ctx context.Context, id int64, updater map[string]interface{}) error {
+	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
+	defer cancelFunc()
+
+	db := dal.db.Get().WithContext(cancelCtx).Table(new(imagesecModel.ScanConfigDB).TableName())
+
+	return db.Where("id = ?", id).Updates(updater).Error
+}
+
 func (dal *ScanDbMetaDao) SearchScanDbMeta(ctx context.Context, param imagesecModel.SearchScanDbParam) (
 	[]*imagesecModel.ScanConfigDB, int64, error) {
 	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*3)
@@ -55,16 +65,14 @@ func (dal *ScanDbMetaDao) SearchScanDbMeta(ctx context.Context, param imagesecMo
 	if param.ID > 0 {
 		db = db.Where("id = ?", param.ID)
 	}
+	if param.DBVersion != "" {
+		db = db.Where("db_version = ? ", param.DBVersion)
+	}
 	if param.DBType != "" {
 		db = db.Where("db_type = ?", param.DBType)
 	}
 	if param.UniqueID > 0 {
 		db = db.Where("unique_id = ?", param.UniqueID)
-	}
-	if param.Enable == consts.TrueString {
-		db = db.Where("enable = ?", true)
-	} else if param.Enable == consts.FalseString {
-		db = db.Where("enable = ?", false)
 	}
 	// 先查总数
 	var cnt int64

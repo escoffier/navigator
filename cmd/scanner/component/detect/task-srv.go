@@ -119,7 +119,7 @@ func (s *ImageDetectTaskSrv) deleteDetectSubtask(ctx context.Context, policyID i
 				Msg("DeleteDetectSubtask")
 			continue
 		}
-		s.Log.Info().Ints64("subtaskIds", subtaskIds).Msg("DeleteDetectSubtask")
+		s.Log.Debug().Ints64("subtaskIds", subtaskIds).Msg("DeleteDetectSubtask")
 	}
 	s.Log.Info().Int64("taskID", param.TaskID).
 		Msg("DeleteDetectSubtask succeed")
@@ -134,8 +134,7 @@ func (s *ImageDetectTaskSrv) deleteDetectResult(ctx context.Context, policyID in
 			PolicyID:   policyID,
 		})
 		if err != nil {
-			s.Log.Err(err).Int64("policyID", policyID).
-				Str("DetectType", det[i]).Msg("deleteDetectResult")
+			s.Log.Err(err).Int64("policyID", policyID).Str("DetectType", det[i]).Msg("deleteDetectResult")
 		}
 	}
 	return nil

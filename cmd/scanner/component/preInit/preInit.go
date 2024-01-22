@@ -2,6 +2,7 @@ package preinit
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strings"
 
@@ -23,6 +24,7 @@ type InitScanner struct {
 	sensitiveRuleDal imagesecStore.SensitiveRuleDal
 	dataMigrateDal   imagesecStore.DataMigrateDal
 	scanResultDal    imagesecStore.ScanResultDal
+	dbMetaDal        imagesecStore.ScanDbMetaDal
 	Log              *scannerUtils.LogEvent
 }
 
@@ -52,13 +54,15 @@ func (s *InitScanner) Init(ctx context.Context) error {
 		return err
 	}
 	// 2.20版本数据迁移
-	_ = s.createVer210DataMigrate(ctx)
+	// 中移发版，不做数据迁移，其他环境可以直接同步然后扫描
+	// _ = s.createVer210DataMigrate(ctx)
 
 	// 已存在的策略快照
 	_ = s.createDetectPolicySnapshot(ctx)
 
 	// scanner 启动时清理镜像扫描过程中的临时文件
 	_ = s.removeImagescanDir(ctx)
+	_ = s.createSensitiveDBVersion(ctx)
 	return nil
 }
 
@@ -305,6 +309,36 @@ func (s *InitScanner) createDefaultSensitiveRule(ctx context.Context) error {
 	return nil
 }
 
+func (s *InitScanner) createSensitiveDBVersion(ctx context.Context) error {
+	filter := imagesecModel.EmptyFilter().SetSortDesc().SetSortFiled("updated_at").SetLimit(1)
+	rule, _, err := s.sensitiveRuleDal.SearchSensitiveRule(ctx, imagesecModel.SearchSensitiveRuleParam{Filter: filter})
+	if err != nil {
+		return err
+	}
+	if len(rule) == 0 {
+		return fmt.Errorf("not find sensitive rule")
+	}
+	data := &imagesecModel.ScanConfigDB{
+		DBVersion: fmt.Sprintf("%d", rule[0].UpdatedAt),
+		DBType:    imagesecModel.SensitiveCacheData,
+		Updater:   consts.DefaultAdminUser,
+	}
+	data.Serialize()
+	meta, _, err := s.dbMetaDal.SearchScanDbMeta(ctx, imagesecModel.SearchScanDbParam{DBType: imagesecModel.SensitiveCacheData})
+	if err != nil {
+		return err
+	}
+	if len(meta) > 0 {
+		update := map[string]interface{}{
+			"db_version": fmt.Sprintf("%d", rule[0].UpdatedAt),
+			"unique_id":  data.UniqueID,
+		}
+		return s.dbMetaDal.UpdateScanDbMeta(ctx, meta[0].ID, update)
+	}
+
+	return s.dbMetaDal.CreateScanDbMeta(ctx, data)
+}
+
 // 2.10版本数据迁移
 func (s *InitScanner) createVer210DataMigrate(ctx context.Context) error {
 
@@ -393,6 +427,7 @@ func NewInitScanner(db *databases.RDBInstance) *InitScanner {
 	sensitiveRuleDal := imagesecStore.NewSensitiveRuleDao(db)
 	dataMigrateDal := imagesecStore.NewDataMigrateDao(db)
 	scanResultDal := imagesecStore.NewScanResultDao(db)
+	dbMetaDal := imagesecStore.NewScanDbMetaDao(db)
 
 	return &InitScanner{
 		imageConfigDal:   imageConfigDal,
@@ -400,6 +435,7 @@ func NewInitScanner(db *databases.RDBInstance) *InitScanner {
 		sensitiveRuleDal: sensitiveRuleDal,
 		dataMigrateDal:   dataMigrateDal,
 		scanResultDal:    scanResultDal,
+		dbMetaDal:        dbMetaDal,
 		Log: scannerUtils.NewLogEvent(
 			scannerUtils.WithModule(consts.ModulePreInit)),
 	}

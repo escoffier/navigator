@@ -16,7 +16,6 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -128,12 +127,12 @@ func (h *HwSwrEE) GetImage(projectName, fullRepoName, tag string) (*warehouse.Im
 
 func (h *HwSwrEE) Ping() error {
 	if err := h.RegistryClient.Ping(); err != nil {
-		return consts.ErrNotConnectOrWrongUsernameOrPasswd
+		return warehouse.ErrNotConnectOrWrongUsernameOrPasswd
 	}
 
 	// 通过docker-registry的接口也不会报错，只是获取不到数据
 	if _, err := h.getRepositories(context.Background()); err != nil {
-		return consts.ErrNotConnectOrWrongUsernameOrPasswd
+		return warehouse.ErrNotConnectOrWrongUsernameOrPasswd
 	}
 
 	return nil
@@ -186,7 +185,7 @@ func openRegistry(config warehouse.RegistrableComponentConfig) (warehouse.Regist
 	rc, err := warehouse.NewDockerRegistryClient(h.Config.URL, h.Config.Username, h.Config.Password, h.Config.SkipTLSVerify)
 	if err != nil {
 		logging.Get().Err(err).Str("module", "RegistryImage").Msg("huawei en swr: new registry client")
-		return nil, consts.ErrNotConnectOrWrongUsernameOrPasswd
+		return nil, warehouse.ErrNotConnectOrWrongUsernameOrPasswd
 	}
 	h.RegistryClient = rc
 

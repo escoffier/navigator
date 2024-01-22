@@ -36,7 +36,7 @@ type SearchHtmlVulnImageParam struct {
 	TaskID      int64
 	UniqueVulns []uint64
 	CanFixed    string
-	Severity    int64
+	Severity    string
 	Fields      []string
 	StartID     int64
 	Filter      *Filter

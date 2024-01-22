@@ -2,6 +2,7 @@ package scannerUtils
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -45,8 +46,8 @@ func BenchmarkExtractTar(b *testing.B) {
 
 func TestExtractTar(b *testing.T) {
 	des := fmt.Sprintf("/Users/liuqianli/Documents/hello")
-	file := "/Users/liuqianli/Documents/layer.tar"
-
+	file := "/Users/liuqianli/Documents/bolb.tar.gz"
+	_ = os.RemoveAll(des)
 	err := ExtractDockerTar3(file, des)
 	if err != nil {
 		fmt.Println("error is ", err)

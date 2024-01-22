@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts/preConsts"
 	iacModel "gitlab.com/piccolo_su/vegeta/pkg/model/iac"
 
 	"gitlab.com/security-rd/go-pkg/iac/pkg/scan"
@@ -15,7 +16,6 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -381,7 +381,7 @@ func (vn *CiVulns) Deserialize() {
 }
 
 func (vn *CiVulns) GenUniqueVuln() uint64 {
-	key := fmt.Sprintf(consts.UniqueVulnFamat, vn.Name, vn.PkgName, vn.PkgVersion)
+	key := fmt.Sprintf(preConsts.UniqueVulnFamat, vn.Name, vn.PkgName, vn.PkgVersion)
 	uid := util.GenerateUUID64(key)
 	return uid
 }

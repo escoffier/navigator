@@ -7,7 +7,7 @@ import (
 
 	"github.com/containerd/containerd/pkg/cri/util"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts/preConsts"
 	"gitlab.com/piccolo_su/vegeta/pkg/i18"
 )
 
@@ -138,7 +138,7 @@ func (reg *Registry) Validate(valTY string) error {
 		}
 	}
 
-	if valTY == consts.ValidateCreate {
+	if valTY == preConsts.ValidateCreate {
 		if reg.Url == "" && len([]rune(reg.Url)) > 255 {
 			return errors.New("registry address is illegal")
 		}

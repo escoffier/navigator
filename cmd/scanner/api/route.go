@@ -13,6 +13,7 @@ import (
 	imagesecScanSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/service"
 	imagesecSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagesec"
 	regService "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/service"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	scanReportService "gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/service"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -35,17 +36,16 @@ func SetupGinRouter(
 	dBManager imagesecSrv.DBUpdateService,
 ) *gin.Engine {
 
-	router := gin.Default()
+	router := gin.New()
+	gin.Default()
+	gin.DisableConsoleColor() // 禁用请求日志控制台字体颜色
 	router.MaxMultipartMemory = 2 << 20
 
 	router.Use(gin.Recovery(), AddLanguage)
 
-	ginMode := os.Getenv("GIN_MODE")
+	ginMode := os.Getenv("LOGGING_LEVE")
 	switch ginMode {
-	case gin.DebugMode:
-		router.Use(gin.Logger())
-		gin.SetMode(gin.DebugMode)
-	case gin.TestMode:
+	case consts.LOGGINGDebug:
 		router.Use(gin.Logger())
 		gin.SetMode(gin.TestMode)
 	default:
@@ -91,7 +91,6 @@ func WebAPI(router *gin.Engine,
 	ciDalSrv ci.CiComponent,
 	scannerInfo imagesecSrv.ScanInstanceService,
 	exportSrv scanReportService.ExportTaskInterface,
-	// dbManageSrv dbManage.DBManageSrv,
 	policySrv detect.SecurityPolicyService,
 	scanTaskSrv imagesecScanSrv.ScanTaskService,
 	sensitiveRuleService imagesecSrv.SensitiveRuleService,
@@ -100,9 +99,7 @@ func WebAPI(router *gin.Engine,
 	deployService deploySrv.DeployService,
 	dBManager imagesecSrv.DBUpdateService,
 ) *gin.Engine {
-	// libImageSrv := NewScannerAPISrv(imageService)
 	apiRejectSrv := NewRejectAPISrv(rejectSvc)
-	// apiHarborSrv := NewHarborAPISrv(harborSvc, harborSvc.GetRedisClient())
 	apiRegistrySrv := NewRegistrySrv(registrySrv, rejectSvc, scannerInfo)
 	apiVulnSrv := NewVulnAPISrv(scanResultSrv)
 	scanResultApi := NewScanResultAPI(imageService, scanResultSrv)
@@ -293,7 +290,6 @@ func WebAPI(router *gin.Engine,
 		v20.PUT("/update/malicious", configAPISrv.UpdateAviraDB)
 		v20.GET("/version", configAPISrv.LatestVersion)
 		v20.GET("/history", configAPISrv.SearchDB)
-		// v20.POST("/updateDB", updateDBApiSrv.UpdateDb)
 	}
 
 	v21 := router.Group("/api/v1/node")

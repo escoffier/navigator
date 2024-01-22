@@ -91,14 +91,14 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 
 	scanResSrv := imagescanSrv.NewScanResultSrv(scanResultDal, cacheDal)
 
-	imageExportSrv := common2.NewExcelExportSrv(exportTaskDal, imageSvc, imageSvc, config.FileDir,
+	imageExportSrv := common2.NewExcelExportSrv(exportTaskDal, imageSvc, config.FileDir,
 		updateTask, config.MaxVulnCol)
 
 	// 镜像导出excel
 
 	// 扫描任务导出excel
 	// libScanTaskExportSrv := excel.NewLibScanTaskExport(imageExportSrv, scanResultDal, updateTask)
-	scanTaskExportSrv := excel2.NewNodeImageScanTaskExport(imageExportSrv, scanTaskDal, updateTask)
+	scanTaskExportSrv := excel2.NewImageScanTaskExport(imageExportSrv, scanTaskDal, updateTask)
 	// 导出漏洞
 	vulnExportSrv := excel2.NewVulnExport(exportTaskDal, config.FileDir, scanResultDal, imageSvc, updateTask)
 	// 清理文件

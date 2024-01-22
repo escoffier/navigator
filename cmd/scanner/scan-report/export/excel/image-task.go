@@ -11,6 +11,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/export/common"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/types"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
@@ -18,9 +19,10 @@ type ImageScanTaskExport struct {
 	ExcelExportService types.ExcelExportService
 	ScanTaskDal        imagesecStore.ScanTaskDal
 	UpdateTask         types.UpdateExportTask
+	Log                *scannerUtils.LogEvent
 }
 
-func NewNodeImageScanTaskExport(
+func NewImageScanTaskExport(
 	excelExportService types.ExcelExportService,
 	scanTaskDal imagesecStore.ScanTaskDal,
 	updateTask types.UpdateExportTask,
@@ -29,6 +31,7 @@ func NewNodeImageScanTaskExport(
 		ExcelExportService: excelExportService,
 		ScanTaskDal:        scanTaskDal,
 		UpdateTask:         updateTask,
+		Log:                scannerUtils.NewLogEvent(scannerUtils.WithModule("ExcelExportImage"), scannerUtils.WithModule("taskSearch")),
 	}
 }
 
@@ -42,7 +45,7 @@ func (s *ImageScanTaskExport) GenImageChan(ctx context.Context, task imagesecMod
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("ImageScanTaskExport")
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("ImageScanTaskExport panic")
 			}
 		}()
 
@@ -52,7 +55,7 @@ func (s *ImageScanTaskExport) GenImageChan(ctx context.Context, task imagesecMod
 		var lastID int64
 		param := types.TaskExportParma{}
 		if err := json.Unmarshal([]byte(task.Parameter), &param); err != nil {
-			logging.Get().Err(err).Str("ExportTensorTask", task.Parameter).Msg("GenImageChan Unmarshal")
+			s.Log.Err(err).Str("ExportTensorTask", task.Parameter).Msg("GenImageChan Unmarshal")
 			return
 		}
 
@@ -64,11 +67,11 @@ func (s *ImageScanTaskExport) GenImageChan(ctx context.Context, task imagesecMod
 				Filter:  filter,
 			})
 			if err != nil {
-				logging.Get().Err(err).Int64("taskID", task.ID).Msg("GenImageChan Export.GetSubTasks")
+				s.Log.Err(err).Int64("taskID", task.ID).Msg("GenImageChan Export.GetSubTasks")
 				return
 			}
 			if len(scanTask) == 0 {
-				logging.Get().Info().Int64("taskID", task.ID).Int64("lastScanSubtaskID", lastID).
+				s.Log.Info().Int64("taskID", task.ID).Int64("lastScanSubtaskID", lastID).
 					Int64("completed", completed).Msg("GenImageChan all image completed")
 				break
 			}
@@ -82,7 +85,7 @@ func (s *ImageScanTaskExport) GenImageChan(ctx context.Context, task imagesecMod
 				}
 			}
 			completed += int64(len(scanTask))
-			logging.Get().Info().Int64("taskID", task.ID).Int64("lastScanSubtaskID", lastID).
+			s.Log.Info().Int64("taskID", task.ID).Int64("lastScanSubtaskID", lastID).
 				Int64("completed", completed).Msg("GenImageChan.partially completed")
 		}
 	}()

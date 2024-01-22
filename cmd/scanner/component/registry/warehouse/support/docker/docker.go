@@ -17,7 +17,7 @@ import (
 	"github.com/opencontainers/go-digest"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts/preConsts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
@@ -217,7 +217,7 @@ func (r *RegistryV2) ListImages(ctx context.Context, extender warehouse.Extender
 			im, err := extender.CreateImageExtender(ctx, image)
 			if err != nil {
 				res.HasErr = true
-				if err != consts.ErrNotNodeImage {
+				if err != preConsts.ErrNotNodeImage {
 					logging.GetLogger().Err(err).Msg("HarborV2 Insert imagelist error")
 				}
 				continue
@@ -341,7 +341,7 @@ func (r *RegistryV2) DeleteImages(projectName, repoName, dig string) error {
 
 func (r *RegistryV2) Ping() error {
 	if err := r.RegistryClient.Ping(); err != nil {
-		return consts.ErrNotConnectOrWrongUsernameOrPasswd
+		return warehouse.ErrNotConnectOrWrongUsernameOrPasswd
 	}
 	return nil
 }
@@ -433,7 +433,7 @@ func openRegistry(config warehouse.RegistrableComponentConfig) (warehouse.Regist
 	rc, err := warehouse.NewDockerRegistryClient(r.Config.URL, r.Config.Username, r.Config.Password, r.Config.SkipTLSVerify)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("registryV2:new registry client err:%v", err)
-		return nil, consts.ErrNotConnectOrWrongUsernameOrPasswd
+		return nil, warehouse.ErrNotConnectOrWrongUsernameOrPasswd
 	}
 	r.RegistryClient = rc
 

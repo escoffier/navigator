@@ -3,6 +3,7 @@ package imagesec
 import (
 	"context"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd/global"
 	imagescanSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/service"
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -14,7 +15,7 @@ import (
 type SensitiveRuleService interface {
 	CreateSensitiveRule(ctx context.Context, data *imagesecModel.SensitiveRule) error
 	SearchSensitiveRule(ctx context.Context, param imagesecModel.SearchSensitiveRuleParam) ([]*imagesecModel.SensitiveRule, int64, error)
-	UpdateSensitiveRule(ctx context.Context, id int64, updater map[string]interface{}) error
+	UpdateSensitiveRule(ctx context.Context, param imagesecModel.UpdateSensitiveRuleParam) error
 	DeleteSensitiveRule(ctx context.Context, id int64) error
 }
 
@@ -55,6 +56,8 @@ func NewSensitiveRuleSrv(
 }
 
 func (s *SensitiveRuleSrv) CreateSensitiveRule(ctx context.Context, data *imagesecModel.SensitiveRule) error {
+	global.SenstiveVer = ""
+
 	if err := data.Check(); err != nil {
 		return err
 	}
@@ -92,10 +95,12 @@ func (s *SensitiveRuleSrv) SearchSensitiveRule(ctx context.Context, param images
 	return data, cnt, nil
 }
 
-func (s *SensitiveRuleSrv) UpdateSensitiveRule(ctx context.Context, id int64, updater map[string]interface{}) error {
-	err := s.sensitiveRuleDal.UpdateSensitiveRule(ctx, id, updater)
+func (s *SensitiveRuleSrv) UpdateSensitiveRule(ctx context.Context, param imagesecModel.UpdateSensitiveRuleParam) error {
+	global.SenstiveVer = ""
+
+	err := s.sensitiveRuleDal.UpdateSensitiveRule(ctx, param)
 	if err != nil {
-		s.Log.Err(err).Int64("id", id).Interface("updater", updater).Msg("UpdateSensitiveRule")
+		s.Log.Err(err).Int64("id", param.ID).Interface("updater", param.SensitiveRule.ToUpdater()).Msg("UpdateSensitiveRule")
 		return scani18.UpdateSensitiveRule(err)
 	}
 
@@ -112,6 +117,7 @@ func (s *SensitiveRuleSrv) UpdateSensitiveRule(ctx context.Context, id int64, up
 }
 
 func (s *SensitiveRuleSrv) DeleteSensitiveRule(ctx context.Context, id int64) error {
+	global.SenstiveVer = ""
 	err := s.sensitiveRuleDal.DeleteSensitiveRule(ctx, id)
 	if err != nil {
 		s.Log.Err(err).Int64("id", id).Msg("DeleteSensitiveRule")

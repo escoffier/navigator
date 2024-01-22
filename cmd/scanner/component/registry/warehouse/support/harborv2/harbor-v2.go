@@ -15,7 +15,6 @@ import (
 	"github.com/opencontainers/go-digest"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -453,11 +452,11 @@ func (h *HarborV2) ListImages(ctx context.Context, extender warehouse.Extender, 
 
 func (h *HarborV2) Ping() error {
 	if err := h.registryClient.Ping(); err != nil {
-		return consts.ErrNotConnectOrWrongUsernameOrPasswd
+		return warehouse.ErrNotConnectOrWrongUsernameOrPasswd
 	}
 
 	if _, err := h.ListProjectsWithPage(1, DefaultPageSize); err != nil {
-		return consts.ErrNotConnectOrWrongUsernameOrPasswd
+		return warehouse.ErrNotConnectOrWrongUsernameOrPasswd
 	}
 	return nil
 }
@@ -618,7 +617,7 @@ func openRegistry(config warehouse.RegistrableComponentConfig) (warehouse.Regist
 	r, err := warehouse.NewDockerRegistryClient(h.config.URL, h.config.Username, h.config.Password, h.config.SkipTLSVerify)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("harbor-v2:new registry client err:%v", err)
-		return nil, consts.ErrNotConnectOrWrongUsernameOrPasswd
+		return nil, warehouse.ErrNotConnectOrWrongUsernameOrPasswd
 	}
 	h.registryClient = r
 	return &h, nil

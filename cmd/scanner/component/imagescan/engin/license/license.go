@@ -84,6 +84,7 @@ func (s *ScanLicense) ScanTarFile(ctx context.Context, pre *imagesecTypes.Prepar
 			result = append(result, res)
 			continue
 		}
+		res.Scanned = true
 
 		lic, kaf, err := s.scanTarLayer(ctx, ly)
 		if err != nil {
@@ -103,8 +104,6 @@ func (s *ScanLicense) ScanTarFile(ctx context.Context, pre *imagesecTypes.Prepar
 		res.License = append(res.License, lic...)
 
 		res.SaveFileToKafka = append(res.SaveFileToKafka, kaf...)
-
-		res.Scanned = true
 
 		result = append(result, res)
 	}

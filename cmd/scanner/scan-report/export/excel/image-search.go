@@ -10,6 +10,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/export/common"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/types"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
@@ -21,6 +22,7 @@ type ImageSearchExportExcel struct {
 	ExcelExportService types.ExcelExportService
 	UpdateTask         types.UpdateExportTask
 	ImageSrv           types.ImageSrvInterface
+	Log                *scannerUtils.LogEvent
 }
 
 func NewImageSearchExportExcel(
@@ -32,6 +34,7 @@ func NewImageSearchExportExcel(
 		ExcelExportService: excelExportService,
 		UpdateTask:         updateTask,
 		ImageSrv:           nodeImageSrv,
+		Log:                scannerUtils.NewLogEvent(scannerUtils.WithModule("ExcelExportImage"), scannerUtils.WithSubModule("ImageSearch")),
 	}
 }
 
@@ -46,7 +49,7 @@ func (s *ImageSearchExportExcel) GenImageChan(ctx context.Context, task imagesec
 
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("ImageSearchExportExcel")
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("ImageSearchExportExcel panic")
 			}
 		}()
 
@@ -55,7 +58,7 @@ func (s *ImageSearchExportExcel) GenImageChan(ctx context.Context, task imagesec
 		var completed int64
 		param := imagesecModel.ImageSearchApiParam{}
 		if err := json.Unmarshal([]byte(task.Parameter), &param); err != nil {
-			logging.Get().Err(err).Str("ImageSearchApiParam", task.Parameter).Msg("GenImageChan Unmarshal")
+			s.Log.Err(err).Str("ImageSearchApiParam", task.Parameter).Msg("GenImageChan Unmarshal")
 			return
 		}
 		param.JustReturnImage = true
@@ -82,11 +85,11 @@ func (s *ImageSearchExportExcel) GenImageChan(ctx context.Context, task imagesec
 				}
 			}
 			completed += int64(len(images))
-			logging.Get().Info().Int64("taskID", task.ID).Int64("lastImageID", lastID).
+			s.Log.Info().Int64("taskID", task.ID).Int64("lastImageID", lastID).
 				Int64("completed", completed).Msg("GenImageChan partially")
 		}
 
-		logging.Get().Info().Int64("taskID", task.ID).Int64("lastImageID", lastID).
+		s.Log.Info().Int64("taskID", task.ID).Int64("lastImageID", lastID).
 			Int64("completed", completed).Msg("GenImageChan completed")
 	}()
 

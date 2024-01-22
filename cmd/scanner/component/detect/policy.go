@@ -243,15 +243,18 @@ func (s *SecurityPolicySrv) SearchPolicy(ctx context.Context, param imagesecMode
 				add = true
 			}
 		}
-		for j := range po.Scope.ClusterName {
-			if strings.Contains(po.Scope.ClusterName[j], keyword) {
-				add = true
+		if po.Scope.ImageFromType == imagesecModel.ImageFromNode {
+			for j := range po.Scope.ClusterName {
+				if strings.Contains(po.Scope.ClusterName[j], keyword) {
+					add = true
+				}
 			}
 		}
-
-		for j := range po.Scope.RegName {
-			if strings.Contains(po.Scope.RegName[j], keyword) {
-				add = true
+		if po.Scope.ImageFromType == imagesecModel.ImageFromRegistry {
+			for j := range po.Scope.RegName {
+				if strings.Contains(po.Scope.RegName[j], keyword) {
+					add = true
+				}
 			}
 		}
 		if keyword == "" {

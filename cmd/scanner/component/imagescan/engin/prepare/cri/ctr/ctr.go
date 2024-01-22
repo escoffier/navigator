@@ -82,7 +82,7 @@ func (s *Driver) Collect(ctx context.Context, im imagesecModel.Image) ([]imagese
 		}
 		cdir, err := s.ExtractTar(ctx, fn, schema.ImageDigest)
 		if err != nil {
-			logging.Get().Err(err).Str("image", imageName).Str("digest", schema.ImageDigest).Msg("ExtractTar")
+			logging.Get().Err(err).Str("image", imageName).Str("digest", schema.ImageDigest).Msg("extractTarUseTar")
 			continue
 		}
 
@@ -193,7 +193,7 @@ func (s *Driver) ExtractTar(ctx context.Context, tarFile, dit string) (string, e
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		_ = os.RemoveAll(temp)
-		logging.Get().Err(err).Str("tarFile", tarFile).Msg("ExtractTar")
+		logging.Get().Err(err).Str("tarFile", tarFile).Msg("extractTarUseTar")
 		return "", err
 	}
 	return temp, nil

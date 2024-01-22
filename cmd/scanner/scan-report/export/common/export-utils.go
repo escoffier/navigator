@@ -26,7 +26,7 @@ func GenBaseInfoChan(image imagesecModel.ImageBaseResponse, lang string) chan []
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("GenBaseInfoChan")
+				logging.Get().Error().Str("panicStack", string(debug.Stack())).Msg("GenBaseInfoChan")
 			}
 		}()
 		defer close(out)
@@ -43,7 +43,7 @@ func GenVulnInfoChan(baseImage imagesecModel.ImageBaseResponse, vuln []*imagesec
 
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("GenVulnInfoChan")
+				logging.Get().Error().Str("panicStack", string(debug.Stack())).Msg("GenVulnInfoChan")
 			}
 		}()
 
@@ -64,7 +64,7 @@ func GenSensitiveFileChan(baseImage imagesecModel.ImageBaseResponse, files []*im
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("GenSensitiveFileChan")
+				logging.Get().Error().Str("panicStack", string(debug.Stack())).Msg("GenSensitiveFileChan")
 			}
 		}()
 		defer close(out)
@@ -83,7 +83,7 @@ func GenWebShellChan(baseImage imagesecModel.ImageBaseResponse, files []*imagese
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("GenWebShellChan")
+				logging.Get().Error().Str("panicStack", string(debug.Stack())).Msg("GenWebShellChan")
 			}
 		}()
 		defer close(out)
@@ -102,7 +102,7 @@ func GenMalwareChan(baseImage imagesecModel.ImageBaseResponse, files []*imagesec
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("GenMalwareChan")
+				logging.Get().Error().Str("panicStack", string(debug.Stack())).Msg("GenMalwareChan")
 			}
 		}()
 		defer close(out)
@@ -120,7 +120,7 @@ func GenEnvChan(baseImage imagesecModel.ImageBaseResponse, files []*imagesecMode
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("GenEnvChan")
+				logging.Get().Error().Str("panicStack", string(debug.Stack())).Msg("GenEnvChan")
 			}
 		}()
 		defer close(out)
@@ -139,7 +139,7 @@ func GenImageResourceChan(baseImage imagesecModel.ImageBaseResponse, files []*im
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("GenImageResourceChan")
+				logging.Get().Error().Str("panicStack", string(debug.Stack())).Msg("GenImageResourceChan")
 			}
 		}()
 
@@ -159,7 +159,7 @@ func GenAppOrBaseImageChan(images []*imagesecModel.ImageBaseResponse) chan []str
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("LibImageScanTaskExport")
+				logging.Get().Error().Str("panicStack", string(debug.Stack())).Msg("LibImageScanTaskExport")
 			}
 		}()
 

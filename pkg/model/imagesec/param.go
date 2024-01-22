@@ -116,23 +116,21 @@ type SearchImageParam struct {
 	StartTime              time.Time
 	OnlineImage            string // 在线离线查询
 	TrustedImage           string // 可信息镜像的查询
-
-	Libraries     []string
-	Digests       []string
-	FullRepoName  string // 这里是精确匹配
-	Tag           string
-	RegistryIds   []int64 // 仓库Id列表
-	Where         string
-	ClusterKey    []string // 集群搜索
-	LessHeartbeat int64    // 低于一个心跳值，用于镜像删除
+	Libraries              []string
+	Digests                []string
+	FullRepoName           string // 这里是精确匹配
+	Tag                    string
+	RegistryIds            []int64 // 仓库Id列表
+	Where                  string
+	ClusterKey             []string // 集群搜索
+	LessHeartbeat          int64    // 低于一个心跳值，用于镜像删除
 }
 
 // 镜像 DB 查询条件
 type ImageDalParam struct {
+	ID                     int64
 	ImageFromType          string
 	ImageIds               []int64
-	ID                     int64
-	NotUniqueId            uint64
 	ImageKeyword           string
 	Projects               []SearchProjectParam
 	NodeKeyword            string // 节点名模糊搜索
@@ -521,7 +519,6 @@ type ApiSearchVulnParam struct {
 	ImageUniqueID    uint64   // 镜像ID
 	ImageLayerDigest string   // 镜像层级
 	CanFixed         []string // 是否可修复筛选
-	SeverityInt      int64    // 漏洞级别筛选
 	SeverityStr      []string // 漏洞级别筛选
 	AttackPath       []string
 	NeedKernel       []string
@@ -583,11 +580,11 @@ type SearchVulnDalParam struct {
 }
 
 type SearchScanLayerParam struct {
-	Layers    []string
-	Issue     string
-	FileM5d   string
-	AddDetail bool // 需要查询出具体的数据
-	Filter    *Filter
+	ImageDigest string
+	Layers      []string
+	Issue       string
+	FileM5d     string
+	AddDetail   bool // 需要查询出具体的数据
 }
 
 func (vi ApiSearchVulnParam) ToDaoSearchVulnParam() SearchVulnDalParam {
@@ -695,6 +692,10 @@ type SearchSensitiveRuleParam struct {
 	Default   string
 	Filed     []string
 	Filter    *Filter
+}
+type UpdateSensitiveRuleParam struct {
+	SensitiveRule *SensitiveRule
+	ID            int64
 }
 
 type SearchDataMigrateParam struct {

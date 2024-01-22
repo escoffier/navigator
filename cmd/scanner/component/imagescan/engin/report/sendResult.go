@@ -33,7 +33,7 @@ func (s *SendResult) Send(ctx context.Context, pre *imagesecTypes.PrepareScan, r
 	}
 	sendData2 := scannerUtils.ZipByteSlice(sendData)
 
-	s.Log.Info().Int("preZip", len(sendData)).Int("afterZip", len(sendData2)).Msg("ZipByteSlice")
+	s.Log.Debug().Int("preZip", len(sendData)).Int("afterZip", len(sendData2)).Msg("ZipByteSlice")
 
 	outCtx, cancelFunc := context.WithTimeout(ctx, time.Second*20)
 	defer cancelFunc()

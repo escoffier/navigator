@@ -19,7 +19,6 @@ import (
 	"github.com/opencontainers/go-digest"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
 	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
@@ -202,11 +201,11 @@ func (h *HwSwr) GetImage(projectName, fullRepoName, tag string) (*warehouse.Imag
 
 func (h *HwSwr) Ping() error {
 	if err := h.RegistryClient.Ping(); err != nil {
-		return consts.ErrNotConnectOrWrongUsernameOrPasswd
+		return warehouse.ErrNotConnectOrWrongUsernameOrPasswd
 	}
 
 	if _, err := h.ListNameSpaces(); err != nil {
-		return consts.ErrNotConnectOrWrongUsernameOrPasswd
+		return warehouse.ErrNotConnectOrWrongUsernameOrPasswd
 	}
 	return nil
 }
@@ -267,7 +266,7 @@ func openRegistry(config warehouse.RegistrableComponentConfig) (warehouse.Regist
 	rc, err := warehouse.NewDockerRegistryClient(h.Config.URL, h.Config.Username, h.Config.Password, h.Config.SkipTLSVerify)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("huawei swr: new registry client err:%v", err)
-		return nil, consts.ErrNotConnectOrWrongUsernameOrPasswd
+		return nil, warehouse.ErrNotConnectOrWrongUsernameOrPasswd
 	}
 	h.RegistryClient = rc
 
@@ -275,7 +274,7 @@ func openRegistry(config warehouse.RegistrableComponentConfig) (warehouse.Regist
 	sc, err := newSwrClient(h.Config.AccessKey, h.Config.SecretKey, h.Config.Region)
 	if err != nil {
 		logging.GetLogger().Err(err).Msgf("huawei swr: new registry client err:%v", err)
-		return nil, consts.ErrAccessKeyOrAccessSecret
+		return nil, warehouse.ErrAccessKeyOrAccessSecret
 	}
 	h.SwrClient = sc
 
