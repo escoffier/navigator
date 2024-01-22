@@ -3,7 +3,6 @@ package scannerUtils
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
 )
@@ -57,7 +56,6 @@ func TestExtractTar(b *testing.T) {
 func TestExtractDockerTar(b *testing.T) {
 	des := fmt.Sprintf("/Users/liuqianli/Documents/hello")
 	file := "/Users/liuqianli/Documents/layer.tar"
-	filepath.Clean(des)
 	start := time.Now().UnixMilli()
 	err := ExtractDockerTar(file, des)
 	if err != nil {
