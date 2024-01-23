@@ -103,7 +103,7 @@ func GetAssetsTagList(ctx context.Context, rdb *gorm.DB, tagName string, offset 
 
 	db := rdb.Offset(offset).Limit(limit)
 	if tagName != "" {
-		db = db.Where("name like ?", GetLikeExpr(tagName))
+		db = db.Where("name like ?", GetLikeExpr(tagName)).Where("type=?", 0)
 	}
 	err = db.WithContext(pgCtx).Model(&model.TensorAssetsTag{}).Order("type desc").Order("created_at desc").Scan(&tagList).Error
 	if err != nil {
@@ -184,7 +184,7 @@ func getTagRelCountsByTagIds(ctx context.Context, rdb *gorm.DB, builtTagNameList
 		case model.ObjType_node:
 			err = db.Joins("join  ivan_assets_nodes c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Scan(&tagRelCounts).Error
 		case model.ObjType_webSit:
-			err = db.Joins("join  ivan_assets_ingress_rules c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Scan(&tagRelCounts).Error
+			err = db.Joins("join (SELECT DISTINCT host from ivan_assets_ingress_rules) i on i.host=ivan_assets_tag_rel.obj_id").Scan(&tagRelCounts).Error
 		case model.ObjType_app:
 			err = db.Joins("join  ivan_assets_raw_containers_svcs c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Scan(&tagRelCounts).Error
 		case model.ObjType_webApp:
@@ -211,12 +211,11 @@ func getTagRelCountsByTagIds(ctx context.Context, rdb *gorm.DB, builtTagNameList
 }
 
 func CountAssetsTag(ctx context.Context, rdb *gorm.DB, tagName string) (total int64, err error) {
-
 	pgCtx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer cancel()
 	db := rdb
 	if tagName != "" {
-		db = rdb.Where("name like ?", GetLikeExpr(tagName))
+		db = rdb.Where("name like ?", GetLikeExpr(tagName)).Where("type=?", 0)
 	}
 	err = db.WithContext(pgCtx).Model(&model.TensorAssetsTag{}).Count(&total).Error
 	return
@@ -323,7 +322,7 @@ func GetAssetsTagRelIdsCounts(ctx context.Context, rdb *gorm.DB, tagId string) (
 		case model.ObjType_node:
 			err = db.Joins("join  ivan_assets_nodes c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Pluck("obj_id", &item.ObjIds).Error
 		case model.ObjType_webSit:
-			err = db.Joins("join  ivan_assets_ingress_rules c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Pluck("obj_id", &item.ObjIds).Error
+			err = db.Joins("join (SELECT DISTINCT host from ivan_assets_ingress_rules) i on i.host=ivan_assets_tag_rel.obj_id").Pluck("i.host", &item.ObjIds).Error
 		case model.ObjType_app:
 			err = db.Joins("join  ivan_assets_raw_containers_svcs c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Pluck("obj_id", &item.ObjIds).Error
 		case model.ObjType_webApp:
@@ -406,7 +405,7 @@ func GetAssetsTagRelCounts(ctx context.Context, rdb *gorm.DB, tagId string) (rel
 		case model.ObjType_node:
 			err = db.Joins("join  ivan_assets_nodes c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Pluck("obj_id", &item.ObjIds).Error
 		case model.ObjType_webSit:
-			err = db.Joins("join  ivan_assets_ingress_rules c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Pluck("obj_id", &item.ObjIds).Error
+			err = db.Joins("join (SELECT DISTINCT host from ivan_assets_ingress_rules) i on i.host=ivan_assets_tag_rel.obj_id").Pluck("i.host", &item.ObjIds).Error
 		case model.ObjType_app:
 			err = db.Joins("join  ivan_assets_raw_containers_svcs c on c.id = ivan_assets_tag_rel.obj_id").Where("c.status=0").Pluck("obj_id", &item.ObjIds).Error
 		case model.ObjType_webApp:
@@ -520,7 +519,6 @@ func SaveAssetsTagRel(ctx context.Context, rdb *gorm.DB, detail *AssetsTagRelDet
 		if isCreate { // create
 			detail.Tag.ID = strconv.Itoa(int(util.GenerateUUID(time.Now().String())))
 		}
-		//err = tx.Model(&tmpTag).Create(detail.Tag).Error
 		err = tx.Model(&model.TensorAssetsTag{}).Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "id"}},
 			DoUpdates: clause.AssignmentColumns(OnDupUpdatedColsForAssetsTag),
@@ -530,9 +528,6 @@ func SaveAssetsTagRel(ctx context.Context, rdb *gorm.DB, detail *AssetsTagRelDet
 			return errors.New("insert assets tag failed")
 		}
 		// rel
-		if len(detail.Rels) == 0 {
-			return nil
-		}
 		var tagRels []*model.TensorAssetsTagRel
 		for _, rel := range detail.Rels {
 			for _, objId := range rel.ObjIds {
@@ -550,16 +545,16 @@ func SaveAssetsTagRel(ctx context.Context, rdb *gorm.DB, detail *AssetsTagRelDet
 				tagRels = append(tagRels, &item)
 			}
 		}
-
-		err = tx.Model(&model.TensorAssetsTagRel{}).Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "id"}},
-			DoUpdates: clause.AssignmentColumns(OnDupUpdatedColsForAssetsTagRel),
-		}).Create(&tagRels).Error
-		if err != nil {
-			logging.Get().Err(err).Msgf("insert assets tag  rel failed")
-			return errors.New("insert assets tag rel failed")
+		if len(tagRels) > 0 {
+			err = tx.Model(&model.TensorAssetsTagRel{}).Clauses(clause.OnConflict{
+				Columns:   []clause.Column{{Name: "id"}},
+				DoUpdates: clause.AssignmentColumns(OnDupUpdatedColsForAssetsTagRel),
+			}).Create(&tagRels).Error
+			if err != nil {
+				logging.Get().Err(err).Msgf("insert assets tag  rel failed")
+				return errors.New("insert assets tag rel failed")
+			}
 		}
-
 		//	 clean old rel
 		if isCreate {
 			return nil
