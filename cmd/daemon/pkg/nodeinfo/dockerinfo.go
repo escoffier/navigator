@@ -17,7 +17,6 @@ import (
 
 	"github.com/docker/docker/api/types/events"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/microseg"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -46,7 +45,6 @@ type DockerInfoManager struct {
 	store         containerassets.PodCache
 	clusterKey    string
 	mqReady       atomic.Bool
-	policyCli     microseg.PolicyClient
 	sync.RWMutex
 	retryMap     map[string]*dockerRetryItem
 	retryMapLock *sync.Mutex
@@ -71,7 +69,7 @@ func (d *DockerInfoManager) AddEventHandler(handler ContainerEventHandler) {
 	d.handlers = append(d.handlers, handler)
 }
 
-func NewDockerInfoManager(clusterKey, hostName, hostIP string, agent *containerassets.Agent, cli microseg.PolicyClient) (*DockerInfoManager, error) {
+func NewDockerInfoManager(clusterKey, hostName, hostIP string, agent *containerassets.Agent) (*DockerInfoManager, error) {
 	uri := os.Getenv("DOCKER_SOCKET_ADDR")
 	if len(uri) == 0 {
 		uri = "unix:///var/run/docker.sock"
@@ -100,7 +98,6 @@ func NewDockerInfoManager(clusterKey, hostName, hostIP string, agent *containera
 		containerData: make(map[string]int64, 30),
 		clusterKey:    clusterKey,
 		agent:         agent,
-		policyCli:     cli,
 		retryMap:      make(map[string]*dockerRetryItem),
 		retryMapLock:  new(sync.Mutex),
 	}

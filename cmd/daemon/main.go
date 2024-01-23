@@ -96,7 +96,7 @@ func K8sClient() (*kubernetes.Clientset, error) {
 	return k8sClient, nil
 }
 
-func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli microseg.PolicyClient, stop <-chan struct{}) (nodeinfo.ContainerInfoManager, *netflow.NodePodsInfo, *nodeinfo.PodResInfo, *nodeinfo.NodePodsWatcher, string, error) {
+func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, stop <-chan struct{}) (nodeinfo.ContainerInfoManager, *netflow.NodePodsInfo, *nodeinfo.PodResInfo, *nodeinfo.NodePodsWatcher, string, error) {
 	kubeClient, err := K8sClient()
 	if err != nil {
 		return nil, nil, nil, nil, "", errors.Errorf("k8s client init failed, %v", err)
@@ -128,7 +128,7 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, policyCli m
 	var containerInfo nodeinfo.ContainerInfoManager
 	switch containerType {
 	case nodeinfo.DockerType:
-		containerInfo, err = nodeinfo.NewDockerInfoManager(clusterKey, hostName, hostIP, agent, policyCli)
+		containerInfo, err = nodeinfo.NewDockerInfoManager(clusterKey, hostName, hostIP, agent)
 		if err != nil {
 			return nil, nil, nil, nil, "", errors.Errorf("Failed to initialize docker info manager, %v", err)
 		}
@@ -386,14 +386,27 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 		nodeinfo.ExportRawContainer = false
 	}
 
-	var microsegv2 = false
-	microsegEnv := os.Getenv("MICROSEGV2")
-	if microsegEnv == "true" {
-		microsegv2 = true
+	containerInfo, k8sInfo, podResInfo, podWatcher, containerType, err := initNodeInfos(hostName, hostIP, clusterKey, myNamespace, stopCh)
+	if err != nil {
+		return err
 	}
 
+	logging.Get().Info().Msg("Init NodeInfo done")
+
+	// new flow session
+	flow, err := netflow.NewFlowSession(k8sInfo, containerInfo, clusterManager, consoleAddr)
+	if err != nil {
+		return fmt.Errorf("Failed to initialize flow session, %w", err)
+	}
+	logging.Get().Info().Msg("Init netflows done")
+
+	// free resource
+	defer flow.Close()
+
+	// microseg and waf
+	microsegEnv := os.Getenv("MICROSEGV2")
 	var agentClient, agentEventClient *heavyagent.Client
-	if microsegv2 {
+	if microsegEnv == "true" {
 		pathExists := false
 		_, err = os.Stat("/var/run/heavy-agent")
 		if err != nil {
@@ -421,66 +434,46 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 			if err != nil {
 				return err
 			}
-
 		}
+
+		stopChan := make(chan struct{})
+		policyClient := microseg.NewPolicyClient(agentClient)
+		controller := nodeinfo.NewPodController(podWatcher.PodLister(), podWatcher.PodInformer(), containerInfo, policyClient)
+		go controller.Run(stopChan)
+
+		tensorFactory := externalversions.NewSharedInformerFactoryWithOptions(clientset.TensorClientset, 10*time.Hour,
+			externalversions.WithTweakListOptions(func(lo *v1.ListOptions) {
+				lo.LabelSelector = fmt.Sprintf("kubernetes.io/node-name=%s", hostName)
+			}))
+		ruleController := microseg.NewRuleGroupController(clientset.TensorClientset, tensorFactory, policyClient, hostName)
+
+		go ruleController.Run(stopChan)
+
+		var wafEnabled = true
+		wafEnv := os.Getenv("WAF")
+		if wafEnv == "true" {
+			wafEnabled = true
+		}
+		if wafEnabled {
+			wafClient := waf.NewWafClient(agentClient)
+			wafController := waf.NewWafController(clientset.TensorClientset, factory, tensorFactory, podWatcher, wafClient)
+			go wafController.Run(stopCh)
+		}
+
+		tensorFactory.Start(stopChan)
+		tensorFactory.WaitForCacheSync(stopChan)
+
+		clusterManagerSvc := os.Getenv("CLUSTER_MANAGER_URL")
+		eventProcessor := heavyagent.NewEventProcessor(clusterManagerSvc, agentEventClient)
+
+		microsegHandler := microseg.NewHandler(clusterManagerSvc)
+		eventProcessor.AddHandler("microseg", microsegHandler)
+
+		wafhander := waf.NewHandler(clusterManagerSvc)
+		eventProcessor.AddHandler("waf", wafhander)
+
+		go eventProcessor.Run()
 	}
-
-	policyClient := microseg.NewPolicyClient(agentClient)
-	containerInfo, k8sInfo, podResInfo, podWatcher, containerType, err := initNodeInfos(hostName, hostIP, clusterKey, myNamespace, policyClient, stopCh)
-	if err != nil {
-		return err
-	}
-
-	stopChan := make(chan struct{})
-	controller := nodeinfo.NewPodController(podWatcher.PodLister(), podWatcher.PodInformer(), containerInfo, policyClient)
-	go controller.Run(stopChan)
-
-	logging.Get().Info().Msg("Init NodeInfo done")
-
-	// new flow session
-	flow, err := netflow.NewFlowSession(k8sInfo, containerInfo, clusterManager, consoleAddr)
-	if err != nil {
-		return fmt.Errorf("Failed to initialize flow session, %w", err)
-	}
-	logging.Get().Info().Msg("Init netflows done")
-
-	// free resource
-	defer flow.Close()
-
-	// if microsegv2 {
-	tensorFactory := externalversions.NewSharedInformerFactoryWithOptions(clientset.TensorClientset, 10*time.Hour,
-		externalversions.WithTweakListOptions(func(lo *v1.ListOptions) {
-			lo.LabelSelector = fmt.Sprintf("kubernetes.io/node-name=%s", hostName)
-		}))
-	ruleController := microseg.NewRuleGroupController(clientset.TensorClientset, tensorFactory, policyClient, hostName)
-
-	go ruleController.Run(stopChan)
-
-	var wafEnabled = true
-	wafEnv := os.Getenv("MICROSEGV2")
-	if wafEnv == "true" {
-		wafEnabled = true
-	}
-	if wafEnabled {
-		wafClient := waf.NewWafClient(agentClient)
-		wafController := waf.NewWafController(clientset.TensorClientset, factory, tensorFactory, podWatcher, wafClient)
-		go wafController.Run(stopCh)
-	}
-
-	tensorFactory.Start(stopChan)
-	tensorFactory.WaitForCacheSync(stopChan)
-
-	clusterManagerSvc := os.Getenv("CLUSTER_MANAGER_URL")
-	eventProcessor := heavyagent.NewEventProcessor(clusterManagerSvc, agentEventClient)
-
-	microsegHandler := microseg.NewHandler(clusterManagerSvc)
-	eventProcessor.AddHandler("microseg", microsegHandler)
-
-	wafhander := waf.NewHandler(clusterManagerSvc)
-	eventProcessor.AddHandler("waf", wafhander)
-
-	go eventProcessor.Run()
-	// }
 
 	wg.Add(1)
 	go func() {
