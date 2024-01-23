@@ -13,7 +13,6 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	"io"
 	"net/http"
-	"strings"
 	"time"
 	"unicode/utf8"
 )
@@ -56,6 +55,14 @@ func (api *api) getAssetsTags(w http.ResponseWriter, r *http.Request) {
 		logging.Get().Err(err).Msg("get assetsTagList failed")
 		RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 		return
+	}
+	// zh en
+	if isEnglish(r) {
+		for _, tag := range tagList {
+			if tag.Type != 0 {
+				tag.Desc = "Built-in label"
+			}
+		}
 	}
 	response.Ok(w, response.WithItems(tagList), response.WithTotalItems(total))
 }
@@ -150,8 +157,11 @@ func checkTagName(tagName string, tagDesc string) error {
 	if nameLen == 0 || nameLen > 15 {
 		return errors.New("tag name's char length is limited to 1-15")
 	}
-	if tagName == "全部资产" || strings.ToLower(tagName) == "all assets" {
-		return errors.New("标签名称无法使用，请输入其他名称")
+	banNames := []string{dal.BuiltInTag_all, dal.BuiltInTag_k8s, dal.BuiltInTag_app, dal.BuiltInTag_node, "全部资产", "K8s资产", "节点资产", "应用资产"}
+	for _, name := range banNames {
+		if tagName == name {
+			return errors.New("标签名称无法使用，请输入其他名称")
+		}
 	}
 	reg := `^[\u4e00-\u9fa5A-Za-z0-9_-]+$`
 	compile, err := regexp2.Compile(reg, regexp2.None)
