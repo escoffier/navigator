@@ -61,7 +61,7 @@ func (s *RegImageScanQueue) BuildScanTask(ctx context.Context,
 
 	// 病毒和 webshell暂时使用发版本的版本号
 
-	typesSubTask := modelToType(subtask, imageData, ses, config.ImageScanConfig, ver, cacheLayer)
+	typesSubTask := s.modelToType(subtask, imageData, ses, config.ImageScanConfig, ver, cacheLayer)
 
 	return typesSubTask, nil
 }
@@ -106,7 +106,7 @@ func (s *RegImageScanQueue) GetDBVersion(ctx context.Context) (imagesecTypes.Rul
 	return ver, nil
 }
 
-func modelToType(
+func (s *RegImageScanQueue) modelToType(
 	subtask *imagesecModel.ImageScanSubTask,
 	data *imagesecModel.ImageWithCorrelateData2,
 	ses []string,
@@ -139,6 +139,7 @@ func modelToType(
 		SensitiveCache: make(imagesecTypes.LayerInCache),
 		MalwareCache:   make(imagesecTypes.LayerInCache),
 		DeepScan:       false,
+		MalwareScanAll: s.Config.MalWareScanAll,
 	}
 	if config != nil {
 		sub.ScanTimeout = config.ScanTimeout
@@ -188,7 +189,10 @@ func modelToType(
 			case imagesecModel.WebshellCacheData:
 				sub.WebshellCache[ca.Layer] = true
 			case imagesecModel.MalwareCacheData:
-				sub.MalwareCache[ca.Layer] = true
+				// 默认情况下病毒不会扫描全部文件，测试的情况下会全部开启，此时就不能使用缓存
+				if !s.Config.MalWareScanAll {
+					sub.MalwareCache[ca.Layer] = true
+				}
 			case imagesecModel.SensitiveCacheData:
 				sub.SensitiveCache[ca.Layer] = true
 			case imagesecModel.LicenseCacheData:

@@ -6,7 +6,6 @@ type ScanConfig struct {
 	MaxSingeFileSize      int64
 	ImageCacheURL         string
 	HMExt                 map[string]bool // HM默认扫描的后缀名
-	ScanAllMalWare        bool            // 对于病毒扫描，是否扫描全部文件
 	CacheCleanPerInterval int64
 	SubtaskParallel       int64 // 允许同时间执行的任务数(后期应该做成界面可配置功能)
 }

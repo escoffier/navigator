@@ -1,4 +1,4 @@
-package imagesecReport
+package kafkaScan
 
 import (
 	"context"
@@ -15,10 +15,6 @@ type ImageDetectTaskService interface {
 		taskInfo imagesecModel.ImageDetectTask,
 		policy *imagesecModel.SecurityPolicy,
 	) error
-}
-
-type ReceiveMQReportService interface {
-	ReceiveReport(ctx context.Context) error
 }
 
 type VulnMatcher interface {

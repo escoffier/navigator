@@ -10,7 +10,6 @@ import (
 
 	"github.com/go-redis/redis/v8"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/kafkaReport"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 
 	"github.com/segmentio/kafka-go"
@@ -32,9 +31,9 @@ type ScanResultReportSrv struct {
 	issueDal        imagesecStore.ScanIssueDal
 	versionDal      imagesecStore.ScanDbMetaDal
 	mqReader        mq.Reader
-	vulnMatcher     imagesecReport.VulnMatcher
+	vulnMatcher     VulnMatcher
 	redisCli        *redis.Client
-	imageDetectSrv  imagesecReport.ImageDetectTaskService
+	imageDetectSrv  ImageDetectTaskService
 	detectImageChan chan DetectImageData
 	OnlineVulnChan  chan []*imagesecModel.Vuln
 	Log             *scannerUtils.LogEvent
@@ -1347,8 +1346,8 @@ func NewScanResultReportSrv(
 	scanResultDal imagesecStore.ScanResultDal,
 	issueDal imagesecStore.ScanIssueDal,
 	versionDal imagesecStore.ScanDbMetaDal,
-	imageDetectSrv imagesecReport.ImageDetectTaskService,
-	vulnMatcher imagesecReport.VulnMatcher,
+	imageDetectSrv ImageDetectTaskService,
+	vulnMatcher VulnMatcher,
 	mqReader mq.Reader,
 	redisCli *redis.Client,
 ) *ScanResultReportSrv {
