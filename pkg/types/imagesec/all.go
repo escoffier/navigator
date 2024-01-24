@@ -91,6 +91,7 @@ type ScanSubTask struct {
 	LicenseCache   LayerInCache  `json:"licenseCache"`
 	SensitiveCache LayerInCache  `json:"sensitiveCache"`
 	MalwareCache   LayerInCache  `json:"malwareCache"`
+	MalwareScanAll bool          `json:"malwareScanAll"`
 	DeepScan       bool          `json:"deepScan"`
 }
 

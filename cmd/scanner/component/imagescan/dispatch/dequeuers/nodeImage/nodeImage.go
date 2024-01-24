@@ -3,9 +3,7 @@ package nodeimagetask
 import (
 	"context"
 	"fmt"
-	"os"
 	"runtime/debug"
-	"strconv"
 	"time"
 
 	"gorm.io/gorm/clause"
@@ -20,15 +18,19 @@ import (
 )
 
 type NodeImageScanQueue struct {
-	ScanTaskDal               imagesecStore.ScanTaskDal
-	ImageSrv                  types.ImageService
-	updateSubtaskChan         chan types.UpdateSubTask
-	nodeInfoDal               imagesecStore.NodeInfoDal
-	sensitiveRuleDal          imagesecStore.SensitiveRuleDal
-	maxProgressTask           int64
-	maxProgressSubtaskPerNode int64
-	PodID                     string
-	Log                       *scannerUtils.LogEvent
+	ScanTaskDal       imagesecStore.ScanTaskDal
+	ImageSrv          types.ImageService
+	updateSubtaskChan chan types.UpdateSubTask
+	nodeInfoDal       imagesecStore.NodeInfoDal
+	sensitiveRuleDal  imagesecStore.SensitiveRuleDal
+	Config            ScanConfig
+	PodID             string
+	Log               *scannerUtils.LogEvent
+}
+
+type ScanConfig struct {
+	MaxProTask       int64
+	MaxProSubtaskPer int64
 }
 
 func (s *NodeImageScanQueue) GenUpdateSubtaskChan(ctx context.Context) chan types.UpdateSubTask {
@@ -105,7 +107,7 @@ func (s *NodeImageScanQueue) GenTaskChan(ctx context.Context) chan *imagesecMode
 			Desc:   false,
 		}
 
-		filter := &imagesecModel.Filter{Limit: s.maxProgressTask, OrderByColumns: []clause.OrderByColumn{statusOrder, idOrder}}
+		filter := &imagesecModel.Filter{Limit: s.Config.MaxProTask, OrderByColumns: []clause.OrderByColumn{statusOrder, idOrder}}
 
 		for {
 			<-ticker.C
@@ -124,7 +126,7 @@ func (s *NodeImageScanQueue) GenTaskChan(ctx context.Context) chan *imagesecMode
 			for i := range runTask {
 				out <- runTask[i]
 			}
-			if cnt >= s.maxProgressTask {
+			if cnt >= s.Config.MaxProTask {
 				s.Log.Info().Int64("runningTaskCnt", cnt).Msg("has max running task")
 				continue
 			}
@@ -208,7 +210,7 @@ func (s *NodeImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, tas
 				Msg("SearchScanSubtask")
 			return err
 		}
-		if sendSubtask >= s.maxProgressSubtaskPerNode {
+		if sendSubtask >= s.Config.MaxProSubtaskPer {
 			s.Log.Debug().Str("node", no.LogStr()).Msg("node has scan task scanning")
 			continue
 		}
@@ -220,7 +222,7 @@ func (s *NodeImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, tas
 			// 扫描器会做去重处理，对于正在扫描的任务会忽略
 			ScanStatus: []int64{imagesecModel.TaskStatusPending, imagesecModel.TaskStatusInprogress},
 			// 这里一次不取更多，是因为前端更新 task 任务之后需要快速感知
-			Filter: imagesecModel.EmptyFilter().SetSortAsc().SetSortFiled("status").SetLimit(s.maxProgressSubtaskPerNode - sendSubtask),
+			Filter: imagesecModel.EmptyFilter().SetSortAsc().SetSortFiled("status").SetLimit(s.Config.MaxProSubtaskPer - sendSubtask),
 		}
 
 		if s.PodID == "" {
@@ -365,14 +367,16 @@ func NewScanImageQueue(
 	nodeInfoDal imagesecStore.NodeInfoDal,
 	sensitiveRuleDal imagesecStore.SensitiveRuleDal,
 ) *NodeImageScanQueue {
-	nodeQueue := &NodeImageScanQueue{
-		ScanTaskDal:               nodeScanTaskDal,
-		ImageSrv:                  nodeImageSrv,
-		updateSubtaskChan:         make(chan types.UpdateSubTask),
-		nodeInfoDal:               nodeInfoDal,
-		sensitiveRuleDal:          sensitiveRuleDal,
-		maxProgressTask:           consts.MaxInprogressTask,
-		maxProgressSubtaskPerNode: consts.MaxInprogressSubtaskPerNode,
+	scanQueue := &NodeImageScanQueue{
+		ScanTaskDal:       nodeScanTaskDal,
+		ImageSrv:          nodeImageSrv,
+		updateSubtaskChan: make(chan types.UpdateSubTask),
+		nodeInfoDal:       nodeInfoDal,
+		sensitiveRuleDal:  sensitiveRuleDal,
+		Config: ScanConfig{
+			MaxProTask:       consts.MaxInprogressTask,
+			MaxProSubtaskPer: consts.MaxInprogressSubtaskPerNode,
+		},
 		Log: scannerUtils.NewLogEvent(
 			scannerUtils.WithSubModule("NodeImageScanQueue"),
 			scannerUtils.WithModule(consts.ModuleImageScan),
@@ -380,23 +384,13 @@ func NewScanImageQueue(
 	}
 
 	if global2.ScannerOpts.ParallelTaskNum > 0 {
-		nodeQueue.maxProgressTask = int64(global2.ScannerOpts.ParallelTaskNum)
+		scanQueue.Config.MaxProTask = int64(global2.ScannerOpts.ParallelTaskNum)
 	}
 
 	if global2.ScannerOpts.ParallelSubTaskNum > 0 {
-		nodeQueue.maxProgressSubtaskPerNode = int64(global2.ScannerOpts.ParallelSubTaskNum)
+		scanQueue.Config.MaxProSubtaskPer = int64(global2.ScannerOpts.ParallelSubTaskNum)
 	}
 
-	cnt1, err := strconv.ParseInt(os.Getenv("MAX_PROGRESS_TASK"), 10, 64)
-	if err == nil && cnt1 > 0 {
-		nodeQueue.maxProgressTask = cnt1
-	}
-
-	cnt2, err := strconv.ParseInt(os.Getenv("MAX_PROGRESS_SUBTASK"), 10, 64)
-	if err == nil && cnt2 > 0 {
-		nodeQueue.maxProgressSubtaskPerNode = cnt2
-	}
-
-	go nodeQueue.updateSubtask(context.Background())
-	return nodeQueue
+	go scanQueue.updateSubtask(context.Background())
+	return scanQueue
 }

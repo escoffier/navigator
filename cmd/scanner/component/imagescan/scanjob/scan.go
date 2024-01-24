@@ -84,7 +84,8 @@ func (s *RegImageScan) ScanAndSend2(ctx context.Context, subtask imagesecTypes.S
 	defer close(scanResultChan)
 
 	prep := prepJob.PrepareImageMate(ctx, subtask)
-	prep.FileFilter = s.DefaultFileFilter()
+
+	prep.FileFilter = s.DefaultFileFilter(ctx, prep)
 	// 准备文件
 	prepJob.PrepareAllLayer(ctx, prep)
 	jobs := s.GetImageScanJob(ctx, prep)
@@ -188,7 +189,6 @@ func NewRegImageScan(mqWriter mq.Writer, redisClient *redis.Client, opt ...Optio
 		Config: ScanConfig{
 			CacheCleanPerInterval: 60 * 60, // 一小时
 			MaxSingeFileSize:      1024 * 1024,
-			ScanAllMalWare:        os.Getenv("SCAN_ALL") == consts.TrueString,
 			HMExt:                 map[string]bool{},
 			ImageCacheURL:         "0.0.0.0:5566/",
 			SubtaskParallel:       consts.MaxInprogressSubtaskPerNode,
@@ -379,7 +379,7 @@ func (s *RegImageScan) DoScanJob(ctx context.Context, job types.ImageScanJob, pr
 	out <- res
 }
 
-func (s *RegImageScan) DefaultFileFilter() imagesecTypes.FileFilter {
+func (s *RegImageScan) DefaultFileFilter(ctx context.Context, prep *imagesecTypes.PrepareScan) imagesecTypes.FileFilter {
 
 	return func(fi os.FileInfo) bool {
 		fn := fi.Name()
@@ -396,11 +396,11 @@ func (s *RegImageScan) DefaultFileFilter() imagesecTypes.FileFilter {
 			return true
 		}
 		// 病毒
-		if s.Config.ScanAllMalWare {
+		if prep.Subtask.MalwareScanAll {
 			return true
 		}
 		// 只扫描可执行文件
-		if !s.Config.ScanAllMalWare {
+		if prep.Subtask.MalwareScanAll {
 			// 是可执行文件
 			if fi.Mode().Perm()&0111 != 0 {
 				return true
