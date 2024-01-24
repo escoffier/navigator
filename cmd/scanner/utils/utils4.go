@@ -357,7 +357,7 @@ func ExtractDockerTar3(tarFile, destDir string) error {
 	if err != nil {
 		return err
 	}
-	//
+
 	defer func() { _ = decompressStreamReader.Close() }()
 
 	tr := tar.NewReader(decompressStreamReader)
@@ -373,7 +373,6 @@ func ExtractDockerTar3(tarFile, destDir string) error {
 		if err != nil {
 			return err
 		}
-
 		trBuf.Reset(tr)
 		srcData := io.Reader(trBuf)
 

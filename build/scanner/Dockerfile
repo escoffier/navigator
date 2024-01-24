@@ -16,6 +16,7 @@ RUN sed -i "s!archive.ubuntu.com/!${MIRROR_SOURCE}/!g" /etc/apt/sources.list \
     && rm -rf /var/lib/apt/lists/*
 
 ADD hm/hm-linux.tgz /opt/webshell/hm
+ADD configs/scanner/hm.yml /opt/webshell/hm/hm.yml
 
 ADD avira/savapi-sdk-linux64.tgz /usr/local
 

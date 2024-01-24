@@ -1,6 +1,7 @@
 package imagesec
 
 import (
+	"os"
 	"strings"
 
 	"github.com/docker/distribution/manifest/schema2"
@@ -31,13 +32,15 @@ func (vi *ImageLayer) ContainerFilename(file string) string {
 	return file
 }
 
+type FileFilter func(info os.FileInfo) bool
+
 type PrepareScan struct {
 	Subtask       ScanSubTask
 	Layers        map[string]*ImageLayer // 层级信息
 	TaskRootDir   string                 // 扫描完成后删除该目录
 	UserDockerCli bool                   // 是否使用了 docker pull 命令，如果使用该命令，就只能扫描 PKG
-	LayerCnt      int
-	Errors        []error `json:"-"`
+	Errors        []error                `json:"-"`
+	FileFilter    FileFilter
 	ImageManifest ManifestV2AndV1
 }
 

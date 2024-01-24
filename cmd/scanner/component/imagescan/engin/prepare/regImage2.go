@@ -25,11 +25,12 @@ import (
 func createTarFile(destDir string, header *tar.Header, red io.Reader) error {
 	target := filepath.Join(destDir, header.Name)
 	switch header.Typeflag {
-	case tar.TypeDir:
-		if err := os.MkdirAll(target, os.ModePerm); err != nil {
+	case tar.TypeReg:
+		dirPath := filepath.Dir(target)
+		err := os.MkdirAll(dirPath, os.ModePerm)
+		if err != nil {
 			return err
 		}
-	case tar.TypeReg:
 		if err := scannerUtils.SaveFileFromTarReader(red, target); err != nil {
 			return err
 		}
@@ -136,7 +137,7 @@ func (s *RegImagePrepare) extractDockerTar1(tarFile, destDir string) error {
 }
 
 // 使用BufioReader32KPool,加快速度
-func (s *RegImagePrepare) extractDockerTar3(tarFile, destDir string) error {
+func (s *RegImagePrepare) extractDockerTar3(tarFile, destDir string, filter imagesecTypes.FileFilter) error {
 	_ = os.RemoveAll(destDir)
 	if err := os.MkdirAll(destDir, os.ModePerm); err != nil {
 		return err
@@ -169,10 +170,18 @@ func (s *RegImagePrepare) extractDockerTar3(tarFile, destDir string) error {
 			return err
 		}
 
+		fi := hdr.FileInfo()
+		// 对文件过滤
+		if filter != nil && !filter(fi) {
+			continue
+		}
+
 		trBuf.Reset(tr)
 		srcData := io.Reader(trBuf)
 
 		if err := createTarFile(destDir, hdr, srcData); err != nil {
+			s.Log.Info().Interface("header", hdr).Msg("ExtractDockerTar3")
+			s.Log.Info().Str("HeaderName", hdr.Name).Bool("isdir", fi.IsDir()).Str("name", fi.Name()).Uint32("mode", uint32(fi.Mode())).Int64("size", fi.Size()).Msg("ExtractDockerTar3")
 			return err
 		}
 	}

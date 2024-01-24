@@ -44,8 +44,8 @@ func BenchmarkExtractTar(b *testing.B) {
 }
 
 func TestExtractTar(b *testing.T) {
-	des := fmt.Sprintf("/Users/liuqianli/Documents/hello")
-	file := "/Users/liuqianli/Documents/bolb.tar.gz"
+	des := fmt.Sprintf("/root/tensornavigator/cmd/scanner/cmd/script/hello")
+	file := "/root/tensornavigator/cmd/scanner/cmd/script/layer.tar"
 	_ = os.RemoveAll(des)
 	err := ExtractDockerTar3(file, des)
 	if err != nil {
