@@ -1,0 +1,33 @@
+exclude:
+  - .css
+  - .js
+  - .woff
+  - .woff2
+  - .ttf
+  - .eot
+  - .doc
+  - .docx
+  - .ppt
+  - .pptx
+  - .csv
+  - .xls
+  - .xlsx
+  - .rpm
+  - .xml
+  - .map
+
+include :
+  - .php
+  - .php5
+  - .php4
+  - .asp
+  - .aspx
+  - .asmx
+  - .ashx
+  - .jsp
+  - .jspa
+  - .jspx
+  - .jspf
+  - .cer
+  - .htaccess
+
