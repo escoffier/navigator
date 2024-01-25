@@ -99,7 +99,7 @@ public:
 
 private:
   std::list<HttpFilterPtr> filters_;
-  TCPSegment tcpSegment_;
+  TCPSegment tcp_segment_;
   net::ConnectionInfo connection_;
 };
 

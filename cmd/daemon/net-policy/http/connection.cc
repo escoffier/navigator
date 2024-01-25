@@ -27,14 +27,11 @@ namespace http {
 // }
 
 Connection::Connection(bool serverSide, HttpFilterManagerPtr filterManager)
-    : header_(), packet_(), filters_manager_(filterManager), serverSide_(serverSide) {
+    : header_(), packet_(), filters_manager_(filterManager), server_side_(serverSide) {
   inspector_ = std::make_unique<HttpInspector>();
 }
 
-Connection::Connection(std::string key)
-    : header_(), packet_(),
-      // filters_manager_(std::make_unique<HttpFilterManager>(true)),
-      serverSide_(false) {
+Connection::Connection(std::string key) : header_(), packet_(), server_side_(false) {
   inspector_ = std::make_unique<HttpInspector>();
 }
 
@@ -42,21 +39,18 @@ void Connection::createCodec(Protocol protocol) {
   switch (protocol) {
   case Protocol::Http2:
     LOG(INFO) << "protocol: http2";
-    codec_ = std::make_unique<http2::ConnectionImpl>(serverSide_, filters_manager_);
+    codec_ = std::make_unique<http2::ConnectionImpl>(server_side_, filters_manager_);
     break;
   case Protocol::Http10:
   case Protocol::Http11:
     LOG(INFO) << "protocol: http";
-    codec_ = std::make_unique<http1::ConnectionImpl>(serverSide_, filters_manager_);
+    codec_ = std::make_unique<http1::ConnectionImpl>(server_side_, filters_manager_);
     break;
   case Protocol::Http3:
     LOG(INFO) << "protocol: http3";
     codec_ = nullptr;
     break;
   }
-  // if (filters_manager_ && codec_) {
-  //   codec_->setFilterManager(filters_manager_);
-  // }
 }
 
 const Header& Connection::onData(std::string_view data) {
@@ -100,7 +94,7 @@ FilterStatus Connection::processData(seastar::net::packet p) {
       createCodec(protocol);
     } else if (st == ParseState::Continue) {
       packet_.append(std::move(p));
-      LOG(INFO) << "parse continue" << std::endl;
+      LOG(INFO) << "parse continue: " << packet_.len() << std::endl;
       return FilterStatus::Continue;
     } else {
       return FilterStatus::StopIteration;

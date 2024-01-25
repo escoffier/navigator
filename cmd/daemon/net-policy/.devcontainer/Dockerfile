@@ -5,7 +5,7 @@ RUN sed -i 's/ports.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
 #RUN sed -i 's/archive.ubuntu.com/mirrors.aliyun.com/g' /etc/apt/sources.list
 
 RUN apt-get -y update \
-  && apt-get -y install --no-install-recommends ca-certificates git ssh clang clangd cmake make tar libgflags-dev libgtest-dev wget libnghttp2-dev libfmt-dev libboost-dev 2>&1 \
+  && apt-get -y install --no-install-recommends ca-certificates git ssh clang clangd cmake make tar libgflags-dev libgtest-dev wget libnghttp2-dev libfmt-dev libboost-dev google-perftools libgoogle-perftools-dev 2>&1 \
   && apt-get clean \
   && rm -rf /var/lib/apt/lists/*p
 

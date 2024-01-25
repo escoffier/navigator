@@ -104,7 +104,7 @@ func (cli *Client) Send(data []byte) error {
 	cli.conn.SetWriteDeadline(time.Now().Add(time.Second * 3))
 	defer cli.conn.SetWriteDeadline(time.Time{})
 
-	logging.Get().Debug().Int64("timestamp", time.Now().UnixMilli()).Msgf("send data: %s", string(data))
+	logging.Get().Info().Int64("timestamp", time.Now().UnixMilli()).Msgf("send data: %s", string(data))
 	_, err := cli.conn.Write(data)
 	if err != nil {
 		logging.Get().Err(err).Msgf("send data: %d", len(data))
@@ -129,7 +129,7 @@ func (cli *Client) Receive() ([]byte, error) {
 		}
 		return nil, err
 	}
-	logging.Get().Debug().Int64("timestamp", time.Now().UnixMilli()).Msgf("response len %d:, body: %s", nBytes, string(data))
+	logging.Get().Info().Int64("timestamp", time.Now().UnixMilli()).Msgf("response len %d:, body: %s", nBytes, string(data))
 	return data[:nBytes], nil
 }
 

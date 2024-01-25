@@ -17,6 +17,7 @@ class ipv4 {
 public:
   ipv4();
   NetStatus receive(seastar::net::packet p);
+  NetworkStat tcpStat();
 
 private:
   Tcp tcp_;

@@ -198,6 +198,7 @@ func (cs *ClusterServer) handleMicrosegEvents(c *gin.Context) {
 	logging.Get().Info().Msgf("microseg event: %+v", microsegEvent)
 	err = cs.Palace.SendMicrosegEvent(microsegEvent)
 	if err != nil {
+		logging.Get().Err(err).Msg("send microseg event")
 		c.String(http.StatusInternalServerError, "send microseg event err: %v", err)
 		return
 	}

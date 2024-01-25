@@ -196,16 +196,16 @@ func (n *Controller) ResynAllPods() error {
 	return nil
 }
 
-func podID1(namespace, name string) uint64 {
+func podID1(namespace, name string) uint32 {
 	str := fmt.Sprintf("%s/%s", namespace, name)
-	h := fnv.New64a()
+	h := fnv.New32a()
 	h.Write([]byte(str))
-	return h.Sum64()
+	return h.Sum32()
 }
 
-func podID(pod *corev1.Pod) uint64 {
+func podID(pod *corev1.Pod) uint32 {
 	str := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
-	h := fnv.New64a()
+	h := fnv.New32a()
 	h.Write([]byte(str))
-	return h.Sum64()
+	return h.Sum32()
 }

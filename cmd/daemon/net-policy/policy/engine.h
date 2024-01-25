@@ -59,19 +59,17 @@ struct FiveTuple {
 
 class PolicyEngine {
 public:
-  int addNewPolicy(RuleDetail &policy, RulePort &stPort);
+  int addNewPolicy(RuleDetail& policy, RulePort& stPort);
 
-  int addNewHttpPolicy(FLOW_DIR dir, std::string &key, HttpRuleInfo &httpRule);
+  int addNewHttpPolicy(FLOW_DIR dir, std::string& key, HttpRuleInfo& httpRule);
 
-  std::string createPolicyRuleKey(RuleDetail &info);
+  std::string createPolicyRuleKey(RuleDetail& info);
 
-  int createPolicyRuleKey(FiveTuple &tuple, FLOW_DIR dir,
-                          std::vector<std::string> &value);
+  int createPolicyRuleKey(FiveTuple& tuple, FLOW_DIR dir, std::vector<std::string>& value);
 
-  NET_POLICY_RULE matchNetPolicyRule(FiveTuple &tuple, FLOW_DIR dir,
-                                     std::string &sRuleKey);
+  NET_POLICY_RULE matchNetPolicyRule(FiveTuple& tuple, FLOW_DIR dir, std::string& sRuleKey);
 
-  NET_POLICY_RULE matchHttpPolicyRule(const std::vector<HttpRuleInfo> &httpRules,
+  NET_POLICY_RULE matchHttpPolicyRule(const std::vector<HttpRuleInfo>& httpRules,
                                       http::Header state);
 
   bool handle();
@@ -80,10 +78,8 @@ private:
   std::unordered_map<std::string, RuleDetail> NetInputPolicyRule;
   std::unordered_map<std::string, RuleDetail> NetOutputPolicyRule;
   std::unordered_map<std::string, std::vector<HttpRuleInfo>> NetInputHttpPolicy;
-  std::unordered_map<std::string, std::vector<HttpRuleInfo>>
-      NetOutputHttpPolicy;
-  std::unordered_map<std::string, std::unordered_map<std::string, FLOW_DIR> *>
-      NetPolicyKey;
+  std::unordered_map<std::string, std::vector<HttpRuleInfo>> NetOutputHttpPolicy;
+  std::unordered_map<std::string, std::unordered_map<std::string, FLOW_DIR>*> NetPolicyKey;
   std::set<int> MaskCidr;
   std::set<int> Priority;
 };

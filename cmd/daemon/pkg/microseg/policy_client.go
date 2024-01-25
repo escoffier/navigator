@@ -40,7 +40,7 @@ type ContainerInfo struct {
 	MetaData
 	MessageType int    `json:"msg_type"`
 	Pid         int    `json:"pid"`
-	PodID       uint64 `json:"pod_id"`
+	PodID       uint32 `json:"pod_id"`
 }
 
 type Response struct {
@@ -52,8 +52,8 @@ type PolicyClient interface {
 	AddPolicy(rule *PolicyRule) error
 	DeletePolicy(rule *PolicyRule) error
 
-	AddContainer(pid int, podID uint64) error
-	DeleteContaier(pid int, podID uint64) error
+	AddContainer(pid int, podID uint32) error
+	DeleteContaier(pid int, podID uint32) error
 
 	GetConn() net.Conn
 	ReConnect() error
@@ -133,7 +133,7 @@ func (cli *policyClient) receiveResponse() (*Response, error) {
 	return resp, nil
 }
 
-func (cli *policyClient) AddContainer(pid int, podID uint64) error {
+func (cli *policyClient) AddContainer(pid int, podID uint32) error {
 	conInfo := &ContainerInfo{
 		MessageType: 1,
 		Pid:         pid,
@@ -152,7 +152,8 @@ func (cli *policyClient) AddContainer(pid int, podID uint64) error {
 	}
 	return err
 }
-func (cli *policyClient) DeleteContaier(pid int, podID uint64) error {
+
+func (cli *policyClient) DeleteContaier(pid int, podID uint32) error {
 	conInfo := &ContainerInfo{
 		MessageType: 2,
 		Pid:         pid,

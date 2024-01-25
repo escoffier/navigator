@@ -12,9 +12,10 @@ namespace net {
 class ConnectionManager {
 public:
   ConnectionManager() : ipv4_(std::make_unique<ipv4>()) {}
-  NetStatus receive(seastar::net::packet p) {
-    return ipv4_->receive(std::move(p));
-  };
+
+  NetStatus receive(seastar::net::packet p) { return ipv4_->receive(std::move(p)); };
+
+  NetworkStat stat() { return ipv4_->tcpStat(); }
 
 private:
   std::unique_ptr<ipv4> ipv4_;
