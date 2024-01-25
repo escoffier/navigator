@@ -46,7 +46,7 @@ func verifyCMCC(tokenStr string, r *http.Request) (*token.Payload, error) {
 	}
 
 	clm := jwt.MapClaims{}
-	_, err := jwt.ParseWithClaims(tokenStr, &clm, func(t *jwt.Token) (interface{}, error) { return cm.GetCMVerifyKey(), nil })
+	_, err := jwt.ParseWithClaims(tokenStr, &clm, func(t *jwt.Token) (interface{}, error) { return []byte(cm.GetCMVerifyKey()), nil })
 	if err != nil {
 		return nil, err
 	}
