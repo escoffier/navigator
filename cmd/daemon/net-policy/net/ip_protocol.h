@@ -9,8 +9,10 @@
 namespace net {
 class IPProtocol {
 public:
-  virtual NetStatus receive(seastar::net::packet packet, uint32_t from,
-                       uint32_t to) PURE;
+  virtual NetStatus receive(seastar::net::packet packet, uint32_t from, uint32_t to) PURE;
+
+  virtual NetworkStat stat() PURE;
+
   virtual ~IPProtocol() = default;
 };
-}
+} // namespace net

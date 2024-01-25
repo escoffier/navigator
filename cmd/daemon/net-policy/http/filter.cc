@@ -27,12 +27,12 @@ HttpFilterManager::HttpFilterManager(size_t key, uint32_t from, uint32_t to) {
     auto filter = cb(key, from, to);
     this->addFilter(filter);
   });
-  tcpSegment_.from = from;
-  tcpSegment_.to = to;
+  tcp_segment_.from = from;
+  tcp_segment_.to = to;
 }
 
 FilterStatus HttpFilterManager::decodeHeaders(RequestHeaderMap& headers, bool serverSide) {
-  VLOG(4) << "decodeHeaders" << tcpSegment_;
+  VLOG(4) << "decodeHeaders" << tcp_segment_;
   auto filter = filters_.begin();
   if (serverSide) {
     while (filter != filters_.end()) {
@@ -117,8 +117,8 @@ FilterStatus HttpFilterManager::onClose() {
 
 void HttpFilterManager::setTCPSegment(seastar::net::packet& p) {
   auto data = p.get_header(0, p.len());
-  tcpSegment_.base = data;
-  tcpSegment_.size = p.len();
+  tcp_segment_.base = data;
+  tcp_segment_.size = p.len();
   std::for_each(filters_.begin(), filters_.end(),
                 [data, &p](HttpFilterPtr filter) { filter->setTCPSegment(data, p.len()); });
 }

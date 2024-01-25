@@ -37,6 +37,8 @@ typedef enum
     POST_NET = 6, //deny post
     ADD_WAF_RULE = 7,//add waf rule
     DEL_WAF_RULE = 8,//delete waf rule
+    HEAP_DUMP = 9,
+    CONF_DUMP = 10,
     NET_INFO_MAX
 } NET_DATA_TYPE;
 

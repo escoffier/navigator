@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstddef>
 #include <memory>
 #include <stdio.h>
@@ -29,6 +30,7 @@
 #include <string>
 #include <sys/time.h>
 #include <gflags/gflags.h>
+#include "cjson.h"
 #include "glog/logging.h"
 #include "log.h"
 #include "http/codec.h"
@@ -36,11 +38,13 @@
 #include "http/extension/log.h"
 #include "http/filter.h"
 #include "http/http_filter_factory.h"
+#include "net-policy.h"
 #include "net/connection_manager.h"
 #include "net/ip.h"
 #include "net/utility.h"
 #include "waf/plugin.h"
 #include "policy/engine.h"
+#include "admin/profile.h"
 
 using namespace std;
 
@@ -1684,11 +1688,56 @@ err:
     return -1;
 }
 
+cJSON* dumpConfig() {
+    cJSON * config = cJSON_CreateObject();
+    // cJSON* policies = cJSON_CreateArray();
+    // for_each(NetInputHttpPolicy.begin(), NetInputHttpPolicy.end() , [policies](std::vector<HTTP_RULE_INFO>* ruleVec) {
+    //     cJSON* rules = cJSON_CreateArray();
+    //     for_each(ruleVec->begin(), ruleVec->end(), [rules](HTTP_RULE_INFO rule) {
+    //         r := cJSON_CreateObject();
+            
+
+    //     });
+    //     cJSON_AddItemToArray(policies, cJSON *item)
+    // } );
+    cJSON* rules = cJSON_CreateArray();
+    for(auto it = NetInputPolicyRule.begin(); it != NetInputPolicyRule.end(); it++) {
+        auto rule = it->second;
+        auto r = cJSON_CreateObject();
+        cJSON* proto = cJSON_CreateNumber(rule.proto);
+        cJSON_AddStringToObject(r, "policy_name", rule.policyKey.c_str());
+        cJSON_AddNumberToObject(r, "priority", rule.priority);
+        cJSON_AddNumberToObject(r, "direction", rule.direction);
+        cJSON_AddNumberToObject(r, "action", rule.action);
+        cJSON_AddItemToObject(r, "prtocol", proto);
+        cJSON_AddStringToObject(r, "fromAddess", rule.srcIp.c_str());
+        cJSON_AddStringToObject(r, "toAddess", rule.dstIp.c_str());
+        cJSON_AddItemToArray(rules, r);
+    }
+    cJSON_AddItemToObject(config, "rules", rules);
+
+    cJSON* containers = cJSON_CreateArray();
+    for (auto it = NfqueResData.begin(); it != NfqueResData.end(); it++) {
+        auto con = it->second;
+        auto item = cJSON_CreateObject();
+        cJSON_AddNumberToObject(item, "pid", con->pid);
+        cJSON_AddNumberToObject(item, "pod_id", con->podId);
+        cJSON_AddItemToArray(containers,  item);
+    }
+    cJSON_AddItemToObject(config, "containers",containers);
+
+    auto tcp = cJSON_CreateObject();
+    auto stat = connectionManager.stat();
+    cJSON_AddNumberToObject(tcp, "tcp_connection", stat.tcp_conn_);
+    cJSON_AddItemToObject(config, "tcp",tcp);
+
+    return config;
+}
+
 int ParseRcvData(int32_t zRcvEvFd, int32_t fd, void *ptr)
 {
     bool bRet;
-    int ret = 0, length;
-    char result[1024];
+    int ret = 0;
     NET_CTRL_INFO ctrl = {};
     RULE_DETAIL net = {};
     if((fd <= 0) || (!ptr)) RETURN_ERROR(-2, "[net] parse failed by argumnet is error!");
@@ -1705,12 +1754,13 @@ int ParseRcvData(int32_t zRcvEvFd, int32_t fd, void *ptr)
     if(cDataBuf[ret - 1] == '\n') cDataBuf[--ret] = 0;
     //print debug log
     LOG_V("receive msg, time : %s, data : %s", TimeToString().c_str(), cDataBuf);
-    //set 0
-    memset(result, 0, sizeof(result));
+
+    cJSON* respBody = nullptr;
     //parse json
     ret = ParseRcvJson(cDataBuf, &ctrl);
     if(ret < 0) GOTO_ERROR(rsp, "[net] parse receive json failed!");
     //condition
+    admin::Status status;
     switch (ctrl.msgType)
     {
          case POD_PID:
@@ -1751,6 +1801,15 @@ int ParseRcvData(int32_t zRcvEvFd, int32_t fd, void *ptr)
             ret = (bRet == true) ? 0 : 1;
             goto rsp;
 
+        case HEAP_DUMP:
+            status = admin::Heap::handleHeapProfile(std::string_view{cDataBuf, strlen(cDataBuf)});
+            ret = (status == admin::Status::OK) ? 0 : 1;
+            goto rsp;
+
+        case CONF_DUMP:
+            respBody = dumpConfig();
+            goto rsp;
+
         default:
             LOG_E("data type is error, datatype : %d.", ctrl.msgType);
             break;
@@ -1760,13 +1819,22 @@ rsp:
     //
     SetLocalNetNs(szLocalNetNsFd);
     /*response data*/
-    sprintf(result, "{\"status\":%d,\"msg_type\":%d,\"uuid\":\"%s\"}", ret, RSP_ACK, ctrl.uuid.c_str());
-    //data len
-    length = strlen(result);
+    cJSON* response = cJSON_CreateObject();
+    cJSON_AddNumberToObject(response, "status", ret);
+    cJSON_AddNumberToObject(response, "msg_type", RSP_ACK);
+    cJSON_AddStringToObject(response, "uuid", ctrl.uuid.c_str());
+    if (respBody != nullptr) {
+        cJSON_AddItemToObject(response, "body", respBody);
+    }
+
     //print debug log
+    auto result = cJSON_Print(response);
     LOG_V("rsp msg, time : %s, data : %s.", TimeToString().c_str(), result);
     //send response data
+    int length = strlen(result);
     ret = write(fd, result, length);
+
+    cJSON_Delete(response);
     //judge response result
     if(ret != length)
     {

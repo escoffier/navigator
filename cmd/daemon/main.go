@@ -408,7 +408,6 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 	var agentClient, agentEventClient *heavyagent.Client
 	if microsegEnv == "true" {
 		pathExists := false
-		_, err = os.Stat("/var/run/heavy-agent")
 		if err != nil {
 			if os.IsNotExist(err) {
 				err = os.Mkdir("/var/run/heavy-agent", fs.ModeDir)
@@ -438,6 +437,9 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 
 		stopChan := make(chan struct{})
 		policyClient := microseg.NewPolicyClient(agentClient)
+		if agentClient == nil {
+			logging.Get().Error().Msg("agentClient is nil")
+		}
 		controller := nodeinfo.NewPodController(podWatcher.PodLister(), podWatcher.PodInformer(), containerInfo, policyClient)
 		go controller.Run(stopChan)
 
@@ -628,7 +630,7 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 	}
 
 	go func() {
-		srv := status.NewServer(12000)
+		srv := status.NewServer(12000, agentClient)
 		srv.Run()
 	}()
 	WaitSignal(stopCh)

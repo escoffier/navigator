@@ -4,6 +4,9 @@ project(net-rule)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+# set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIE")
+# set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIE")
+
 
 find_package(fmt)
 find_package(glog 0.6.0 REQUIRED)
@@ -48,6 +51,7 @@ set(SOURCES
     net/tcp.cc
     net/udp.cc
     http/extension/log.cc
+    admin/profile.cc
     net-policy.cpp
     waf/plugin.cc
     waf/rule.cc
@@ -59,7 +63,7 @@ add_subdirectory(libnetfilter_conntrack)
 add_subdirectory(libnetfilter_queue)
 
 add_executable(net-rule ${SOURCES})
-add_definitions("-Wall -g")
+# add_definitions("-Wall -g")
 add_executable(net_rule_test
 net/utility.cc
 net/filter.cc
@@ -93,9 +97,52 @@ target_compile_options(${PROJECT_NAME}
 
 
 target_include_directories(net-rule PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/)
-target_link_libraries(net-rule libnfnetlink libnetfilter_queue libnetfilter_conntrack libnghttp2.a libpcre2-8.a libpcre2-posix.a fmt::fmt-header-only llhttp::llhttp_static glog.a gflags.a ${CMAKE_THREAD_LIBS_INIT}) 
-target_link_libraries(net_rule_test libnfnetlink libnetfilter_queue libnetfilter_conntrack libnghttp2.a libpcre2-8.a libpcre2-posix.a fmt::fmt-header-only
-       	llhttp::llhttp_static glog.a gflags.a ${CMAKE_THREAD_LIBS_INIT} GTest::gtest_main)
+target_link_libraries(net-rule 
+libnfnetlink 
+libnetfilter_queue 
+libnetfilter_conntrack 
+libnghttp2.a 
+libpcre2-8.a 
+libpcre2-posix.a 
+fmt::fmt-header-only 
+llhttp::llhttp_static 
+glog.a 
+gflags.a 
+${CMAKE_THREAD_LIBS_INIT}
+libunwind.a
+liblzma.a
+libtcmalloc_and_profiler.a)
+
+# target_link_libraries(net-rule 
+# libnfnetlink 
+# libnetfilter_queue 
+# libnetfilter_conntrack 
+# libnghttp2.a 
+# libpcre2-8.a 
+# libpcre2-posix.a 
+# fmt::fmt-header-only 
+# llhttp::llhttp_static 
+# glog.a gflags.a 
+# ${CMAKE_THREAD_LIBS_INIT} 
+# unwind 
+# tcmalloc) 
+
+target_link_libraries(net_rule_test 
+libnfnetlink 
+libnetfilter_queue 
+libnetfilter_conntrack 
+libnghttp2.a 
+libpcre2-8.a 
+libpcre2-posix.a 
+fmt::fmt-header-only
+llhttp::llhttp_static 
+glog.a 
+gflags.a 
+${CMAKE_THREAD_LIBS_INIT}
+libunwind.a
+liblzma.a
+GTest::gtest_main)
+
 include(GoogleTest)
 gtest_discover_tests(net_rule_test)
 

@@ -2,11 +2,12 @@ package cmd
 
 import (
 	"context"
-	"gitlab.com/piccolo_su/vegeta/pkg/env"
-	"gitlab.com/piccolo_su/vegeta/pkg/heartbeat"
 	"os"
 	"strings"
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/env"
+	"gitlab.com/piccolo_su/vegeta/pkg/heartbeat"
 
 	json "github.com/json-iterator/go"
 	"github.com/spf13/cobra"

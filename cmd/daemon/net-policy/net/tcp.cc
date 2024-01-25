@@ -29,7 +29,7 @@ NetStatus Tcp::Tcb::handlePayload(seastar::net::packet p) {
   auto filsterStatus = http_->processData(std::move(p));
   if (filsterStatus == http::FilterStatus::DropPkt ||
       filsterStatus == http::FilterStatus::StopIteration) {
-        VLOG(4) << "drop tcp segment";
+    VLOG(4) << "drop tcp segment";
     return NetStatus::Drop;
   }
   return NetStatus::OK;
@@ -42,44 +42,50 @@ NetStatus Tcp::receive(seastar::net::packet p, uint32_t from, uint32_t to) {
   if (!th) {
     return NetStatus::OK;
   }
-  tcphdr* tcpHdr = reinterpret_cast<tcphdr*>(th);
-  auto hdrLen = tcpHdr->doff * 4;
+  tcphdr* tcp_hdr = reinterpret_cast<tcphdr*>(th);
+  auto hdrLen = tcp_hdr->doff * 4;
   if (hdrLen < TCP_HDR_LEN) {
     return NetStatus::OK;
   }
   VLOG(4) << "tcp payload length: " << (p.len() - hdrLen);
 
-  ConnectionID id{from, to, ntohs(tcpHdr->source), ntohs(tcpHdr->dest)};
+  ConnectionID id{from, to, ntohs(tcp_hdr->source), ntohs(tcp_hdr->dest)};
+  ConnectionID peer_id{to, from, ntohs(tcp_hdr->dest), ntohs(tcp_hdr->source)};
 
-  auto tcbIter = tcbs.find(id);
-  if (tcbIter == tcbs.end()) {
-    if (tcpHdr->rst == 1) {
+  auto tcb_iter = tcbs_.find(id);
+  if (tcb_iter == tcbs_.end()) {
+    if (tcp_hdr->rst == 1) {
+      VLOG(2) << "reset tcp " << id;
       return NetStatus::OK;
     }
-    if (tcpHdr->syn == 1) {
+
+    if (tcp_hdr->syn == 1) {
       auto hashFunc = ConnectionIDHash();
-      auto hashId = hashFunc(id);
-      auto filterManager = std::make_shared<http::HttpFilterManager>(hashId, from, to);
+      auto hash_key = hashFunc(id);
+      auto filter_manager = std::make_shared<http::HttpFilterManager>(hash_key, from, to);
 
       net::ConnectionInfo connInfo{net::ipv4ToString(from), net::ipv4ToString(to),
-                                   ntohs(tcpHdr->source), ntohs(tcpHdr->dest)};
-      if (http::FilterStatus::StopIteration == filterManager->onNewConnection(connInfo)) {
-        LOG(INFO) << "terminate connection processing";
-        // return;
+                                   ntohs(tcp_hdr->source), ntohs(tcp_hdr->dest)};
+      if (http::FilterStatus::StopIteration == filter_manager->onNewConnection(connInfo)) {
+        LOG(INFO) << "terminate connection processing (" << id << ")";
       }
-      auto httpServer = std::make_shared<http::Connection>(true, filterManager);
-      auto t = std::make_shared<Tcb>(httpServer);
-      t->seq_ = ntohl(tcpHdr->seq) + 1;
-      t->seq_ = boost::endian::big_to_native(tcpHdr->seq);
-      t->serverSide_ = true;
-      tcbs.insert({id, t});
-      VLOG(4) << hashId << " new tcp connection: " << id;
+      auto httpServerConn = std::make_shared<http::Connection>(true, filter_manager);
+      auto t = std::make_shared<Tcb>(httpServerConn);
+      // t->seq_ = ntohl(tcpHdr->seq) + 1;
+      t->seq_ = boost::endian::big_to_native(tcp_hdr->seq) + 1;
+      t->server_side_ = true;
+      tcbs_.insert({id, t});
+      VLOG(2) << hash_key << " new tcp connection: " << id;
 
-      auto httpClient = std::make_shared<http::Connection>(false, filterManager);
+      auto peer_it = tcbs_.find(peer_id);
+      if (peer_it == tcbs_.end()) {
+        auto http_client = std::make_shared<http::Connection>(false, filter_manager);
+        VLOG(2) << hash_key << " new tcp connection peer: " << peer_id;
+        auto t1 = std::make_shared<Tcb>(http_client);
+        t1->server_side_ = false;
+        tcbs_.insert({peer_id, t1});
+      }
 
-      ConnectionID pID{to, from, ntohs(tcpHdr->dest), ntohs(tcpHdr->source)};
-      auto t1 = std::make_shared<Tcb>(httpClient);
-      tcbs.insert({pID, t1});
       return NetStatus::OK;
     }
     // if (tcpHdr->ack == 1) {
@@ -93,33 +99,39 @@ NetStatus Tcp::receive(seastar::net::packet p, uint32_t from, uint32_t to) {
     // }
 
   } else {
-    if (tcpHdr->fin == 1) {
-      VLOG(4) << "close tcp connection: " << tcbIter->first;
-      tcbIter->second->http_->httpFilterManager()->onClose();
-      tcbs.erase(tcbIter);
+    if (tcp_hdr->fin == 1 || tcp_hdr->rst == 1) {
+      VLOG(2) << "close tcp connection: " << tcb_iter->first;
+      tcb_iter->second->http_->httpFilterManager()->onClose();
+      tcbs_.erase(tcb_iter);
 
-      ConnectionID peerID{to, from, ntohs(tcpHdr->dest), ntohs(tcpHdr->source)};
-      tcbs.erase(peerID);
+      // ConnectionID peerID{to, from, ntohs(tcpHdr->dest), ntohs(tcpHdr->source)};
+      VLOG(2) << "close tcp connection peer: " << peer_id;
+      tcbs_.erase(peer_id);
       return NetStatus::OK;
     }
-    if ((tcpHdr->ack == 1) && tcpHdr->syn == 1) {
-      tcbIter->second->seq_ = boost::endian::big_to_native(tcpHdr->seq);
-      tcbIter->second->serverSide_ = false;
-      //  tcbIter->second->seq_ = ntohl(tcpHdr->seq);
-    }
+    // if ((tcpHdr->ack == 1) && tcpHdr->syn == 1) {
+    //   tcbIter->second->seq_ = boost::endian::big_to_native(tcpHdr->seq);
+    //   tcbIter->second->serverSide_ = false;
+    // }
 
-    tcbIter->second->http_->httpFilterManager()->setTCPSegment(p);
+    tcb_iter->second->http_->httpFilterManager()->setTCPSegment(p);
 
     p.trim_front(hdrLen);
 
     if (http::FilterStatus::StopIteration ==
-        tcbIter->second->http_->httpFilterManager()->onData(p)) {
+        tcb_iter->second->http_->httpFilterManager()->onData(p)) {
       return NetStatus::OK;
     }
-    return tcbIter->second->handlePayload(std::move(p));
+    return tcb_iter->second->handlePayload(std::move(p));
     // return NetStatus::OK;
   }
   return NetStatus::OK;
+}
+
+NetworkStat Tcp::stat() {
+  NetworkStat st{};
+  st.tcp_conn_ = tcbs_.size();
+  return st;
 }
 
 std::ostream& operator<<(std::ostream& os, const Tcp::Tcb& tcb) {
