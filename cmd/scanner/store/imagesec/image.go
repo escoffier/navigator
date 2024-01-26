@@ -239,6 +239,7 @@ func (dal *ImageMetaDao) UpdateImage(ctx context.Context, param imagesecModel.Up
 
 func (dal *ImageMetaDao) SearchImage(ctx context.Context, param imagesecModel.ImageDalParam) (
 	[]*imagesecModel.Image, int64, error) {
+	param.Serialize()
 
 	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
@@ -604,10 +605,10 @@ func (dal *ImageMetaDao) DeletePreImage(ctx context.Context, image *model.ImageL
 	// if image.Digest != "" {
 	// 	_ = dal.db.Get().WithContext(ctx).Table(tableName).Where("digest = ?", image.Digest).Delete(&model.ImageList{}).Error
 	// }
-	// if image.FullRepoName != "" && image.Tags != "" && image.RegistryID > 0 {
-	// 	_ = dal.db.Get().WithContext(ctx).Table(tableName).Where("full_repo_name = ?", image.FullRepoName).
-	// 		Where("tags = ?", image.Tags).Where("registry_id = ?", image.RegistryID).Delete(&model.ImageList{}).Error
-	// }
+	if image.FullRepoName != "" && image.Tags != "" && image.RegistryID > 0 {
+		_ = dal.db.Get().WithContext(ctx).Table(tableName).Where("full_repo_name = ?", image.FullRepoName).
+			Where("tags = ?", image.Tags).Where("registry_id = ?", image.RegistryID).Delete(&model.ImageList{}).Error
+	}
 
 	return nil
 }

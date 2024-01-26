@@ -2,14 +2,25 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
-	ver210 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/dataMigrate/220"
+	"github.com/segmentio/kafka-go"
+	"gitlab.com/security-rd/go-pkg/mq"
+
+	migrateTypes "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/dataMigrate/types"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts/preConsts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
+	imagesecType "gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -82,7 +93,7 @@ func (s *ScanTaskSrv) AdaptCreateSubtask(ctx context.Context, images []*imagesec
 		}
 
 		_ = s.preImageDal.DeletePreImage(ctx, iml)
-		// 数据可能已以数据库中，所以不关心错误
+		// 数据可能已已数据库中，所以不关心错误
 		_ = s.preImageDal.CreatePreImage(ctx, iml)
 
 		_ = s.preTaskDal.DeleteScanTask(ctx, sub.ID)
@@ -120,6 +131,7 @@ func (s *ScanTaskSrv) MigratePreSubtask(ctx context.Context) error {
 		}()
 
 		ticker := time.NewTicker(time.Second * 10)
+		filter := imagesecModel.EmptyFilter().SetLimit(10).SetSortFiledByID().SetSortAsc()
 		defer ticker.Stop()
 		for {
 
@@ -127,6 +139,7 @@ func (s *ScanTaskSrv) MigratePreSubtask(ctx context.Context) error {
 
 			tasks, _, err := s.taskDal.SearchScanTask(ctx, imagesecModel.SearchTaskParam{
 				ScanStatusStr: []string{imagesecModel.TaskStatusInprogressStr},
+				Filter:        filter,
 			})
 			if err != nil {
 				s.Log.Err(err).Msg("AdaptPreScan get scan task")
@@ -147,6 +160,7 @@ func (s *ScanTaskSrv) MigratePreSubtask(ctx context.Context) error {
 					TaskID:          task.ID,
 					IsSearchSubtask: true,
 					ScanStatusStr:   []string{imagesecModel.TaskStatusInprogressStr},
+					Filter:          filter,
 				})
 
 				if err != nil {
@@ -161,7 +175,7 @@ func (s *ScanTaskSrv) MigratePreSubtask(ctx context.Context) error {
 						continue
 					}
 
-					s.Log.Info().Int64("subtaskID", sub.ID).Int64("taskID", sub.TaskID).Msg("AdaptPreScan get low version subtask")
+					s.Log.Debug().Int64("subtaskID", sub.ID).Int64("taskID", sub.TaskID).Msg("AdaptPreScan get low version subtask")
 
 					preSub, err := s.preTaskDal.SearchScanSubtask(ctx, imagesecModel.SearchTaskParam{SubtaskID: subtaskID})
 					if err != nil {
@@ -198,9 +212,11 @@ func (s *ScanTaskSrv) MigratePreSubtask(ctx context.Context) error {
 
 		ticker := time.NewTicker(time.Second * 10)
 		defer ticker.Stop()
+		filter := imagesecModel.EmptyFilter().SetLimit(10).SetSortFiledByID().SetSortAsc()
 		for {
 			<-ticker.C
-			subtask, err := s.preTaskDal.SearchScanSubtask(ctx, imagesecModel.SearchTaskParam{ScanStatus: []int64{preConsts.ImageScanSuccess, preConsts.ImageScanFailed}})
+			subtask, err := s.preTaskDal.SearchScanSubtask(ctx, imagesecModel.SearchTaskParam{
+				ScanStatus: []int64{preConsts.ImageScanSuccess, preConsts.ImageScanFailed}, Filter: filter})
 			if err != nil {
 				s.Log.Err(err).Msg("AdaptPreScan get scan task")
 				time.Sleep(time.Minute * 1)
@@ -234,11 +250,15 @@ func (s *ScanTaskSrv) updateSuccess(ctx context.Context, preSub *model.SubTask) 
 	/*
 		这个方法中，taskID,subtaskID 很容易出错，要特别小心
 	*/
+
+	defer func() {
+		_ = s.deleteAdaptedPreScanTask(ctx, preSub.ID)
+	}()
+
 	s.Log.Info().Int64("subtaskID", preSub.ID).Str("ImageName", preSub.FullRepoName+":"+preSub.Tag).
 		Msg("AdaptPreScan low version subtask scan success")
 
 	// 新老版本的扫描器的调度不一致
-	// 当前任务已
 	subtask, _, err := s.taskDal.SearchScanSubtask(ctx, imagesecModel.SearchTaskParam{SubtaskID: preSub.ID})
 	if err != nil {
 		s.Log.Err(err).Msg("AdaptPreSubtask SearchScanSubtask")
@@ -254,7 +274,7 @@ func (s *ScanTaskSrv) updateSuccess(ctx context.Context, preSub *model.SubTask) 
 		return err
 	}
 	if len(tasks) == 0 || tasks[0].Status >= imagesecModel.TaskStatusPause {
-		s.Log.Info().Str("status", tasks[0].StatusStr).Msg("AdaptPreSubtask task")
+		s.Log.Info().Int64("subtaskID", preSub.ID).Msg("AdaptPreSubtask task finished (or cleaned)")
 		return nil
 	}
 	newSubtask, newTask := subtask[0], tasks[0]
@@ -304,7 +324,7 @@ func (s *ScanTaskSrv) updateSuccess(ctx context.Context, preSub *model.SubTask) 
 		Updater: taskUpdater,
 		Where:   fmt.Sprintf("status = %d", imagesecModel.TaskStatusPending),
 	}); err != nil {
-		s.Log.Err(err).Msg("AdaptPreSubtask  UpdateScanTask")
+		s.Log.Err(err).Msg("AdaptPreSubtask UpdateScanTask")
 		return err
 	}
 
@@ -318,21 +338,19 @@ func (s *ScanTaskSrv) updateSuccess(ctx context.Context, preSub *model.SubTask) 
 		Updater: subtaskUpdater,
 		Where:   fmt.Sprintf("status < %d", imagesecModel.TaskStatusPause),
 	}); err != nil {
-		s.Log.Err(err).Msg("AdaptPreSubtask  UpdateScanSubtask")
+		s.Log.Err(err).Msg("AdaptPreSubtask UpdateScanSubtask")
 		return err
 	}
 
-	v210, err := ver210.GetImageMigrate()
+	migrate, err := GetImageMigrate()
 	if err != nil {
-		s.Log.Err(err).Msg("AdaptPreSubtask  not GetImageMigrate")
+		s.Log.Err(err).Msg("AdaptPreSubtask not GetImageMigrate")
 		return err
 	}
-	if err := v210.MigrateScan(ctx, preSub.ImageID, newSubtask.ID); err != nil {
+	if err := migrate.MigrateScan(ctx, preSub.ImageID, newSubtask.ID); err != nil {
 		s.Log.Err(err).Msg("AdaptPreSubtask  MigrateImage")
 		return err
 	}
-
-	_ = s.deleteAdaptedPreScanTask(ctx, preSub.ID)
 
 	s.Log.Info().Str("subtask", newSubtask.LogInfo()).Msg("AdaptPreScan task scan success and send data to kafka")
 
@@ -342,7 +360,7 @@ func (s *ScanTaskSrv) updateSuccess(ctx context.Context, preSub *model.SubTask) 
 func (s *ScanTaskSrv) updateFailed(ctx context.Context, sub *model.SubTask) error {
 
 	s.Log.Info().Int64("taskID", sub.TaskID).Int64("subtaskID", sub.ID).
-		Str("ImageName", sub.FullRepoName+":"+sub.Tag).Msg("AdaptPreScan low version  subtask scan failed")
+		Str("ImageName", sub.FullRepoName+":"+sub.Tag).Msg("AdaptPreScan low version subtask scan failed")
 
 	updater := map[string]interface{}{
 		"status":      imagesecModel.TaskStatusFailed,
@@ -383,6 +401,12 @@ func (s *ScanTaskSrv) deleteAdaptedPreScanTask(ctx context.Context, subID int64)
 			s.Log.Err(err).Int64("subtaskID", sub.ID).Msg("AdaptPreScan delete adapted subtask")
 			return err
 		}
+		err = s.preTaskDal.DeleteScanTask(ctx, sub.ID)
+		if err != nil {
+			s.Log.Err(err).Int64("subtaskID", sub.ID).Msg("AdaptPreScan delete adapted task")
+			return err
+		}
+
 	case preConsts.ImageScanFailed:
 		// 不删除，便于排查原因
 		update := map[string]interface{}{
@@ -393,17 +417,6 @@ func (s *ScanTaskSrv) deleteAdaptedPreScanTask(ctx context.Context, subID int64)
 			s.Log.Err(err).Int64("subtaskID", sub.ID).Msg("AdaptPreScan update adapted subtask")
 			return err
 		}
-	}
-
-	err = s.preTaskDal.DeleteScanSubtask(ctx, sub.ID)
-	if err != nil {
-		s.Log.Err(err).Int64("subtaskID", sub.ID).Msg("AdaptPreScan delete adapted subtask")
-		return err
-	}
-	err = s.preTaskDal.DeleteScanTask(ctx, sub.TaskID)
-	if err != nil {
-		s.Log.Err(err).Int64("TaskID", sub.TaskID).Msg("AdaptPreScan delete adapted task")
-		return err
 	}
 	// 不能删除镜像，因为可能还有其他任务
 	// 会出现的一个问题是，数据会冗余
@@ -433,17 +446,19 @@ func (s *ScanTaskSrv) AdaptTaskTerminate(ctx context.Context, taskID int64) erro
 		})
 		if err != nil {
 			time.Sleep(time.Minute)
-			s.Log.Err(err).Int64("taskID", taskID).Msg("UpdateSubTaskTerminate")
+			s.Log.Err(err).Int64("taskID", taskID).Msg("AdaptPreScan UpdateSubTaskTerminate")
 			continue
 		}
 		if len(subtask) == 0 {
-			s.Log.Err(err).Int64("taskID", taskID).Msg("UpdateSubTaskTerminate finished")
+			s.Log.Info().Int64("taskID", taskID).Msg("AdaptPreScan UpdateSubTaskTerminate finished")
 			break
 		}
 		startId = subtask[len(subtask)-1].ID
 
 		for i := range subtask {
-			_ = s.deleteAdaptedPreScanTask(ctx, subtask[i].ID)
+			// 直接删除
+			_ = s.preTaskDal.DeleteScanSubtask(ctx, subtask[i].ID)
+			_ = s.preTaskDal.DeleteScanTask(ctx, subtask[i].ID)
 		}
 	}
 	return nil
@@ -466,11 +481,11 @@ func (s *ScanTaskSrv) AdaptTaskPause(ctx context.Context, taskID int64) error {
 			Filter:  filter,
 		})
 		if err != nil {
-			s.Log.Err(err).Int64("taskID", taskID).Msg("UpdateSubTaskTerminate")
+			s.Log.Err(err).Int64("taskID", taskID).Msg("AdaptPreScan AdaptTaskPause")
 			return err
 		}
 		if len(subtask) == 0 {
-			s.Log.Err(err).Int64("taskID", taskID).Msg("UpdateSubTaskTerminate finished")
+			s.Log.Info().Int64("taskID", taskID).Msg("AdaptPreScan AdaptTaskPause finished")
 			break
 		}
 		startId = subtask[len(subtask)-1].ID
@@ -480,7 +495,6 @@ func (s *ScanTaskSrv) AdaptTaskPause(ctx context.Context, taskID int64) error {
 				continue
 			}
 			subtaskIds = append(subtaskIds, subtask[i].ID)
-
 		}
 
 		if len(subtaskIds) == 0 {
@@ -549,4 +563,217 @@ func (s *ScanTaskSrv) AdaptTaskPending(ctx context.Context, taskID int64) error 
 
 	}
 	return nil
+}
+
+var scanMigrator *MigrateScanSrv
+
+type MigrateScanSrv struct {
+	MqWriter        mq.Writer
+	ScanIssueDal    imagesecStore.ScanIssueDal
+	ScanResultDal   imagesecStore.ScanResultDal
+	PreImageService migrateTypes.ImageService // 原来老表的逻辑
+
+	Log *scannerUtils.LogEvent
+}
+
+func GetImageMigrate() (*MigrateScanSrv, error) {
+	if scanMigrator != nil {
+		return scanMigrator, nil
+	}
+
+	mqWriter, err := mq.GetClientFactory().Writer(context.Background())
+	if err != nil {
+		err1 := fmt.Errorf("failed to create mq reader:%s", err.Error())
+		return nil, err1
+	}
+	rdbInstance := store.GetRDBInstance()
+	scanResultDal := imagesecStore.NewScanResultDao(rdbInstance)
+	scanIssueDal := imagesecStore.NewScanIssueDao(rdbInstance)
+	preLib := imagemeta.NewPreLibImageSrv()
+	scanMigrator := &MigrateScanSrv{
+		MqWriter:        mqWriter,
+		ScanIssueDal:    scanIssueDal,
+		ScanResultDal:   scanResultDal,
+		PreImageService: preLib,
+		Log:             scannerUtils.NewLogEvent(scannerUtils.WithModule("ScanTaskSrv"), scannerUtils.WithSubModule("AdaptPreSubtask")),
+	}
+	return scanMigrator, nil
+}
+
+// 保存低版本的扫描任务结果
+func (s *MigrateScanSrv) MigrateScan(ctx context.Context, imageID int64, subtaskID int64) error {
+
+	data, vulns, err := s.PreImageService.GetImageCorrelateData(ctx, imageID)
+
+	if err != nil {
+		s.Log.Err(err).Msg("GetImageCorrelateData failed")
+		return err
+	}
+
+	// 漏洞和软件包的数据要直接入库
+	vulnIssue := getVulnToImage(data)
+	pkgIssue := getPkgToImage(data)
+
+	s.Log.Err(err).Int64("imageID", imageID).Int("vulnIssue", len(vulnIssue)).Int("pkgIssue", len(pkgIssue)).
+		Int("vuln", len(vulns)).Int("pkg", len(data.Pkg)).Msg("MigrateImage")
+
+	if err := s.ScanResultDal.CreatePkg(ctx, data.Pkg); err != nil {
+		s.Log.Err(err).Int64("imageID", imageID).Msg("MigrateImage CreatePkg")
+	}
+	if err := s.ScanResultDal.CreateVuln(ctx, imagesecModel.CreateVulnParam{
+		Data: vulns,
+	}); err != nil {
+		s.Log.Err(err).Int64("imageID", imageID).Msg("MigrateImage vuln")
+	}
+
+	if err := s.ScanIssueDal.CreateVulnToImage(ctx, imagesecModel.CreateVulnToImageParam{
+		ImageUniqueID: data.Image.UniqueID,
+		Data:          vulnIssue,
+	}); err != nil {
+		s.Log.Err(err).Int64("imageID", imageID).Msg("MigrateImage CreateVulnToImage")
+	}
+
+	if err := s.ScanIssueDal.CreatePkgToImage(ctx, imagesecModel.CreatePkgToImageParam{
+		ImageUniqueID: data.Image.UniqueID,
+		Data:          pkgIssue,
+	}); err != nil {
+		s.Log.Err(err).Msg("MigrateImage CreatePkgToImage")
+	}
+
+	scanRes := toScanResult(data, subtaskID)
+
+	scanRes.ImageUniqueID = data.Image.UniqueID
+
+	// 其他的数据发 kafka
+	_ = s.sendScanResultToKafka(ctx, scanRes)
+
+	s.Log.Info().Int64("imageID", imageID).Str("imageName", data.Image.GetImageName()).Msg("MigrateImage success")
+	return nil
+}
+
+func (s *MigrateScanSrv) sendScanResultToKafka(ctx context.Context, scanResult imagesecType.ReportScanResult) error {
+	sendData, err := json.Marshal(scanResult)
+	if err != nil {
+		s.Log.Err(err).Msg("failed to marshal scanResult")
+		return err
+	}
+	err = s.MqWriter.Write(context.Background(),
+		consts.NodeImageScanResultTopic,
+		kafka.Message{
+			Key:   []byte(consts.NodeImageScanResultKey),
+			Value: sendData,
+		})
+	if err != nil {
+		s.Log.Err(err).Msg("failed to send result to kafka")
+		return err
+	}
+	s.Log.Info().Msg("send kafka scan result end")
+	return nil
+}
+
+func toScanResult(data *imagesecModel.ImageWithCorrelateData2, subtaskID int64) imagesecType.ReportScanResult {
+	sensitiveFiles := make([]imagesecType.SensitiveFile, 0)
+	for _, sens := range data.Sensitive {
+		se := imagesecType.SensitiveFile{
+			Filename:      sens.Filename,
+			DescriptionEn: sens.DescriptionEn,
+			DescriptionZh: sens.DescriptionZh,
+		}
+		sensitiveFiles = append(sensitiveFiles, se)
+	}
+
+	// avira := make([]imagesecType.AviraScanResult2, 0)
+	//
+	// for i := range data.Malware {
+	// 	mal := data.Malware[i]
+	// 	ma := imagesecType.AviraScanResult2{
+	// 		Filename:    mal.Filename,
+	// 		MD5:         mal.Hash,
+	// 		Type:        mal.MalwareType,
+	// 		Name:        mal.Name,
+	// 		Description: mal.Description,
+	// 		Layer:       mal.Layer,
+	// 	}
+	// 	avira = append(avira, ma)
+	// }
+
+	webshell := make([]imagesecType.HmWebshell, 0)
+
+	for _, wb := range data.WebshellView {
+		mod := strings.Join([]string{wb.Mod.User, wb.Mod.Group, wb.Mod.Perm}, " ")
+		size, _ := strconv.ParseInt(wb.Size, 10, 64)
+		web := imagesecType.HmWebshell{
+			Filename:            wb.Filename,
+			MD5:                 wb.MD5,
+			Mod:                 mod,
+			Size:                size,
+			Code:                wb.CodeContent(),
+			RiskLevel:           wb.RiskLevel,
+			Description:         wb.Description,
+			FilePathInContainer: wb.Filepath,
+		}
+		webshell = append(webshell, web)
+	}
+
+	res := imagesecType.ReportScanResult{
+		IgnoreVulnPkg: true,
+		SubTaskID:     subtaskID,
+		OS:            data.Image.OS,
+		Sensitives:    imagesecType.SensitiveFileResults{SensitiveFiles: sensitiveFiles},
+		// Malware:          imagesecType.MalwareResults{AviraScanResults: avira},
+		Webshell: imagesecType.WebshellResults{HmWebshells: webshell},
+	}
+	return res
+}
+
+func getVulnToImage(data *imagesecModel.ImageWithCorrelateData2) []*imagesecModel.VulnToImage {
+
+	res := make([]*imagesecModel.VulnToImage, 0)
+
+	im := data.Image
+	im.ImageFromType = imagesecModel.ImageFromRegistry
+
+	imageUniqueID := im.GenUniqueID()
+
+	for i := range data.Vuln {
+		vu := data.Vuln[i]
+		pkg := imagesecModel.Pkg{
+			Name:    vu.PkgName,
+			Version: vu.PkgVersion,
+		}
+		pkgUniqueID := pkg.GenUniqueID()
+		vu2 := imagesecModel.Vuln{Name: data.Vuln[i].Name, PkgUniqueID: pkgUniqueID}
+		vulnUniqueID := vu2.GenUniqueID()
+
+		ti := &imagesecModel.VulnToImage{
+			UniqueTarget:  vulnUniqueID,
+			ImageUniqueID: imageUniqueID,
+		}
+		res = append(res, ti)
+	}
+	return res
+}
+
+func getPkgToImage(data *imagesecModel.ImageWithCorrelateData2) []*imagesecModel.PkgToImage {
+
+	im := data.Image
+	im.ImageFromType = imagesecModel.ImageFromRegistry
+	imageUniqueID := im.GenUniqueID()
+
+	issue := make([]*imagesecModel.PkgToImage, 0)
+	for i := range data.Pkg {
+		vu := data.Pkg[i]
+		pkg := imagesecModel.Pkg{
+			Name:    vu.Name,
+			Version: vu.Version,
+		}
+		pkgUniqueID := pkg.GenUniqueID()
+
+		pk := &imagesecModel.PkgToImage{
+			UniqueTarget:  pkgUniqueID,
+			ImageUniqueID: imageUniqueID,
+		}
+		issue = append(issue, pk)
+	}
+	return issue
 }

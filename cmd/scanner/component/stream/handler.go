@@ -124,7 +124,7 @@ func (vi *Handler) addSyncTask(s rpcstream.Stream, reqID, msgID string, payload 
 			Msg("receive rpc addSyncTask sync task")
 	}
 
-	status := vi.ImageSyncer.SyncImage(context.Background(), subTask)
+	status := vi.ImageSyncer.ReceiveSyncImage(context.Background(), subTask)
 	switch status {
 	case imagesecModel.TaskStatusImageSyncFinishedStr:
 		pong.ImageSecResp = &pb.ImageSecResp{BizMessage: status, BizCode: consts.StreamStatusSyncFinished}

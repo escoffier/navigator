@@ -269,8 +269,7 @@ func (s *ImageReport) RegImage(ctx context.Context, imageReport imagesecTypes.No
 	}
 
 	if err = s.imageDal.CreateRegImage(ctx, images); err != nil {
-		s.Log.Err(err).Interface("image", images).
-			Msg("CreateRegImage")
+		s.Log.Err(err).Interface("image", images).Msg("CreateRegImage")
 		return err
 	}
 

@@ -260,7 +260,7 @@ func (s *BoltVuln) Run() {
 }
 
 func (s *BoltVuln) GetVulnDetail(name string) ([]cnvd.Metadata, cnnvd.VulnerabilityInfo, error) {
-	logging.GetLogger().Info().Msgf("IN Query %s", name)
+	logging.GetLogger().Debug().Msgf("IN Query %s", name)
 	if s.customDB == nil {
 		return nil, cnnvd.VulnerabilityInfo{}, fmt.Errorf("db not open")
 	}

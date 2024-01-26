@@ -5,8 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"gitlab.com/security-rd/go-pkg/logging"
-
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -369,7 +367,9 @@ func AddImageSafeFlag(vi []*ImageDetectBrief, preFlag uint64) uint64 {
 	// 2，默认策略是开启的，且不可以关闭
 	// 如果之后需要有变动，则需要相应的变动
 	if len(vi) == 0 {
-		preFlag = util.SetBit0(util.SetBit0(util.SetBit1(preFlag, FlagImageSafeUnknown), FlagImageUnsafe), FlagImageSafe)
+		preFlag = util.SetBit1(preFlag, FlagImageSafeUnknown)
+		preFlag = util.SetBit0(preFlag, FlagImageUnsafe)
+		preFlag = util.SetBit0(preFlag, FlagImageSafe)
 		return preFlag
 	}
 
@@ -381,10 +381,14 @@ func AddImageSafeFlag(vi []*ImageDetectBrief, preFlag uint64) uint64 {
 		}
 	}
 	if safe {
-		preFlag = util.SetBit0(util.SetBit0(util.SetBit1(preFlag, FlagImageSafe), FlagImageUnsafe), FlagImageSafeUnknown)
+		preFlag = util.SetBit1(preFlag, FlagImageSafe)
+		preFlag = util.SetBit0(preFlag, FlagImageSafeUnknown)
+		preFlag = util.SetBit0(preFlag, FlagImageUnsafe)
+		return preFlag
 	} else {
-		preFlag = util.SetBit0(util.SetBit0(util.SetBit1(preFlag, FlagImageUnsafe), FlagImageSafe), FlagImageSafeUnknown)
+		preFlag = util.SetBit1(preFlag, FlagImageUnsafe)
+		preFlag = util.SetBit0(preFlag, FlagImageSafeUnknown)
+		preFlag = util.SetBit0(preFlag, FlagImageSafe)
+		return preFlag
 	}
-	logging.Get().Debug().Bool("safe", safe).Msg("AddImageSafeFlag")
-	return preFlag
 }

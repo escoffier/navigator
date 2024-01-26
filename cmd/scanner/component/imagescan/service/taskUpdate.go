@@ -326,9 +326,11 @@ func (s *ScanTaskSrv) UpdateTaskPause(ctx context.Context, taskID int64) error {
 		s.Log.Err(err).Msg("UpdateTaskPause")
 		return scani18.UpdateScanTask(err)
 	}
-	go func() { _ = s.UpdateSubTaskPause(ctx, taskID) }()
-	// 兼容老版本
-	go func() { _ = s.AdaptTaskPause(ctx, taskID) }()
+	go func() {
+		_ = s.UpdateSubTaskPause(ctx, taskID)
+		// 兼容老版本
+		_ = s.AdaptTaskPause(ctx, taskID)
+	}()
 	return nil
 }
 
@@ -347,9 +349,11 @@ func (s *ScanTaskSrv) UpdateTaskPending(ctx context.Context, taskID int64) error
 		s.Log.Err(err).Msg("UpdateTaskPause")
 		return scani18.UpdateScanTask(err)
 	}
-	go func() { _ = s.UpdateSubTaskPending(ctx, taskID) }()
-	// 兼容老版本
-	go func() { _ = s.AdaptTaskPending(ctx, taskID) }()
+	go func() {
+		_ = s.UpdateSubTaskPending(ctx, taskID)
+		// 兼容老版本
+		_ = s.AdaptTaskPending(ctx, taskID)
+	}()
 	return nil
 }
 

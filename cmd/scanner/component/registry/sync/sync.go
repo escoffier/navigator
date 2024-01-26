@@ -10,6 +10,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd/global"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
@@ -25,12 +26,13 @@ type RegSyncSrv struct {
 	registryDal   imagesecStore.RegistryDal
 	syncTaskDal   imagesecStore.SyncTaskDal
 	scanInsDal    imagesecStore.ScanInstanceDal
+	PreImageDal   adaptStore.ImageDal
 	Log           *scannerUtils.LogEvent
 }
 
 type ImageSyncService interface {
-	SyncImage(ctx context.Context, task imagesecModel.ImageSyncTask) string
-	AddSyncTask(ctx context.Context) error
+	CreateSyncTask(ctx context.Context) error
+	SyncImageMeta(ctx context.Context) error
 }
 
 func NewRegSyncSrv(
@@ -38,6 +40,7 @@ func NewRegSyncSrv(
 	registryDal imagesecStore.RegistryDal,
 	syncTaskDal imagesecStore.SyncTaskDal,
 	scanInsDal imagesecStore.ScanInstanceDal,
+	preImageDal adaptStore.ImageDal,
 ) *RegSyncSrv {
 	if sinRegSyncSrv != nil {
 		return sinRegSyncSrv
@@ -50,6 +53,7 @@ func NewRegSyncSrv(
 		registryDal:   registryDal,
 		syncTaskDal:   syncTaskDal,
 		scanInsDal:    scanInsDal,
+		PreImageDal:   preImageDal,
 		Log: scannerUtils.NewLogEvent(
 			scannerUtils.WithSubModule("Sync"),
 			scannerUtils.WithModule(consts.ModuleRegistryImage),
@@ -64,7 +68,8 @@ func NewRegSyncSrv(
 	return sinRegSyncSrv
 }
 
-func (s *RegSyncSrv) SyncImage(ctx context.Context, task imagesecModel.ImageSyncTask) string {
+// 接收同步任务
+func (s *RegSyncSrv) ReceiveSyncImage(ctx context.Context, task imagesecModel.ImageSyncTask) string {
 	switch task.SyncType {
 	case imagesecModel.CycleIncSync.String():
 		go func() { s.IncSyncChan <- task }()

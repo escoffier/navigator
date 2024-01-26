@@ -79,8 +79,8 @@ func (s *ScanResultReportSrv) CreateScanResult(ctx context.Context, data imagese
 	correlate := &imagesecModel.ImageWithCorrelateData2{Image: image}
 
 	correlate.Image.OS = data.OS
-	if !data.IgnoreVulnAndPkg {
-		// fixme 如果都是老集群，那么漏洞发现就没有数据
+	if !data.IgnoreVulnPkg {
+		// fixme 如果都是老集群，漏洞发现就没有数据
 		vulns, _ := s.CreatePkgVuln(ctx, &data, correlate)
 		// 在线镜像的漏洞
 		if util.ExistBit1(image.Flag, imagesecModel.FlagImageOnline) {
@@ -102,7 +102,7 @@ func (s *ScanResultReportSrv) CreateScanResult(ctx context.Context, data imagese
 		dd := DetectImageData{
 			ImageUniqueID: image.UniqueID,
 			SubtaskID:     data.SubTaskID,
-			CreatedAt:     time.Now().Unix(),
+			CreatedAt:     time.Now().UnixMilli(),
 			AllInCache:    s.AllInCache(ctx, data),
 		}
 		s.detectImageChan <- dd
@@ -827,7 +827,7 @@ func (s *ScanResultReportSrv) ContinueCreateDetectTask(ctx context.Context) erro
 			// 不再进行检测
 			if task.AllInCache {
 				updater := map[string]interface{}{
-					"updated_at": time.Now().Unix(),
+					"updated_at": time.Now().UnixMilli(),
 					"status":     imagesecModel.TaskStatusDetectFinished,
 					"status_str": imagesecModel.ScanStatusToStr(imagesecModel.TaskStatusDetectFinished),
 				}
@@ -838,7 +838,7 @@ func (s *ScanResultReportSrv) ContinueCreateDetectTask(ctx context.Context) erro
 					Where:   fmt.Sprintf("status < %d", imagesecModel.TaskStatusPause),
 				}); err != nil {
 					s.Log.Err(err).Int64("subtaskID", task.SubtaskID).Interface("updater", updater).
-						Msg("detect image bug update scan subtask error")
+						Msg("UpdateScanSubtask")
 				}
 				continue
 			}
@@ -865,7 +865,7 @@ func (s *ScanResultReportSrv) ContinueCreateDetectTask(ctx context.Context) erro
 				continue
 			}
 			s.Log.Info().Uint64("imageUniqueID", task.ImageUniqueID).
-				Msg("get scan finished subtask,create detect task succeed")
+				Msg("get finished scan subtask,create detect task succeed")
 		}
 	}()
 
@@ -1304,7 +1304,7 @@ func (s *ScanResultReportSrv) StatisticsMathRes(data report.Results) (int, int) 
 
 func (s *ScanResultReportSrv) AllInCache(ctx context.Context, res imagesecTypes.ReportScanResult) bool {
 	// 说明是数据迁移或兼容老版本
-	if res.IgnoreVulnAndPkg {
+	if res.IgnoreVulnPkg {
 		return false
 	}
 	for i := range res.LicenseCache {

@@ -806,7 +806,6 @@ func (dal *ScanResultDao) CreateVuln(ctx context.Context, param imagesecModel.Cr
 			logging.Get().Err(err).Str("module", "imagescan").Str("vulnName", vu.Name).Msg("CreateVuln")
 			continue
 		}
-
 		if param.OnlineVuln {
 			vu.OnlineVuln = true
 		}

@@ -13,6 +13,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 )
 
@@ -66,7 +67,8 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	syncTaskDal := imagesecStore.NewSyncTaskDao(rdb)
 	policyDal := imagesecStore.NewDetectPolicyDao(rdb)
 	scanConfigDal := imagesecStore.NewScanImageConfigDao(rdb)
-	syncSrv := sync.NewRegSyncSrv(mqWriter, registryDal, syncTaskDal, scanInstanceDal)
+	preImageDal := adaptStore.NewScannerOrm(rdb)
+	syncSrv := sync.NewRegSyncSrv(mqWriter, registryDal, syncTaskDal, scanInstanceDal, preImageDal)
 
 	registrySrv := regSrv.NewRegistrySrv(registryDal, syncTaskDal, scanInstanceDal, policyDal, scanConfigDal)
 

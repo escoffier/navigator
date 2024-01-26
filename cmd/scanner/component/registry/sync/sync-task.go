@@ -26,10 +26,10 @@ func (s *RegSyncSrv) getRegistryDriver(ctx context.Context, reg imagesecModel.Re
 	return drive, nil
 }
 
-func (s *RegSyncSrv) AddSyncTask(ctx context.Context) error {
+func (s *RegSyncSrv) CreateSyncTask(ctx context.Context) error {
 	// 仓库配置的周期全量同步任务
 	s.createFullSyncTask(ctx)
-	// 每开开启动同步任务
+	// 每天的自动同步任务
 	s.createCronSyncTask(ctx)
 	return nil
 }

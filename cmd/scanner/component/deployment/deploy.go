@@ -267,9 +267,10 @@ func (s *DeploySrv) CheckDeploy(ctx context.Context, param imagesecModel.DeployM
 	if err := s.CreateDeployRecord(ctx, &record); err != nil {
 		s.Log.Err(err).Msg("CheckDeploy CreateDeployRecord")
 	}
-
-	s.Log.Info().Interface("param", param).Str("action", act).
-		Msg("CheckDeploy end")
+	if record.Action == imagesecModel.DeployActionBlock {
+		s.Log.Info().Interface("param", param).Str("action", act).
+			Msg("CheckDeploy end and block")
+	}
 
 	return record.Action != imagesecModel.DeployActionBlock
 }

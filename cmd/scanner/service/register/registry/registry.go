@@ -14,6 +14,7 @@ import (
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse/support/hw-swr"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse/support/hw-swr-en"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse/support/jfrog"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/dispatch"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/sync"
@@ -37,12 +38,10 @@ func (s *RegSyncTask) Start(ctx context.Context) error {
 		logging.Get().Info().Msg("RegSyncTask not in main cluster")
 		return nil
 	}
-	_ = s.SyncSrv.AddSyncTask(ctx)
-
+	_ = s.SyncSrv.CreateSyncTask(ctx)
+	_ = s.SyncSrv.SyncImageMeta(ctx)
 	logging.Get().Info().Str("serviceName", serviceName).Msg("start success AddSyncTask")
-
 	_ = s.SyncTaskDispatcher.DispatchSyncTask(ctx)
-
 	logging.Get().Info().Str("serviceName", serviceName).Msg("start success DispatchSyncTask")
 	return nil
 }
@@ -71,7 +70,9 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	registryDal := imagesecStore.NewRegistryDao(rdbInstance)
 	scanInstanceDal := imagesecStore.NewScannerInstanceDao(rdbInstance)
 	syncTaskDal := imagesecStore.NewSyncTaskDao(rdbInstance)
-	syncSrv := sync.NewRegSyncSrv(mqWriter, registryDal, syncTaskDal, scanInstanceDal)
+	preImageDal := adaptStore.NewScannerOrm(rdbInstance)
+
+	syncSrv := sync.NewRegSyncSrv(mqWriter, registryDal, syncTaskDal, scanInstanceDal, preImageDal)
 
 	syncTaskDispatcher := dispatch.NewRegDispatchSrv(registryDal, syncTaskDal, scanInstanceDal)
 
