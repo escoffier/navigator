@@ -171,7 +171,7 @@ func (s *ImageUpdateSrv) cleanAfterDeleteRegistry(ctx context.Context) error {
 		for {
 			images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{
 				RegIds: []int64{reg.ID}, ImageFromType: imagesecModel.ImageFromRegistry,
-				Fields: []string{"id"}, Filter: filter})
+				Fields: []string{"id", "flag", "unique_id"}, Filter: filter})
 			if err != nil {
 				s.Log.Err(err).Int64("regID", reg.ID).Msg("cleanAfterDeleteRegistry DeleteImage")
 				return err
