@@ -129,16 +129,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	sensitiveRuleSrv := imagesecSrv.NewSensitiveRuleSrv(sensitiveRuleDal, scanImageConfigSrv)
 
 	nodeInfoSrv := imagesecSrv.NewNodeReportSrv(nodeDal)
-
-	// aviraUpdateSrv := aviraengin.NewAviraUpdateSrv()
-	// trivyUpdateSrv, err := scanTrivy.NewTrivySrv(scanTrivy.WithRedisCli(redCli))
-	// if err != nil {
-	// 	return nil, err
-	// }
-
-	// dbUpdateSrv := imagescanSrv.NewDBManagerSrv(aviraUpdateSrv, trivyUpdateSrv, scanDbMetaDal, nodeInfoDal, scanInstanceDal)
 	checker := detect.NewImagePolicyCheck()
-
 	deploySrv := deployService.NewDeploySrv(checker, imageDal, detectPolicyDal, scanResultDal, scanTaskDal, imageSrv, deployRecordDal)
 
 	exportSrv := scanReportService.NewExportTaskSrv(

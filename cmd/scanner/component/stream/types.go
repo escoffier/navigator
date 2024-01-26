@@ -18,7 +18,7 @@ type ScanSubtaskReceiver interface {
 }
 
 type ImageSyncer interface {
-	SyncImage(ctx context.Context, task imagesecModel.ImageSyncTask) string
+	ReceiveSyncImage(ctx context.Context, task imagesecModel.ImageSyncTask) string
 }
 
 type RpcPong struct {

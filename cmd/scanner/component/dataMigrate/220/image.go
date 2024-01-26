@@ -167,8 +167,7 @@ func (s *ImageMigrate) MigrateScan(ctx context.Context, imageID int64, subtaskID
 		s.Log.Err(err).Int64("imageID", imageID).Msg("MigrateImage CreatePkg")
 	}
 	if err := s.ScanResultDal.CreateVuln(ctx, imagesecModel.CreateVulnParam{
-		OnlineVuln: false,
-		Data:       vulns,
+		Data: vulns,
 	}); err != nil {
 		s.Log.Err(err).Int64("imageID", imageID).Msg("MigrateImage vuln")
 	}
@@ -277,10 +276,10 @@ func ToScanResult(data *imagesecModel.ImageWithCorrelateData2, subtaskID int64) 
 	}
 
 	res := imagesecType.ReportScanResult{
-		IgnoreVulnAndPkg: true,
-		SubTaskID:        subtaskID,
-		OS:               data.Image.OS,
-		Sensitives:       imagesecType.SensitiveFileResults{SensitiveFiles: sensitiveFiles},
+		IgnoreVulnPkg: true,
+		SubTaskID:     subtaskID,
+		OS:            data.Image.OS,
+		Sensitives:    imagesecType.SensitiveFileResults{SensitiveFiles: sensitiveFiles},
 		// Malware:          imagesecType.MalwareResults{AviraScanResults: avira},
 		Webshell: imagesecType.WebshellResults{HmWebshells: webshell},
 	}
@@ -294,7 +293,7 @@ func GetVulnToImage(data *imagesecModel.ImageWithCorrelateData2) []*imagesecMode
 	im := data.Image
 	im.ImageFromType = imagesecModel.ImageFromRegistry
 
-	iuid := im.GenUniqueID()
+	imageUniqueID := im.GenUniqueID()
 
 	for i := range data.Vuln {
 		vu := data.Vuln[i]
@@ -302,13 +301,13 @@ func GetVulnToImage(data *imagesecModel.ImageWithCorrelateData2) []*imagesecMode
 			Name:    vu.PkgName,
 			Version: vu.PkgVersion,
 		}
-		puid := pkg.GenUniqueID()
-		vu2 := imagesecModel.Vuln{Name: data.Vuln[i].Name, PkgUniqueID: puid}
-		vuid := vu2.GenUniqueID()
+		pkgUniqueID := pkg.GenUniqueID()
+		vu2 := imagesecModel.Vuln{Name: data.Vuln[i].Name, PkgUniqueID: pkgUniqueID}
+		vulnUniqueID := vu2.GenUniqueID()
 
 		ti := &imagesecModel.VulnToImage{
-			UniqueTarget:  vuid,
-			ImageUniqueID: iuid,
+			UniqueTarget:  vulnUniqueID,
+			ImageUniqueID: imageUniqueID,
 		}
 		res = append(res, ti)
 	}
@@ -319,7 +318,7 @@ func GetPkgToImage(data *imagesecModel.ImageWithCorrelateData2) []*imagesecModel
 
 	im := data.Image
 	im.ImageFromType = imagesecModel.ImageFromRegistry
-	iuid := im.GenUniqueID()
+	imageUniqueID := im.GenUniqueID()
 
 	issue := make([]*imagesecModel.PkgToImage, 0)
 	for i := range data.Pkg {
@@ -328,11 +327,11 @@ func GetPkgToImage(data *imagesecModel.ImageWithCorrelateData2) []*imagesecModel
 			Name:    vu.Name,
 			Version: vu.Version,
 		}
-		puid := pkg.GenUniqueID()
+		pkgUniqueID := pkg.GenUniqueID()
 
 		pk := &imagesecModel.PkgToImage{
-			UniqueTarget:  puid,
-			ImageUniqueID: iuid,
+			UniqueTarget:  pkgUniqueID,
+			ImageUniqueID: imageUniqueID,
 		}
 		issue = append(issue, pk)
 	}
@@ -555,7 +554,6 @@ func (s *ImageMigrate) MigrateExitData(ctx context.Context, ver string) error {
 		for i := range images {
 			image := images[i]
 			_ = s.MigrateImage(ctx, image.ID)
-			// _ = s.MigrateScan(ctx, image.ID, 0)
 		}
 		updater := map[string]interface{}{"last": fmt.Sprintf("%d", lastID)}
 		_ = s.DataMigrateDal.UpdateDataMigrate(ctx, mi.ID, updater)

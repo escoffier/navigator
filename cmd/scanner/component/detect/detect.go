@@ -33,7 +33,6 @@ type Detector struct {
 
 type UpdateImage struct {
 	ImageUniqueID uint64
-	ImageFromType string
 	CreateAt      int64
 	DetectResult  PolicyDetectResult2 // 当前镜像所有策略的匹配结果
 }
@@ -92,15 +91,6 @@ func (s *Detector) Start(ctx context.Context) {
 		}()
 		s.ContinueUpdateImage(ctx)
 	}()
-
-	// go func() {
-	// 	defer func() {
-	// 		if r := recover(); r != nil {
-	// 			s.Log.Error().Str("stack", string(debug.Stack())).Msg("recover")
-	// 		}
-	// 	}()
-	// 	s.ContinueUpdateTaskFinished(ctx)
-	// }()
 
 	go func() {
 		defer func() {
@@ -167,8 +157,7 @@ func (s *Detector) detectTask(ctx context.Context, task *imagesecModel.ImageDete
 			for i := range subData.SubtaskIds {
 				_ = s.UpdateDetectSubTask(ctx, subData.SubtaskIds[i], getEndUpdater(err))
 			}
-			s.Log.Err(err).Uint64("ImageUniqueID", subData.ImageUniqueID).
-				Msg("GetImageData")
+			s.Log.Err(err).Uint64("ImageUniqueID", subData.ImageUniqueID).Msg("GetImageData")
 			continue
 		}
 		if len(allPolicy) == 0 {
@@ -239,7 +228,6 @@ func (s *Detector) detectTask(ctx context.Context, task *imagesecModel.ImageDete
 
 		up := UpdateImage{
 			ImageUniqueID: imageData.Image.UniqueID,
-			ImageFromType: imageData.Image.ImageFromType,
 			CreateAt:      time.Now().UnixMilli(),
 			DetectResult:  resultAll,
 		}
@@ -305,8 +293,7 @@ func (s *Detector) GenSubtaskChan(ctx context.Context, task *imagesecModel.Image
 				continue
 			}
 			if len(detectSubtask) == 0 {
-				s.Log.Debug().Int64("taskID", task.ID).
-					Msg("scan image subtask finish")
+				s.Log.Debug().Int64("taskID", task.ID).Msg("scan image subtask finish")
 				continue
 			}
 			subtaskIds := make([]int64, 0)
@@ -477,8 +464,7 @@ func (s *Detector) UpdateDetectSubTask(ctx context.Context, subtaskID int64, upd
 		Updater: updater,
 	})
 	if err != nil {
-		s.Log.Err(err).Int64("subtaskID", subtaskID).
-			Msg("UpdateDetectSubTask")
+		s.Log.Err(err).Int64("subtaskID", subtaskID).Msg("UpdateDetectSubTask")
 		return err
 	}
 	return err
@@ -535,8 +521,7 @@ func (s *Detector) UpdateDetectTaskFinished(ctx context.Context) error {
 				s.Log.Err(err).Msg("UpdateScanTask")
 				return err
 			}
-			s.Log.Info().Int64("taskID", task.ID).
-				Msg("finished detect")
+			s.Log.Info().Int64("taskID", task.ID).Msg("finished detect")
 			continue
 		}
 
@@ -548,10 +533,8 @@ func (s *Detector) UpdateDetectTaskFinished(ctx context.Context) error {
 
 func (s *Detector) ContinueUpdateImage(ctx context.Context) {
 	for up := range s.updateImageChan {
-		s.Log.Debug().Uint64("imageUniqueID", up.ImageUniqueID).
-			Msg("UpdateImage get a image")
-
-		// 解决主从同步
+		s.Log.Debug().Uint64("imageUniqueID", up.ImageUniqueID).Msg("UpdateImage get a image")
+		// 解决可能的主从同步
 		// if time.Now().UnixMilli()-up.CreateAt < consts.DefaultSlaveDelay {
 		// 	time.Sleep(consts.DefaultSlaveDelay * time.Millisecond)
 		// }
@@ -559,23 +542,19 @@ func (s *Detector) ContinueUpdateImage(ctx context.Context) {
 			ImageUniqueID: up.ImageUniqueID,
 		})
 		if err != nil {
-			s.Log.Err(err).Uint64("ImageUniqueID", up.ImageUniqueID).
-				Msg("UpdateImage SearchDetectBrief")
+			s.Log.Err(err).Uint64("ImageUniqueID", up.ImageUniqueID).Msg("UpdateImage SearchDetectBrief")
 			continue
 		}
 		image, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{
-			ImageFromType: up.ImageFromType,
-			UniqueId:      up.ImageUniqueID,
+			UniqueId: up.ImageUniqueID,
 		})
 
 		if err != nil {
-			s.Log.Err(err).Uint64("ImageUniqueID", up.ImageUniqueID).
-				Msg("UpdateImage SearchImage")
+			s.Log.Err(err).Uint64("ImageUniqueID", up.ImageUniqueID).Msg("UpdateImage SearchImage")
 			continue
 		}
 		if len(image) == 0 {
-			s.Log.Info().Uint64("ImageUniqueID", up.ImageUniqueID).
-				Msg("not find image")
+			s.Log.Info().Uint64("ImageUniqueID", up.ImageUniqueID).Msg("not find image")
 			continue
 		}
 
@@ -583,25 +562,23 @@ func (s *Detector) ContinueUpdateImage(ctx context.Context) {
 
 		flag = GenImageIssueFlag(up.DetectResult, flag)
 
-		policyUniqueID := make([]uint64, 0)
+		policyUniqueIds := make([]uint64, 0)
 		for i := range brief {
 			if util.ExistBit1(brief[i].Flag, imagesecModel.FlagDetectException) {
-				policyUniqueID = append(policyUniqueID, brief[i].PolicyUniqueID)
+				policyUniqueIds = append(policyUniqueIds, brief[i].PolicyUniqueID)
 			}
 		}
-		policyUniqueStr := Uint64ToString(policyUniqueID)
+		policyUniqueStr := Uint64ToString(policyUniqueIds)
 
 		if image[0].Flag != flag || image[0].PolicyUniqueJson != policyUniqueStr {
-			s.Log.Debug().Uint64("imageUniqueID", up.ImageUniqueID).
-				Msg("finished image changed and UpdateImage")
+			s.Log.Debug().Uint64("imageUniqueID", up.ImageUniqueID).Msg("finished image changed and UpdateImage")
 
 			updater := map[string]interface{}{"flag": flag, "policy_unique_id": policyUniqueStr}
 			if err := s.imageDal.UpdateImage(ctx, imagesecModel.UpdateImageParam{
 				UniqueID: up.ImageUniqueID,
 				Updater:  updater,
 			}); err != nil {
-				s.Log.Err(err).Uint64("ImageUniqueID", up.ImageUniqueID).
-					Msg("UpdateImage")
+				s.Log.Err(err).Uint64("ImageUniqueID", up.ImageUniqueID).Msg("UpdateImage")
 				continue
 			}
 		}

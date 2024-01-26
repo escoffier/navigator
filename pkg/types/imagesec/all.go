@@ -137,28 +137,28 @@ func (vi *ScanSubTask) GenUniqueID() string {
 
 // ReportScanResult 镜像扫描结果.trivy的扫描结果为一个数组，我们会把结果扁平化放到此结构体里。
 type ReportScanResult struct {
-	UUID             string                  `json:"uuid"`      // 每次扫描任务的唯一标识
-	TaskID           int64                   `json:"taskID"`    // 对应的扫描任务id
-	SubTaskID        int64                   `json:"subTaskID"` // 对应的子任务id
-	ImageUniqueID    uint64                  `json:"imageUniqueID"`
-	OS               types.OS                `json:"os"`
-	Sensitives       SensitiveFileResults    `json:"sensitives"`        // 敏感文件
-	Malware          MalwareResults          `json:"malware"`           // 恶意软件扫描结果
-	Webshell         WebshellResults         `json:"webshell"`          // webshell 扫描结果
-	License          []License               `json:"license,omitempty"` // 镜像使用的license 名
-	WebFrameInfo     WebFrameInfo            `json:"webFrameInfo,omitempty"`
-	StatusStr        string                  `json:"statusStr,omitempty"`
-	Msg              string                  `json:"msg,omitempty"`
-	OriginArtifact   []ftypes.ArtifactDetail `json:"originArtifact,omitempty"` // irene扫描结果中的artifact。scanner利用这里的软件包信息做漏洞匹配.为了方便而设置，和vulnResult相比有冗余数据
-	Errors           []error                 `json:"-"`
-	SaveFileToKafka  []SaveFileToKafka       `json:"-"`
-	MalwareCache     []CacheScan             `json:"malwareCache,omitempty"`
-	SensitiveCache   []CacheScan             `json:"sensitiveCache,omitempty"`
-	LicenseCache     []CacheScan             `json:"licenseCache,omitempty"`
-	WebshellCache    []CacheScan             `json:"webshellCache,omitempty"`
-	VulnCache        []CacheScan             `json:"vulnCache,omitempty"`
-	DBVersion        RuleVersion             `json:"dbVersion,omitempty"`        // 主集群下发任务时，当前所使用的版本号
-	IgnoreVulnAndPkg bool                    `json:"ignoreVulnAndPkg,omitempty"` // 这个参数是为了做数据迁移及兼容老版本的扫描器
+	UUID            string                  `json:"uuid"`      // 每次扫描任务的唯一标识
+	TaskID          int64                   `json:"taskID"`    // 对应的扫描任务id
+	SubTaskID       int64                   `json:"subTaskID"` // 对应的子任务id
+	ImageUniqueID   uint64                  `json:"imageUniqueID"`
+	OS              types.OS                `json:"os"`
+	Sensitives      SensitiveFileResults    `json:"sensitives"`        // 敏感文件
+	Malware         MalwareResults          `json:"malware"`           // 恶意软件扫描结果
+	Webshell        WebshellResults         `json:"webshell"`          // webshell 扫描结果
+	License         []License               `json:"license,omitempty"` // 镜像使用的license 名
+	WebFrameInfo    WebFrameInfo            `json:"webFrameInfo,omitempty"`
+	StatusStr       string                  `json:"statusStr,omitempty"`
+	Msg             string                  `json:"msg,omitempty"`
+	OriginArtifact  []ftypes.ArtifactDetail `json:"originArtifact,omitempty"` // irene扫描结果中的artifact。scanner利用这里的软件包信息做漏洞匹配.为了方便而设置，和vulnResult相比有冗余数据
+	Errors          []error                 `json:"-"`
+	SaveFileToKafka []SaveFileToKafka       `json:"-"`
+	MalwareCache    []CacheScan             `json:"malwareCache,omitempty"`
+	SensitiveCache  []CacheScan             `json:"sensitiveCache,omitempty"`
+	LicenseCache    []CacheScan             `json:"licenseCache,omitempty"`
+	WebshellCache   []CacheScan             `json:"webshellCache,omitempty"`
+	VulnCache       []CacheScan             `json:"vulnCache,omitempty"`
+	DBVersion       RuleVersion             `json:"dbVersion,omitempty"`     // 主集群下发任务时，当前所使用的版本号
+	IgnoreVulnPkg   bool                    `json:"ignoreVulnPkg,omitempty"` // 这个参数是为了做数据迁移及兼容老版本的扫描器
 }
 
 type CacheScan struct {

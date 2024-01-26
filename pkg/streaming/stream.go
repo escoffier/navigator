@@ -10,9 +10,10 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	"k8s.io/client-go/tools/cache"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"google.golang.org/protobuf/types/known/anypb"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 )
 
 type ProcessFunc func(Stream, string, pb.MessageType, protoreflect.ProtoMessage) error
@@ -194,12 +195,12 @@ func (s *baseStream) Dispatch() error {
 
 		// process response
 		func() {
-			logging.Get().Info().Str("reqID", in.ReqUUID).Msg("dispatch deal resp data")
+			logging.Get().Debug().Str("reqID", in.ReqUUID).Msg("dispatch deal resp data")
 			s.sessionLock.RLock()
 			defer s.sessionLock.RUnlock()
 			session, ok := s.sessions[in.ReqUUID]
 			if ok {
-				logging.Get().Info().Str("reqID", in.ReqUUID).
+				logging.Get().Debug().Str("reqID", in.ReqUUID).
 					Msgf("dispatch receive resp:[ id: %s, create at: %v, ack: %v ]", in.ReqUUID, session.creareAt, session.ack)
 				if session.ack {
 					session.ack = false

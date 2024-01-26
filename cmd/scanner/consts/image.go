@@ -110,7 +110,8 @@ const (
 	MaxInprogressSubtaskPerNode = 5
 	MaxInprogressTask           = 5
 	MillisecondPerDay           = 24 * 60 * 60 * 1000
-	DefaultScanTimeout          = 30 // 30分钟
+	DefaultScanTimeout          = 30    // 30分钟
+	DefaultSlaveDelay           = 50000 // 5000毫秒
 )
 
 const (

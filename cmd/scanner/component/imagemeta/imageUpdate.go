@@ -28,11 +28,12 @@ type ImageUpdateSrv struct {
 	scanIssueDal    imagesecStore.ScanIssueDal
 	trustedDal      adaptStore.TrustedImageDal
 	configDal       imagesecStore.ScanImageConfigDal
-	nodeTaskDal     imagesecStore.ScanTaskDal
+	scanTaskDal     imagesecStore.ScanTaskDal
 	nodeDal         imagesecStore.NodeInfoDal
 	scanResult      imagesecStore.ScanResultDal
 	imageCacheDal   imagesecStore.ImageCacheDal
 	imageDetectSrv  detect.ImageDetectTaskService
+	preImageDal     adaptStore.ImageDal
 	TrustedDigest   map[string]struct{} // 可信镜像的 digest
 	OnlineUUID      map[uint32]struct{} // 在线镜像 UUID
 	Log             *scannerUtils.LogEvent
@@ -52,6 +53,7 @@ func NewImageUpdateSrv(
 	scanResult imagesecStore.ScanResultDal,
 	imageDetectSrv detect.ImageDetectTaskService,
 	imageCacheDal imagesecStore.ImageCacheDal,
+	preImageDal adaptStore.ImageDal,
 ) *ImageUpdateSrv {
 	srv := ImageUpdateSrv{
 		imageDal:        imageDal,
@@ -62,11 +64,12 @@ func NewImageUpdateSrv(
 		scanIssueDal:    scanIssueDal,
 		trustedDal:      trustedDal,
 		configDal:       configDal,
-		nodeTaskDal:     nodeTaskDal,
+		scanTaskDal:     nodeTaskDal,
 		nodeDal:         nodeDal,
 		scanResult:      scanResult,
 		imageDetectSrv:  imageDetectSrv,
 		imageCacheDal:   imageCacheDal,
+		preImageDal:     preImageDal,
 		TrustedDigest:   make(map[string]struct{}),
 		OnlineUUID:      make(map[uint32]struct{}),
 		Log: scannerUtils.NewLogEvent(
@@ -155,42 +158,55 @@ func (s *ImageUpdateSrv) cleanAfterDeleteRegistry(ctx context.Context) error {
 		reg := registries[j]
 
 		if err := s.updatePolicyAfterDeleteReg(ctx, reg.ID); err != nil {
-			s.Log.Err(err).Int64("regID", reg.ID).
-				Msg("cleanAfterDeleteRegistry updatePolicy")
+			s.Log.Err(err).Int64("regID", reg.ID).Msg("cleanAfterDeleteRegistry updatePolicy")
 			return err
 		}
 		if err := s.updateScanConfigAfterDeleteReg(ctx, reg.ID); err != nil {
-			s.Log.Err(err).Int64("regID", reg.ID).
-				Msg("cleanAfterDeleteRegistry updateScanConfig")
+			s.Log.Err(err).Int64("regID", reg.ID).Msg("cleanAfterDeleteRegistry updateScanConfig")
 			return err
 		}
 
-		var startID int64
 		filter := imagesecModel.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortAsc().SetSortFiledByID()
 
 		for {
 			images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{
 				RegIds: []int64{reg.ID}, ImageFromType: imagesecModel.ImageFromRegistry,
-				Fields: []string{"id", "flag", "unique_id"}, StartID: startID, Filter: filter})
+				Fields: []string{"id"}, Filter: filter})
 			if err != nil {
-				s.Log.Err(err).Int64("regID", reg.ID).
-					Msg("cleanAfterDeleteRegistry DeleteImage")
+				s.Log.Err(err).Int64("regID", reg.ID).Msg("cleanAfterDeleteRegistry DeleteImage")
 				return err
 			}
 			if len(images) == 0 {
 				break
 			}
-			startID = images[len(images)-1].ID
-
 			for i := range images {
 				if err := s.clearImage(ctx, images[i]); err != nil {
-					s.Log.Err(err).Int64("imageID", images[i].ID).
-						Msg("cleanAfterDeleteRegistry DeleteImage")
+					s.Log.Err(err).Int64("imageID", images[i].ID).Msg("cleanAfterDeleteRegistry DeleteImage")
 					return err
 				}
 			}
+			s.Log.Info().Int64("regId", reg.ID).Msg("cleanAfterDeleteRegistry delete registry and delete imageMeta finished")
 		}
 
+		// 老版本的镜像也要删除
+		for {
+			images, _, err := s.preImageDal.SearchImage(ctx, imagesecModel.SearchImageParam{RegIds: []int64{reg.ID}, Fields: []string{"id"}}, filter)
+
+			if err != nil {
+				s.Log.Err(err).Int64("regID", reg.ID).Msg("cleanAfterDeleteRegistry pre DeleteImage")
+				return err
+			}
+			if len(images) == 0 {
+				break
+			}
+			for i := range images {
+				if err := s.preImageDal.DeleteImage(ctx, images[i].ID); err != nil {
+					s.Log.Err(err).Int64("imageID", images[i].ID).Msg("cleanAfterDeleteRegistry pre DeleteImage")
+					return err
+				}
+			}
+			s.Log.Info().Int64("regId", reg.ID).Msg("cleanAfterDeleteRegistry delete registry and delete imageList finished")
+		}
 		_ = s.registryDal.DeleteRegistry(ctx, reg.ID)
 	}
 	return nil
@@ -769,7 +785,7 @@ func (s *ImageUpdateSrv) clearImage(ctx context.Context, image *imagesecModel.Im
 		return err
 	}
 
-	s.Log.Info().Msg("clearImage end")
+	s.Log.Info().Int64("imageID", image.ID).Msg("clearImage end")
 	return nil
 }
 

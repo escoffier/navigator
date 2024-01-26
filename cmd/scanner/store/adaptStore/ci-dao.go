@@ -594,7 +594,7 @@ func (c *CiDao) CreateCiVuln(ctx context.Context, data []*scanner_ci.CiVulns) er
 		}
 		if len(vulns) > 0 {
 			if vulns[0].CheckSum == vuln.CheckSum && vulns[0].Class == vuln.Class { // 经过测试，class变动时checkSum有可能不变动
-				logging.GetLogger().Info().Uint64("UniqueVuln", vuln.UniqueVuln).Uint64("CheckSum", vuln.CheckSum).Msg("CreateVuln not change")
+				logging.GetLogger().Debug().Uint64("UniqueVuln", vuln.UniqueVuln).Uint64("CheckSum", vuln.CheckSum).Msg("CreateVuln not change")
 			} else {
 				if err := c.UpdateVuln(ctx, fmt.Sprintf("id = %d", vulns[0].ID), nil, vuln); err != nil {
 					logging.GetLogger().Err(err).Uint64("UniqueVuln", vuln.UniqueVuln).Int64("ID", vulns[0].ID).Msg("CreateVuln")

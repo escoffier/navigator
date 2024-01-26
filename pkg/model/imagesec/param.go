@@ -172,6 +172,12 @@ type ImageDalParam struct {
 	Filter *Filter
 }
 
+func (vi *ImageDalParam) Serialize() {
+	if len(vi.RegIds) > 0 || len(vi.UniqueIds) > 0 || vi.UniqueId > 0 || vi.ID > 0 || len(vi.ImageIds) > 0 {
+		vi.ImageFromType = ""
+	}
+}
+
 func (vi *SearchImageParam) Check() error {
 	return nil
 }

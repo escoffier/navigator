@@ -6,10 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/segmentio/kafka-go"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecTypes "gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
@@ -18,7 +15,7 @@ import (
 func (s *RegSyncSrv) createImageExtender(ctx context.Context, image warehouse.Image) (*warehouse.ListImagesRes, error) {
 	layers := s.GetLayers(image)
 	configFile := GetConfigFile(image)
-	report := &imagesecTypes.NodeReport{
+	report := imagesecTypes.NodeReport{
 		UUID:       util.GenerateUUIDHex(),
 		RegImages:  make([]imagesecTypes.ImageMeta, 0),
 		ReportedAt: time.Now().UnixMilli(),
@@ -44,21 +41,9 @@ func (s *RegSyncSrv) createImageExtender(ctx context.Context, image warehouse.Im
 
 	report.RegImages = append(report.RegImages, *imageMeta)
 
-	bys, err := json.Marshal(report)
-	if err != nil {
-		s.Log.Err(err).Msg("Marshal")
-		return nil, err
-	}
-
-	msg := kafka.Message{
-		Topic: consts.NodeImageTopic,
-		Key:   []byte(consts.NodeImageKey),
-		Value: bys,
-	}
-
-	if err := s.MqWriter.Write(ctx, msg.Topic, msg); err != nil {
-		s.Log.Err(err).Msg("SyncAllImage SendToMq")
-		return nil, err
+	if err := s.sendImageToKafka(ctx, report); err != nil {
+		s.Log.Err(err).Msg("sendImageToKafka")
+		return &warehouse.ListImagesRes{}, err
 	}
 	s.Log.Debug().Msg("sync a image and send to kafka")
 
