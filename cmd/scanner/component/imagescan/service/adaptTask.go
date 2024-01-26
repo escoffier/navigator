@@ -183,7 +183,7 @@ func (s *ScanTaskSrv) MigratePreSubtask(ctx context.Context) error {
 						continue
 					}
 					if len(preSub) == 0 {
-						s.Log.Info().Int64("subtaskID", subtaskID).Msg("AdaptPreScan not find pre subtask")
+						s.Log.Debug().Int64("subtaskID", subtaskID).Msg("AdaptPreScan not find pre subtask")
 						continue
 					}
 
@@ -194,7 +194,7 @@ func (s *ScanTaskSrv) MigratePreSubtask(ctx context.Context) error {
 					case preConsts.ImageScanFailed:
 						_ = s.updateFailed(ctx, su)
 					default:
-						s.Log.Info().Int64("taskID", sub.TaskID).Int64("subtaskID", sub.ID).
+						s.Log.Debug().Int64("taskID", sub.TaskID).Int64("subtaskID", sub.ID).
 							Str("ImageName", sub.ImageName).Uint8("status", su.Status).Msg("AdaptPreScan subtask not finished waite next")
 					}
 				}
