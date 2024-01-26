@@ -78,7 +78,7 @@ func (h *HarborV1) ListProjects() ([]Project, error) {
 		page++
 	}
 
-	logging.GetLogger().Info().Msgf("projects %+v", projects)
+	logging.GetLogger().Debug().Msgf("projects %+v", projects)
 	return projects, nil
 }
 
@@ -129,7 +129,7 @@ func (h *HarborV1) ListProjectRepos(project int) ([]Repository, error) {
 		page++
 	}
 
-	logging.GetLogger().Info().Interface("repos", repos).Msg("ListProjectRepos")
+	logging.GetLogger().Debug().Interface("repos", repos).Msg("ListProjectRepos")
 	return repos, nil
 }
 

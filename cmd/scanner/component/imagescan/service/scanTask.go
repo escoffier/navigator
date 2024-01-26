@@ -161,6 +161,9 @@ func (s *ScanTaskSrv) SearchScanTask(ctx context.Context, param imagesecModel.Se
 		s.Log.Err(err).Interface("param", param).Msg("SearchScanTask")
 		return nil, 0, scani18.SearchScanTask(err)
 	}
+	if len(tasks) == 0 {
+		return tasks, cnt, nil
+	}
 	user := make([]string, 0)
 	for i := range tasks {
 		group, err := s.taskDal.GroupScanSubtask(ctx, imagesecModel.SearchTaskParam{TaskID: tasks[i].ID})
@@ -201,6 +204,10 @@ func (s *ScanTaskSrv) SearchScanSubtask(ctx context.Context, param imagesecModel
 	if err != nil {
 		s.Log.Err(err).Interface("param", param).Msg("SearchScanTask")
 		return nil, 0, scani18.SearchScanTask(err)
+	}
+
+	if len(subtasks) == 0 {
+		return subtasks, cnt, nil
 	}
 	imageUniqueIds := make([]uint64, 0)
 	nodeUniqueIds := make([]uint64, 0)
