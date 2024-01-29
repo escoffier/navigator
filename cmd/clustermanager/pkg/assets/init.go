@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	rsearch "github.com/March-deng/godisearch/redisearch"
 	"github.com/go-redis/redis/v8"
@@ -58,13 +59,19 @@ func Watcher(rdb *databases.RDBInstance,
 		return nil, errors.New("illegal argument")
 	}
 	initOnce.Do(func() {
-
-		if searchClient != nil {
-			for _, index := range AssetIndices {
-				logging.Get().Info().Msgf("checking %s index from redis", index.Name)
+		if searchClient == nil {
+			return
+		}
+		wg := sync.WaitGroup{}
+		startSync := time.Now()
+		for _, index := range AssetIndices {
+			wg.Add(1)
+			go func(indexS redisearch.RedisIndexSchema) {
+				defer wg.Done()
+				logging.Get().Info().Msgf("checking %s index from redis", indexS.Name)
 				ctx := context.Background()
 				needSync := false
-				_, err := searchClient.Info(ctx, index.Name)
+				_, err := searchClient.Info(ctx, indexS.Name)
 				if err != nil && err != redisearch.ErrIndexNotFound {
 					initErr = err
 					return
@@ -74,22 +81,25 @@ func Watcher(rdb *databases.RDBInstance,
 					needSync = true
 				}
 
-				err = searchClient.CreateIndex(ctx, index)
+				err = searchClient.CreateIndex(ctx, &indexS)
 				if err != nil {
+					logging.Get().Info().Msgf("CreateIndex err")
 					initErr = err
 					return
 				}
-				if needSync && redisSynchronizationFunc[index.Name] != nil {
-					logging.Get().Info().Msgf("%s need to sync to redis", index.Name)
-					if syncErr := redisSynchronizationFunc[index.Name](rdb, searchClient, 1000); syncErr != nil {
+				if needSync && redisSynchronizationFunc[indexS.Name] != nil {
+					logging.Get().Info().Msgf("%s need to sync to redis", indexS.Name)
+					if syncErr := redisSynchronizationFunc[indexS.Name](rdb, searchClient, 1000); syncErr != nil {
 						initErr = syncErr
 						return
 					}
 				}
-			}
+			}(*index)
 		}
-
+		wg.Wait()
+		logging.Get().Info().Msgf("sync assets to redis costs: %d ms", time.Now().Sub(startSync).Milliseconds())
 		if initErr != nil {
+			logging.Get().Err(initErr).Msgf("sync assets to redis failed.")
 			return
 		}
 
@@ -161,21 +171,26 @@ func SyncResourceToRedis(rdb *databases.RDBInstance, redisearchClis *redisearch.
 	ctx := context.Background()
 	cursor = minID - 1
 
+	tmpDb := db.Model(m).Select("id", "name", "namespace", "cluster_key", "kind", "generation", "updated_at", "pod_template").
+		Where("status = ? ", 0).Limit(size).Order("id asc")
+	docList := make([]rsearch.Document, size)
 	for finished < total {
 		resources = resources[:0]
 
-		err = db.Model(m).Where("status = ? ", 0).Where("id > ?", cursor).Limit(size).Order("id asc").Find(&resources).Error
+		err = tmpDb.Where("id > ?", cursor).Find(&resources).Error
 		if err != nil {
 			return err
 		}
-
-		for _, resource := range resources {
+		if len(resources) == 0 {
+			return nil
+		}
+		for i, resource := range resources {
 			imageList := make([]string, 0)
 			for _, image := range resource.Images() {
 				imageList = append(imageList, cast.ToString(image))
 			}
 
-			doc := rsearch.NewDocument(fmt.Sprintf("resource:%d", resource.ID), 1).
+			docList[i] = rsearch.NewDocument(fmt.Sprintf("resource:%d", resource.ID), 1).
 				Set("id", resource.ID).
 				Set("name", resource.Name).
 				Set("namespace", resource.Namespace).
@@ -184,18 +199,19 @@ func SyncResourceToRedis(rdb *databases.RDBInstance, redisearchClis *redisearch.
 				Set("generation", resource.Generation).
 				Set("updated_at", resource.UpdatedAt.UnixMilli()).
 				Set("images", strings.Join(imageList, ","))
-
-			err = ic.AddDoc(ctx, doc)
-			if err != nil {
-				logging.Get().Fatal().Msgf("err occured when insert to %d resource to redis, err: %v", resource.ID, err)
-			}
 			err = addResourceImages(ctx, ic, resource.ID, resource.Images())
 			if err != nil {
 				logging.Get().Fatal().Msgf("err occured when add %d resource images to redis, err: %v", resource.ID, err)
 			}
-			cursor = resource.ID
-			finished++
 		}
+
+		err = ic.AddDoc(ctx, docList[:len(resources)]...)
+		if err != nil {
+			logging.Get().Fatal().Msgf("err occured when sync resource to redis, err: %v", err)
+		}
+		cursor = resources[len(resources)-1].ID
+		finished += int64(len(resources))
+
 		logging.Get().Info().Msgf("finished: %d, total: %d, %d/%d, percentage: %.2f, next start point: %d \n", finished, total, finished, total, float64(finished)/float64(total), cursor)
 	}
 
@@ -260,23 +276,29 @@ func SyncPodToRedis(rdb *databases.RDBInstance, redisearchClis *redisearch.Clien
 	}
 
 	minID = pods[0].ID
-	fmt.Printf("got %d pods, min pod id: %d \n", total, minID)
+	logging.Get().Info().Msgf("got %d pods, min pod id: %d \n", total, minID)
 
 	ctx := context.Background()
 	cursor = minID - 1
 
+	tmpDb := db.Model(m).Select("id", "pod_name", "cluster_key", "node_name", "resource_kind", "resource_name", "namespace", "pod_ip", "updated_at", "created_at").
+		Where("status = ? ", 0).Limit(size).Order("id asc")
+	docList := make([]rsearch.Document, size)
 	for finished < total {
 		pods = pods[:0]
 
-		err = db.Model(m).Where("status = ? ", 0).Where("id > ?", cursor).Limit(size).Order("id asc").Find(&pods).Error
+		err = tmpDb.Where("id > ?", cursor).Find(&pods).Error
 		if err != nil {
 			return err
 		}
+		if len(pods) == 0 {
+			return nil
+		}
 
-		for _, rel := range pods {
+		for i, rel := range pods {
 			docID := fmt.Sprintf("pod:%d", rel.ID)
 
-			doc := rsearch.NewDocument(docID, 1).
+			docList[i] = rsearch.NewDocument(docID, 1).
 				Set("id", rel.ID).
 				Set("pod_name", rel.PodName).
 				Set("cluster_key", rel.ClusterKey).
@@ -287,16 +309,16 @@ func SyncPodToRedis(rdb *databases.RDBInstance, redisearchClis *redisearch.Clien
 				Set("pod_ip", rel.PodIP).
 				Set("updated_at", rel.UpdatedAt.UnixMilli()).
 				Set("created_at", rel.CreatedAt.UnixMilli())
-
-			err = ic.AddDoc(ctx, doc)
-			if err != nil {
-				panic(fmt.Sprintf("err occured when insert to %d pod to redis, err: %v", rel.ID, err))
-			}
-			cursor = rel.ID
-			finished++
 		}
 
-		fmt.Printf("finished: %d, total: %d, %d/%d, percentage: %.2f, next start point: %d \n", finished, total, finished, total, float64(finished)/float64(total), cursor)
+		err = ic.AddDoc(ctx, docList[:len(pods)]...)
+		if err != nil {
+			panic(fmt.Sprintf("err occured when sync pod to redis, err: %v", err))
+		}
+		cursor = pods[len(pods)-1].ID
+		finished += int64(len(pods))
+
+		logging.Get().Info().Msgf("finished: %d, total: %d, %d/%d, percentage: %.2f, next start point: %d \n", finished, total, finished, total, float64(finished)/float64(total), cursor)
 	}
 	return nil
 }
@@ -337,30 +359,33 @@ func SyncRawContainerToRedis(rdb *databases.RDBInstance, redisearchClis *redisea
 
 	minID = containers[0].ContainerID
 
-	fmt.Printf("got %d raw containers, min container id: %s \n", total, minID)
+	logging.Get().Info().Msgf("got %d raw containers, min container id: %s \n", total, minID)
 
 	var include = true
 	cursor = minID
 
 	ctx := context.Background()
 
+	tmpDb := db.Model(m).Where("status < ?", 5).Limit(size).Order("id asc").
+		Select("id", "status", "cluster_key", "k8s_managed", "node_name", "namespace", "pod_name", "name", "resource_name", "updated_at")
+	docList := make([]rsearch.Document, size)
 	for finished < total {
 		containers = containers[:0]
-
 		if include {
-			err = db.Model(m).Where("status < ?", 5).Where("id >= ?", cursor).Limit(size).Order("id asc").Find(&containers).Error
-
+			err = tmpDb.Where("id >= ?", cursor).Find(&containers).Error
 		} else {
-			err = db.Model(m).Where("status < ? ", 5).Where("id > ?", cursor).Limit(size).Order("id asc").Find(&containers).Error
-
+			err = tmpDb.Where("id > ?", cursor).Find(&containers).Error
 		}
 
 		if err != nil {
 			return err
 		}
+		if len(containers) == 0 {
+			return nil
+		}
 
-		for _, container := range containers {
-			doc := rsearch.NewDocument(fmt.Sprintf("rawContainer:%s", container.ContainerID), 1).
+		for i, container := range containers {
+			docList[i] = rsearch.NewDocument(fmt.Sprintf("rawContainer:%s", container.ContainerID), 1).
 				Set("id", container.ContainerID).
 				Set("status", pkgassets.GetRawContainerStatus(int(container.Status))).
 				Set("cluster_key", container.ClusterKey).
@@ -371,18 +396,15 @@ func SyncRawContainerToRedis(rdb *databases.RDBInstance, redisearchClis *redisea
 				Set("name", container.Name).
 				Set("resource_name", container.ResourceName).
 				Set("updated_at", container.UpdatedAt.UnixMilli())
-
-			err = ic.AddDoc(ctx, doc)
-			if err != nil {
-				panic(fmt.Sprintf("err occured when insert to %s raw container to redis, err: %v", container.ContainerID, err))
-			}
-			cursor = container.ContainerID
-			finished++
 		}
-
+		err = ic.AddDoc(ctx, docList[:len(containers)]...)
+		if err != nil {
+			panic(fmt.Sprintf("err occured when sync  raw container to redis, err: %v", err))
+		}
+		cursor = containers[len(containers)-1].ContainerID
+		finished += int64(len(containers))
 		include = false
-
-		fmt.Printf("finished: %d, total: %d, %d/%d, percentage: %.2f, next start point: %s \n", finished, total, finished, total, float64(finished)/float64(total), cursor)
+		logging.Get().Info().Msgf("finished: %d, total: %d, %d/%d, percentage: %.2f, next start point: %s \n", finished, total, finished, total, float64(finished)/float64(total), cursor)
 	}
 
 	return nil

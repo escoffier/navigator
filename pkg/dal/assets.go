@@ -6264,32 +6264,33 @@ func DeleteClusterAll(ctx context.Context, rdb *gorm.DB, clusterKey string) erro
 			return err
 		}
 
-		err = tx.Table(model.TensorRawContainerFramework{}.TableName()).
+		var ids []uint32
+		err = tx.Model(&model.TensorRawContainerFramework{}).Select("ivan_assets_raw_containers_frameworks.id").
 			Joins("join ivan_assets_raw_containers on ivan_assets_raw_containers.id =  ivan_assets_raw_containers_frameworks.raw_container_id").
-			Where("ivan_assets_raw_containers.cluster_key = ?", clusterKey).Delete(&model.TensorRawContainerFramework{}).Error
+			Where("ivan_assets_raw_containers.cluster_key = ?", clusterKey).Scan(&ids).Error
 		if err != nil {
 			return err
 		}
+		if len(ids) > 0 {
+			err = tx.Table(model.TensorRawContainerFramework{}.TableName()).
+				Where("in  = ?", ids).Delete(&model.TensorRawContainerFramework{}).Error
+			if err != nil {
+				return err
+			}
+		}
 
-		err = tx.Table(model.TensorRawContainerSvc{}.TableName()).
+		err = tx.Table(model.TensorRawContainerSvc{}.TableName()).Select("ivan_assets_raw_containers_svcs.id").
 			Joins("join ivan_assets_raw_containers on ivan_assets_raw_containers.id =  ivan_assets_raw_containers_svcs.raw_container_id").
-			Where("ivan_assets_raw_containers.cluster_key = ?", clusterKey).Delete(&model.TensorRawContainerSvc{}).Error
+			Where("ivan_assets_raw_containers.cluster_key = ?", clusterKey).Scan(&ids).Error
 		if err != nil {
 			return err
 		}
-
-		err = tx.Table(model.TensorRawContainerFramework{}.TableName()).
-			Joins("join ivan_assets_raw_containers on ivan_assets_raw_containers.id =  ivan_assets_raw_containers_frameworks.raw_container_id").
-			Where("ivan_assets_raw_containers.cluster_key = ?", clusterKey).Delete(&model.TensorRawContainerFramework{}).Error
-		if err != nil {
-			return err
-		}
-
-		err = tx.Table(model.TensorRawContainerSvc{}.TableName()).
-			Joins("join ivan_assets_raw_containers on ivan_assets_raw_containers.id =  ivan_assets_raw_containers_svcs.raw_container_id").
-			Where("ivan_assets_raw_containers.cluster_key = ?", clusterKey).Delete(&model.TensorRawContainerSvc{}).Error
-		if err != nil {
-			return err
+		if len(ids) > 0 {
+			err = tx.Table(model.TensorRawContainerSvc{}.TableName()).
+				Where("in  = ?", ids).Delete(&model.TensorRawContainerSvc{}).Error
+			if err != nil {
+				return err
+			}
 		}
 
 		err = tx.Where("cluster_key = ?", clusterKey).Delete(&model.TensorRawContainer{}).Error
