@@ -250,7 +250,7 @@ func (api *api) getAssetsCustomTags(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *api) getAssetsCountInTag(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
 	tagId, _ := param.QueryString(r, "tagId")
