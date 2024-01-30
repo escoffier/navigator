@@ -91,10 +91,17 @@ func UpsertContainerStatus(ctx context.Context, rdb *gorm.DB, dbIsTx bool, conta
 }
 
 func UpsertClusterManagerHeartbeat(ctx context.Context, rdb *gorm.DB, container *model.TensorsecContainerMonitor) error {
-	return rdb.WithContext(ctx).Model(&model.TensorsecContainerMonitor{}).Clauses(clause.OnConflict{
-		Columns:   []clause.Column{{Name: "id"}},
-		DoUpdates: clause.AssignmentColumns(onDupUpdatedForContainerStatus),
-	}).Create(container).Error
+	return rdb.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		err := tx.Model(&model.TensorsecContainerMonitor{}).Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "id"}},
+			DoUpdates: clause.AssignmentColumns(onDupUpdatedForContainerStatus),
+		}).Create(container).Error
+		if err != nil {
+			logging.Get().Err(err).Msg("monitor: UpsertClusterManagerHeartbeat failed.")
+		}
+		//	 clean other
+		return tx.Where("cluster_key=? and app_label =?  and id != ?", container.ClusterKey, container.AppLabel, container.ID).Delete(&model.TensorsecContainerMonitor{}).Error
+	})
 
 }
 
