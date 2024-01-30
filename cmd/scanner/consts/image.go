@@ -18,6 +18,8 @@ const (
 	SortByAsc              = "asc"
 	DuplicateKey           = "Duplicate"
 	RiskImageTOPN          = 5
+	RedisPositiveInfinity  = "+inf"
+	OnlineImageRedisKey    = "container_images"
 )
 
 const (

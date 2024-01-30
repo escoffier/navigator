@@ -203,7 +203,6 @@ func (s *RegSyncSrv) sendImageToKafka(ctx context.Context, report imagesecType.N
 		s.Log.Err(err).Msg("SyncAllImage SendToMq")
 		return err
 	}
-	s.Log.Info().Msg("send kafka image end")
 	return nil
 }
 

@@ -17,7 +17,6 @@ import (
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
-	rpcStream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
 	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 	imagesecTypes "gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
 )
@@ -27,7 +26,6 @@ type TaskDispatcherService interface {
 }
 
 type TaskDispatcher struct {
-	streamClient       rpcStream.MessageStream
 	taskDal            imagesecStore.ScanTaskDal
 	nodeImageSrv       types.ImageService
 	nodeInfoDal        imagesecStore.NodeInfoDal
@@ -190,8 +188,6 @@ func (s *TaskDispatcher) PublishSubtask(ctx context.Context) error {
 		return nil
 	}
 
-	s.streamClient = imagesecStream.MustGetGrpcStream()
-
 	s.Log.Info().Msg("Dispatcher PublishSubtask task dispatcher started")
 
 	scanNodeImageQueue := nodeImageTask.NewScanImageQueue(s.taskDal, s.nodeImageSrv, s.nodeInfoDal, s.sensitiveRuleDal)
@@ -262,10 +258,11 @@ func (s *TaskDispatcher) sendScanSubtask(ctx context.Context, req *pb.ImageSecRe
 	timeOutCxt, timeOutFunc := context.WithTimeout(ctx, 10*time.Second)
 
 	defer timeOutFunc()
-
-	rsp, err := s.streamClient.ScannerPushImageSecMsg(timeOutCxt, req)
+	// 使用时取 client，因为 clusterManager 可能重启动
+	streamClient := imagesecStream.MustGetGrpcStream()
+	rsp, err := streamClient.ScannerPushImageSecMsg(timeOutCxt, req)
 	if err != nil {
-		s.Log.Err(err).Interface("req", req).Msg("Dispatcher sendScanSubtask")
+		s.Log.Err(err).Str("req", ReqLogStr(req)).Msg("Dispatcher sendScanSubtask")
 		return err
 	}
 	if rsp.Status != consts.StreamStatusOK {

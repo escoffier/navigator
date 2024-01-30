@@ -34,6 +34,7 @@ type ImageUpdateSrv struct {
 	imageCacheDal   imagesecStore.ImageCacheDal
 	imageDetectSrv  detect.ImageDetectTaskService
 	preImageDal     adaptStore.ImageDal
+	onlineImageDal  imagesecStore.OnlineImageDal
 	TrustedDigest   map[string]struct{} // 可信镜像的 digest
 	OnlineUUID      map[uint32]struct{} // 在线镜像 UUID
 	Log             *scannerUtils.LogEvent
@@ -54,6 +55,7 @@ func NewImageUpdateSrv(
 	imageDetectSrv detect.ImageDetectTaskService,
 	imageCacheDal imagesecStore.ImageCacheDal,
 	preImageDal adaptStore.ImageDal,
+	onlineImageDal imagesecStore.OnlineImageDal,
 ) *ImageUpdateSrv {
 	srv := ImageUpdateSrv{
 		imageDal:        imageDal,
@@ -70,6 +72,7 @@ func NewImageUpdateSrv(
 		imageDetectSrv:  imageDetectSrv,
 		imageCacheDal:   imageCacheDal,
 		preImageDal:     preImageDal,
+		onlineImageDal:  onlineImageDal,
 		TrustedDigest:   make(map[string]struct{}),
 		OnlineUUID:      make(map[uint32]struct{}),
 		Log: scannerUtils.NewLogEvent(
@@ -364,7 +367,7 @@ func (s *ImageUpdateSrv) deleteOverdueImage(ctx context.Context) error {
 func (s *ImageUpdateSrv) updateOnlineImage(ctx context.Context) error {
 	updateVuln := metaGlobal.GetVulnUpdate()
 
-	uuids, err := s.imageDal.GetOnlineImageUUID(ctx)
+	uuids, err := s.onlineImageDal.GetOnlineImageUUID(ctx)
 	if err != nil {
 		s.Log.Err(err).Msg("updateOnlineImage")
 		return err

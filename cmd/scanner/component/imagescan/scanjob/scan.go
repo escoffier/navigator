@@ -137,7 +137,7 @@ func (s *RegImageScan) ReceiveScanSubtask(ctx context.Context, subtask imagesecT
 	s.Log.Info().Str("subtask", subtask.LogStr()).Msg("receive scan subtask")
 	exit := s.TaskQueue.Get(subtask.SubTaskID)
 	if exit {
-		s.Log.Info().Str("subtask", subtask.LogStr()).Msg("scan task is running")
+		s.Log.Info().Str("subtask", subtask.LogStr()).Msg("receive scan subtask,and subtask running")
 		return nil
 	}
 	go func() { s.SubtaskChan <- subtask }()

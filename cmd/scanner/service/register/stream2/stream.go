@@ -26,7 +26,6 @@ type RpcStream struct {
 }
 
 func (s *RpcStream) Start(ctx context.Context) error {
-
 	if err := s.Stream.Start(ctx); err != nil {
 		logging.Get().Err(err).Msg("RpcStream scanner start fail")
 		return err
