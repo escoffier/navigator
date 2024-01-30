@@ -118,7 +118,7 @@ func (s *InitScanner) createRegImageScanConfig(ctx context.Context) error {
 		ImageScanConfig: &imagesecModel.ImageScanConfig{
 			VulnFlush:     false,
 			MalwareFlush:  false,
-			AutoScanAdded: true,
+			AutoScanAdded: false,
 			DeepScan:      false,
 			SyncInterval:  10,
 			ScanTimeout:   30,

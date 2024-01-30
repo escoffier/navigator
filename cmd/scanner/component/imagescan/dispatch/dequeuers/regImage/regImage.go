@@ -301,7 +301,8 @@ func (s *RegImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, task
 				if sendSubtask >= s.Config.MaxProSubtaskPer {
 					// 如果任务队列满了，就休眠一段时间，减少数据库压力,
 					s.Log.Info().Str("scanInstance", no.LogStr()).Int64("cnt", sendSubtask).Msg("has subtask running")
-					time.Sleep(time.Second * 30)
+					// 如果不开启动深度扫描，扫描是很快的，所不能休眠太久
+					time.Sleep(time.Second * 5)
 				}
 				continue
 			}

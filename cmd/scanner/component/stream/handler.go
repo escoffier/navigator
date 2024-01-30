@@ -95,7 +95,7 @@ func (vi *Handler) addRegScanTask(s rpcstream.Stream, reqID, msgID string, paylo
 
 	go func() { vi.ImageSecRespChan <- pong }()
 
-	vi.Log.Info().Str("scanSubtask", subTask.LogStr()).Msg("receive registry scan task")
+	vi.Log.Debug().Str("scanSubtask", subTask.LogStr()).Msg("receive scan task and send rpc response")
 	return nil
 }
 
