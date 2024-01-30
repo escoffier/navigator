@@ -171,12 +171,11 @@ func SyncResourceToRedis(rdb *databases.RDBInstance, redisearchClis *redisearch.
 	ctx := context.Background()
 	cursor = minID - 1
 
-	tmpDb := db.Model(m).Select("id", "name", "namespace", "cluster_key", "kind", "generation", "updated_at", "pod_template").
-		Where("status = ? ", 0).Limit(size).Order("id asc")
 	docList := make([]rsearch.Document, size)
 	for finished < total {
 		resources = resources[:0]
-
+		tmpDb := db.Model(m).Select("id", "name", "namespace", "cluster_key", "kind", "generation", "updated_at", "pod_template").
+			Where("status = ? ", 0).Limit(size).Order("id asc")
 		err = tmpDb.Where("id > ?", cursor).Find(&resources).Error
 		if err != nil {
 			return err
@@ -281,12 +280,11 @@ func SyncPodToRedis(rdb *databases.RDBInstance, redisearchClis *redisearch.Clien
 	ctx := context.Background()
 	cursor = minID - 1
 
-	tmpDb := db.Model(m).Select("id", "pod_name", "cluster_key", "node_name", "resource_kind", "resource_name", "namespace", "pod_ip", "updated_at", "created_at").
-		Where("status = ? ", 0).Limit(size).Order("id asc")
 	docList := make([]rsearch.Document, size)
 	for finished < total {
 		pods = pods[:0]
-
+		tmpDb := db.Model(m).Select("id", "pod_name", "cluster_key", "node_name", "resource_kind", "resource_name", "namespace", "pod_ip", "updated_at", "created_at").
+			Where("status = ? ", 0).Limit(size).Order("id asc")
 		err = tmpDb.Where("id > ?", cursor).Find(&pods).Error
 		if err != nil {
 			return err
@@ -366,10 +364,10 @@ func SyncRawContainerToRedis(rdb *databases.RDBInstance, redisearchClis *redisea
 
 	ctx := context.Background()
 
-	tmpDb := db.Model(m).Where("status < ?", 5).Limit(size).Order("id asc").
-		Select("id", "status", "cluster_key", "k8s_managed", "node_name", "namespace", "pod_name", "name", "resource_name", "updated_at")
 	docList := make([]rsearch.Document, size)
 	for finished < total {
+		tmpDb := db.Model(m).Where("status < ?", 5).Limit(size).Order("id asc").
+			Select("id", "status", "cluster_key", "k8s_managed", "node_name", "namespace", "pod_name", "name", "resource_name", "updated_at")
 		containers = containers[:0]
 		if include {
 			err = tmpDb.Where("id >= ?", cursor).Find(&containers).Error

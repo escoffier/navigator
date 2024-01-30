@@ -390,7 +390,7 @@ func (w *Watcher) process(ctx context.Context, message kafka.Message) error {
 			return err
 		}
 		if rc.LastStopTime.IsZero() {
-			rc.LastStopTime = rc.CreatedAt
+			rc.LastStopTime = time.Now()
 		}
 		for _, cb := range cbs.callbacks {
 			err = cb.OnRawContainer(rc, event.Action)
