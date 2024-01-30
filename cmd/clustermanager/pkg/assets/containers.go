@@ -4,14 +4,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"runtime/debug"
+	"sync/atomic"
+	"time"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
-	"runtime/debug"
-	"sync/atomic"
-	"time"
 )
 
 type PodContainerWatcher struct {
@@ -98,7 +99,7 @@ func (cb *PodContainerCallBack) OnTensorClusterRole(*assets.TensorClusterRole, a
 
 func (cb *PodContainerCallBack) OnTensorIngress(*assets.TensorIngress, assets.Action) error {
 	// TODO implement me
-	panic("implement me")
+	return nil
 }
 
 func (cb *PodContainerCallBack) OnTensorService(*assets.TensorService, assets.Action) error {
