@@ -601,15 +601,15 @@ func (vi ApiSearchVulnParam) ToDaoSearchVulnParam() SearchVulnDalParam {
 		LanguageKeyword:   vi.LanguageKeyword,
 		VulnTargetKeyword: vi.TargetKeyword,
 		FrameKeyword:      vi.FrameKeyword,
-		VulnKeyword:       vi.VulnKeyword,
-		VulnUniqueIds:     vi.VulnUniqueIds,
+		VulnKeyword:       strings.TrimSpace(vi.VulnKeyword),
+		VulnUniqueIds:     util.DuplicateUint64Slice(vi.VulnUniqueIds),
 		Fields:            vi.Fields,
 		OmitFields:        vi.OmitFields,
 		PkgUniqueID:       vi.PkgUniqueID,
 		VulnUniqueID:      vi.VulnUniqueID,
 		ImageUniqueID:     vi.ImageUniqueID,
 		ImageLayerDigest:  vi.ImageLayerDigest,
-		VulnIds:           vi.VulnIds,
+		VulnIds:           util.DuplicateInt64Slice(vi.VulnIds),
 		StartID:           vi.StartID,
 		LanguageName:      vi.LanguageName,
 		LanguagePath:      vi.LanguagePath,
@@ -689,6 +689,12 @@ type SearchNodeInfoParam struct {
 	UniqueIds []uint64
 	Keyword   string
 	Filter    *Filter
+}
+
+func (vi *SearchNodeInfoParam) Serialize() {
+	vi.Ids = util.DuplicateInt64Slice(vi.Ids)
+	vi.UniqueIds = util.DuplicateUint64Slice(vi.UniqueIds)
+	vi.Keyword = strings.TrimSpace(vi.Keyword)
 }
 
 type SearchSensitiveRuleParam struct {

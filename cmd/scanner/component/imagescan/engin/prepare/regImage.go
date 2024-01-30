@@ -47,59 +47,6 @@ func NewRegImagePreparer(scanCachePath string) *RegImagePrepare {
 	return regImagePrepareSinge
 }
 
-// 解压一层就返回一层
-// func (s *RegImagePrepare) PrepareImageLayer(ctx context.Context, prep *imagesecTypes.PrepareScan, out chan *imagesecTypes.ImageLayer) {
-// 	s.Log.Info().Int("ParallelExtractNum", global.ScannerOpts.ParallelExtractNum).Msg("PrepareImageLayer")
-// 	layers := make([]*imagesecTypes.ImageLayer, 0)
-// 	for i := range prep.Layers {
-// 		layers = append(layers, prep.Layers[i])
-// 	}
-//
-// 	sort.Sort(imagesecTypes.ImageLayers(layers))
-//
-// 	// 并行解压
-// 	for i := range layers {
-// 		go func(ctx context.Context, prep *imagesecTypes.PrepareScan, ly *imagesecTypes.ImageLayer, out chan *imagesecTypes.ImageLayer) {
-// 			err2 := s.PrepareLayerFile(ctx, prep, ly)
-// 			if err2 != nil {
-// 				s.Log.Err(err2).Interface("layer", ly).Str("subtask", prep.Subtask.LogStr()).Msg("PrepareScan")
-// 				ly.NotReady = true
-// 			}
-// 			out <- ly
-// 		}(ctx, prep, layers[i], out)
-// 	}
-//
-// 	s.Log.Debug().Interface("prep", prep).Str("subtask", prep.Subtask.LogStr()).Msg("RegImagePrepare")
-// 	return
-// }
-
-// 等待所有的都全部解压
-// func (s *RegImagePrepare) PrepareImageLayer2(ctx context.Context, prep *imagesecTypes.PrepareScan, out chan *imagesecTypes.ImageLayer) {
-// 	s.Log.Info().Int("ParallelExtractNum", global.ScannerOpts.ParallelExtractNum).Msg("PrepareImageLayer")
-//
-// 	layers := make([]*imagesecTypes.ImageLayer, 0)
-// 	for i := range prep.Layers {
-// 		layers = append(layers, prep.Layers[i])
-// 	}
-//
-// 	sort.Sort(imagesecTypes.ImageLayers(layers))
-//
-// 	// 并行解压
-// 	for i := range layers {
-// 		go func(ctx context.Context, prep *imagesecTypes.PrepareScan, ly *imagesecTypes.ImageLayer, out chan *imagesecTypes.ImageLayer) {
-// 			err2 := s.PrepareLayerFile(ctx, prep, ly)
-// 			if err2 != nil {
-// 				s.Log.Err(err2).Interface("layer", ly).Str("subtask", prep.Subtask.LogStr()).Msg("PrepareScan")
-// 				ly.NotReady = true
-// 			}
-// 			out <- ly
-// 		}(ctx, prep, layers[i], out)
-// 	}
-//
-// 	s.Log.Debug().Interface("prep", prep).Str("subtask", prep.Subtask.LogStr()).Msg("RegImagePrepare")
-// 	return
-// }
-
 // 会持续等待解压完成
 func (s *RegImagePrepare) PrepareAllLayer(ctx context.Context, prep *imagesecTypes.PrepareScan) {
 	start := time.Now().Unix()
@@ -293,41 +240,3 @@ func (s *RegImagePrepare) PullImageLayer(ctx context.Context, prep *imagesecType
 		Int("pulledLayer", len(lys)).Msg("scan job end")
 	return nil
 }
-
-func (s *RegImagePrepare) CleanUpScan(ctx context.Context, prep *imagesecTypes.PrepareScan) error {
-	s.Log.Debug().Str("ImageName", prep.Subtask.RegImageMeta.ImageName()).Msg("CleanUpScan start")
-
-	client1, err := imageCache.NewLocalLayerManageClientT("/layer")
-	if err != nil {
-		s.Log.Err(err).Msg("DeleteLayer")
-		return err
-	}
-	if prep == nil {
-		return nil
-	}
-	for _, ly := range prep.Layers {
-		if !ly.NeedPull {
-			continue
-		}
-		dig := scannerUtils.GetSha256Digest(ly.Digest)
-		if err := client1.DeleteLayer(dig); err != nil {
-			s.Log.Err(err).Str("layer", dig).Msg("delete layer failed")
-			continue
-		}
-	}
-
-	if prep.TaskRootDir == "" {
-		return nil
-	}
-	_, err = os.Stat(prep.TaskRootDir)
-	if err == nil {
-		if err := os.RemoveAll(prep.TaskRootDir); err != nil {
-			s.Log.Err(err).Str("TaskRootDir", prep.TaskRootDir).Msg("RemoveAll TaskRootDir")
-			return err
-		}
-	}
-	s.Log.Info().Str("ImageName", prep.Subtask.RegImageMeta.ImageName()).Str("path", prep.TaskRootDir).Msg("CleanUpScan end")
-	return nil
-}
-
-type FileFilter func(info os.FileInfo) bool

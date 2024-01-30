@@ -116,13 +116,6 @@ func (w *Worker) createRegistryClient(username, password, repository, url string
 	return err2
 }
 
-// for test
-// func (w *Worker) fakeDownloadBlob() (io.ReadCloser, error) {
-
-// 	r := ioutil.NopCloser(strings.NewReader("hello world")) // r type is io.ReadCloser
-
-//		return r, nil
-//	}
 func (w *Worker) doTask(wg *sync.WaitGroup) {
 
 	errMsg := ""
@@ -130,14 +123,9 @@ func (w *Worker) doTask(wg *sync.WaitGroup) {
 		time.Sleep(time.Duration(3) * time.Second)
 
 		// get to-pull task
-		task, err := w.llms.FindAndModifyPullTask()
-		if err != nil {
-			logging.Get().Err(err).Msgf("worker %d get task err", w.id)
-			continue
-		}
-
+		task := w.llms.FindAndModifyPullTask()
 		// not task available
-		if len(task.digest) == 0 {
+		if task.digest == "" {
 			continue
 		}
 
@@ -145,7 +133,7 @@ func (w *Worker) doTask(wg *sync.WaitGroup) {
 
 		if w.rc == nil {
 			// create registry client
-			err = w.createRegistryClient(task.username, task.password, task.repository, task.url, task.skipTLS)
+			err := w.createRegistryClient(task.username, task.password, task.repository, task.url, task.skipTLS)
 			// rc,err := w.wg.LoadOrSaveRegistryClient(task.username,task.password,task.repository,task.url,task.skipTls)
 			if err != nil {
 				errMsg = fmt.Sprintf("download layer err,repo %s ,digest %s,err %v", task.repository, task.digest, err)
@@ -154,7 +142,7 @@ func (w *Worker) doTask(wg *sync.WaitGroup) {
 				// reset task status,wait other worker pick it
 				err := w.llms.UpdateTaskStatusAndLayerURL(task.digest, "", LayerPullErr)
 				if err != nil {
-					logging.Get().Err(err).Msgf("worker %d create registry client UpdateTaskStatusAndLayerURL", w.id)
+					logging.Get().Err(err).Msgf("worker %d create registry client UpdateTask", w.id)
 					err = w.llms.NotifyLayerPulled(task.digest)
 					if err != nil {
 						logging.Get().Err(err).Msgf("worker %d create registry client  NotifyLayerPulled err:%s", w.id, err)
@@ -182,7 +170,7 @@ func (w *Worker) doTask(wg *sync.WaitGroup) {
 			// update task to pull err
 			err := w.llms.UpdateTaskStatusAndLayerURL(task.digest, "", LayerPullErr)
 			if err != nil {
-				logging.Get().Err(err).Msgf("worker %d pull task UpdateTaskStatusAndLayerURL", w.id)
+				logging.Get().Err(err).Msgf("worker %d pull task UpdateTask", w.id)
 				err = w.llms.NotifyLayerPulled(task.digest)
 				if err != nil {
 					logging.Get().Err(err).Msgf("worker %d pull tasks  NotifyLayerPulled", w.id)
@@ -197,14 +185,14 @@ func (w *Worker) doTask(wg *sync.WaitGroup) {
 		if err != nil {
 			inerr := w.llms.UpdateTaskStatusAndLayerURL(task.digest, "", LayerPullErr)
 			if inerr != nil {
-				logging.Get().Err(inerr).Msgf("worker %d create registry client UpdateTaskStatusAndLayerURL", w.id)
+				logging.Get().Err(inerr).Msgf("worker %d create registry client UpdateTask", w.id)
 			}
 			logging.Get().Err(err).Msgf("worker %d pull task err.repository %s,digest %s", w.id, task.repository, task.digest)
 		} else {
 			// update task to succeed
 			inerr := w.llms.UpdateTaskStatusAndLayerURL(task.digest, fullFilePath, LayerPulled)
 			if inerr != nil {
-				logging.Get().Err(inerr).Msgf("worker %d create registry client UpdateTaskStatusAndLayerURL", w.id)
+				logging.Get().Err(inerr).Msgf("worker %d create registry client UpdateTask", w.id)
 			}
 			logging.Get().Debug().Msgf("worker %d pull task ok.repository %s,digest %s,path %s", w.id, task.repository, task.digest, fullFilePath)
 		}

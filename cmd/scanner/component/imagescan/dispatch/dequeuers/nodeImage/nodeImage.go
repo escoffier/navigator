@@ -24,7 +24,6 @@ type NodeImageScanQueue struct {
 	nodeInfoDal       imagesecStore.NodeInfoDal
 	sensitiveRuleDal  imagesecStore.SensitiveRuleDal
 	Config            ScanConfig
-	PodID             string
 	Log               *scannerUtils.LogEvent
 }
 
@@ -198,8 +197,8 @@ func (s *NodeImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, tas
 		param := imagesecModel.SearchTaskParam{
 			// 查找当前节点在执行的所有子任务
 			NodeUniqueID: no.UniqueID,
-			// 发送完成扫描过程中 Pod 重启，那就只能等超时失败了
-			// 不能持续发送，因为任务可能重启动，节点不能对任务去重
+			// 因为node-image 没有上报 pod 的 uuid,发送完成扫描过程中 node-image 重启，那就只能等超时失败了,
+			// 不能持续发送，因为任务可能重启动，节点上不能对任务去重
 			ScanStatus: []int64{imagesecModel.TaskStatusSendFinished},
 			Filter:     imagesecModel.EmptyFilter().SetLimit(1),
 		}
@@ -212,27 +211,23 @@ func (s *NodeImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, tas
 		}
 		if sendSubtask >= s.Config.MaxProSubtaskPer {
 			s.Log.Debug().Str("node", no.LogStr()).Msg("node has scan task scanning")
+			time.Sleep(5 * time.Second)
 			continue
 		}
 		subtaskParam := imagesecModel.SearchTaskParam{
 			TaskID:       task.ID,
 			NodeUniqueID: no.UniqueID,
-			// TaskStatusInprogress 但是可能发送失败
 			// 对于执行中的子任务持续发送,防止子集群重启动
 			// 扫描器会做去重处理，对于正在扫描的任务会忽略
+			// TaskStatusInprogress 也可能发送失败，只有：TaskStatusSendFinished才能认为是发送成功
 			ScanStatus: []int64{imagesecModel.TaskStatusPending, imagesecModel.TaskStatusInprogress},
 			// 这里一次不取更多，是因为前端更新 task 任务之后需要快速感知
 			Filter: imagesecModel.EmptyFilter().SetSortAsc().SetSortFiled("status").SetLimit(s.Config.MaxProSubtaskPer - sendSubtask),
 		}
 
-		if s.PodID == "" {
-			subtaskParam.ScanStatus = append(subtaskParam.ScanStatus, imagesecModel.TaskStatusSendFinished)
-			s.PodID = global2.ScannerPodID
-		}
 		subtask, _, err := s.ScanTaskDal.SearchScanSubtask(ctx, subtaskParam)
 		if err != nil {
-			s.Log.Err(err).Int64("taskID", task.ID).
-				Msg("SearchScanSubtask")
+			s.Log.Err(err).Int64("taskID", task.ID).Msg("SearchScanSubtask")
 			continue
 		}
 		if len(subtask) > 0 {
@@ -245,7 +240,6 @@ func (s *NodeImageScanQueue) SearchSubtaskAndSendToChan(ctx context.Context, tas
 		}
 
 		for j := range subtask {
-
 			imageDate, err := s.ImageSrv.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
 				ImageUniqueID:  subtask[j].ImageUniqueID,
 				NodeInfoEnable: true,

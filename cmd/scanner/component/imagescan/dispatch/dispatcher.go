@@ -117,7 +117,9 @@ func (s *TaskDispatcher) PublishNodeImageSubtaskHelper(ctx context.Context, subT
 		}
 
 		up := types.UpdateSubTask{SubtaskID: subtask.SubTaskID, Status: imagesecModel.TaskStatusSendFinished}
-		go func() { upChan <- up }()
+		// 发送成功的状态要同步更新，可能会重复发送
+		// 同步更新任务状态状态，不然会重复发送
+		upChan <- up
 
 		s.Log.Info().Str("msgID", req.MsgID).Int64("taskID", subtask.TaskID).
 			Int64("subtaskID", subtask.SubTaskID).Msg("Dispatcher publish scan subtask succeed")
@@ -175,8 +177,8 @@ func (s *TaskDispatcher) PublishRegImageSubtaskHelper(ctx context.Context, subTa
 		}
 
 		up := types.UpdateSubTask{SubtaskID: subtask.SubTaskID, Status: imagesecModel.TaskStatusSendFinished, ScanUUID: subtask.ScanInstance.ScannerPodID}
-
-		go func() { upChan <- up }()
+		// 发送成功的状态及 scanUUID,要同步更新ScanUUID，不然会重复发送任务
+		upChan <- up
 
 		s.Log.Info().Str("msgID", req.MsgID).Str("subtask", subtask.LogStr()).Msg("Dispatcher publish scan subtask succeed")
 	}
@@ -267,7 +269,7 @@ func (s *TaskDispatcher) sendScanSubtask(ctx context.Context, req *pb.ImageSecRe
 		return err
 	}
 	if rsp.Status != consts.StreamStatusOK {
-		s.Log.Error().Interface("req", req).Interface("resp", rsp).Msg("Dispatcher sendScanSubtask")
+		s.Log.Error().Str("req", ReqLogStr(req)).Interface("resp", rsp).Msg("Dispatcher sendScanSubtask")
 		return err
 	}
 	// if rsp.GetBizCode() != consts.StreamStatusStartScanTask {

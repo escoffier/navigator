@@ -326,7 +326,7 @@ func (s *ImageInfoMetaSrv) addContainerData(ctx context.Context,
 	param *imagesecModel.ImageAssociateParam, ans *imagesecModel.ImageWithCorrelateData2) error {
 	imageID := ans.Image.ID
 	// 导出时要用到
-	if param.ContainerEnable && ans.Image.UniqueID > 0 {
+	if param.ContainerEnable && ans.Image.UniqueID > 0 && ans.Image.ImageUUID > 0 {
 		conParam := imagesecModel.SearchResourceParam{
 			ImageUUID: ans.Image.ImageUUID,
 		}

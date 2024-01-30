@@ -52,20 +52,20 @@ truncate table ivan_scanner_scan_task;
 truncate table ivan_scanner_scan_subtask;
 truncate table ivan_scanner_image_list;
 truncate table ivan_scanner_scan_images;
-truncate table ivan_scanner_env
-truncate table  ivan_scanner_idempotent
-truncate table ivan_scanner_image_list
-truncate table ivan_scanner_issue_image_webshell
-truncate table ivan_scanner_reject_policy
-truncate table ivan_scanner_reject_record
-truncate table ivan_scanner_reject_vuln
-truncate table ivan_scanner_scan_layers
-truncate table ivan_scanner_sensitive
-truncate table ivan_scanner_software
-truncate table ivan_scanner_sync_retry_image
-truncate table ivan_scanner_sync_tasks
-truncate table ivan_scanner_virus
-truncate table ivan_scanner_vuln_images
-truncate table ivan_scanner_vulns
+truncate table ivan_scanner_env;
+truncate table  ivan_scanner_idempotent;
+truncate table ivan_scanner_image_list;
+truncate table ivan_scanner_issue_image_webshell;
+truncate table ivan_scanner_reject_policy;
+truncate table ivan_scanner_reject_record;
+truncate table ivan_scanner_reject_vuln;
+truncate table ivan_scanner_scan_layers;
+truncate table ivan_scanner_sensitive;
+truncate table ivan_scanner_software;
+truncate table ivan_scanner_sync_retry_image;
+truncate table ivan_scanner_sync_tasks;
+truncate table ivan_scanner_virus;
+truncate table ivan_scanner_vuln_images;
+truncate table ivan_scanner_vulns;
 
 

@@ -34,6 +34,7 @@ func NewLocalLayerManageClient() (*Client, error) {
 	icc.serverAddr = fmt.Sprintf("http://%s:%d%s", innerRegistryIP, innerRegistryPort, httpRequestPath)
 	return icc, nil
 }
+
 func (icc *Client) GetManifest(username, password, url, repository, tag string, skipTLS bool) (string, error) {
 	rq := RequestLayerInfo{
 		Username:   username,
