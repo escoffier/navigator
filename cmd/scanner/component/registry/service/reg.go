@@ -41,12 +41,13 @@ type RegistryService interface {
 var sinRegistrySrv *RegistrySrv
 
 type RegistrySrv struct {
-	registryDal   imagesecStore.RegistryDal
-	syncTaskDal   imagesecStore.SyncTaskDal
-	scanInsDal    imagesecStore.ScanInstanceDal
-	policyDal     imagesecStore.DetectPolicyDal
-	scanConfigDal imagesecStore.ScanImageConfigDal
-	Log           *scannerUtils.LogEvent
+	registryDal     imagesecStore.RegistryDal
+	syncTaskDal     imagesecStore.SyncTaskDal
+	scanInsDal      imagesecStore.ScanInstanceDal
+	policyDal       imagesecStore.DetectPolicyDal
+	scanConfigDal   imagesecStore.ScanImageConfigDal
+	ScannerInstance string
+	Log             *scannerUtils.LogEvent
 }
 
 func NewRegistrySrv(
@@ -71,6 +72,13 @@ func NewRegistrySrv(
 		),
 	}
 	sinRegistrySrv = s
+	// 强依赖clusterKey和scannerIns
+	for global.ScannerInstance == "" {
+		s.Log.Error().Msg("clusterKey or scannerInstance not set wait...")
+		time.Sleep(time.Minute)
+	}
+	s.ScannerInstance = global.ScannerInstance
+
 	return sinRegistrySrv
 }
 
@@ -225,8 +233,13 @@ func (s *RegistrySrv) UpdateRegistry(ctx context.Context, id int64, reg imagesec
 }
 
 func (s *RegistrySrv) CreateSyncTask(ctx context.Context, param imagesecModel.CreateSyncTaskParam) error {
-	regs, _, err := s.registryDal.SearchRegistry(ctx, imagesecModel.SearchRegistryParam{ID: param.RegID,
-		ScannerInstance: param.ScannerInstance, Deleted: consts.FalseString})
+	param2 := imagesecModel.SearchRegistryParam{
+		ID:              param.RegID,
+		ScannerInstance: s.ScannerInstance,
+		Deleted:         consts.FalseString,
+	}
+
+	regs, _, err := s.registryDal.SearchRegistry(ctx, param2)
 	if err != nil {
 		s.Log.Err(err).Interface("param", param).Msg("SearchRegistry")
 		return err
@@ -279,7 +292,7 @@ func (s *RegistrySrv) GetSyncStatus(ctx context.Context) ([]*imagesecModel.RegSy
 }
 
 func (s *RegistrySrv) ValidateRegistry(ctx context.Context, reg imagesecModel.Registry) error {
-	if reg.ScannerInstance != global.ScannerInstance {
+	if reg.ScannerInstance != s.ScannerInstance {
 		err := fmt.Errorf("registry not in correct cluster")
 		s.Log.Err(err).Str("ScannerInstance", reg.ScannerInstance).Str("regName", reg.Name).
 			Msg("the registry not in this cluster")

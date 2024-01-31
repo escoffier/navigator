@@ -2,19 +2,14 @@ package service
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"io"
-	"net/http"
-	"os"
 	"runtime/debug"
+	"sync"
 	"time"
 
 	"gitlab.com/security-rd/go-pkg/logging"
 
 	flag2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd/flag"
 	preinit "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/preInit"
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
@@ -25,54 +20,16 @@ import (
 // Scanner represents the Vegeta Scanner server.
 type Scanner struct {
 	lifecycle.Service
-	PodID           string // uuid：
-	options         *flag2.ScannerOpts
-	servicesList    map[string]register.ScannerService // save all scanner service
-	ScannerInstance string
-	ClusterKey      string
-	ClusterName     string
-	Log             *scannerUtils.LogEvent
+	PodID        string // uuid：
+	WG           sync.Locker
+	options      *flag2.ScannerOpts
+	servicesList map[string]register.ScannerService // save all scanner service
+	Log          *scannerUtils.LogEvent
 }
 
 type ClusterKey struct {
 	Key  string `json:"key"`
 	Name string `json:"name"`
-}
-
-func GetCluster(ctx context.Context) (ClusterKey, error) {
-	if os.Getenv("LOCAL_DEBUG") == consts.TrueString {
-		return ClusterKey{Key: "debug-cluster-key", Name: "debug-cluster-name"}, nil
-	}
-
-	clusterURL := os.Getenv("CLUSTER_MANAGER_URL")
-	if clusterURL == "" {
-		return ClusterKey{}, fmt.Errorf("not get CLUSTER_MANAGER_URL")
-	}
-	url := fmt.Sprintf("%s%s", clusterURL, "/internal/cluster")
-	timeOutCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	request, err := http.NewRequestWithContext(timeOutCtx, http.MethodGet, url, nil)
-	if err != nil {
-		return ClusterKey{}, err
-	}
-	request.Header.Set("Content-Type", "application/json; charset=utf-8")
-
-	client := &http.Client{}
-	resp, err := client.Do(request)
-	if err != nil {
-		return ClusterKey{}, err
-	}
-	content, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return ClusterKey{}, err
-	}
-	cluster := ClusterKey{}
-
-	if err := json.Unmarshal(content, &cluster); err != nil {
-		return cluster, err
-	}
-
-	return cluster, err
 }
 
 // NewScanner is to create a new Scanner struct.
@@ -89,22 +46,14 @@ func NewScanner(opts *flag2.ScannerOpts) (*Scanner, error) {
 		return nil, err
 	}
 
-	cluster, err := GetCluster(context.Background())
-	if err != nil {
-		logging.Get().Err(err).Msg("GetCluster key")
-		return nil, err
-	}
-
 	dbInit := preinit.NewInitScanner(store.GetRDBInstance())
 
 	scanner := &Scanner{
-		PodID:           uuid.GenerateRandomID(),
-		ScannerInstance: fmt.Sprintf("scan-%s", cluster.Key),
-		ClusterKey:      cluster.Key,
-		ClusterName:     cluster.Name,
-		options:         opts,
-		servicesList:    make(map[string]register.ScannerService),
-		Log:             scannerUtils.NewLogEvent(scannerUtils.WithModule("NewScanner")),
+		WG:           &sync.Mutex{},
+		PodID:        uuid.GenerateRandomID(),
+		options:      opts,
+		servicesList: make(map[string]register.ScannerService),
+		Log:          scannerUtils.NewLogEvent(scannerUtils.WithModule("NewScanner")),
 	}
 
 	if err := dbInit.Init(context.Background()); err != nil {
@@ -118,12 +67,7 @@ func NewScanner(opts *flag2.ScannerOpts) (*Scanner, error) {
 // Run is to run the service.
 func (s *Scanner) Run() func() {
 	s.Log.Info().Msg("scanner started")
-
-	// create all register services
-	s.CreateService()
-
-	// start all service
-	s.StartServices()
+	s.CreateAndStartService()
 
 	return func() {
 
@@ -133,46 +77,45 @@ func (s *Scanner) Run() func() {
 	}
 }
 
-func (s *Scanner) CreateService() {
+func (s *Scanner) CreateAndStartService() {
 	ss := register.GetServices()
-	for k := range ss {
-		config := register.ScannerServiceConfig{
-			Type:    k,
-			Options: s.options,
-		}
-		srv, err := register.Open(config)
-		if err != nil {
-			s.Log.Err(err).Str("type", k).Msg("create service err")
-			continue
-		}
-		s.Log.Info().Str("type", k).Msg("create service ok")
-		s.servicesList[k] = srv
-	}
+	for name := range ss {
+		go func(name string) {
 
-	s.Log.Info().Msg("all service created")
-}
-
-func (s *Scanner) StartServices() {
-	// s.DumpServices()
-	for name := range s.servicesList {
-		go func(serviceName string) {
 			defer func() {
 				if r := recover(); r != nil {
 					s.Log.Error().Msgf("scanner service panic : %v. stack: %s", r, debug.Stack())
 				}
 			}()
 
-			s.Log.Info().Str("serviceName", serviceName).Msg("scanner service ready to start")
-			err := s.servicesList[serviceName].Start(context.Background())
-			if err != nil {
-				s.Log.Err(err).Str("serviceName", serviceName).Msg("scanner service run err")
-				return
+			config := register.ScannerServiceConfig{
+				Type:    name,
+				Options: s.options,
 			}
-			s.Log.Info().Str("serviceName", serviceName).Msg("scanner service start end")
+			for {
+				srv, err := register.Open(config)
+				if err != nil {
+					s.Log.Err(err).Str("type", name).Msg("can not open service")
+					time.Sleep(5 * time.Second)
+					continue
+				}
+				if err := srv.Start(context.Background()); err != nil {
+					s.Log.Err(err).Str("service", name).Msg("can not start service")
+					time.Sleep(5 * time.Second)
+					continue
+				}
+				s.AddService(name, srv)
+				break
+			}
+			s.Log.Info().Str("service", name).Msg("create and start service ok")
 		}(name)
 	}
+}
 
-	s.Log.Info().Msg("all service started")
+func (s *Scanner) AddService(name string, srv register.ScannerService) {
+	s.WG.Lock()
+	defer s.WG.Unlock()
+	s.servicesList[name] = srv
 }
 
 func (s *Scanner) StopServices(ctx context.Context) {
@@ -184,18 +127,4 @@ func (s *Scanner) StopServices(ctx context.Context) {
 			s.Log.Info().Str("serviceName", name).Msg("scanner service stop ok")
 		}
 	}
-}
-
-func (s *Scanner) DumpServices() {
-	for name := range s.servicesList {
-		s.Log.Info().Str("serviceName", name).Msg("scanner created service")
-	}
-}
-
-func (s *Scanner) GetRunningServiceByName(name string) (register.ScannerService, error) {
-	v, ok := s.servicesList[name]
-	if !ok {
-		return nil, fmt.Errorf("not found running service %s", name)
-	}
-	return v, nil
 }

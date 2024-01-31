@@ -68,7 +68,7 @@ func (s *RegImageScanQueue) BuildScanTask(ctx context.Context,
 
 func (s *RegImageScanQueue) GetDBVersion(ctx context.Context) (imagesecTypes.RuleVersion, error) {
 	ver := imagesecTypes.RuleVersion{
-		Sensitive: global.SenstiveVer,
+		Sensitive: global.SensitiveVer,
 		Vuln:      global.VulnVer,
 		Webshell:  scannerUtils.GetSoftVersion(),
 		Avira:     scannerUtils.GetSoftVersion(),
@@ -90,7 +90,7 @@ func (s *RegImageScanQueue) GetDBVersion(ctx context.Context) (imagesecTypes.Rul
 		global.VulnVer = vulnVer[0].DBVersion
 	}
 
-	if global.SenstiveVer == "" {
+	if global.SensitiveVer == "" {
 		sensVer, _, err := s.dbMetaDal.SearchScanDbMeta(ctx, imagesecModel.SearchScanDbParam{DBType: imagesecModel.SensitiveCacheData, Filter: filter})
 		if err != nil {
 			s.Log.Err(err).Msg("ScanImageQueue SearchScanDbMeta")
@@ -100,7 +100,7 @@ func (s *RegImageScanQueue) GetDBVersion(ctx context.Context) (imagesecTypes.Rul
 			return ver, fmt.Errorf("not get sensitive version")
 		}
 		ver.Sensitive = sensVer[0].DBVersion
-		global.SenstiveVer = sensVer[0].DBVersion
+		global.SensitiveVer = sensVer[0].DBVersion
 	}
 
 	return ver, nil

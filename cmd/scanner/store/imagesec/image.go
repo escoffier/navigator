@@ -484,37 +484,43 @@ func (dal *ImageMetaDao) SearchProject(ctx context.Context, param imagesecModel.
 	return ans, nil
 }
 
-func (dal *ImageMetaDao) GetOnlineImageUUID(ctx context.Context) ([]uint32, error) {
-
+// assets
+func (dal *ImageMetaDao) getAssetUUID(ctx context.Context, startUUID uint32) ([]uint32, error) {
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
-	ans := make([]uint32, 0)
 	db := dal.db.Get().WithContext(ctx).Table(new(model.TensorRawContainer).TableName())
 	filter := imagesecModel.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortFiled("image_uuid").SetSortAsc()
 
+	th := make([]uint32, 0)
+	res := make([]*model.TensorRawContainer, 0)
+
+	db = db.Where("image_uuid > ?", startUUID).Where("status = 0")
+	db = db.Select("distinct image_uuid")
+
+	db = imagesecModel.AddFilter(db, filter)
+	if err := db.Find(&res).Error; err != nil {
+		return th, err
+	}
+
+	for i := range res {
+		th = append(th, res[i].ImageUUID)
+	}
+	return th, nil
+}
+
+func (dal *ImageMetaDao) GetOnlineImageUUID(ctx context.Context) ([]uint32, error) {
+	ans := make([]uint32, 0)
 	var startID uint32
-
 	for {
-		res := make([]*model.TensorRawContainer, 0)
-
-		db = db.Where("image_uuid > ?", startID).Where("status = 0")
-		db = db.Select("image_uuid")
-
-		db = imagesecModel.AddFilter(db, filter)
-		if err := db.Find(&res).Error; err != nil {
+		uuid, err := dal.getAssetUUID(ctx, startID)
+		if err != nil {
 			return ans, err
 		}
-		if len(res) == 0 {
+		if len(uuid) == 0 {
 			break
 		}
-		startID = res[len(res)-1].ImageUUID
-
-		th := make([]uint32, 0)
-		for i := range res {
-			th = append(th, res[i].ImageUUID)
-		}
-		th = util.DuplicateUint32Slice(th)
-		ans = append(ans, th...)
+		startID = uuid[len(uuid)-1]
+		ans = append(ans, uuid...)
 	}
 
 	ans = util.DuplicateUint32Slice(ans)

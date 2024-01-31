@@ -55,15 +55,9 @@ var rootCmd = &cobra.Command{
 				return
 			}
 			global.ScannerPodID = scanner.PodID
-			global.ScannerInstance = scanner.ScannerInstance
-			global.ClusterKey = scanner.ClusterKey
-			// global.SubtaskParallel = ScannerRunOpts.ParallelSubTaskNum * ScannerRunOpts.ParallelTaskNum
-
 			logging.Get().Info().
 				Str("version", Version).
-				Str("ScannerInstance", global.ScannerInstance).
 				Interface("opts", ScannerRunOpts).
-				Interface("ScannerPodID", global.ScannerPodID).
 				Msg("starting scanner")
 
 			lifecycle.NewApplication(

@@ -159,12 +159,11 @@ func (s *ScanInstanceReport) ReportScanInstance(ctx context.Context) error {
 			cluster, err := s.GetCluster(ctx)
 			if err != nil {
 				s.Log.Err(err).Msg("ReportScanInstance")
+				time.Sleep(time.Minute)
 				continue
 			}
 
 			scannerVersion := os.Getenv("SOFT_VERSION")
-
-			global.ScannerInstance = cluster.Instance
 
 			info := imagesecModel.ScannerInstanceInfo{
 				ClusterKey:      cluster.Key,
@@ -173,6 +172,10 @@ func (s *ScanInstanceReport) ReportScanInstance(ctx context.Context) error {
 				ScannerVersion:  scannerVersion,
 				ScannerInstance: cluster.Instance,
 			}
+			// 设置全局值
+			global.ClusterKey = info.ClusterKey
+			global.ScannerInstance = info.ScannerInstance
+
 			_ = s.sendToKafka(ctx, info)
 
 			<-ticker.C

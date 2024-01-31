@@ -10,4 +10,4 @@ var ClusterKey string
 var ScannerInstance string // scanner扫描器的ID,重启后不会改变，主要用于调度仓库的同步和扫描
 
 var VulnVer string
-var SenstiveVer string
+var SensitiveVer string

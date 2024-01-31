@@ -56,7 +56,7 @@ func NewSensitiveRuleSrv(
 }
 
 func (s *SensitiveRuleSrv) CreateSensitiveRule(ctx context.Context, data *imagesecModel.SensitiveRule) error {
-	global.SenstiveVer = ""
+	global.SensitiveVer = ""
 
 	if err := data.Check(); err != nil {
 		return err
@@ -96,7 +96,7 @@ func (s *SensitiveRuleSrv) SearchSensitiveRule(ctx context.Context, param images
 }
 
 func (s *SensitiveRuleSrv) UpdateSensitiveRule(ctx context.Context, param imagesecModel.UpdateSensitiveRuleParam) error {
-	global.SenstiveVer = ""
+	global.SensitiveVer = ""
 
 	err := s.sensitiveRuleDal.UpdateSensitiveRule(ctx, param)
 	if err != nil {
@@ -117,7 +117,7 @@ func (s *SensitiveRuleSrv) UpdateSensitiveRule(ctx context.Context, param images
 }
 
 func (s *SensitiveRuleSrv) DeleteSensitiveRule(ctx context.Context, id int64) error {
-	global.SenstiveVer = ""
+	global.SensitiveVer = ""
 	err := s.sensitiveRuleDal.DeleteSensitiveRule(ctx, id)
 	if err != nil {
 		s.Log.Err(err).Int64("id", id).Msg("DeleteSensitiveRule")
