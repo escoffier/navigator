@@ -180,7 +180,6 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 		cacheDal,
 	)
 	versionDal := imagesecStore.NewScanDbMetaDao(rdbInstance)
-	onlineImageDal := imagesecStore.NewImageRedisDao(redisCli)
 
 	detectTaskSrv := detect.NewImageDetectTaskSrv(imageSvc, detectTaskDal, policyDal, detectResultDal)
 
@@ -199,7 +198,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 		detectTaskSrv,
 		cacheDal,
 		preImageDal,
-		onlineImageDal,
+		imageDal,
 	)
 
 	scanTaskSrv := imagescanSrv.NewScanTaskSrv(

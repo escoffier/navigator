@@ -119,7 +119,6 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 	vulnSrv := imagescanSrv.NewScanResultSrv(scanResultDal, cacheDal)
 	trustedImageSrv := imagesecSrv.NewTrustedImageSrv(trustedImageDal)
 	registrySrv := regSrv.NewRegistrySrv(registryDal, syncTaskDal, scanInstanceDal, policyDal, scannerConfigDal)
-	// dbManagerSrv := dbManage.NewDBManageSrv(versionDal, userDal)
 
 	detectTaskSrv := detect.NewImageDetectTaskSrv(imageSrv, detectTaskDal, policyDal, detectResultDal)
 	policySrv := detect.NewPolicySrv(policyDal, detectTaskSrv, sensitiveRuleDal, userDal)

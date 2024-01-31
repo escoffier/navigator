@@ -7,7 +7,6 @@ import (
 
 	"gitlab.com/security-rd/go-pkg/mq"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd/global"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
@@ -19,15 +18,16 @@ import (
 var sinRegSyncSrv *RegSyncSrv
 
 type RegSyncSrv struct {
-	MqWriter      mq.Writer
-	FullSyncChan  chan imagesecModel.ImageSyncTask
-	IncSyncChan   chan imagesecModel.ImageSyncTask
-	FullSyncQueue *TaskQueue
-	registryDal   imagesecStore.RegistryDal
-	syncTaskDal   imagesecStore.SyncTaskDal
-	scanInsDal    imagesecStore.ScanInstanceDal
-	PreImageDal   adaptStore.ImageDal
-	Log           *scannerUtils.LogEvent
+	MqWriter        mq.Writer
+	FullSyncChan    chan imagesecModel.ImageSyncTask
+	IncSyncChan     chan imagesecModel.ImageSyncTask
+	FullSyncQueue   *TaskQueue
+	registryDal     imagesecStore.RegistryDal
+	syncTaskDal     imagesecStore.SyncTaskDal
+	scanInsDal      imagesecStore.ScanInstanceDal
+	PreImageDal     adaptStore.ImageDal
+	ScannerInstance string
+	Log             *scannerUtils.LogEvent
 }
 
 type ImageSyncService interface {
@@ -103,7 +103,7 @@ func (s *RegSyncSrv) fullSyncRegImage(ctx context.Context) {
 			reg := task.Registry
 			s.Log.Info().Str("regName", reg.Name).Int64("regID", reg.ID).Msg("fullSyncRegImage start")
 
-			if reg.ScannerInstance != global.ScannerInstance {
+			if reg.ScannerInstance != s.ScannerInstance {
 				s.FullSyncQueue.Set(task.RegistryID, imagesecModel.TaskStatusFailedStr)
 				s.Log.Error().Str("regName", reg.Name).Str("url", reg.Url).Msg("fullSyncRegImage registry not in this cluster")
 				continue
@@ -145,7 +145,7 @@ func (s *RegSyncSrv) incSyncRegImage(ctx context.Context) {
 
 			s.Log.Debug().Str("regName", reg.Name).
 				Int64("regID", reg.ID).Str("regUrl", reg.Url).Msg("incSyncRegImage start")
-			if reg.ScannerInstance != global.ScannerInstance {
+			if reg.ScannerInstance != s.ScannerInstance {
 				s.Log.Error().Str("regName", reg.Name).Str("url", reg.Url).Msg("incSyncRegImage registry not in this cluster")
 				continue
 			}

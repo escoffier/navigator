@@ -6,6 +6,7 @@ truncate table ivan_scan_deploy_white_image;
 truncate table ivan_scanner_instance;
 truncate table ivan_scan_db_config;
 truncate table ivan_scan_node_info;
+# 缓存
 truncate table ivan_scan_data_layer;
 truncate table ivan_scan_file_layer;
 
@@ -53,7 +54,7 @@ truncate table ivan_scanner_scan_subtask;
 truncate table ivan_scanner_image_list;
 truncate table ivan_scanner_scan_images;
 truncate table ivan_scanner_env;
-truncate table  ivan_scanner_idempotent;
+truncate table ivan_scanner_idempotent;
 truncate table ivan_scanner_image_list;
 truncate table ivan_scanner_issue_image_webshell;
 truncate table ivan_scanner_reject_policy;

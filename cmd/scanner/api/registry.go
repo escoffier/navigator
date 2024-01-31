@@ -9,7 +9,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd/global"
 	imagesec2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagesec"
 	registryService "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/service"
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
@@ -21,16 +20,16 @@ import (
 )
 
 type RegistrySrv struct {
-	RegistrySrv     registryService.RegistryService
-	ScannerInstance imagesec2.ScanInstanceService
-	RejectSrv       imagesec2.TrustedImageService
+	RegistrySrv   registryService.RegistryService
+	ScannerInsSrv imagesec2.ScanInstanceService
+	RejectSrv     imagesec2.TrustedImageService
 }
 
 func NewRegistrySrv(
 	registrySrv registryService.RegistryService,
 	rejectSrv imagesec2.TrustedImageService,
 	scannerInstance imagesec2.ScanInstanceService) *RegistrySrv {
-	return &RegistrySrv{RegistrySrv: registrySrv, RejectSrv: rejectSrv, ScannerInstance: scannerInstance}
+	return &RegistrySrv{RegistrySrv: registrySrv, RejectSrv: rejectSrv, ScannerInsSrv: scannerInstance}
 }
 
 func (s *RegistrySrv) UpdateRegistry(ctx *gin.Context) {
@@ -206,7 +205,7 @@ func (s *RegistrySrv) SearchRegistry(ctx *gin.Context) {
 		registries[i].HidePassword()
 	}
 
-	instances, err := s.ScannerInstance.SearchScannerInfo(ctx)
+	instances, err := s.ScannerInsSrv.SearchScannerInfo(ctx)
 	if err != nil {
 		response.JSONError(ctx, err)
 		return
@@ -359,9 +358,8 @@ func (s *RegistrySrv) StartSyncByRegName(ctx *gin.Context) {
 	}
 
 	err = s.RegistrySrv.CreateSyncTask(ctx, imagesec.CreateSyncTaskParam{
-		RegID:           regs[0].ID,
-		SyncType:        imagesec.ManualSync,
-		ScannerInstance: global.ScannerInstance,
+		RegID:    regs[0].ID,
+		SyncType: imagesec.ManualSync,
 	})
 	if err != nil {
 		logging.GetLogger().Err(err).Msg("StartSyncAllImage")

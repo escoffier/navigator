@@ -18,17 +18,26 @@ import (
 )
 
 type RpcStream struct {
-	Handler rpcstream.MessageHandler
-	Log     *scannerUtils.LogEvent
+	Handler    rpcstream.MessageHandler
+	ClusterKey string
+	Log        *scannerUtils.LogEvent
 }
 
 func NewRpcStream(handler rpcstream.MessageHandler) *RpcStream {
-	return &RpcStream{Handler: handler,
+	s := &RpcStream{Handler: handler,
 		Log: scannerUtils.NewLogEvent(
 			scannerUtils.WithSubModule("Stream"),
 			scannerUtils.WithModule(consts.ModuleRpcStream),
 		),
 	}
+
+	for global.ClusterKey == "" {
+		s.Log.Error().Msg("clusterKey or scannerInstance not set wait...")
+		time.Sleep(time.Minute)
+	}
+	s.ClusterKey = global.ClusterKey
+	return s
+
 }
 
 func MustGetGrpcStream() rpcstream.MessageStream {
@@ -36,7 +45,7 @@ func MustGetGrpcStream() rpcstream.MessageStream {
 		s, err := GetGrpcClient()
 		if err != nil {
 			logging.Get().Warn().Msg("grpc client not connect,wait and try")
-			time.Sleep(2 * time.Second)
+			time.Sleep(5 * time.Second)
 			continue
 		}
 		return s
@@ -117,7 +126,7 @@ func (vi *RpcStream) connectToConsole() error {
 func (vi *RpcStream) connectToClusterManager() error {
 	clusterManagerStreamInstance.grpcServerAddr = os.Getenv("CLUSTER_MANAGER_GRPC_ADDR")
 
-	streamKey := util.ScannerClusterManagerGrpcStreamKey(global.ClusterKey)
+	streamKey := util.ScannerClusterManagerGrpcStreamKey(vi.ClusterKey)
 
 	vi.Log.Info().
 		Str("grpcServerAddr", clusterManagerStreamInstance.grpcServerAddr).
