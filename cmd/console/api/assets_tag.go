@@ -36,7 +36,7 @@ func (api *api) getEnableAssetsTags(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *api) getAssetsTags(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
 	limit, offset := getLimitAndOffsetWithDefault(r)
@@ -68,7 +68,7 @@ func (api *api) getAssetsTags(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *api) changeAssetsTags(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
 
 	readAll, err := io.ReadAll(r.Body)
@@ -99,7 +99,7 @@ func (api *api) changeAssetsTags(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *api) getAssetsTagRelCountsById(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 	defer cancel()
 
 	tagId := getNormalizedURLParam(r, "tagId")
@@ -118,7 +118,7 @@ func (api *api) getAssetsTagRelCountsById(w http.ResponseWriter, r *http.Request
 }
 
 func (api *api) saveAssetsTag(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
 
 	readAll, err := io.ReadAll(r.Body)
@@ -202,7 +202,7 @@ func (api *api) deleteAssetsTag(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *api) assetsChangeTags(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
 
 	readAll, err := io.ReadAll(r.Body)
@@ -232,7 +232,7 @@ func (api *api) assetsChangeTags(w http.ResponseWriter, r *http.Request) {
 }
 
 func (api *api) getAssetsCustomTags(w http.ResponseWriter, r *http.Request) {
-	ctx, cancel := context.WithTimeout(r.Context(), 1*time.Second)
+	ctx, cancel := context.WithTimeout(r.Context(), 2*time.Second)
 	defer cancel()
 
 	resSvc, ok := assets.GetResourcesService(ctx)
