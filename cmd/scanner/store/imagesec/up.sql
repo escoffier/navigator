@@ -431,10 +431,13 @@ create table if not exists ivan_scan_image_meta
 
     primary key (id),
     unique index unq_idx_unique (unique_id),
-    index idx_image_flag (image_from_type, flag),
-    index idx_image_project (image_from_type, project),
-    index idx_heartbeat (heartbeat),
-    index idx_image_name (image_from_type, image_name)
+    index `idx_image_flag` (`image_from_type`, `flag`),
+    index `idx_heartbeat` (`heartbeat`),
+    index `idx_image_project2` (`reg_id`, `project`, `image_from_type`),
+    index `idx_image_project3` (`node_id`, `project`, `image_from_type`),
+    index `idx_image_uuid` (`image_uuid`),
+    index idx_image_digest (digest, image_from_type),
+    index `idx_image_name2` (`image_name`, `image_from_type`)
 );
 
 create table if not exists ivan_scan_image_malware
