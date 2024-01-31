@@ -6370,6 +6370,10 @@ func DeleteClusterAll(ctx context.Context, rdb *gorm.DB, clusterKey string) erro
 		if err != nil {
 			return err
 		}
+		err = tx.WithContext(ctx).Where("cluster_key = ?", clusterKey).Delete(&model.TensorsecContainerMonitor{}).Error
+		if err != nil {
+			return err
+		}
 		return nil
 	})
 }

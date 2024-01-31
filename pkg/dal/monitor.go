@@ -440,7 +440,7 @@ func GetMonitorComponentPod(ctx context.Context, rdb *gorm.DB, queryOpt *Monitor
 		item.Mem = getMem(c.MemCurrent)
 		item.BlockIO = getBlockIO(c.BlockILast, c.BlockICurrent, c.BlockOLast, c.BlockOCurrent, c.TimeGap)
 		if component == AppLabel_clusterManager {
-			if c.Version < "2.21" { //old
+			if c.Version <= "2.20.1" { //old
 				if c.ContainerStatus == ContainerState_running {
 					item.PodStatus = ContainerStatus_normal
 				} else {
