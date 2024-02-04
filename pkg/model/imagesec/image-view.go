@@ -10,7 +10,6 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -296,7 +295,6 @@ type ImageAssociateParam struct {
 	EnvEnable             bool
 	PkgEnable             bool
 	LicenseEnable         bool
-	ImageLicenseEnable    bool
 	SensitiveEnable       bool
 	WebshellEnable        bool
 	ContainerEnable       bool
@@ -794,6 +792,15 @@ const (
 	SensSuggestTitle     = "建议在镜像中移除以下敏感文件，然后重新打包镜像："
 )
 
+const (
+	MaxVulnScore             = 50
+	MaxWebshellScore         = 40
+	MaxVirusScore            = 40
+	MaxSensitiveScore        = 10
+	SingleSensitiveScore     = 5
+	MaxWebshellAndVirusScore = 40 // 评分细则规定webshell和病毒都算恶意文件加起来满分40
+)
+
 func SuggestEnTile() map[string]string {
 	en := map[string]string{
 		VulnSuggestTitle:     "it is recommended to use following command in  Dockerfile to upgrade the package:",
@@ -1013,7 +1020,7 @@ func (iws *ImageWithCorrelateData2) GetRiskScore() int64 {
 	riskScore := 100 - (CalculateVulnScore(iws.Vuln) +
 		CalculateSensitiveScore(int64(len(iws.Sensitive))) +
 		util.MinInt64(CalculateWebshellScore(int64(len(iws.WebshellView)))+CalculateMalwareScore(int64(len(iws.Malware))),
-			model.MaxWebshellAndVirusScore))
+			MaxWebshellAndVirusScore))
 
 	// 又改啦，没有扫描过的100分
 	// if len(iws.ScanSubTask) == 0 && riskScore == 100 {
@@ -1382,15 +1389,15 @@ func (iws *ImageWithCorrelateData2) StaticVuln() VulnSeverityStatic {
 	vulns := iws.Vuln
 	for i := range vulns {
 		switch vulns[i].SeverityInt {
-		case model.SeverityCriticalInt:
+		case SeverityCriticalInt:
 			im.Critical++
-		case model.SeverityHighInt:
+		case SeverityHighInt:
 			im.High++
-		case model.SeverityMediumInt:
+		case SeverityMediumInt:
 			im.Medium++
-		case model.SeverityLowInt:
+		case SeverityLowInt:
 			im.Low++
-		case model.SeverityUnknownInt:
+		case SeverityUnknownInt:
 			im.Unknown++
 		}
 	}
@@ -1614,7 +1621,7 @@ func (vi *ImageBaseResponse) GetImageAttrView(lang string) []string {
 	}
 
 	// if vi.ImageAttr.Trusted {
-	// 	if lang == model.LangZh {
+	// 	if lang == LangZh {
 	// 		ans = append(ans, "可信镜像")
 	// 	} else {
 	// 		ans = append(ans, "Trusted Image")
@@ -1622,7 +1629,7 @@ func (vi *ImageBaseResponse) GetImageAttrView(lang string) []string {
 	// }
 	//
 	// if !vi.ImageAttr.Trusted {
-	// 	if lang == model.LangZh {
+	// 	if lang == LangZh {
 	// 		ans = append(ans, "非可信镜像")
 	// 	} else {
 	// 		ans = append(ans, "Untrusted Image")
@@ -1630,7 +1637,7 @@ func (vi *ImageBaseResponse) GetImageAttrView(lang string) []string {
 	// }
 	//
 	// if vi.ImageAttr.ImageHasSuggestion {
-	// 	if lang == model.LangZh {
+	// 	if lang == LangZh {
 	// 		ans = append(ans, "存在修复建议")
 	// 	} else {
 	// 		ans = append(ans, "Has Suggestion")
@@ -1638,7 +1645,7 @@ func (vi *ImageBaseResponse) GetImageAttrView(lang string) []string {
 	// }
 	//
 	// if vi.ImageAttr.HasFixedVuln {
-	// 	if lang == model.LangZh {
+	// 	if lang == LangZh {
 	// 		ans = append(ans, "存在可修复漏洞")
 	// 	} else {
 	// 		ans = append(ans, "Has Fixed Vulnerability")
@@ -1725,33 +1732,33 @@ func ParseLicense(soft []*Pkg) string {
 
 func CalculateWebshellScore(sesCnt int64) int64 {
 	if sesCnt > 0 {
-		return model.MaxWebshellScore
+		return MaxWebshellScore
 	}
 	return 0
 }
 
 func CalculateMalwareScore(sesCnt int64) int64 {
 	if sesCnt > 0 {
-		return model.MaxVirusScore
+		return MaxVirusScore
 	}
 	return 0
 }
 
 func CalculateSensitiveScore(sesCnt int64) int64 {
-	score := model.SingleSensitiveScore * sesCnt
-	if score > model.MaxSensitiveScore {
-		return model.MaxSensitiveScore
+	score := SingleSensitiveScore * sesCnt
+	if score > MaxSensitiveScore {
+		return MaxSensitiveScore
 	}
-	return int64(score)
+	return score
 }
 
 func CalculateVulnScore(vulns []*VulnView) int64 {
 	constMapScore := map[string]int64{
-		model.SeverityCRITICALString: 25,
-		model.SeverityHIGHString:     20,
-		model.SeverityMEDIUMString:   15,
-		model.SeverityLOWString:      10,
-		model.SeverityUNKNOWNString:  5,
+		SeverityCritical: 25,
+		SeverityHigh:     20,
+		SeverityMedium:   15,
+		SeverityLow:      10,
+		SeverityUnknown:  5,
 	}
 	var score int64
 	exit := make(map[string]int64)
@@ -1763,8 +1770,8 @@ func CalculateVulnScore(vulns []*VulnView) int64 {
 		score += v
 	}
 
-	if score > model.MaxVulnScore {
-		return model.MaxVulnScore
+	if score > MaxVulnScore {
+		return MaxVulnScore
 	}
 
 	return score

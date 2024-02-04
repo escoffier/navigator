@@ -191,6 +191,24 @@ func (s *ImageInfoMetaSrv) GetImageCorrelateData(ctx context.Context,
 		return nil, err
 	}
 
+	// 对于老版本的集群，是扫描器扫描后，直接写数据库保存漏洞等数据，然后把其他结果发送kafka
+	// 如果在写入数据库后，发送 kafka失败，就不会执行后续检测逻辑，此时就会出现一种情况是：有扫描数据，但是安全状态还是未知
+	// 鉴于我们的 kafka 及数据库经常重启,需要做一下兼容。
+	// 镜像表中的flag 字段保存很多信息，但是 flag 的更新逻辑是，读取数据->计算值->再更新回数据库，这种方式难免会有数据更新冲突，
+	// 解决办法是用事务，因为更新 flag 是一个很频繁的操作，如果用事务会严重影响性能
+	// 这里统一做一下兼容
+	if util.ExistBit1(ans.Image.Flag, imagesecModel.FlagImageSafeUnknown) {
+		param.VulnEnable = false
+		param.SensitiveEnable = false
+		param.MalwareEnable = false
+		param.WebshellEnable = false
+		param.LicenseEnable = false
+		param.SubtaskEnable = false
+		param.PkgEnable = false
+		param.RiskPolicyEnable = false
+		param.SimplePolicyEnable = false
+	}
+
 	errs := make([]error, 0)
 	errs = append(errs, s.addRegistryData(ctx, &param, ans))
 	errs = append(errs, s.addScannerInfoData(ctx, &param, ans))

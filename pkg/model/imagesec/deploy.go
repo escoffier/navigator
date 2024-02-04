@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/i18"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -238,14 +237,13 @@ func (vi *DeployWhiteImage) Check() error {
 }
 
 type DeployMonitorImage struct {
-	Image         string              `json:"image"`
-	Repo          string              `json:"repo"`
-	Host          string              `json:"host"`
-	Tag           string              `json:"tag"`
-	Digest        string              `json:"digest"`
-	FromType      string              `json:"type"`
-	NotifyContext model.NotifyContext `json:"notify_context"`
-	ImageUUID     uint32              `json:"imageUUID"`
+	Image     string `json:"image"`
+	Repo      string `json:"repo"`
+	Host      string `json:"host"`
+	Tag       string `json:"tag"`
+	Digest    string `json:"digest"`
+	FromType  string `json:"type"`
+	ImageUUID uint32 `json:"imageUUID"`
 }
 
 func (vi *DeployMonitorImage) Empty() bool {
