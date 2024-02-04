@@ -43,8 +43,14 @@ type DetectImageData struct {
 	ImageUniqueID uint64
 	SubtaskID     int64
 	CreatedAt     int64
-	RetryCnt      int64
-	AllInCache    bool
+	// AllInCache    bool
+	// 本来想着做一步优化，但是会引入一个问题：
+	// 对于老版本的集群，是扫描器扫描后，直接写数据库保存漏洞等数据，然后把其他结果发送kafka
+	// 如果在写入数据库后，发送 kafka失败，就不会执行后续检测逻辑，此时就会出现一种情况是：有扫描数据，但是安全状态还是未知
+	// 鉴于我们的 kafka 及数据库经常重启,需要做一下兼容。
+	// 镜像表中的flag 字段保存很多信息，但是 flag 的更新逻辑是，读取数据->计算值->再更新回数据库，这种方式难免会有数据更新冲突，
+	// 解决办法是用事务，因为更新 flag 是一个很频繁的操作，如果用事务会严重影响性能
+	// 对于上面这种情况，即使所有数据在缓存中，也要重新检测
 }
 
 func (s *ScanResultReportSrv) matchVuln(ctx context.Context, data *imagesecTypes.ReportScanResult) (report.Results, error) {
@@ -103,7 +109,6 @@ func (s *ScanResultReportSrv) CreateScanResult(ctx context.Context, data imagese
 			ImageUniqueID: image.UniqueID,
 			SubtaskID:     data.SubTaskID,
 			CreatedAt:     time.Now().UnixMilli(),
-			AllInCache:    s.AllInCache(ctx, data),
 		}
 		s.detectImageChan <- dd
 	}()
@@ -824,30 +829,30 @@ func (s *ScanResultReportSrv) ContinueCreateDetectTask(ctx context.Context) erro
 		}()
 
 		for task := range s.detectImageChan {
-			// 不再进行检测
-			if task.AllInCache {
-				updater := map[string]interface{}{
-					"updated_at": time.Now().UnixMilli(),
-					"status":     imagesecModel.TaskStatusDetectFinished,
-					"status_str": imagesecModel.ScanStatusToStr(imagesecModel.TaskStatusDetectFinished),
-				}
+			// // 不再进行检测
+			// if task.AllInCache {
+			// 	updater := map[string]interface{}{
+			// 		"updated_at": time.Now().UnixMilli(),
+			// 		"status":     imagesecModel.TaskStatusDetectFinished,
+			// 		"status_str": imagesecModel.ScanStatusToStr(imagesecModel.TaskStatusDetectFinished),
+			// 	}
+			//
+			// 	if err := s.taskDal.UpdateScanSubtask(ctx, imagesecModel.UpdateTaskParam{
+			// 		ID:      task.SubtaskID,
+			// 		Updater: updater,
+			// 		Where:   fmt.Sprintf("status < %d", imagesecModel.TaskStatusPause),
+			// 	}); err != nil {
+			// 		s.Log.Err(err).Int64("subtaskID", task.SubtaskID).Interface("updater", updater).
+			// 			Msg("UpdateScanSubtask")
+			// 	}
+			// 	continue
+			// }
 
-				if err := s.taskDal.UpdateScanSubtask(ctx, imagesecModel.UpdateTaskParam{
-					ID:      task.SubtaskID,
-					Updater: updater,
-					Where:   fmt.Sprintf("status < %d", imagesecModel.TaskStatusPause),
-				}); err != nil {
-					s.Log.Err(err).Int64("subtaskID", task.SubtaskID).Interface("updater", updater).
-						Msg("UpdateScanSubtask")
-				}
-				continue
-			}
-
-			if task.RetryCnt > consts.DefaultMaxRetryCount {
-				s.Log.Info().Uint64("imageUniqueID", task.ImageUniqueID).
-					Msg("AddDetectTask exceed max retry")
-				continue
-			}
+			// if task.RetryCnt > consts.DefaultMaxRetryCount {
+			// 	s.Log.Info().Uint64("imageUniqueID", task.ImageUniqueID).
+			// 		Msg("AddDetectTask exceed max retry")
+			// 	continue
+			// }
 			// 防止主从延迟,现在强制走主库，暂时不需要做该项验证
 			// if time.Now().Unix()-task.CreatedAt < consts.DefaultSlaveDelay {
 			// 	time.Sleep(time.Millisecond * consts.DefaultSlaveDelay)

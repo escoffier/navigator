@@ -286,31 +286,33 @@ type ImageAttrResponse struct {
 }
 
 type ImageAssociateParam struct {
-	ImageFromType         string
-	ImageId               int64  // 对于仓库镜像这个参数是必须的
-	ImageUniqueID         uint64 // 对于节点镜像这个对数是必须的，后续仓库镜像也要整合到这里
-	DeployRecordID        int64  // 部署上线的记录 ID
-	VulnEnable            bool
-	MalwareEnable         bool
-	EnvEnable             bool
-	PkgEnable             bool
-	LicenseEnable         bool
-	SensitiveEnable       bool
-	WebshellEnable        bool
-	ContainerEnable       bool
-	SubtaskEnable         bool
-	RegistryEnable        bool
-	ScanInstanceEnable    bool
-	BaseImageEnable       bool
-	AppImageEnable        bool
-	CheckDownloadable     bool
-	AllPkgVuln            bool                  // 获取软件包对应的所有漏洞
-	TrustedEnable         bool                  // 查可digest 是否是可信
-	ImageInReg            bool                  // 查看节点镜像及部署上线的镜像是否在仓库中
-	NodeInfoEnable        bool                  // 查询节点镜像的节点信息
-	RiskPolicyEnable      bool                  // 查风险来源
-	SimplePolicyEnable    bool                  // 查看命中的策略
-	DetectResultEnable    bool                  // 查看检测结果
+	ImageFromType        string
+	ImageId              int64  // 对于仓库镜像这个参数是必须的
+	ImageUniqueID        uint64 // 对于节点镜像这个对数是必须的，后续仓库镜像也要整合到这里
+	DeployRecordID       int64  // 部署上线的记录 ID
+	VulnEnable           bool
+	MalwareEnable        bool
+	EnvEnable            bool
+	PkgEnable            bool
+	LicenseEnable        bool
+	SensitiveEnable      bool
+	WebshellEnable       bool
+	ContainerEnable      bool
+	SubtaskEnable        bool
+	RegistryEnable       bool
+	ScanInstanceEnable   bool
+	BaseImageEnable      bool
+	AppImageEnable       bool
+	CheckDownloadable    bool
+	AllPkgVuln           bool // 获取软件包对应的所有漏洞
+	TrustedEnable        bool // 查可digest 是否是可信
+	ImageInReg           bool // 查看节点镜像及部署上线的镜像是否在仓库中
+	NodeInfoEnable       bool // 查询节点镜像的节点信息
+	RiskPolicyEnable     bool // 查风险来源
+	SimplePolicyEnable   bool // 查看命中的策略
+	DetectResultEnable   bool // 查看检测结果
+	NotNeedCompImageSafe bool
+
 	ScanResultSearchParam ScanResultSearchParam // 除了漏洞之外其他扫描结果的查询
 	SearchVulnParam       ApiSearchVulnParam    // 漏洞查询
 	DetectParam           DetectResultParam
