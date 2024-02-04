@@ -646,14 +646,14 @@ func (rl *TensorDriftService) driftConfigMapUpdate(ctx context.Context, policyDa
 			_, err = client.CoreV1().ConfigMaps(namespace).Create(ctx, configmap, metav1.CreateOptions{})
 			if err != nil {
 				logging.Get().Err(err).Str("cm:", fmt.Sprintf("%+v", configmap)).Msg("create drift config map error")
-				return false
+				return true // continue to next client
 			}
 
 		} else {
 			if len(currentConfigMap.Data)+len(updateMap) > policyConfigMapSize {
 				// return errors.New("policy config map size is too large")
 				logging.Get().Warn().Msg("policy config map size is too large")
-				return false
+				return true // continue to next client
 			}
 			if currentConfigMap.Data == nil {
 				currentConfigMap.Data = make(map[string]string, len(updateMap))
@@ -664,7 +664,7 @@ func (rl *TensorDriftService) driftConfigMapUpdate(ctx context.Context, policyDa
 			_, err = client.CoreV1().ConfigMaps(namespace).Update(ctx, currentConfigMap, metav1.UpdateOptions{})
 			if err != nil {
 				logging.Get().Err(err).Str("cm:", fmt.Sprintf("%+v", currentConfigMap)).Msg("update drift config map error")
-				return false
+				return true // continue to next client
 			}
 		}
 		return true
@@ -706,7 +706,7 @@ func (rl *TensorDriftService) driftConfigMapDelete(ctx context.Context, policyDa
 				_, err = client.CoreV1().ConfigMaps(namespace).Update(ctx, currentConfigMap, metav1.UpdateOptions{})
 				if err != nil {
 					logging.Get().Err(err).Str("cm:", fmt.Sprintf("%+v", currentConfigMap)).Msg("update drift config map error")
-					return false
+					return true // continue to next client
 				}
 			} else {
 				logging.Get().Warn().Str("key", key).Msg("delete drift config map key not exist")
@@ -744,7 +744,7 @@ func (rl *TensorDriftService) driftConfigMapReset(ctx context.Context, policyDat
 		}
 		if len(addMap) > policyConfigMapSize {
 			logging.Get().Warn().Msg("policy config map size is too large")
-			return false
+			return true // continue to next client
 		}
 
 		// create drift config map
@@ -761,7 +761,7 @@ func (rl *TensorDriftService) driftConfigMapReset(ctx context.Context, policyDat
 		_, err = client.CoreV1().ConfigMaps(namespace).Create(ctx, configmap, metav1.CreateOptions{})
 		if err != nil {
 			logging.Get().Err(err).Str("cm:", fmt.Sprintf("%+v", configmap)).Msg("create drift config map error")
-			return false
+			return true // continue to next client
 		}
 		return true
 	})
@@ -810,13 +810,13 @@ func (rl *TensorDriftService) whitelistConfigMapUpdate(ctx context.Context, whit
 			_, err = client.CoreV1().ConfigMaps(namespace).Create(ctx, configmap, metav1.CreateOptions{})
 			if err != nil {
 				logging.Get().Err(err).Str("cm:", fmt.Sprintf("%+v", configmap)).Msg("create whitelist config map error")
-				return false
+				return true // continue to next client
 			}
 
 		} else {
 			if len(currentConfigMap.Data)+len(updateMap) > whitelistConfigMapSize {
 				logging.Get().Err(err).Str("cm:", fmt.Sprintf("%+v", currentConfigMap)).Msg("update whitelist config map error")
-				return false
+				return true // continue to next client
 			}
 			if currentConfigMap.Data == nil {
 				currentConfigMap.Data = make(map[string]string, len(updateMap))
@@ -827,7 +827,7 @@ func (rl *TensorDriftService) whitelistConfigMapUpdate(ctx context.Context, whit
 			_, err = client.CoreV1().ConfigMaps(namespace).Update(ctx, currentConfigMap, metav1.UpdateOptions{})
 			if err != nil {
 				logging.Get().Err(err).Str("cm:", fmt.Sprintf("%+v", currentConfigMap)).Msg("update whitelist config map error")
-				return false
+				return true // continue to next client
 			}
 		}
 		return true
@@ -871,7 +871,7 @@ func (rl *TensorDriftService) whitelistConfigMapDelete(ctx context.Context, whit
 				_, err = client.CoreV1().ConfigMaps(namespace).Update(ctx, currentConfigMap, metav1.UpdateOptions{})
 				if err != nil {
 					logging.Get().Err(err).Str("cm:", fmt.Sprintf("%+v", currentConfigMap)).Msg("update whitelist config map error")
-					return false
+					return true // continue to next client
 				}
 			} else {
 				logging.Get().Warn().Str("key", key).Msg("delete whitelist config map key not exist")
@@ -911,7 +911,7 @@ func (rl *TensorDriftService) whitelistConfigMapReset(ctx context.Context, white
 		}
 		if len(updateMap) > whitelistConfigMapSize {
 			logging.Get().Err(err).Msg("whitelist config map size is too large")
-			return false
+			return true // continue to next client
 		}
 
 		// create drift config map
@@ -928,7 +928,7 @@ func (rl *TensorDriftService) whitelistConfigMapReset(ctx context.Context, white
 		_, err = client.CoreV1().ConfigMaps(namespace).Create(ctx, configmap, metav1.CreateOptions{})
 		if err != nil {
 			logging.Get().Err(err).Str("cm:", fmt.Sprintf("%+v", configmap)).Msg("create whitelist config map error")
-			return false
+			return true // continue to next client
 		}
 		return true
 	})
