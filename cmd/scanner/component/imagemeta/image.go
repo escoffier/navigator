@@ -186,8 +186,7 @@ func (s *ImageInfoMetaSrv) GetImageCorrelateData(ctx context.Context,
 	}
 
 	if err := s.addDeployMeta(ctx, &param, ans); err != nil {
-		s.Log.Err(err).Int64("ImageID", param.ImageId).
-			Msg("ImageWithCorrelateData addDeployMeta")
+		s.Log.Err(err).Int64("ImageID", param.ImageId).Msg("ImageWithCorrelateData addDeployMeta")
 		return nil, err
 	}
 
@@ -197,7 +196,7 @@ func (s *ImageInfoMetaSrv) GetImageCorrelateData(ctx context.Context,
 	// 镜像表中的flag 字段保存很多信息，但是 flag 的更新逻辑是，读取数据->计算值->再更新回数据库，这种方式难免会有数据更新冲突，
 	// 解决办法是用事务，因为更新 flag 是一个很频繁的操作，如果用事务会严重影响性能
 	// 这里统一做一下兼容
-	if util.ExistBit1(ans.Image.Flag, imagesecModel.FlagImageSafeUnknown) {
+	if ans.GenSafe() == imagesecModel.ImageSafeUnknown {
 		param.VulnEnable = false
 		param.SensitiveEnable = false
 		param.MalwareEnable = false
