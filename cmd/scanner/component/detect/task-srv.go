@@ -183,7 +183,7 @@ func (s *ImageDetectTaskSrv) CreateDetectSubtask(
 	for {
 		imageSearchParam.StartID = startId
 		imageSearchParam.Filter = filter
-		assParam := imagesecModel.ImageAssociateParam{RegistryEnable: true, NodeInfoEnable: true, SubtaskEnable: true}
+		assParam := imagesecModel.ImageAssociateParam{RegistryEnable: true, NodeInfoEnable: true, SubtaskEnable: true, NotNeedCompImageSafe: true}
 		imageSearchParam.AssociateParam = assParam
 
 		images, _, err := s.imageSrv.ListImageWithScanInfo(ctx, imageSearchParam)
@@ -204,7 +204,8 @@ func (s *ImageDetectTaskSrv) CreateDetectSubtask(
 			im := images[i]
 			if im.LastScanAt <= 0 {
 				s.Log.Info().Str("image", im.GetImageName()).Msg("not scan not add detect task")
-				// 2.21的新改动， 镜像同步时不检测,如果镜像不
+				// 2.21的新改动， 镜像同步时不检测,
+				// 如果镜像没有被扫描过，就不检测
 				continue
 			}
 			// 把这个镜像相关的所有策略都找出来，重新加
