@@ -425,18 +425,23 @@ func GetAssetsTagRelCounts(ctx context.Context, rdb *gorm.DB, tagId string) (rel
 }
 
 // 内置标签的 资产卡片计数
-func getBuiltInTagAssetsCount(ctx context.Context, rdb *gorm.DB, types []model.TagRelObjType) ([]*AssetsTagRelIdsCount, error) {
+func getBuiltInTagAssetsCount(c context.Context, rdb *gorm.DB, types []model.TagRelObjType) ([]*AssetsTagRelIdsCount, error) {
 	var result []*AssetsTagRelIdsCount
+	if len(types) == 0 {
+		return result, nil
+	}
 	var wg sync.WaitGroup
 	var lock sync.Mutex
 	var err error
+	cc, cancel := context.WithTimeout(c, time.Second*9)
+	defer cancel()
 	for _, objType := range types {
 		wg.Add(1)
 		go func(t model.TagRelObjType) {
 			item := AssetsTagRelIdsCount{
 				ObjType: t,
 			}
-			ctx, _ := context.WithTimeout(ctx, time.Second*8)
+			ctx, _ := context.WithTimeout(c, time.Second*8)
 			switch t {
 			case model.ObjType_cluster:
 				item.Count, err = CountClusters(ctx, rdb, ClusterQuery())
@@ -490,7 +495,18 @@ func getBuiltInTagAssetsCount(ctx context.Context, rdb *gorm.DB, types []model.T
 			wg.Done()
 		}(objType)
 	}
-	wg.Wait()
+	wgChan := make(chan int)
+	go func() {
+		wg.Wait()
+		close(wgChan)
+	}()
+
+	select {
+	case <-cc.Done():
+		logging.Get().Info().Msg("cc context is done")
+	case <-wgChan:
+		logging.Get().Info().Msg("wg waitGroup is done")
+	}
 	return result, err
 }
 

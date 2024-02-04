@@ -47,7 +47,7 @@ var (
 		"image_pull_policy",
 		"security_context",
 		"type",
-		"image_uuid",
+		//"image_uuid",
 		"app_type",
 		"app_target_version",
 		"app_target_name",
