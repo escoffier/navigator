@@ -648,8 +648,7 @@ func (s *ImageUpdateSrv) updateSafeFlag(ctx context.Context) error {
 		return err
 	}
 
-	s.Log.Info().Int("policy", len(policy)).
-		Msg("updateSafeFlag find detect policy")
+	s.Log.Info().Int("policy", len(policy)).Msg("updateSafeFlag find detect policy")
 
 	if len(policy) == 0 {
 		return nil

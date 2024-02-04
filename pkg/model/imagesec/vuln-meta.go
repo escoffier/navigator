@@ -5,8 +5,6 @@ import (
 	"sync"
 
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/report"
-
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
 
 var vulnVectorAttrWithZHView map[string]map[string]string
@@ -379,7 +377,7 @@ func AddSeverityGroup(sgs []SeverityGroup, severityInt int64) []SeverityGroup {
 		sgs = append(sgs, SeverityGroup{
 			SeverityInt: severityInt,
 			Count:       1,
-			Severity:    model.GetSeverity(severityInt),
+			Severity:    GetSeverityEN(severityInt),
 		})
 	}
 	return sgs

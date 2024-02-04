@@ -203,8 +203,8 @@ func (s *ImageDetectTaskSrv) CreateDetectSubtask(
 		for i := range images {
 			im := images[i]
 			if im.LastScanAt <= 0 {
-				s.Log.Info().Str("image", im.GetImageName()).Msg("not scanner not add detect task")
-				// 2.21的新改动，如果不是扫描之后的检测，就只会检测已扫描的扫描之后才做检测
+				s.Log.Info().Str("image", im.GetImageName()).Msg("not scan not add detect task")
+				// 2.21的新改动， 镜像同步时不检测,如果镜像不
 				continue
 			}
 			// 把这个镜像相关的所有策略都找出来，重新加

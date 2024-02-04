@@ -72,20 +72,19 @@ func (s *DeploySrv) GetImageDataForDeploy(ctx context.Context, param imagesecMod
 
 	if ans.Exit && len(ans.Errs) == 0 {
 		data, err := s.ImageService.GetImageCorrelateData(ctx, imagesecModel.ImageAssociateParam{
-			ImageFromType:      imagesecModel.ImageFromRegistry,
-			ImageUniqueID:      ans.CorrelateData.Image.UniqueID,
-			VulnEnable:         true,
-			MalwareEnable:      true,
-			EnvEnable:          true,
-			PkgEnable:          true,
-			LicenseEnable:      true,
-			ImageLicenseEnable: true,
-			SensitiveEnable:    true,
-			WebshellEnable:     true,
-			SubtaskEnable:      true,
-			BaseImageEnable:    true,
-			TrustedEnable:      true,
-			ImageInReg:         true,
+			ImageFromType:   imagesecModel.ImageFromRegistry,
+			ImageUniqueID:   ans.CorrelateData.Image.UniqueID,
+			VulnEnable:      true,
+			MalwareEnable:   true,
+			EnvEnable:       true,
+			PkgEnable:       true,
+			LicenseEnable:   true,
+			SensitiveEnable: true,
+			WebshellEnable:  true,
+			SubtaskEnable:   true,
+			BaseImageEnable: true,
+			TrustedEnable:   true,
+			ImageInReg:      true,
 		})
 		if err != nil {
 			ans.Errs = append(ans.Errs, err)
