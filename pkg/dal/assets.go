@@ -6273,7 +6273,7 @@ func DeleteClusterAll(ctx context.Context, rdb *gorm.DB, clusterKey string) erro
 		}
 		if len(ids) > 0 {
 			err = tx.Table(model.TensorRawContainerFramework{}.TableName()).
-				Where("in  = ?", ids).Delete(&model.TensorRawContainerFramework{}).Error
+				Where("id in  ?", ids).Delete(&model.TensorRawContainerFramework{}).Error
 			if err != nil {
 				return err
 			}
@@ -6287,7 +6287,7 @@ func DeleteClusterAll(ctx context.Context, rdb *gorm.DB, clusterKey string) erro
 		}
 		if len(ids) > 0 {
 			err = tx.Table(model.TensorRawContainerSvc{}.TableName()).
-				Where("in  = ?", ids).Delete(&model.TensorRawContainerSvc{}).Error
+				Where(" id in  ?", ids).Delete(&model.TensorRawContainerSvc{}).Error
 			if err != nil {
 				return err
 			}
