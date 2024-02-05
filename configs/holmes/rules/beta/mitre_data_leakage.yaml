@@ -226,3 +226,26 @@
     priority: WARNING
     urgency: true
     tags: [ATT&CK, file, shell, mitre_data_leakage, L1]
+
+- key: Secrets store csi driver leaked
+  disabled: true
+  hid: exf_10
+  condition: >
+    ((proc.cmdline contains "get" and proc.cmdline contains "csidriver" and proc.cmdline contains "secrets-store.csi.k8s.io") 
+    or (proc.cmdline contains "logs" and proc.cmdline contains "secrets-store-csi-driver" and proc.cmdline contains "secrets-store")) 
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent=%proc.pname,file=%fd.name,program=%proc.name,gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4],container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "Secrets-store-csi-driver log leaks service account token (CVE-2023-2878)"
+      zh: "Secrets-store-csi-driver日志泄露服务帐户令牌(CVE-2023-2878)"
+    desc:
+      en: "CVE-2023-2878 is a key credential synchronization plug-in developed by the secrets-store-csi-driver mechanism. The service account token bound to the plug-in can be obtained through the component log, which may cause unauthorized access to the corresponding KMS key management system on the cloud. Stored key credentials. This is most likely an attacker trying to obtain the service account token bound to the plug-in in this way, thereby gaining unauthorized access to the KMS key management system on the cloud. This means an attacker can view, modify, delete, or use your key credentials stored on the cloud, such as passwords, certificates, API keys, etc. This may lead to your data being leaked, damaged or misused, causing you serious security risks and losses."
+      zh: "CVE-2023-2878是secrets-store-csi-driver机制开发的密钥凭据同步插件，通过组件日志可以获取到插件绑定的服务账户令牌，从而可能越权访问云上对应KMS密钥管理系统中存储的密钥凭据。这大概率是攻击者通过这种方式尝试获取插件绑定的服务账户令牌，从而越权访问云上的KMS密钥管理系统。这意味着攻击者可以查看、修改、删除或使用您在云上存储的密钥凭据，例如密码、证书、API密钥等。这可能会导致您的数据泄露、损坏或被滥用，给您带来严重的安全风险和损失。"
+    suggestion:
+      en: "(1). Please first combine the process command line, (parent) process name, file path and other fields of the alarm to initially determine whether it is a business, R&D/operation and maintenance behavior (2). If it is a repeated expected behavior, and after investigation After judging that the security risk is controllable, you can consider whitening it (3). If it is an unexpected behavior, please conduct correlation analysis through the container ID, associated alarm list, etc., and check whether the process command line contains key items such as logs and secrets-store. Please contact security personnel for further investigation."
+      zh: "(1).请先结合告警的进程命令行、(父)进程名、文件路径等字段初步判断是否为业务、研发/运维的行为 (2).如果是重复出现的预期行为，且经排查后判断安全风险可控，可以考虑对其进行加白 (3).如果是非预期行为，请通过容器id、关联告警列表等内容进行关联分析，查看进程命令行是否包含logs、secrets-store等关键词，及时联系安全人员进一步排查。"
+    rule_type: Exfiltration
+    priority: ALERT
+    urgency: true
+    tags: [ATT&CK, shell, mitre_data_leakage, L1]

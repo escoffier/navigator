@@ -83,7 +83,7 @@
 #     rule_type: Persistence
 #     priority: WARNING
 #     urgency: false
-#     tags: [ATT&CK, filesystem, software_mgmt, mitre_persistence]
+#     tags: [ATT&CK, filesystem, software_mgmt, mitre_persistence] 
 
 - key: Remove bulk data from disk
   hid: pers_04
