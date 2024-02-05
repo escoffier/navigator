@@ -320,6 +320,7 @@
     and not fd.name contains "->127.0.0.1"
     and not fd.name contains "->0.0.0.0:"
     and not fd.name contains "->::1"
+    and not proc.name = curl
     and not (proc.cmdline contains "docker -H tcp://" and proc.cmdline contains ":2375")
 #and not k8s.pod.name contains "51c1c6" and (inbound_outbound) and fd.sport=8080
   output: >

@@ -862,7 +862,6 @@
     and (fd.sport="2379" or fd.sport="2380" or fd.sport="10250" or fd.sport="2375" or fd.sport="2376" )
     and not fd.name contains "127.0.0.1"
     and not fd.sip = "127.0.0.1"
-
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
   info:
@@ -881,3 +880,28 @@
     tags: [ATT&CK, container, k8s, mitre_privilege_escalation, L1]
 
 #################中移订制#############################
+#cd /proc/self/fd && cat /proc/self/cwd/somefile
+- key: runc container escape (CVE-2024-21626)
+  disabled: true
+  hid: priv_38
+  condition: >
+    container
+    and not tensorsec_namespace
+    and ((evt.type = execve and proc.cwd startswith "/proc/self/fd") or (evt.type in (open, openat, openat2) and fd.name glob "/proc/*/cwd/*") or evt.type in (symlink, symlinkat)) 
+    and proc.name != "runc:[1:CHILD]"
+  output: >
+    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,parent=%proc.pname,file=%fd.name,program=%proc.name,gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4],container_id=%container.id,container_name=%container.name,image=%container.image.repository
+  info:
+    name:
+      en: "runc container escape (CVE-2024-21626)"
+      zh: "runc容器逃逸(CVE-2024-21626)"
+    desc:
+      en: "The runc container escape vulnerability (CVE-2024-21626) is due to internal leaks in runc when processing file descriptors. Local attackers can use multiple methods to escape the container. Attack methods include using runc to leak the file descriptor of the physical machine into runc init, as well as file descriptor leakage and insufficient working directory verification in runc exec. An attacker may exploit this vulnerability to create a malicious container image, induce the victim to build and execute it, thereby executing arbitrary commands on the physical machine and bypassing protection measures to access the host file system. There is a high probability that the attacker is trying to overwrite the binary files on the host to obtain privileged user rights, thereby achieving complete control of the host and conducting malicious activities such as data theft and system destruction."
+      zh: "runc容器逃逸漏洞(CVE-2024-21626)是由于runc在处理文件描述符时存在内部泄漏，本地攻击者可以利用多种方式进行容器逃逸。攻击方式包括利用runc将物理机的文件描述符泄露到runc init中，以及runc exec中文件描述符泄漏和工作目录验证不足。攻击者可能利用这一漏洞制作恶意容器镜像，诱导受害者构建并执行，从而在物理机上执行任意命令，并绕过保护措施访问主机文件系统。大概率是攻击者尝试覆盖主机上的二进制文件，以获取特权用户权限，从而实现对主机的完全控制，进行数据窃取、系统破坏等恶意活动。"
+    suggestion:
+      en: "(1). Please first combine the alarm process command line, (parent) process name, server IP address and other fields to initially determine whether it is a business, R&D/operation and maintenance behavior (2). If it is a repeated expected behavior, and After investigation, it is judged that the security risk is controllable, and you can consider whitening it (3). If it is an unexpected behavior, please conduct correlation analysis through the container ID, associated alarm list, etc., and check whether the file descriptor contains lxcfs and ends with devices. .allow, contact security personnel promptly for further investigation."
+      zh: "(1).请先结合告警的进程命令行、(父)进程名、文件路径等字段初步判断是否为业务、研发/运维的行为 (2).如果是重复出现的预期行为，且经排查后判断安全风险可控，可以考虑对其进行加白 (3).如果是非预期行为，请通过容器id、关联告警列表等内容进行关联分析，查看文件描述符是否包含/proc/self/fd/、/proc/*/cwd/../../等，及时联系安全人员进一步排查"
+    rule_type: Privilege_Escalation
+    priority: ALERT
+    urgency: true
+    tags: [ATT&CK, filesystem, mitre_privilege_escalation, L3]

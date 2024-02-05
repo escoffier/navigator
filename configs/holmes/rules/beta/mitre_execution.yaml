@@ -317,8 +317,9 @@
     and not fd.name contains "->127.0.0.1"
     and not fd.name contains "->0.0.0.0:"
     and not fd.name contains "->::1"
+    and not proc.name = curl
     and not (proc.cmdline contains "docker -H tcp://" and proc.cmdline contains ":2375")
-#and not k8s.pod.name contains "51c1c6" and (inbound_outbound) and fd.sport=8080
+#and not k8s.pod.name contains "51c1c6" and (inbound_outbound) and fd.sport=8080 
   output: >
     pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,fd_name=%fd.name,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_pname=%proc.pname,proc_name=%proc.name,parent=%proc.pname,proc.aname[0]=%proc.aname[0],proc.aname[1]=%proc.aname[1],gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4]
   steps:
@@ -699,8 +700,8 @@
       en: "Network Connection outside Local Subnet"
       zh: "容器内访问外网"
     desc:
-      en: "Usually we think that administrators will not execute k8s related commands in the container. The high probability is that the attacker will achieve unauthorized access, lateral movement, steal sensitive information and bypass security measures in order to obtain the ApiServer_token after the attack."
-      zh: "容器内访问外网"
+      en: "Accessing the external network from within a container is a container security risk, which may cause the container to be hacked or leak sensitive data. If an application or service in a container initiates an external connection request to a malicious domain name or IP, it may be used by hackers' remote control servers, malware download sources, mining pool addresses, etc. to attack other network resources. In addition, sensitive data within the container may also be transmitted to the external network through the network, causing data leakage."
+      zh: "容器内访问外网是一种容器安全风险，它可能导致容器被黑客入侵或泄露敏感数据。容器内的应用程序或服务如果向恶意域名或IP发起外连请求，可能会被黑客的远控服务器、恶意软件下载源、矿池地址等利用，从而攻击其他网络资源。此外，容器内的敏感数据也可能会通过网络传输到外部网络，造成数据泄露。"
     suggestion:
       en: "Please confirm whether this behavior is initiated by a trusted person or program, or the container may be invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
       zh: "请确认该行为发起对象是否为可信人员或程序，否则容器可能遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
@@ -862,8 +863,8 @@
       en: "find trampoline Pod"
       zh: "trampoline Pod发现"
     desc:
-      en: "Usually we think that administrators will not execute k8s related commands in the container. The high probability is that the attacker will achieve unauthorized access, lateral movement, steal sensitive information and bypass security measures in order to obtain the ApiServer_token after the attack."
-      zh: "trampoline Pod发现"
+      en: "Trampoline Pods are a special type of Pod used in Kubernetes clusters, typically used to perform short-lived tasks or act as temporary agents. The main purpose of Trampoline Pod is to perform certain operations rather than running for a long time"
+      zh: "tTrampoline Pod 是一种用于 Kubernetes 集群中的特殊类型的 Pod，通常用于执行短暂任务或作为临时代理。Trampoline Pod 的主要目的是执行某些操作而不是长期运行"
     suggestion:
       en: "Please confirm whether this behavior is initiated by a trusted person or program, or the container may be invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
       zh: "请确认该行为发起对象是否为可信人员或程序，否则容器可能遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
@@ -890,8 +891,8 @@
       en: "can-i judge authorization"
       zh: "使用can-i进行权限探测"
     desc:
-      en: "Usually we think that administrators will not execute k8s related commands in the container. The high probability is that the attacker will achieve unauthorized access, lateral movement, steal sensitive information and bypass security measures in order to obtain the ApiServer_token after the attack."
-      zh: "使用can-i进行权限探测"
+      en: "In Kubernetes, can-i is a utility tool used to detect whether the current user or Service Account has the permission to perform specific operations. With the can-i command, you can query the RBAC role authorization rules in the Kubernetes API to determine whether a certain Whether the user or Service Account has been granted permissions to perform specific operations."
+      zh: "在 Kubernetes 中，can-i 是一个用于探测当前用户或 Service Account 是否具有执行特定操作的权限的实用工具，通过 can-i 命令，您可以查询 Kubernetes API 中的 RBAC 角色授权规则，以确定某个用户或 Service Account 是否被授予了执行特定操作的权限。"
     suggestion:
       en: "Please confirm whether this behavior is initiated by a trusted person or program, or the container may be invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
       zh: "请确认该行为发起对象是否为可信人员或程序，否则容器可能遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
@@ -996,3 +997,23 @@
     urgency: false
     tags: [ATT&CK, network, mitre_execution, L1]
 #################特定场景规则############################
+- key: Start a privileged process
+  hid: exec_37
+  condition: >
+    spawned_process and user.uid = 0 and shell_family_procs
+  output: >
+    pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,fd_name=%fd.name,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_pname=%proc.pname,proc_name=%proc.name,parent=%proc.pname,user=%user.name,user_loginuid=%user.loginuid
+  info:
+    name:
+      en: "Start a privileged process"
+      zh: "启动特权进程"
+    desc:
+      en: "An attacker launching a privileged process could lead to serious security risks and system vulnerabilities. These possible hazards include: elevating privileges, that is, the attacker elevates privileges by launching a process with privileged permissions, and may perform some operations that usually require higher privileges, thus bypassing the security mechanism of the system; lateral movement, that is, the attacker launches Privileged processes move laterally within a system, expanding their access to other system resources and services, potentially making it easier for an attacker to obtain sensitive information or perform a broader attack"
+      zh: "攻击者启动特权进程可能导致严重的安全风险和系统漏洞。这些可能的危害包括：提升权限，即攻击者通过启动具有特权权限的进程进行权限提升，可能执行一些通常需要更高权限的操作，从而绕过系统的安全机制；横向移动，即攻击者通过启动特权进程在系统内横向移动，扩大其对其他系统资源和服务的访问，可能使攻击者更容易获取敏感信息或执行更广泛的攻击"
+    suggestion:
+      en: "(1). Please first combine the alarm process command line, (parent) process name, server IP address and other fields to initially determine whether it is a business, R&D/operation and maintenance behavior (2). If it is a repeated expected behavior, and After investigation, it is judged that the security risk is controllable, and you can consider whitening it (3). If it is an unexpected behavior, please conduct correlation analysis through the container ID, associated alarm list, etc., and contact security personnel in a timely manner for further investigation."
+      zh: "(1).请先结合告警的进程命令行、(父)进程名、服务端IP地址等字段初步判断是否为业务、研发/运维的行为 (2).如果是重复出现的预期行为，且经排查后判断安全风险可控，可以考虑对其进行加白 (3).如果是非预期行为，请通过容器id、关联告警列表等内容进行关联分析，及时联系安全人员进一步排查"
+    rule_type: Discovery
+    priority: INFO
+    urgency: false
+    tags: [ATT&CK, network, mitre_execution, L1]
