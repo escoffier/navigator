@@ -189,6 +189,10 @@ func GetLicenseInfo() *Info {
 
 // GetUsedNodeNum get used node number
 func GetUsedNodeNum() (int64, error) {
+	// 去掉使用节点数量验证
+	// https://project.feishu.cn/tensorsecurity/issue/detail/3009902804
+	return 0, nil
+
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
