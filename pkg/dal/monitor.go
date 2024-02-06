@@ -208,6 +208,10 @@ func UpsertContainerMetrics(ctx context.Context, rdb *gorm.DB, containers []*mod
 			if err != nil {
 				return err
 			}
+			// clean 本节点上的其他记录
+			return tx.Where("cluster_key=? and node_name=?  and app_label !=? and  updated_at<?",
+				containers[0].ClusterKey, containers[0].NodeName, AppLabel_clusterManager, containers[0].UpdatedAt.Add(-time.Millisecond)).
+				Delete(&model.TensorsecContainerMonitor{}).Error
 		}
 		return nil
 	})
