@@ -10,10 +10,11 @@ import (
 
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
-	"gitlab.com/piccolo_su/vegeta/pkg/request"
-	"gitlab.com/piccolo_su/vegeta/pkg/token"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/request"
+	"gitlab.com/piccolo_su/vegeta/pkg/token"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/openapiauth"
 	"gitlab.com/piccolo_su/vegeta/pkg/apperror"
@@ -239,6 +240,11 @@ func openAPIAccessCheck(rdb *databases.RDBInstance) func(http.Handler) http.Hand
 				Eigenvalue: "",
 			})
 			if r.Method == http.MethodGet {
+				next.ServeHTTP(w, r.WithContext(ctx))
+				return
+			}
+			// 镜像列表接口是使用的 post
+			if strings.Contains(r.URL.Path, "/containerSec/scanner/images/list") {
 				next.ServeHTTP(w, r.WithContext(ctx))
 				return
 			}
