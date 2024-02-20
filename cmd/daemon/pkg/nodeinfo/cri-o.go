@@ -19,6 +19,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	cri "k8s.io/cri-api/pkg/apis"
 	runtimeapi "k8s.io/cri-api/pkg/apis/runtime/v1"
+	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"k8s.io/kubernetes/pkg/kubelet/cri/remote"
 )
 
@@ -191,7 +192,7 @@ func (c *CRIOInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 			logging.Get().Warn().Msg("mq is not ready or ExportRawContainer is false")
 			continue
 		}
-		logging.Get().Debug().Msgf("crio compare result: newContainer count:%d, existContainer count:%d", len(newContainerMap), len(exitContainerIdList))
+		logging.Get().Info().Msgf("crio compare result: newContainer count:%d, existContainer count:%d", len(newContainerMap), len(exitContainerIdList))
 		// add
 		for _, container := range newContainerMap {
 			detail, err := c.buildContainerDetail(container)
@@ -202,10 +203,10 @@ func (c *CRIOInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 			if detail == nil {
 				continue
 			}
-			c.processEvents(detail, "create")
+			c.processEvents(detail, "start")
 		}
 		for _, id := range exitContainerIdList {
-			contain := &model.TensorRawContainer{ContainerID: id}
+			contain := &model.TensorRawContainer{ContainerID: id, ClusterKey: c.clusterKey, StatusDesc: string(kubecontainer.ContainerStateExited)}
 			c.processEvents(contain, "delete")
 		}
 	}
@@ -298,7 +299,7 @@ func (c *CRIOInfoManager) listAll() {
 			continue
 		}
 		c.runningContainerMap.Store(container.Id, "")
-		c.processEvents(tensorRawContainer, "create")
+		c.processEvents(tensorRawContainer, "start")
 	}
 }
 
@@ -381,7 +382,8 @@ func (c *CRIOInfoManager) buildContainerDetail(container *runtimeapi.Container) 
 	reslult := model.TensorRawContainer{
 		CreatedAt:   create,
 		UpdatedAt:   time.Now(),
-		Status:      c.translateState(container.State),
+		Status:      c.translateStateInt(container.State),
+		StatusDesc:  c.translateStateStr(container.State),
 		ContainerID: container.Id,
 		NetworkMode: "container",
 		IP:          networkSettings.IPAddress,
@@ -422,13 +424,15 @@ func (c *CRIOInfoManager) buildContainerDetail(container *runtimeapi.Container) 
 
 func (c *CRIOInfoManager) processEvents(container *model.TensorRawContainer, action string) {
 	logging.Get().Info().Msgf("crio processEvents containerId:%s,podName:%s,action:%s", container.ContainerID, container.PodName, action)
-	if container.K8sManaged && container.ResourceName == "" && !isDeleteEvent(action) {
+	if container.K8sManaged && container.ResourceName == "" && action == "start" {
 		resName, resKind, err := c.store.GetPodOwner(container.Namespace, container.PodName)
 		if err != nil {
 			logging.Get().Warn().Err(err).Msg("containerd get pod owner err")
 		} else {
 			container.ResourceName = resName
 			container.ResourceKind = resKind
+			logging.Get().Info().Str("raw-container", "process event").Msgf("get pod owner of %s/%s/%s is %s/%s",
+				container.Namespace, container.PodName, container.Name, resKind, resName)
 		}
 		pod, err := c.store.GetPod(container.Namespace, container.PodName)
 		if err != nil {
@@ -465,15 +469,11 @@ func (c *CRIOInfoManager) processEvents(container *model.TensorRawContainer, act
 		}
 	}
 	switch action {
-	case "create", "start":
+	case "start":
 		for _, handler := range c.handlers {
 			handler.OnAdd(container)
 		}
-	case "pause", "resume":
-		for _, handler := range c.handlers {
-			handler.OnUpdate(nil, container)
-		}
-	case "stop", "kill", "delete":
+	case "delete":
 		for _, handler := range c.handlers {
 			handler.OnDelete(container)
 		}
@@ -482,7 +482,7 @@ func (c *CRIOInfoManager) processEvents(container *model.TensorRawContainer, act
 	}
 }
 
-func (c *CRIOInfoManager) translateState(state runtimeapi.ContainerState) int32 {
+func (c *CRIOInfoManager) translateStateInt(state runtimeapi.ContainerState) int32 {
 	switch state {
 	case runtimeapi.ContainerState_CONTAINER_CREATED:
 		return assets.Created
@@ -491,9 +491,24 @@ func (c *CRIOInfoManager) translateState(state runtimeapi.ContainerState) int32 
 	case runtimeapi.ContainerState_CONTAINER_EXITED:
 		return assets.Exited
 	case runtimeapi.ContainerState_CONTAINER_UNKNOWN:
-		return assets.Dead
+		return assets.Unknown
 	default:
-		return assets.All
+		return assets.Unknown
+	}
+}
+
+func (c *CRIOInfoManager) translateStateStr(state runtimeapi.ContainerState) string {
+	switch state {
+	case runtimeapi.ContainerState_CONTAINER_CREATED:
+		return string(kubecontainer.ContainerStateCreated)
+	case runtimeapi.ContainerState_CONTAINER_RUNNING:
+		return string(kubecontainer.ContainerStateRunning)
+	case runtimeapi.ContainerState_CONTAINER_EXITED:
+		return string(kubecontainer.ContainerStateExited)
+	case runtimeapi.ContainerState_CONTAINER_UNKNOWN:
+		return string(kubecontainer.ContainerStateUnknown)
+	default:
+		return string(kubecontainer.ContainerStateUnknown)
 	}
 }
 

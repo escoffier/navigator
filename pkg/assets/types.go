@@ -18,6 +18,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	defensev1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/defense/v1"
 )
 
@@ -45,16 +46,26 @@ var ResourceKindApiVersion = map[ResourceKind]string{
 	KindPodNoOwner:            "v1",
 }
 
+// const (
+//
+//	Running = iota
+//	Created
+//	Restarting
+//	Removing
+//	Paused
+//	Exited
+//	Dead
+//	All
+//
+// )
 const (
 	Running = iota
 	Created
-	Restarting
-	Removing
-	Paused
 	Exited
-	Dead
+	Unknown
 	All
 )
+const ActiveCRIState = 2 //  有效的状态阈值 : status <2
 
 const ( // 服务名称
 	BusiSvcTomcat   = "Tomcat"
@@ -108,26 +119,33 @@ var BusiSvcTypeMap = map[string]string{
 	BusiSvcRsyslog:    BusiSvcTypeMonitorEn,
 }
 
-func GetRawContainerStatus(status int) string {
+func GetRawContainerStatusStr(status int) string {
 	switch status {
 	case Running:
-		return "Running"
+		return string(kubecontainer.ContainerStateRunning)
 	case Created:
-		return "Created"
-	case Restarting:
-		return "Restarted"
-	case Removing:
-		return "Moving"
-	case Paused:
-		return "Paused"
+		return string(kubecontainer.ContainerStateCreated)
 	case Exited:
-		return "Exited"
-	case Dead:
-		return "Dead"
-	case All:
-		return "All"
+		return string(kubecontainer.ContainerStateExited)
+	case Unknown:
+		return string(kubecontainer.ContainerStateUnknown)
 	default:
-		return ""
+		return string(kubecontainer.ContainerStateUnknown)
+	}
+}
+
+func GetRawContainerStatusInt(status kubecontainer.State) int {
+	switch status {
+	case kubecontainer.ContainerStateRunning:
+		return Running
+	case kubecontainer.ContainerStateCreated:
+		return Created
+	case kubecontainer.ContainerStateExited:
+		return Exited
+	case kubecontainer.ContainerStateUnknown:
+		return Unknown
+	default:
+		return Unknown
 	}
 }
 

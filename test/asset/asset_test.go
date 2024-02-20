@@ -568,7 +568,7 @@ func TestAllRawContainer(t *testing.T) {
 
 	dbSet := make(map[string]struct{})
 
-	err := db.Model(&model.TensorRawContainer{}).Where("status < 5 ").Find(&dbContainer).Error
+	err := db.Model(&model.TensorRawContainer{}).Where("status < ", ppassets.ActiveCRIState).Find(&dbContainer).Error
 	if err != nil {
 		panic(err)
 	}
@@ -651,14 +651,14 @@ func TestDiffRawContainer(t *testing.T) {
 			continue
 		}
 
-		if ppassets.GetRawContainerStatus(int(c.Status)) != status {
-			fmt.Println(c.ContainerID, ppassets.GetRawContainerStatus(int(c.Status)), status, c.Status)
+		if ppassets.GetRawContainerStatusStr(int(c.Status)) != status {
+			fmt.Println(c.ContainerID, ppassets.GetRawContainerStatusStr(int(c.Status)), status, c.Status)
 		}
 	}
 
 	containers := make([]*model.TensorRawContainer, 0)
 
-	err = db.Get().Model(&model.TensorRawContainer{}).Where("status < ?", 5).Find(&containers).Error
+	err = db.Get().Model(&model.TensorRawContainer{}).Where("status < ?", ppassets.ActiveCRIState).Find(&containers).Error
 	panicOnError(err)
 
 	for _, c := range containers {
@@ -836,13 +836,13 @@ func TestSyncRawContainerToRedis(t *testing.T) {
 	m := &model.TensorRawContainer{}
 
 	// 首选查询出总数
-	err = db.Model(m).Where("status < ? ", 5).Count(&total).Error
+	err = db.Model(m).Where("status < ? ", ppassets.ActiveCRIState).Count(&total).Error
 	panicOnError(err)
 
 	containers := make([]*model.TensorRawContainer, 0)
 
 	// 查询最小的id
-	err = db.Model(m).Where("status < ?", 5).Order("id asc").Limit(1).Find(&containers).Error
+	err = db.Model(m).Where("status < ?", ppassets.ActiveCRIState).Order("id asc").Limit(1).Find(&containers).Error
 	panicOnError(err)
 
 	if len(containers) == 0 {
@@ -861,10 +861,10 @@ func TestSyncRawContainerToRedis(t *testing.T) {
 		containers = containers[:0]
 
 		if include {
-			err = db.Model(m).Where("status < ?", 5).Where("id >= ?", cursor).Limit(10).Order("id asc").Find(&containers).Error
+			err = db.Model(m).Where("status < ?", ppassets.ActiveCRIState).Where("id >= ?", cursor).Limit(10).Order("id asc").Find(&containers).Error
 
 		} else {
-			err = db.Model(m).Where("status < ? ", 5).Where("id > ?", cursor).Limit(10).Order("id asc").Find(&containers).Error
+			err = db.Model(m).Where("status < ? ", ppassets.ActiveCRIState).Where("id > ?", cursor).Limit(10).Order("id asc").Find(&containers).Error
 
 		}
 
@@ -873,7 +873,7 @@ func TestSyncRawContainerToRedis(t *testing.T) {
 		for _, container := range containers {
 			doc := rsearch.NewDocument(fmt.Sprintf("rawContainer:%s", container.ContainerID), 1).
 				Set("id", container.ContainerID).
-				Set("status", ppassets.GetRawContainerStatus(int(container.Status))).
+				Set("status", ppassets.GetRawContainerStatusStr(int(container.Status))).
 				Set("cluster_key", container.ClusterKey).
 				Set("k8s_managed", strconv.FormatBool(container.K8sManaged)).
 				Set("node_name", container.NodeName).

@@ -2,23 +2,12 @@ package nodeinfo
 
 import (
 	"context"
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"math/rand"
-	"net"
-	"os"
-	"path/filepath"
-	"runtime/debug"
-	"strings"
-	"sync"
-	"sync/atomic"
-	"time"
-
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
 	"github.com/containerd/containerd/api/services/tasks/v1"
-	"github.com/containerd/containerd/api/types/task"
+	taskPkg "github.com/containerd/containerd/api/types/task"
 	"github.com/containerd/containerd/errdefs"
 	"github.com/containerd/containerd/events/exchange"
 	"github.com/containerd/containerd/oci"
@@ -33,12 +22,20 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo/native"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/utils"
-	"gitlab.com/piccolo_su/vegeta/pkg/assets"
+	assetsPkg "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/logging"
 	cri "k8s.io/cri-api/pkg/apis"
 	"k8s.io/kubernetes/pkg/kubelet/cri/remote"
+	"net"
+	"os"
+	"path/filepath"
+	"runtime/debug"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
 )
 
 const containerK8sNamespace = "k8s.io"
@@ -217,6 +214,8 @@ func (d *ContainerdInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 	defer cancelFunc()
 	filters := []string{
 		fmt.Sprintf(`topic=="%s"`, runtime.TaskStartEventTopic),
+		fmt.Sprintf(`topic=="%s"`, runtime.TaskPausedEventTopic),
+		fmt.Sprintf(`topic=="%s"`, runtime.TaskResumedEventTopic),
 		fmt.Sprintf(`topic=="%s"`, runtime.TaskDeleteEventTopic),
 		fmt.Sprintf(`topic=="%s"`, runtime.TaskExitEventTopic),
 	}
@@ -252,6 +251,12 @@ func (d *ContainerdInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 					containerId = t.ContainerID
 					pid = t.Pid
 					action = "exit"
+				case *events.TaskPaused:
+					containerId = t.ContainerID
+					action = "pause"
+				case *events.TaskResumed:
+					containerId = t.ContainerID
+					action = "resume"
 				default:
 					logging.Get().Error().Msgf("containerd ignore event, namespace:%s,topic:%s,event:%s", m.Namespace, m.Topic, m.Event.GetTypeUrl())
 					return
@@ -290,6 +295,10 @@ func (d *ContainerdInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 							}
 						} else if m.Topic == runtime.TaskExitEventTopic || m.Topic == runtime.TaskDeleteEventTopic {
 							contain.LastStopTime = m.Timestamp
+							contain.StatusDesc = taskPkg.Status_name[int32(taskPkg.Status_STOPPED)]
+						} else {
+							contain.LastStopTime = m.Timestamp
+							contain.Status, contain.StatusDesc = d.getContainerStatus(nsCtx, containerId)
 						}
 						d.processEvents(contain, action)
 					}
@@ -405,12 +414,12 @@ func (d *ContainerdInfoManager) listAll() {
 			if containerDetail == nil {
 				continue
 			}
-			d.processEvents(containerDetail, "create")
+			d.processEvents(containerDetail, "start")
 		}
 	}
 }
 
-func (d *ContainerdInfoManager) buildContainerDetail(ctx context.Context, c containerd.Container, t *task.Process) (*model.TensorRawContainer, error) {
+func (d *ContainerdInfoManager) buildContainerDetail(ctx context.Context, c containerd.Container, t *taskPkg.Process) (*model.TensorRawContainer, error) {
 	labels, err := c.Labels(ctx)
 	if err != nil {
 		logging.Get().Err(err).Msgf("get container labels failed.")
@@ -446,7 +455,7 @@ func getMountPropagationAndIsRO(fstab []string) (string, bool) {
 	return mountPropagetion, ro
 }
 
-func (d *ContainerdInfoManager) containerFromRaw(ctx context.Context, container containerd.Container, t *task.Process) (*model.TensorRawContainer, error) {
+func (d *ContainerdInfoManager) containerFromRaw(ctx context.Context, container containerd.Container, t *taskPkg.Process) (*model.TensorRawContainer, error) {
 	info, err := container.Info(ctx)
 	if err != nil {
 		logging.Get().Err(err).Msg("get container info err in containerd")
@@ -531,7 +540,8 @@ func (d *ContainerdInfoManager) containerFromRaw(ctx context.Context, container 
 		networkSettings = &NetworkSettings{}
 	}
 	tensorRawContainer := &model.TensorRawContainer{
-		Status:         d.getContainerStatus(t.Status),
+		Status:         d.getCRIStatusFromContainerdStatus(t.Status),
+		StatusDesc:     taskPkg.Status_name[int32(t.Status)],
 		CreatedAt:      info.CreatedAt.UTC(),
 		LastStopTime:   protobuf.FromTimestamp(t.ExitedAt).UTC(),
 		UpdatedAt:      time.Now(),
@@ -586,8 +596,19 @@ func (d *ContainerdInfoManager) TryGetNetworkSettings(pid int) (*NetworkSettings
 	return networkSettings, nil
 }
 
+func (d *ContainerdInfoManager) getContainerStatus(ctx context.Context, containerId string) (status int32, statusDesc string) {
+	t, err := d.containerdCli.TaskService().Get(ctx, &tasks.GetRequest{
+		ContainerID: containerId,
+	})
+	if err != nil {
+		logging.Get().Error().Msgf("get task by container  failed. %v", err)
+		return assetsPkg.Unknown, ""
+	}
+	return d.getCRIStatusFromContainerdStatus(t.Process.Status), taskPkg.Status_name[int32(t.Process.Status)]
+}
+
 // containerD Status To assets Status
-func (d *ContainerdInfoManager) getContainerStatus(state task.Status) int32 {
+/*func (d *ContainerdInfoManager) getContainerStatus(state task.Status) int32 {
 	// github.com/containerd/containerd@v1.5.16/api/types/task/task.pb.go:33
 	switch int32(state) {
 	case 0:
@@ -603,17 +624,39 @@ func (d *ContainerdInfoManager) getContainerStatus(state task.Status) int32 {
 	default:
 		return assets.Dead
 	}
+}*/
+
+func (d *ContainerdInfoManager) getCRIStatusFromContainerdStatus(state taskPkg.Status) int32 {
+	switch state {
+	case taskPkg.Status_UNKNOWN:
+		return assetsPkg.Unknown
+	case taskPkg.Status_CREATED:
+		return assetsPkg.Created
+	case taskPkg.Status_RUNNING:
+		return assetsPkg.Running
+	case taskPkg.Status_PAUSED:
+		return assetsPkg.Running
+	case taskPkg.Status_PAUSING:
+		return assetsPkg.Running
+	case taskPkg.Status_STOPPED:
+		return assetsPkg.Exited
+	default:
+		logging.Get().Error().Msgf("not support containerd status,state:%d", state)
+		return assetsPkg.Unknown
+	}
 }
 
 func (d *ContainerdInfoManager) processEvents(container *model.TensorRawContainer, action string) {
 	logging.Get().Info().Msgf("containerd processEvents containerId:%s,podName:%s,action:%s", container.ContainerID, container.PodName, action)
-	if container.K8sManaged && container.ResourceName == "" && !d.isDeleteEvent(action) {
+	if container.K8sManaged && container.ResourceName == "" && action == "start" {
 		resName, resKind, err := d.store.GetPodOwner(container.Namespace, container.PodName)
 		if err != nil {
 			logging.Get().Warn().Err(err).Msg("containerd get pod owner err")
 		} else {
 			container.ResourceName = resName
 			container.ResourceKind = resKind
+			logging.Get().Info().Str("raw-container", "process event").Msgf("get pod owner of %s/%s/%s is %s/%s",
+				container.Namespace, container.PodName, container.Name, resKind, resName)
 		}
 		pod, err := d.store.GetPod(container.Namespace, container.PodName)
 		if err != nil {
@@ -777,14 +820,7 @@ func (d *ContainerdInfoManager) retryOnce(ctx context.Context, namespace string,
 		return
 	}
 	logging.Get().Debug().Msgf("retry finish, containerId:%s", containerId)
-	d.processEvents(containerDetail, "create")
-}
-
-// GenerateID generates a random unique id.
-func generateID() string {
-	b := make([]byte, 32)
-	rand.Read(b)
-	return hex.EncodeToString(b)
+	d.processEvents(containerDetail, "start")
 }
 
 func getCPUFromContainerd(spec *oci.Spec) (limit int64) {

@@ -3,6 +3,7 @@ package imagesecStore
 import (
 	"context"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"time"
 
 	"gitlab.com/security-rd/go-pkg/databases"
@@ -39,7 +40,7 @@ func (dal *ResourceDao) SearchResources(ctx context.Context, param imagesec.Sear
 			Exited
 			Dead
 	*/
-	db = db.Where("status <= ? ", 4)
+	db = db.Where("status < ? ", assets.ActiveCRIState)
 	if param.ImageUUID > 0 {
 		db = db.Where("image_uuid = ?", param.ImageUUID)
 	}

@@ -453,7 +453,7 @@ func getBuiltInTagAssetsCount(c context.Context, rdb *gorm.DB, types []model.Tag
 				item.Count, err = CountPods(ctx, rdb, ResourcePodssQuery())
 			case model.ObjType_container:
 				query := RawContainersQuery()
-				query.WithInConditionCustom("status", []int{assets.Running, assets.Created, assets.Restarting, assets.Removing, assets.Paused})
+				query.WithInConditionCustom("status", []int{assets.Running, assets.Created})
 				item.Count, err = CountRawContainer(ctx, rdb, query)
 			case model.ObjType_service:
 				item.Count, err = CountService(ctx, rdb, ServicesQuery())

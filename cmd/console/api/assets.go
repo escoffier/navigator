@@ -2644,7 +2644,6 @@ func (req *GetRawContainersWithFramework) Execute(ctx context.Context) ([]*dal.R
 		totalCnt   int64
 		err        error
 	)
-
 	if req.UseRedis {
 		containers, totalCnt, err = resSvc.ListRawContainerWithFrameworkWithRedis(ctx, query, req.Offset, req.Limit)
 	} else {
@@ -2798,7 +2797,7 @@ func (api *api) countRawContainers() http.HandlerFunc {
 			query = query.WithNodeName(nodeName)
 		}
 		//  添加status条件
-		query.WithInConditionCustom("status", []int{assetsPkg.Running, assetsPkg.Created, assetsPkg.Restarting, assetsPkg.Removing, assetsPkg.Paused})
+		query.WithInConditionCustom("status", []int{assetsPkg.Running, assetsPkg.Created})
 
 		totalCnt, err := resSvc.CountRawContainer(ctx, query)
 		if err != nil {

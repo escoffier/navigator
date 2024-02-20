@@ -2,7 +2,6 @@ package nodeinfo
 
 import (
 	"context"
-	"strings"
 	"sync"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
@@ -37,6 +36,7 @@ func (pr *PodResInfo) GetPod(namespace, name string) (*Resource, bool) {
 }
 
 func (pr *PodResInfo) OnAdd(pod *corev1.Pod) {
+	logging.Get().Info().Msgf("PodEventHandlerFuncs add pod %s/%s", pod.Namespace, pod.Name)
 	var owner *Resource = &Resource{}
 	key, _ := cache.MetaNamespaceKeyFunc(pod)
 	owner.Name, owner.Kind = util.GetOwnerOfPod(pod)
@@ -47,7 +47,7 @@ func (pr *PodResInfo) OnAdd(pod *corev1.Pod) {
 		return
 	}
 
-	logging.Get().Debug().Msgf("raw-container - add pod: %s/%s owner: %s/%s", pod.Namespace, pod.Name, owner.Kind, owner.Name)
+	logging.Get().Info().Msgf("raw-container - add pod: %s/%s owner: %s/%s,ip:%s", pod.Namespace, pod.Name, owner.Kind, owner.Name, pod.Status.PodIP)
 
 	var volumeMounts []model.Mounts
 	for _, c := range pod.Spec.Containers {
@@ -82,22 +82,22 @@ func (pr *PodResInfo) OnUpdate(oldPod, newPod *corev1.Pod) {
 	pr.data.Store(key, owner)
 
 	logging.Get().Debug().Msgf("raw-container - update pod: %s/%s owner: %s/%s", newPod.Namespace, newPod.Name, owner.Kind, owner.Name)
-	for _, status := range newPod.Status.ContainerStatuses {
-		if status.State.Terminated != nil {
-			containerID := strings.TrimPrefix(status.ContainerID, "docker://")
-			pr.agent.HandlerContainerEvent(context.Background(), pr.clusterKey, assets.ActionDelete, &assets.TensorRawContainer{TensorRawContainer: &model.TensorRawContainer{
-				ContainerID:  containerID,
-				Namespace:    newPod.Namespace,
-				PodName:      newPod.Name,
-				PodUid:       string(newPod.UID),
-				ResourceName: owner.Name,
-				ResourceKind: owner.Kind,
-				K8sManaged:   true,
-				Status:       assets.Exited,
-				ClusterKey:   pr.clusterKey,
-			}})
-		}
-	}
+	//for _, status := range newPod.Status.ContainerStatuses {  // 不用处理，由容器运行时事件处理
+	//	if status.State.Terminated != nil {
+	//		containerID := strings.TrimPrefix(status.ContainerID, "docker://")
+	//		pr.agent.HandlerContainerEvent(context.Background(), pr.clusterKey, assets.ActionDelete, &assets.TensorRawContainer{TensorRawContainer: &model.TensorRawContainer{
+	//			ContainerID:  containerID,
+	//			Namespace:    newPod.Namespace,
+	//			PodName:      newPod.Name,
+	//			PodUid:       string(newPod.UID),
+	//			ResourceName: owner.Name,
+	//			ResourceKind: owner.Kind,
+	//			K8sManaged:   true,
+	//			Status:       assets.Exited,
+	//			ClusterKey:   pr.clusterKey,
+	//		}})
+	//	}
+	//}
 
 	if newPod.Status.PodIP == "" {
 		logging.Get().Debug().Str("raw-container", "update pod event").Msg("skip pod before ip address not yet allocated")
