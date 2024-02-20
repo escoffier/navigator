@@ -254,17 +254,17 @@ func (c *containerdDriver) getContainerStatus(state task.Status) string {
 	// github.com/containerd/containerd@v1.5.16/api/types/task/task.pb.go:33
 	switch int32(state) {
 	case 0:
-		return assets.GetRawContainerStatus(assets.Dead)
+		return assets.GetRawContainerStatusStr(assets.Unknown)
 	case 1:
-		return assets.GetRawContainerStatus(assets.Created)
+		return assets.GetRawContainerStatusStr(assets.Created)
 	case 2:
-		return assets.GetRawContainerStatus(assets.Running)
+		return assets.GetRawContainerStatusStr(assets.Running)
 	case 3:
-		return assets.GetRawContainerStatus(assets.Exited)
+		return assets.GetRawContainerStatusStr(assets.Exited)
 	case 4, 5:
-		return assets.GetRawContainerStatus(assets.Paused)
+		return assets.GetRawContainerStatusStr(assets.Running)
 	default:
-		return assets.GetRawContainerStatus(assets.Dead)
+		return assets.GetRawContainerStatusStr(assets.Unknown)
 	}
 }
 

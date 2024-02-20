@@ -108,15 +108,15 @@ func (cb *RawContainerCallBack) doOnRawContainerEvent(ctx context.Context, e con
 
 	useRedis := cb.parent.enableRedisSearch("rawContainer")
 
-	logging.Get().Info().Msgf("process raw container event, action: %d, container: %s,name: %s, resource: %s/%s, useRedis: %t",
-		e.action, e.container.ContainerID, e.container.Name, e.container.ResourceKind, e.container.ResourceName, useRedis)
+	logging.Get().Info().Msgf("process raw container event, action: %d, container: %s,name: %s, resource: %s/%s, useRedis: %t,status:%d,statusDesc:%s",
+		e.action, e.container.ContainerID, e.container.Name, e.container.ResourceKind, e.container.ResourceName, useRedis, e.container.Status, e.container.StatusDesc)
 	switch e.action {
 	case assets.ActionDelete:
 		var deleteErr error
 		if useRedis {
-			deleteErr = dal.DeleteRawContainerWithRedis(tctx, cb.parent.rdb.Get(), cb.parent.mustGetRedisSearchClient("rawContainer"), e.container.ClusterKey, e.container.ContainerID, e.container.LastStopTime)
+			deleteErr = dal.DeleteRawContainerWithRedis(tctx, cb.parent.rdb.Get(), cb.parent.mustGetRedisSearchClient("rawContainer"), e.container.ClusterKey, e.container.ContainerID, e.container.LastStopTime, e.container.StatusDesc)
 		} else {
-			deleteErr = dal.DeleteRawContainer(tctx, cb.parent.rdb.Get(), e.container.ClusterKey, e.container.ContainerID, e.container.LastStopTime)
+			deleteErr = dal.DeleteRawContainer(tctx, cb.parent.rdb.Get(), e.container.ClusterKey, e.container.ContainerID, e.container.LastStopTime, e.container.StatusDesc)
 		}
 		if deleteErr != nil {
 			logging.Get().Err(deleteErr).Msg("delete raw container rel in rdb error,containerId:" + e.container.ContainerID)
@@ -126,7 +126,7 @@ func (cb *RawContainerCallBack) doOnRawContainerEvent(ctx context.Context, e con
 			logging.Get().Warn().Msgf("delete raw container sync reason in rdb error.%s,error:%s", e.container.ContainerID, deleteErr.Error())
 		}
 
-	case assets.ActionUpdate, assets.ActionAdd:
+	case assets.ActionAdd:
 		var upsertErr error
 		// 同步更新 container 表的 image_uuid
 		upsertErr = dal.UpsertContainerImageUuid(tctx, cb.parent.rdb.Get(),
@@ -140,9 +140,14 @@ func (cb *RawContainerCallBack) doOnRawContainerEvent(ctx context.Context, e con
 		} else {
 			upsertErr = dal.UpsertRawContainers(tctx, cb.parent.rdb.Get(), e.container)
 		}
-
 		if upsertErr != nil {
 			logging.Get().Err(upsertErr).Msg("upsert raw container rel in rdb error,containerId:" + e.container.ContainerID)
+		}
+
+	case assets.ActionUpdate: // 只更新status ，status_desc
+		err = dal.OnlyUpsertRawContainerStatus(tctx, cb.parent.rdb.Get(), e.container.ContainerID, e.container.Status, e.container.StatusDesc)
+		if err != nil {
+			logging.Get().Err(err).Msg("update raw container rel in rdb error,containerId:" + e.container.ContainerID)
 		}
 	}
 	return nil

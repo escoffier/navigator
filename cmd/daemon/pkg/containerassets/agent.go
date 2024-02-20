@@ -28,42 +28,55 @@ func NewAgent(writer mq.Writer) *Agent {
 
 // HandlerContainerEvent 调用方：运行时事件;k8s事件
 func (a *Agent) HandlerContainerEvent(ctx context.Context, clusterKey string, action assets.Action, container *assets.TensorRawContainer) {
-	if !a.mqReady.Load() {
-		logging.Get().Debug().Str("raw-container", "handle event").Msg("mq is not ready")
+	logging.Get().Info().Msgf("raw-container -HandlerContainerEvent: action:%d,containerId:%s,name:%s,resourceName:%s",
+		int(action), container.ContainerID, container.Name, container.ResourceName)
+	if !a.mqReady.Load() { // 此处会导致启动时，k8s监听的pod add事件不会存入缓存。
+		logging.Get().Error().Str("raw-container", "handle event").Msg("mq is not ready")
 		return
 	}
 	finalContainer := container
-	if container.K8sManaged && action != assets.ActionDelete && (container.ResourceName == "" || container.ContainerID == "") {
-		rawContainer, ok := a.cache.get(keyFunc(container.Namespace, container.PodName))
-		if !ok {
-			logging.Get().Debug().Msgf("raw-container - cache container: %+v", container)
-			err := a.cache.add(container.Namespace, container.PodName, *container)
-			if err != nil {
-				logging.Get().Warn().Err(err).Msgf("raw-container - add cache err %s", container.ContainerID)
+	if container.K8sManaged && (container.ResourceName == "" || container.ContainerID == "") {
+		if action == assets.ActionUpdate {
+			if container.ContainerID == "" { //pod更新事件忽略
 				return
 			}
-			return
-		}
+		} else if action == assets.ActionAdd {
+			// 这段逻辑意义不大，start的容器事件中，已经将容器的resourceName，resourceKind收集到了，不会进入内部；
+			// 前面a.mqReady.Load()的异常就被绕过。 因为 容器start事件不会进入内部 一直等待k8s方的owner数据
+			logging.Get().Info().Msgf("raw-container 1 action:%d,containerId:%s", int(action), container.ContainerID)
+			rawContainer, ok := a.cache.get(keyFunc(container.Namespace, container.PodName))
+			if !ok {
+				logging.Get().Info().Msgf("raw-container 2 cache container")
+				err := a.cache.add(container.Namespace, container.PodName, *container)
+				if err != nil {
+					logging.Get().Err(err).Msgf("raw-container - add cache err %s", container.ContainerID)
+					return
+				}
+				return
+			}
+			logging.Get().Info().Msgf("raw-container 3 id:%s,resourceName:%s,", container.ContainerID, rawContainer.ResourceName)
+			logging.Get().Info().Msgf("raw-container 3 id:%s,resourceName:%s,", rawContainer.ContainerID, container.ResourceName)
 
-		if container.ContainerID != "" && rawContainer.ResourceName != "" {
-			// container from docker runtime
-			finalContainer = container
-			finalContainer.ResourceName = rawContainer.ResourceName
-			finalContainer.ResourceKind = rawContainer.ResourceKind
-			finalContainer.VolumeMounts = utils.MergeVolumeMounts(rawContainer.VolumeMounts, container.VolumeMounts)
-			finalContainer.Ports = utils.MergeContainerPorts(rawContainer.Ports, container.Ports, rawContainer.IP)
-			a.cache.remove(container.Namespace, container.PodName)
-		} else if container.ResourceName != "" && rawContainer.ContainerID != "" {
-			// container from k8s informer
-			finalContainer = &rawContainer
-			finalContainer.ResourceName = container.ResourceName
-			finalContainer.ResourceKind = container.ResourceKind
-			finalContainer.VolumeMounts = utils.MergeVolumeMounts(container.VolumeMounts, rawContainer.VolumeMounts)
-			finalContainer.Ports = utils.MergeContainerPorts(container.Ports, rawContainer.Ports, container.IP)
-			a.cache.remove(container.Namespace, container.PodName)
-		} else {
-			logging.Get().Debug().Msgf("raw-container - incomplete container (%s/%s)-(%s)", finalContainer.Namespace, finalContainer.ResourceName, finalContainer.Name)
-			return
+			if container.ContainerID != "" && rawContainer.ResourceName != "" {
+				// container from docker runtime
+				finalContainer = container
+				finalContainer.ResourceName = rawContainer.ResourceName
+				finalContainer.ResourceKind = rawContainer.ResourceKind
+				finalContainer.VolumeMounts = utils.MergeVolumeMounts(rawContainer.VolumeMounts, container.VolumeMounts)
+				finalContainer.Ports = utils.MergeContainerPorts(rawContainer.Ports, container.Ports, rawContainer.IP)
+				a.cache.remove(container.Namespace, container.PodName)
+			} else if container.ResourceName != "" && rawContainer.ContainerID != "" {
+				// container from k8s informer
+				finalContainer = &rawContainer
+				finalContainer.ResourceName = container.ResourceName
+				finalContainer.ResourceKind = container.ResourceKind
+				finalContainer.VolumeMounts = utils.MergeVolumeMounts(container.VolumeMounts, rawContainer.VolumeMounts)
+				finalContainer.Ports = utils.MergeContainerPorts(container.Ports, rawContainer.Ports, container.IP)
+				a.cache.remove(container.Namespace, container.PodName)
+			} else {
+				logging.Get().Info().Msgf("raw-container - incomplete container (%s/%s)-(%s)", finalContainer.Namespace, finalContainer.ResourceName, finalContainer.Name)
+				return
+			}
 		}
 	}
 
@@ -79,7 +92,8 @@ func (a *Agent) HandlerContainerEvent(ctx context.Context, clusterKey string, ac
 		return
 	}
 
-	logging.Get().Debug().Msgf("raw-container - handle container: %v", string(data))
+	logging.Get().Info().Msgf("raw-container - send message. id:%s,action:%d,name:%s,podName:%s,status:%d,statusDesc:%s",
+		finalContainer.ContainerID, int(action), finalContainer.Name, finalContainer.PodName, finalContainer.Status, finalContainer.StatusDesc)
 	err = a.mqWriter.Write(ctx, "kube-resources", kafka.Message{
 		Key:   []byte(container.ContainerID),
 		Value: data,

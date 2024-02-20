@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"gitlab.com/piccolo_su/vegeta/pkg/env"
 	netv1 "k8s.io/api/networking/v1"
+	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"strconv"
 	"strings"
 	"time"
@@ -99,6 +100,7 @@ var (
 	OnDupUpdatedColsForRawContainer = []string{
 		"updated_at",
 		"status",
+		"status_desc",
 		"name",
 		"pod_name",
 		"pod_uid",
@@ -2606,10 +2608,18 @@ func SoftDeleteNode(ctx context.Context, rdb *gorm.DB, node *corev1.Node, cluste
 	return util.RetryWithBackoff(ctx, func() error {
 		oneCtx, cancel := context.WithTimeout(tctx, 700*time.Millisecond)
 		defer cancel()
-		return rdb.WithContext(oneCtx).Model(&model.TensorNode{}).Where("id = ?", uuid).Updates(map[string]interface{}{
+		err := rdb.WithContext(oneCtx).Model(&model.TensorNode{}).Where("id = ?", uuid).Updates(map[string]interface{}{
 			"status":     1,
 			"updated_at": updateTime,
 		}).Error
+		if err != nil {
+			return err
+		}
+		err = rdb.WithContext(oneCtx).Model(&model.TensorRawContainer{}).Where("cluster_key = ? and status=0", clusterKey).Updates(map[string]interface{}{
+			"status":     assets.Exited,
+			"updated_at": updateTime,
+		}).Error
+		return err
 	})
 }
 func UpsertNode(ctx context.Context, rdb *gorm.DB, node *corev1.Node, clusterKey string, updateTime time.Time) (uint32, error) {
@@ -3275,7 +3285,10 @@ func (q *RawContainersQueryOption) OkForRedis() bool {
 	// 只允许status<5的查询进入redis
 	list, ok := q.whereInCondition["status"]
 	if !ok {
-		return false
+		list, ok = q.whereInCondition["ivan_assets_raw_containers.status"]
+		if !ok {
+			return false
+		}
 	}
 	ints := list.([]int)
 	for _, status := range ints {
@@ -3332,13 +3345,13 @@ func (q *RawContainersQueryOption) RedisRawQuery() string {
 				status = []string{}
 				break
 			}
-			status = append(status, assets.GetRawContainerStatus(s))
+			status = append(status, assets.GetRawContainerStatusStr(s))
 		}
 	}
 
 	for f, v := range q.whereEqCondition {
 		if f == "status" && cast.ToInt(v) < assets.Exited {
-			status = append(status, assets.GetRawContainerStatus(cast.ToInt(v)))
+			status = append(status, assets.GetRawContainerStatusStr(cast.ToInt(v)))
 			continue
 		}
 		vv := cast.ToString(v)
@@ -3383,6 +3396,7 @@ func (q *RawContainersQueryOption) RedisRawQuery() string {
 
 func CountRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, queryOptions *RawContainersQueryOption) (int64, error) {
 	if !queryOptions.OkForRedis() {
+		logging.GetLogger().Info().Msgf("rawContainers: OkForRedis is false")
 		return CountRawContainer(ctx, rdb, queryOptions)
 	}
 	ctx, cancel := context.WithTimeout(ctx, 9*time.Second)
@@ -3390,7 +3404,7 @@ func CountRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *
 
 	rawQuery := queryOptions.RedisRawQuery()
 	var cntNum int64
-
+	logging.GetLogger().Info().Msgf("rawContainers:  use redis get count")
 	err := util.RetryWithBackoff(ctx, func() error {
 		oneCtx, oneCancel := context.WithTimeout(ctx, 4*time.Second)
 		defer oneCancel()
@@ -3840,7 +3854,7 @@ func UpsertRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient 
 
 	doc := redisearch.NewDocument(fmt.Sprintf("rawContainer:%s", container.ContainerID), 1).
 		Set("id", container.ContainerID).
-		Set("status", assets.GetRawContainerStatus(int(container.Status))).
+		Set("status", assets.GetRawContainerStatusStr(int(container.Status))).
 		Set("cluster_key", container.ClusterKey).
 		Set("k8s_managed", strconv.FormatBool(container.K8sManaged)).
 		Set("node_name", container.NodeName).
@@ -3880,6 +3894,15 @@ func UpsertRawContainers(ctx context.Context, rdb *gorm.DB, container *assets.Te
 	return rdb.WithContext(rCtx).Transaction(func(tx *gorm.DB) error {
 		return upsertRawContainersWithTx(tx, container)
 	})
+}
+func OnlyUpsertRawContainerStatus(ctx context.Context, rdb *gorm.DB, containerId string, status int32, statusDesc string) error {
+	rCtx, cancel := context.WithTimeout(ctx, 5000*time.Millisecond)
+	defer cancel()
+	err := rdb.WithContext(rCtx).Table(model.TensorRawContainer{}.TableName()).Where("id = ?", containerId).Updates(map[string]interface{}{
+		"status":      status,
+		"status_desc": statusDesc,
+	}).Error
+	return err
 }
 
 func upsertRawContainersWithTx(tx *gorm.DB, container *assets.TensorRawContainer) error {
@@ -6070,12 +6093,12 @@ func GetExposeHostDetail(ctx context.Context, rdb *gorm.DB, id int64) (*ExposeHo
 	return detail, nil
 }
 
-func DeleteRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, clusterKey, id string, stopTime time.Time) error {
+func DeleteRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient *redisearch.Client, clusterKey, id string, stopTime time.Time, desc string) error {
 	rCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
 	defer cancel()
 
 	return rdb.WithContext(rCtx).Transaction(func(tx *gorm.DB) error {
-		err := deleteRawContainerWithTx(tx, clusterKey, id, stopTime)
+		err := deleteRawContainerWithTx(tx, clusterKey, id, stopTime, desc)
 
 		if err != nil {
 			return err
@@ -6088,19 +6111,21 @@ func DeleteRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient 
 	})
 }
 
-func DeleteRawContainer(ctx context.Context, rdb *gorm.DB, clusterKey, id string, stopTime time.Time) error {
+func DeleteRawContainer(ctx context.Context, rdb *gorm.DB, clusterKey, id string, stopTime time.Time, desc string) error {
 	rCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
 	defer cancel()
 
 	return rdb.WithContext(rCtx).Transaction(func(tx *gorm.DB) error {
-		return deleteRawContainerWithTx(tx, clusterKey, id, stopTime)
+		return deleteRawContainerWithTx(tx, clusterKey, id, stopTime, desc)
 	})
 
 }
 
-func deleteRawContainerWithTx(tx *gorm.DB, clusterKey, id string, stopTime time.Time) error {
+func deleteRawContainerWithTx(tx *gorm.DB, clusterKey, id string, stopTime time.Time, desc string) error {
+	logging.GetLogger().Info().Msgf("deleteRawContainerWithTx containerId:%s,desc:%s", id, desc)
 	err := tx.Model(&model.TensorRawContainer{}).Where("cluster_key = ? and id = ?", clusterKey, id).Updates(map[string]interface{}{
 		"status":         assets.Exited,
+		"status_desc":    desc,
 		"last_stop_time": stopTime,
 		"updated_at":     time.Now(),
 	}).Error
@@ -6182,10 +6207,17 @@ func CleanUpRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient
 		}
 
 		err = rdb.WithContext(oneCtx).Transaction(func(tx *gorm.DB) error {
-			dbErr := tx.Model(&model.TensorRawContainer{}).
-				Where("cluster_key = ? and node_name = ? and updated_at < ? and status <5 ", clusterKey, nodeName, ts).Updates(map[string]interface{}{
-				"status":     assets.Exited,
-				"updated_at": time.Now(),
+			var contain model.TensorRawContainer
+			dbErr := tx.Model(&model.TensorRawContainer{}).Select("labels").Where("cluster_key = ? and node_name = ? and status=?", clusterKey, nodeName, assets.Running).Limit(1).Find(&contain).Error
+			if dbErr != nil {
+				return dbErr
+			}
+			endStatusDesc := GetExitedStatusDesc(contain.Labels)
+			dbErr = tx.Model(&model.TensorRawContainer{}).
+				Where("cluster_key = ? and node_name = ? and updated_at < ? and status <? ", clusterKey, nodeName, ts, assets.ActiveCRIState).Updates(map[string]interface{}{
+				"status":      assets.Exited,
+				"status_desc": endStatusDesc,
+				"updated_at":  time.Now(),
 			}).Error
 			if dbErr != nil {
 				return dbErr
@@ -6195,11 +6227,11 @@ func CleanUpRawContainerWithRedis(ctx context.Context, rdb *gorm.DB, redisClient
 			}
 			logging.GetLogger().Info().Msgf("本次容器清理，clean count:%d", len(keys))
 			// clean svc,framework
-			err = rdb.Where(" updated_at < ? and  raw_container_id in ?", ts, keys).Delete(&model.TensorRawContainerSvc{}).Error
+			err = rdb.Where("  raw_container_id in ?", keys).Delete(&model.TensorRawContainerSvc{}).Error
 			if err != nil {
 				return err
 			}
-			err = rdb.Where(" updated_at < ? and raw_container_id in ?", ts, keys).Delete(&model.TensorRawContainerFramework{}).Error
+			err = rdb.Where("  raw_container_id in ?", keys).Delete(&model.TensorRawContainerFramework{}).Error
 			if err != nil {
 				return err
 			}
@@ -6222,7 +6254,7 @@ func CleanUpRawContainer(ctx context.Context, rdb *gorm.DB, ts time.Time, cluste
 
 	return rdb.WithContext(rCtx).Transaction(func(tx *gorm.DB) error {
 		var rawIds []string
-		err := rdb.Model(&model.TensorRawContainer{}).Where("cluster_key = ? and node_name = ? and updated_at < ? and status < 5", clusterKey, nodeName, ts).Pluck("id", &rawIds).Error
+		err := rdb.Model(&model.TensorRawContainer{}).Where("cluster_key = ? and node_name = ? and updated_at < ? and status < ", clusterKey, nodeName, ts, assets.ActiveCRIState).Pluck("id", &rawIds).Error
 		if err != nil {
 			return err
 		}
@@ -6230,19 +6262,45 @@ func CleanUpRawContainer(ctx context.Context, rdb *gorm.DB, ts time.Time, cluste
 		if len(rawIds) == 0 {
 			return nil
 		}
+		var contain model.TensorRawContainer
+		dbErr := tx.Model(&model.TensorRawContainer{}).Select("labels").Where("cluster_key = ? and node_name = ? and status=?", clusterKey, nodeName, assets.Running).Limit(1).Find(&contain).Error
+		if dbErr != nil {
+			return dbErr
+		}
+		endStatusDesc := GetExitedStatusDesc(contain.Labels)
+
 		err = rdb.Model(&model.TensorRawContainer{}).Where("id in ?", rawIds).Updates(map[string]interface{}{
-			"status":     assets.Exited,
-			"updated_at": time.Now(),
+			"status":      assets.Exited,
+			"status_desc": endStatusDesc,
+			"updated_at":  time.Now(),
 		}).Error
 		if err != nil {
 			return err
 		}
-		err = rdb.Where(" updated_at < ? and  raw_container_id in ?", ts, rawIds).Delete(&model.TensorRawContainerSvc{}).Error
+		logging.GetLogger().Info().Msgf("本次容器清理，clean count:%d", len(rawIds))
+		err = rdb.Where(" raw_container_id in ?", rawIds).Delete(&model.TensorRawContainerSvc{}).Error
 		if err != nil {
 			return err
 		}
-		return rdb.Where(" updated_at < ? and  raw_container_id in ?", ts, rawIds).Delete(&model.TensorRawContainerFramework{}).Error
+		return rdb.Where("raw_container_id in ?", rawIds).Delete(&model.TensorRawContainerFramework{}).Error
 	})
+}
+
+// docker: io.kubernetes.docker.type =>exited
+// containerd: io.cri-containerd.kind  =>STOPPED
+func GetExitedStatusDesc(labels map[string]string) (endStatusDesc string) {
+	endStatusDesc = string(kubecontainer.ContainerStateExited)
+	for k, _ := range labels {
+		if strings.Contains(k, "io.kubernetes.docker.type") {
+			endStatusDesc = "exited"
+			break
+		}
+		if strings.Contains(k, "io.cri-containerd.kind") {
+			endStatusDesc = "STOPPED"
+			break
+		}
+	}
+	return
 }
 
 func DeleteClusterAll(ctx context.Context, rdb *gorm.DB, clusterKey string) error {

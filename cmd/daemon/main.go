@@ -175,7 +175,7 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, stop <-chan
 					logging.Get().Err(err).Msgf("discovery rawContainer failed ,containerName:%s ,pid:%d", container.Name, container.Pid)
 				}
 				if len(frameworkInfos) > 0 || len(svcInfos) > 0 {
-					logging.Get().Err(err).Msgf("discovery  containerName:%s  result. frameworkInfos:%d, svcInfos:%d", container.Name, len(frameworkInfos), len(svcInfos))
+					logging.Get().Err(err).Msgf("discovery  containerName:%s result. frameworkInfos:%d, svcInfos:%d", container.Name, len(frameworkInfos), len(svcInfos))
 				}
 				assetsContainer.Discovery.Frameworks = frameworkInfos
 				assetsContainer.Discovery.Services = svcInfos
@@ -196,7 +196,7 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, stop <-chan
 			ctx, cancel := context.WithTimeout(context.Background(), time.Second*1)
 			defer cancel()
 
-			logging.Get().Debug().Msgf("handle event %+v", newObj)
+			logging.Get().Info().Msgf("handle event %+v", newObj)
 			container, ok := newObj.(*model.TensorRawContainer)
 			if !ok {
 				return

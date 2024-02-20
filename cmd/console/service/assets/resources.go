@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	pkgassets "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"io"
 	"net/http"
 	"strconv"
@@ -499,7 +500,7 @@ func (rl *TensorResourcesService) GetNodeCount(ctx context.Context, clusterKey s
 			wg.Done()
 		}()
 		// 	container count
-		err := rl.rdb.GetReadDB().WithContext(ctx).Model(&model.TensorRawContainer{}).Where("cluster_key=? and node_name=? and status<5", clusterKey, nodeName).Count(&nodeExtra.ContainerCount).Error
+		err := rl.rdb.GetReadDB().WithContext(ctx).Model(&model.TensorRawContainer{}).Where("cluster_key=? and node_name=? and status<?", clusterKey, nodeName, pkgassets.ActiveCRIState).Count(&nodeExtra.ContainerCount).Error
 		if err != nil {
 			logging.Get().WithContext(ctx).Errorf(err, "GetNodeCount calculate ContainerCount err")
 		}
@@ -1126,7 +1127,6 @@ func (rl *TensorResourcesService) ListRawContainerWithFrameworkWithRedis(ctx con
 		return nil, 0, err
 	}
 	var cnt int64
-
 	if rawContainerQuery != nil {
 		cnt, err = dal.CountRawContainerWithRedis(ctx, rl.rdb.GetReadDB(), ic, rawContainerQuery)
 	} else {
@@ -1173,10 +1173,13 @@ func (rl *TensorResourcesService) GetRawContainerWithFramework(ctx context.Conte
 	if err != nil {
 		return nil, err
 	}
-	if len(containers) > 0 {
-		return containers[0], nil
+	if len(containers) == 0 {
+		return nil, nil
 	}
-	return nil, nil
+	if containers[0].Status == dal.ContainerState_exited && containers[0].StatusDesc == "" {
+		containers[0].StatusDesc = dal.GetExitedStatusDesc(containers[0].Labels)
+	}
+	return containers[0], nil
 }
 
 func (rl *TensorResourcesService) CountIngress(ctx context.Context, queryOptions *dal.IngressesQueryOption) (int64, error) {

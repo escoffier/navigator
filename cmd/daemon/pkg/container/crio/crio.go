@@ -261,15 +261,15 @@ func (c *crioDriver) ListRunningContainers() ([]container.Container, error) {
 func (c *crioDriver) translateState(state runtimeapi.ContainerState) string {
 	switch state {
 	case runtimeapi.ContainerState_CONTAINER_CREATED:
-		return assets.GetRawContainerStatus(assets.Created)
+		return assets.GetRawContainerStatusStr(assets.Created)
 	case runtimeapi.ContainerState_CONTAINER_RUNNING:
-		return assets.GetRawContainerStatus(assets.Running)
+		return assets.GetRawContainerStatusStr(assets.Running)
 	case runtimeapi.ContainerState_CONTAINER_EXITED:
-		return assets.GetRawContainerStatus(assets.Exited)
+		return assets.GetRawContainerStatusStr(assets.Exited)
 	case runtimeapi.ContainerState_CONTAINER_UNKNOWN:
-		return assets.GetRawContainerStatus(assets.Dead)
+		return assets.GetRawContainerStatusStr(assets.Unknown)
 	default:
-		return assets.GetRawContainerStatus(assets.All)
+		return assets.GetRawContainerStatusStr(assets.All)
 	}
 }
 

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"os"
 	"runtime/debug"
 	"strconv"
@@ -18,7 +19,6 @@ import (
 	"github.com/docker/docker/api/types/events"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/utils"
-	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
@@ -189,9 +189,8 @@ func (d *DockerInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 	filter := filters.NewArgs(
 		// filters.Arg("event", "create"),
 		filters.Arg("event", "start"),
-		// filters.Arg("event", "restart"),
-		// filters.Arg("event", "rename"),
-		// filters.Arg("event", "resize"),
+		filters.Arg("event", "pause"),
+		filters.Arg("event", "unpause"),
 		filters.Arg("event", "stop"),
 		filters.Arg("event", "destroy"),
 		filters.Arg("type", "container"),
@@ -206,15 +205,14 @@ func (d *DockerInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 	for {
 		select {
 		case m := <-msg:
+			if m.Action == "start" {
+				time.Sleep(time.Second)
+			}
 			go func() {
-				//if m.Action == "start" {
-				//	//todo  新增事件，延迟1秒处理，ports和进程
-				//	time.Sleep(time.Second)
-				//}
 				ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 				defer cancel()
 
-				logging.Get().Debug().Msgf("raw-container - received event from docker %+v", m)
+				logging.Get().Info().Msgf("docker received event from docker %+v", m)
 				saveData(m.ID, m.Time)
 				if d.mqReady.Load() {
 					if m.Actor.Attributes["io.kubernetes.docker.type"] == "podsandbox" {
@@ -223,11 +221,15 @@ func (d *DockerInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 					}
 					if ExportRawContainer {
 						container := d.containerFromEvent(m)
-						if m.Action != "stop" && m.Action != "destroy" {
+						if m.Action == "start" {
 							container = d.updateContainerDetail(ctx, container)
-						} else {
+						} else if m.Action == "destroy" {
 							container.LastStopTime = time.Unix(m.Time, 0)
+							container.StatusDesc = "exited"
+						} else {
+							container.Status, container.StatusDesc = d.getContainerStatus(ctx, container.ContainerID)
 						}
+
 						if m.Action == "start" && len(container.Ports) == 0 {
 							//	 If the container port is empty, try again after 1 minute
 							d.addRetryContainer(container.ContainerID)
@@ -325,10 +327,8 @@ func (d *DockerInfoManager) buildContainerDetail(containerID string) (*model.Ten
 
 // processEvents  process container events
 func (d *DockerInfoManager) processEvents(ctx context.Context, container *model.TensorRawContainer, action string) {
-	if container.K8sManaged && container.ResourceName == "" && !isDeleteEvent(action) {
+	if container.K8sManaged && container.ResourceName == "" && action == "start" {
 		func() {
-			logging.Get().Debug().Str("raw-container", "process event").Msgf("get pod owner of %s/%s/%s",
-				container.Namespace, container.PodName, container.Name)
 			resName, resKind, err := d.store.GetPodOwner(container.Namespace, container.PodName)
 			if err != nil {
 				logging.Get().Warn().Err(err).Msg("get pod owner err")
@@ -336,6 +336,8 @@ func (d *DockerInfoManager) processEvents(ctx context.Context, container *model.
 			}
 			container.ResourceName = resName
 			container.ResourceKind = resKind
+			logging.Get().Info().Str("raw-container", "process event").Msgf("get pod owner of %s/%s/%s is %s/%s",
+				container.Namespace, container.PodName, container.Name, resKind, resName)
 			pod, err := d.store.GetPod(container.Namespace, container.PodName)
 			if err != nil {
 				logging.Get().Warn().Err(err).Msgf("get pod:%s/%s err", container.Namespace, container.Name)
@@ -367,14 +369,14 @@ func (d *DockerInfoManager) processEvents(ctx context.Context, container *model.
 			container.ImageUUID = model.GetImageUUID(container.ImageName, container.ImageDigest)
 		}()
 	}
-	logging.Get().Debug().Msgf("raw-container - process container [%s:%s:%d] event: %s",
-		container.ContainerID, container.Name, container.Status, action)
+	logging.Get().Info().Msgf("raw-container - process container [%s:%s:%d:%s] event: %s",
+		container.ContainerID, container.Name, container.Status, container.StatusDesc, action)
 	switch action {
 	case "create", "start":
 		for _, handler := range d.handlers {
 			handler.OnAdd(container)
 		}
-	case "restart", "rename", "resize":
+	case "pause", "unpause":
 		for _, handler := range d.handlers {
 			handler.OnUpdate(nil, container)
 		}
@@ -399,7 +401,7 @@ func (d *DockerInfoManager) listAll() {
 		return
 	}
 	for _, c := range containers {
-		logging.Get().Debug().Str("raw-container", "list all containers").Msgf("%s/%v", c.ID, c.Names)
+		logging.Get().Info().Str("raw-container", "list all containers").Msgf("%s/%v", c.ID, c.Names)
 		containerDetail, err := d.buildContainerDetail(c.ID)
 		if err != nil {
 			return
@@ -407,7 +409,7 @@ func (d *DockerInfoManager) listAll() {
 		if containerDetail == nil {
 			continue
 		}
-		d.processEvents(ctx, containerDetail, "create")
+		d.processEvents(ctx, containerDetail, "start")
 	}
 }
 
@@ -478,7 +480,8 @@ func (d *DockerInfoManager) containerFromRaw(containerJson *types.ContainerJSON)
 	}
 
 	return &model.TensorRawContainer{
-		Status:         getContainerStatus(containerJson.State.Status),
+		Status:         getCRIStatusFromDockerStatus(containerJson.State.Status),
+		StatusDesc:     containerJson.State.Status,
 		CreatedAt:      createdAt,
 		UpdatedAt:      time.Now(),
 		LastStopTime:   finishedAt,
@@ -537,7 +540,8 @@ func (d *DockerInfoManager) containerFromEvent(message events.Message) *model.Te
 	return &model.TensorRawContainer{
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Unix(message.Time, 0),
-		Status:      getContainerStatus(message.Status),
+		StatusDesc:  message.Action,
+		Status:      getCRIStatusFromDockerStatus(message.Action),
 		ContainerID: message.ID,
 		FullName:    strings.TrimPrefix(message.Actor.Attributes["name"], "/"),
 		Name:        containerName,
@@ -586,7 +590,8 @@ func (d *DockerInfoManager) updateContainerDetail(ctx context.Context, container
 		return container
 	}
 	container.CreatedAt = t
-	container.Status = getContainerStatus(containerJson.State.Status)
+	container.Status = getCRIStatusFromDockerStatus(containerJson.State.Status)
+	container.StatusDesc = containerJson.State.Status
 	container.Cmd = getCommandFromDocker(&containerJson)
 	container.Arguments = containerJson.Args
 	container.Path = containerJson.Path
@@ -633,6 +638,16 @@ func (d *DockerInfoManager) updateContainerDetail(ctx context.Context, container
 	container.ProcessNumber = len(processes)
 	container.Processes = processes
 	return container
+}
+
+func (d *DockerInfoManager) getContainerStatus(ctx context.Context, containerId string) (status int32, statusDesc string) {
+	containerJson, err := d.dockerCli.ContainerInspect(ctx, containerId)
+	if err != nil {
+		logging.Get().Err(err).Str("raw-container", "update container").Msgf("get container info: %s err", containerId)
+		return assets.Unknown, "-"
+	}
+	logging.Get().Info().Msgf("docker getContainerStatus containerId:%s,dockerStatus:%+v", containerId, containerJson.State)
+	return getCRIStatusFromDockerStatus(containerJson.State.Status), containerJson.State.Status
 }
 
 func (d *DockerInfoManager) getImageNames(imageID string) string {
@@ -817,7 +832,7 @@ func (d *DockerInfoManager) retryOnce(ctx context.Context, containerId string) {
 		return
 	}
 	logging.Get().Debug().Msgf("retry finish, containerId:%s", containerId)
-	d.processEvents(ctx, containerDetail, "create")
+	d.processEvents(ctx, containerDetail, "start")
 }
 
 func getImageDigest(image string) string {
@@ -827,23 +842,16 @@ func getImageDigest(image string) string {
 	}
 	return image
 }
-func getContainerStatus(st string) int32 {
-	status := assets.Exited
+
+func getCRIStatusFromDockerStatus(st string) int32 {
+	status := assets.Unknown
 	switch st {
-	case "exited":
-		status = assets.Exited
-	case "running":
-		status = assets.Running
-	case "paused":
-		status = assets.Paused
 	case "created":
 		status = assets.Created
-	case "restarting":
-		status = assets.Restarting
-	case "removing":
-		status = assets.Removing
-	case "dead":
-		status = assets.Dead
+	case "running", "restarting", "paused":
+		status = assets.Running
+	case "removing", "destroy", "dead", "exited":
+		status = assets.Exited
 	}
 	return int32(status)
 }
@@ -903,13 +911,6 @@ func getContainerPorts(pid int) []model.Port {
 		})
 	}
 	return ports
-}
-
-func isDeleteEvent(action string) bool {
-	if action == "stop" || action == "destroy" {
-		return true
-	}
-	return false
 }
 
 func getNetworkMode(mode string) string {

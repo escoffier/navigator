@@ -133,9 +133,13 @@ require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230106234847-43070de90fa1 // indirect
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20221215162035-5330a85ea652 // indirect
 	github.com/agnivade/levenshtein v1.1.1 // indirect
+	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/moby/sys/signal v0.7.0 // indirect
 	github.com/onsi/gomega v1.27.6 // indirect
+	k8s.io/cloud-provider v0.0.0 // indirect
+	k8s.io/component-helpers v0.26.2 // indirect
+	k8s.io/mount-utils v0.0.0 // indirect
 )
 
 require (

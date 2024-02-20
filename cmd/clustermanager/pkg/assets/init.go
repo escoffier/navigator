@@ -338,7 +338,7 @@ func SyncRawContainerToRedis(rdb *databases.RDBInstance, redisearchClis *redisea
 	m := &model.TensorRawContainer{}
 
 	// 首选查询出总数
-	err = db.Model(m).Where("status < ? ", 5).Count(&total).Error
+	err = db.Model(m).Where("status < ? ", pkgassets.ActiveCRIState).Count(&total).Error
 	if err != nil {
 		return err
 	}
@@ -346,7 +346,7 @@ func SyncRawContainerToRedis(rdb *databases.RDBInstance, redisearchClis *redisea
 	containers := make([]*model.TensorRawContainer, 0)
 
 	// 查询最小的id
-	err = db.Model(m).Where("status < ?", 5).Order("id asc").Limit(1).Find(&containers).Error
+	err = db.Model(m).Where("status < ?", pkgassets.ActiveCRIState).Order("id asc").Limit(1).Find(&containers).Error
 	if err != nil {
 		return err
 	}
@@ -366,7 +366,7 @@ func SyncRawContainerToRedis(rdb *databases.RDBInstance, redisearchClis *redisea
 
 	docList := make([]rsearch.Document, size)
 	for finished < total {
-		tmpDb := db.Model(m).Where("status < ?", 5).Limit(size).Order("id asc").
+		tmpDb := db.Model(m).Where("status < ?", pkgassets.ActiveCRIState).Limit(size).Order("id asc").
 			Select("id", "status", "cluster_key", "k8s_managed", "node_name", "namespace", "pod_name", "name", "resource_name", "updated_at")
 		containers = containers[:0]
 		if include {
@@ -385,7 +385,7 @@ func SyncRawContainerToRedis(rdb *databases.RDBInstance, redisearchClis *redisea
 		for i, container := range containers {
 			docList[i] = rsearch.NewDocument(fmt.Sprintf("rawContainer:%s", container.ContainerID), 1).
 				Set("id", container.ContainerID).
-				Set("status", pkgassets.GetRawContainerStatus(int(container.Status))).
+				Set("status", pkgassets.GetRawContainerStatusStr(int(container.Status))).
 				Set("cluster_key", container.ClusterKey).
 				Set("k8s_managed", strconv.FormatBool(container.K8sManaged)).
 				Set("node_name", container.NodeName).

@@ -632,7 +632,8 @@ func (ev PortSlice) Value() (driver.Value, error) {
 type TensorRawContainer struct {
 	CreatedAt      time.Time        `json:"createdAt" gorm:"column:created_at"`
 	UpdatedAt      time.Time        `json:"updatedAt" gorm:"column:updated_at"`
-	Status         int32            `json:"status" gorm:"column:status;type:smallint"`
+	Status         int32            `json:"status" gorm:"column:status;type:smallint"` //CRI status
+	StatusDesc     string           `json:"statusDesc" gorm:"column:status_desc"`      // status in runtime(docker,containerd,cri-o)
 	ContainerID    string           `json:"id" gorm:"column:id;type:bigint;primaryKey"`
 	NetworkMode    string           `json:"networkMode" gorm:"column:network_mode"`
 	IP             string           `json:"ip" gorm:"column:ip"`
