@@ -16,7 +16,6 @@ import (
 	types2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/types"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -119,6 +118,7 @@ func (s *ExportImageHtmlSrv) GetImages(ctx context.Context, taskID int64, starID
 			SensitiveEnable: true,
 			WebshellEnable:  true,
 			SearchVulnParam: imagesecModel.ApiSearchVulnParam{
+				OmitFields: imagesecModel.GetVulnDefaultOmitFields(),
 				ClassType:  s.VulnClassType,
 				NeedKernel: []string{s.NeedKernelVuln},
 			},
@@ -405,8 +405,9 @@ func (s *ExportImageHtmlSrv) GetImageRisk(ctx context.Context, taskID, imageID i
 		MalwareEnable:         true,
 		SensitiveEnable:       true,
 		WebshellEnable:        true,
-		ScanResultSearchParam: imagesecModel.ScanResultSearchParam{OmitFields: model.GetVulnDefaultOmitFields()},
+		ScanResultSearchParam: imagesecModel.ScanResultSearchParam{},
 		SearchVulnParam: imagesecModel.ApiSearchVulnParam{
+			OmitFields: imagesecModel.GetVulnDefaultOmitFields(),
 			NeedKernel: []string{s.NeedKernelVuln},
 			ClassType:  s.VulnClassType,
 			Filter:     imagesecModel.EmptyFilterForTotalQuery(),
@@ -465,14 +466,14 @@ func (s *ExportImageHtmlSrv) createRiskOverView(ctx context.Context, task images
 		}
 		for i := range taskImages {
 			param := imagesecModel.ImageAssociateParam{
-				// ImageUniqueIds: taskImages[i].ImageUniqueIds,
-				ImageId:    taskImages[i].ImageID,
-				VulnEnable: true,
-				SearchVulnParam: imagesecModel.ApiSearchVulnParam{
-					NeedKernel: []string{s.NeedKernelVuln},
-					ClassType:  s.VulnClassType,
-					Filter:     imagesecModel.EmptyFilterForTotalQuery(),
-				},
+				ImageId: taskImages[i].ImageID,
+				// VulnEnable: true,
+				// SearchVulnParam: imagesecModel.ApiSearchVulnParam{
+				// 	Fields:     []string{"id", "unique_id"},
+				// 	NeedKernel: []string{s.NeedKernelVuln},
+				// 	ClassType:  s.VulnClassType,
+				// 	Filter:     imagesecModel.EmptyFilterForTotalQuery(),
+				// },
 			}
 
 			imageData, err := s.ImageSrv.GetImageCorrelateData(ctx, param)
@@ -662,6 +663,7 @@ func (s *ExportImageHtmlSrv) createVulnImage(ctx context.Context, taskID int64) 
 				ImageId:    exportImages[i].ImageID,
 				VulnEnable: true,
 				SearchVulnParam: imagesecModel.ApiSearchVulnParam{
+					Fields:     []string{"id", "unique_id", "severity", "fixed_version"},
 					ClassType:  s.VulnClassType,
 					NeedKernel: []string{s.NeedKernelVuln},
 				},
@@ -782,6 +784,7 @@ func (s *ExportImageHtmlSrv) Run(ctx context.Context) {
 		return
 	}
 	if len(tasks) == 0 {
+		time.Sleep(time.Second * 30)
 		return
 	}
 	task := tasks[0]
@@ -870,7 +873,8 @@ func (s *ExportImageHtmlSrv) Run(ctx context.Context) {
 		s.Log.Info().Int64("taskID", task.ID).Str("filePath", task.FilePath).Interface("status", status).
 			Msg("ExportImageHtmlSrv.getKoaStatus success")
 
-		switch status.Data.Status {
+		statusM := status.Data.Status
+		switch statusM {
 
 		case consts.KoaStatusSuccess:
 			// 调用用命令进行压缩
@@ -899,7 +903,6 @@ func (s *ExportImageHtmlSrv) Run(ctx context.Context) {
 		case consts.KoaStatusInprogress:
 			s.Log.Info().Int64("taskID", task.ID).Str("filePath", task.FilePath).Interface("status", status).
 				Msg("ExportImageHtmlSrv.getKoaStatus")
-			continue
 
 		default:
 			if status.Data.FailedMsg.Message == "" {
@@ -912,7 +915,10 @@ func (s *ExportImageHtmlSrv) Run(ctx context.Context) {
 				s.Log.Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv UpdateExportTask Failure")
 			}
 		}
-		break
+
+		if statusM != consts.KoaStatusInprogress {
+			break
+		}
 	}
 	s.Log.Info().Int64("taskID", task.ID).Msg("ExportImageHtmlSrv export html execute complete")
 	_ = s.UpdateTask.DeleteRedisData(ctx, task.ID)
