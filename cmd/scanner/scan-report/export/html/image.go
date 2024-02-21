@@ -895,9 +895,18 @@ func (s *ExportImageHtmlSrv) Run(ctx context.Context) {
 			if err := s.UpdateTask.Success(ctx, task.ID, zipFilename); err != nil {
 				s.Log.Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv Success export html task success update task")
 			}
+
+		case consts.KoaStatusInprogress:
+			s.Log.Info().Int64("taskID", task.ID).Str("filePath", task.FilePath).Interface("status", status).
+				Msg("ExportImageHtmlSrv.getKoaStatus")
+			continue
+
 		default:
+			if status.Data.FailedMsg.Message == "" {
+				status.Data.FailedMsg.Message = "unknown error"
+			}
 			// 保存状态
-			s.Log.Info().Int64("taskID", task.ID).Msg("export html execute failure")
+			s.Log.Info().Int64("taskID", task.ID).Interface("status", status).Msg("export html execute failure")
 
 			if err := s.UpdateTask.Failure(ctx, task.ID, status.Data.FailedMsg.Message); err != nil {
 				s.Log.Err(err).Int64("taskID", task.ID).Msg("ExportImageHtmlSrv UpdateExportTask Failure")
