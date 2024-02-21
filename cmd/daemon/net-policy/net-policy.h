@@ -39,6 +39,8 @@ typedef enum
     DEL_WAF_RULE = 8,//delete waf rule
     HEAP_DUMP = 9,
     CONF_DUMP = 10,
+    CONN_DUMP = 11,
+    RESET = 12,
     NET_INFO_MAX
 } NET_DATA_TYPE;
 

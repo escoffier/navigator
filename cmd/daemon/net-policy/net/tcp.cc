@@ -6,7 +6,10 @@
 #include <netinet/tcp.h>
 
 #include <boost/endian/conversion.hpp>
+#include <sstream>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "http/connection.h"
 #include "http/extension/log.h"
@@ -132,6 +135,17 @@ NetworkStat Tcp::stat() {
   NetworkStat st{};
   st.tcp_conn_ = tcbs_.size();
   return st;
+}
+
+std::vector<std::string> Tcp::connections() {
+  std::vector<std::string> conns{};
+  for (auto& [key, value] : tcbs_) {
+    std::ostringstream conn;
+    conn << ipv4ToString(key.local_ip) << ":" << key.local_port << ","
+         << ipv4ToString(key.foreign_ip) << ":" << key.foreign_port;
+    conns.push_back(conn.str());
+  }
+  return conns;
 }
 
 std::ostream& operator<<(std::ostream& os, const Tcp::Tcb& tcb) {

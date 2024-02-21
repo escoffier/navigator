@@ -238,6 +238,9 @@ func NewServer() (*server, error) {
 
 		apiWatcher := apisecurity.NewWatcher(mqReader, "security-api", "api-security", rdb)
 		go apiWatcher.Run(stopChan)
+
+		policyStatuWatcher := microseg.NewWatcher(mqReader, "ivan_microseg_status", "grp-1", rdb)
+		go policyStatuWatcher.Run(stopChan)
 	}
 
 	factory.Start(stopChan)

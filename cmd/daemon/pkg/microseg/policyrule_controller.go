@@ -1,13 +1,17 @@
 package microseg
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
 	"strings"
 	"time"
 
+	"github.com/segmentio/kafka-go"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/model"
+	"gitlab.com/security-rd/go-pkg/mq"
 	"k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/util/wait"
@@ -31,9 +35,10 @@ type RuleGroupController struct {
 	queue           workqueue.RateLimitingInterface
 	polCli          PolicyClient
 	nodeName        string
+	mqSender        mq.Writer
 }
 
-func NewRuleGroupController(clientset *versioned.Clientset, crdFactory externalversions.SharedInformerFactory, cli PolicyClient, nodeName string) *RuleGroupController {
+func NewRuleGroupController(clientset *versioned.Clientset, crdFactory externalversions.SharedInformerFactory, cli PolicyClient, nodeName string, mqWriter mq.Writer) *RuleGroupController {
 	ruleInformer := crdFactory.Microsegmentation().V1alpha1().NetworkPolicyRuleGroups().Informer()
 	controller := &RuleGroupController{
 		ruleInformer:    ruleInformer,
@@ -42,6 +47,7 @@ func NewRuleGroupController(clientset *versioned.Clientset, crdFactory externalv
 		queue:           workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "rulegroup-queue"),
 		polCli:          cli,
 		nodeName:        nodeName,
+		mqSender:        mqWriter,
 	}
 	ruleInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    controller.addRuleGroup,
@@ -50,7 +56,6 @@ func NewRuleGroupController(clientset *versioned.Clientset, crdFactory externalv
 	}, time.Hour*8)
 
 	cli.AddReConnectionCallback(controller.ReSyncAllPolicy)
-	// cli.SetController(controller)
 	return controller
 }
 
@@ -155,6 +160,36 @@ func buildPolicyRuleMessage(msgType int, ruleGroup *crdv1alpha1.NetworkPolicyRul
 	message.Rules = rules
 	return message
 }
+
+func (rg *RuleGroupController) handlePolicyStatus(err error, ruleGroup *crdv1alpha1.NetworkPolicyRuleGroup) {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+
+	var intStatus int
+	var detail string
+	if err != nil {
+		intStatus = 1
+		detail = err.Error()
+	}
+	status := &model.PolicyStatus{
+		Policy: ruleGroup.Spec.Policy,
+		Status: intStatus,
+		Detail: detail,
+	}
+	data, err := json.Marshal(status)
+	if err != nil {
+		logging.Get().Err(err).Msg("marshal policy status")
+		return
+	}
+
+	err = rg.mqSender.Write(ctx, "ivan_microseg_status", kafka.Message{
+		Value: data,
+	})
+	if err != nil {
+		logging.Get().Err(err).Msg("send policy status to mq")
+	}
+}
+
 func (rg *RuleGroupController) syncPolicy(name string) error {
 	rule, err := rg.ruleLister.Get(name)
 	if err != nil {
@@ -180,16 +215,18 @@ func (rg *RuleGroupController) syncPolicy(name string) error {
 
 	msg := buildPolicyRuleMessage(3, rule)
 	err = rg.polCli.AddPolicy(msg)
+	rg.handlePolicyStatus(err, rule)
 	if err != nil {
 		logging.Get().Err(err).Msgf("send rule message err")
-	}
-
-	msgData, err := json.Marshal(msg)
-	if err != nil {
-		log.Err(err).Msgf("marshal rulegroup %s err ", name)
 		return err
 	}
-	log.Info().Msgf("policy rule msg to dp: %s", string(msgData))
+
+	// msgData, err := json.Marshal(msg)
+	// if err != nil {
+	// 	log.Err(err).Msgf("marshal rulegroup %s err ", name)
+	// 	return err
+	// }
+	// log.Info().Msgf("policy rule msg to dp: %s", string(msgData))
 
 	return nil
 }

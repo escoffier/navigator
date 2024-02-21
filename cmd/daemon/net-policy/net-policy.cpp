@@ -48,6 +48,12 @@
 
 using namespace std;
 
+namespace {
+    const char *clear  = "iptables -t mangle -F";
+    const char *dichan = "iptables -t mangle -X TS_ZERO_PREROUTING";
+    const char *dochan = "iptables -t mangle -X TS_ZERO_OUTPUT";
+}
+
 int gzLogLevel   = 0;
 bool gbWafEnable = false;
 
@@ -1374,6 +1380,12 @@ bool CheckIptablesRule()
     return true;
 }
 
+void clearNfqRules() {
+    system(clear);
+    system(dichan);
+    system(dochan);
+}
+
 /*exec iptables*/
 void WriteIptableRule(int iMarkNum, int oMarkNum)
 {
@@ -1404,16 +1416,11 @@ void WriteIptableRule(int iMarkNum, int oMarkNum)
     
     const char *opass  = "iptables -t mangle -A TS_ZERO_OUTPUT -m mark --mark %d -j ACCEPT";
     const char *onfque = "iptables -t mangle -A TS_ZERO_OUTPUT -j NFQUEUE --queue-num 1 --queue-bypass";
-    //
-    const char *clear  = "iptables -t mangle -F";
-    const char *dichan = "iptables -t mangle -X TS_ZERO_PREROUTING";
-    const char *dochan = "iptables -t mangle -X TS_ZERO_OUTPUT";
+
     //check iptables rule
     //if(CheckIptablesRule()) return;
     if(CheckIptablesRule()) {
-        system(clear);
-        system(dichan);
-        system(dochan);
+        clearNfqRules();
     }
     //
     fp = popen(pcheck, "r");
@@ -1734,6 +1741,29 @@ cJSON* dumpConfig() {
     return config;
 }
 
+cJSON* dumpConnectons(std::string_view req) {
+  cJSON* root = cJSON_Parse(req.data());
+  auto limitItem = cJSON_GetObjectItem(root, "limit");
+  int limit = (int)limitItem->valuedouble;
+
+  cJSON * connections = cJSON_CreateObject();
+  cJSON_AddNumberToObject(connections, "total",connectionManager.stat().tcp_conn_);
+  auto items = cJSON_CreateArray();
+  auto conns = connectionManager.connections();
+  for (int i = 0; i < limit; i++) {
+    auto item = cJSON_CreateString(conns[i].c_str());
+    cJSON_AddItemToArray(items, item);
+  }
+  
+  cJSON_AddItemToObject(connections, "items", items);
+  return connections;
+}
+
+int reset() {
+    clearNfqRules();
+    return 0;
+}
+
 int ParseRcvData(int32_t zRcvEvFd, int32_t fd, void *ptr)
 {
     bool bRet;
@@ -1808,6 +1838,14 @@ int ParseRcvData(int32_t zRcvEvFd, int32_t fd, void *ptr)
 
         case CONF_DUMP:
             respBody = dumpConfig();
+            goto rsp;
+
+        case CONN_DUMP:
+            respBody = dumpConnectons(std::string_view{cDataBuf, strlen(cDataBuf)});
+            goto rsp;
+
+        case RESET:
+            ret = reset();
             goto rsp;
 
         default:
