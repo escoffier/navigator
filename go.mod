@@ -17,7 +17,7 @@ require (
 	github.com/florianl/go-conntrack v0.4.0 //conntrack
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/gin-gonic/gin v1.9.1
-	github.com/go-chi/chi v4.1.2+incompatible
+	//github.com/go-chi/chi v4.1.2+incompatible
 	github.com/go-ldap/ldap/v3 v3.4.1
 	github.com/go-openapi/swag v0.22.3 // indirect
 	github.com/go-playground/validator/v10 v10.14.1 // indirect
@@ -92,6 +92,7 @@ require (
 	github.com/facebookarchive/freeport v0.0.0-20150612182905-d4adf43b75b9
 	github.com/ghodss/yaml v1.0.0
 	github.com/gin-contrib/pprof v1.4.0
+	github.com/go-chi/chi v1.5.5
 	github.com/go-redis/redismock/v8 v8.11.5
 	github.com/go-redsync/redsync/v4 v4.7.1
 	github.com/go-sql-driver/mysql v1.7.1
@@ -101,6 +102,7 @@ require (
 	github.com/golang/protobuf v1.5.3
 	github.com/google/cadvisor v0.44.1
 	github.com/gorilla/handlers v1.5.1
+	github.com/gorilla/websocket v1.4.2
 	github.com/jarcoal/httpmock v1.2.0
 	github.com/jellydator/ttlcache/v3 v3.0.0
 	github.com/jinzhu/copier v0.3.2
@@ -327,7 +329,7 @@ require (
 	github.com/nats-io/nats-server/v2 v2.8.2 // indirect
 	github.com/nats-io/nats-streaming-server v0.24.6 // indirect
 	github.com/onsi/ginkgo/v2 v2.9.5 // indirect
-	github.com/opencontainers/runtime-spec v1.1.0-rc.1 // indirect
+	github.com/opencontainers/runtime-spec v1.1.0-rc.1
 	github.com/opencontainers/runtime-tools v0.9.1-0.20221107090550-2e043c6bd626 // indirect
 	github.com/opencontainers/selinux v1.11.0 // indirect
 	github.com/ostreedev/ostree-go v0.0.0-20190702140239-759a8c1ac913 // indirect
@@ -613,7 +615,8 @@ require (
 replace (
 	github.com/containernetworking/cni => github.com/containernetworking/cni v0.8.1
 	github.com/containers/podman/v3 => scm.tensorsecurity.cn/tensorsecurity-rd/podman/v3 v3.4.6-20220425170000
-	gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.92
+	//github.com/opencontainers/image-spec => github.com/opencontainers/image-spec v1.0.2-0.20210819154149-5ad6f50d6283
+	gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.93-0.20240125133240-243feaafcb42
 	go.opentelemetry.io/otel/metric => go.opentelemetry.io/otel/metric v0.35.0
 	helm.sh/helm/v3 => helm.sh/helm/v3 v3.11.1
 	k8s.io/api => k8s.io/kubernetes/staging/src/k8s.io/api v0.0.0-20220503133649-4ce5a8954017

@@ -300,6 +300,8 @@ func newTaskManager(rdb *databases.RDBInstance) *TaskManager {
 	return &tm
 }
 
+
+
 func (tm *TaskManager) setTaskDone(ctx context.Context, task *model.ImmuneTask, now time.Time) error {
 	tctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()

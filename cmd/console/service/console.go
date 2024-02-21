@@ -8,6 +8,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/iac"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/monitor"
 	"gitlab.com/piccolo_su/vegeta/pkg/heartbeat"
+	"gitlab.com/piccolo_su/vegeta/pkg/ws"
 	"gitlab.com/security-rd/go-pkg/translate"
 	"net/http"
 	"os"
@@ -19,6 +20,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/apiscan"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/attck"
+	blSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/behavioral-learn"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/cmcc"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/containers"
@@ -365,6 +367,10 @@ func NewConsole(
 	if drErr != nil {
 		logging.Get().Err(drErr).Msg("ERROR: InitDriftService init error")
 	}
+	blErr := blSvc.InitBLService(rdb, mqReader, es)
+	if blErr != nil {
+		logging.Get().Err(blErr).Msg("ERROR: InitBLService init error")
+	}
 
 	//	monitor
 	monitorTopic := os.Getenv(env.EnvTopicMonitor)
@@ -409,24 +415,23 @@ func NewConsole(
 	}
 
 	// init iac-yaml scan
-	logging.Get().Debug().Msg("start NewYamlScanner")
 	err = iac.NewYamlScanner(rdb.Get())
 	if err != nil {
 		logging.Get().Error().Err(err).Msg("ERROR: YamlScanner init error")
 		mainCancel()
 		return nil, err
 	}
-	logging.Get().Debug().Msg("end NewYamlScanner")
 
 	// init iac-dockerfile
-	logging.Get().Debug().Msg("start NewDockerfile")
 	err = iac.NewDockerfile(rdb.Get())
 	if err != nil {
 		logging.Get().Error().Err(err).Msg("ERROR: Dockerfile init error")
 		mainCancel()
 		return nil, err
 	}
-	logging.Get().Debug().Msg("end NewDockerfile")
+
+	// init ws
+	ws.Init(mainCtx)
 
 	translation, err := translate.NewTranslation(mainCtx, rdb)
 	if err != nil {

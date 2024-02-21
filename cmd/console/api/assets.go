@@ -1103,16 +1103,17 @@ func (req *GetResourceFuzzy) Execute(ctx context.Context) ([]*assets.TensorResou
 
 func (api *api) getResourcesFuzzy() http.HandlerFunc {
 	type resource struct {
-		Id        uint32                 `json:"id"`
-		Cluster   string                 `json:"cluster"`
-		Namespace string                 `json:"namespace"`
-		Kind      string                 `json:"kind"`
-		Name      string                 `json:"name"`
-		UID       string                 `json:"uid"`
-		Alias     string                 `json:"alias"`
-		Managers  []*dal.UserNameAccount `json:"managers"`
-		Authority string                 `json:"authority"`
-		Tags      []string               `json:"tags"`
+		ResourceID uint32                 `json:"resource_id"`
+		Id         uint32                 `json:"id"`
+		Cluster    string                 `json:"cluster"`
+		Namespace  string                 `json:"namespace"`
+		Kind       string                 `json:"kind"`
+		Name       string                 `json:"name"`
+		UID        string                 `json:"uid"`
+		Alias      string                 `json:"alias"`
+		Managers   []*dal.UserNameAccount `json:"managers"`
+		Authority  string                 `json:"authority"`
+		Tags       []string               `json:"tags"`
 	}
 	modelToResource := func(rm *assets.TensorResourceView) *resource {
 		r := new(resource)
@@ -1125,6 +1126,7 @@ func (api *api) getResourcesFuzzy() http.HandlerFunc {
 		r.Alias = rm.Alias
 		r.Managers = rm.Managers
 		r.Authority = rm.Authority
+		r.ResourceID = rm.ID
 		return r
 	}
 	return func(w http.ResponseWriter, r *http.Request) {

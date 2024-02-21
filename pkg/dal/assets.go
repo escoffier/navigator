@@ -470,18 +470,22 @@ type mulColQuery struct {
 	query   string
 }
 type ResourcesQueryOption struct {
-	whereEqCondition   map[string]interface{}
-	whereInCondition   map[string]interface{}
-	WhereLikeCondition map[string]string
-	columnQuery        colQuery
-	WithUserAccount    bool
+	whereEqCondition        map[string]interface{}
+	whereInCondition        map[string]interface{}
+	WhereLikeCondition      map[string]string
+	WhereGreaterEqCondition map[string]int64
+	WhereLessEqCondition    map[string]int64
+	columnQuery             colQuery
+	WithUserAccount         bool
 }
 
 func ResourcesQuery() *ResourcesQueryOption {
 	return &ResourcesQueryOption{
-		whereEqCondition:   make(map[string]interface{}, 3),
-		whereInCondition:   make(map[string]interface{}, 2),
-		WhereLikeCondition: make(map[string]string),
+		whereEqCondition:        make(map[string]interface{}, 3),
+		whereInCondition:        make(map[string]interface{}, 2),
+		WhereLikeCondition:      make(map[string]string),
+		WhereGreaterEqCondition: make(map[string]int64),
+		WhereLessEqCondition:    make(map[string]int64),
 	}
 }
 
@@ -514,6 +518,7 @@ func (q *ResourcesQueryOption) WithInConditionCustom(column string, value interf
 	q.whereInCondition[column] = value
 	return q
 }
+
 func (q *ResourcesQueryOption) WithResourceName(name string) *ResourcesQueryOption {
 	q.whereEqCondition["name"] = name
 	return q
@@ -533,6 +538,16 @@ func (q *ResourcesQueryOption) WithFuzzyNamespace(ns string) *ResourcesQueryOpti
 func (q *ResourcesQueryOption) WithColumnQuery(column, query string) *ResourcesQueryOption {
 	q.columnQuery.column = column
 	q.columnQuery.query = query
+	return q
+}
+
+func (q *ResourcesQueryOption) WithGreaterEqCondition(column string, value int64) *ResourcesQueryOption {
+	q.WhereGreaterEqCondition[column] = value
+	return q
+}
+
+func (q *ResourcesQueryOption) WithLessEqCondition(column string, value int64) *ResourcesQueryOption {
+	q.WhereLessEqCondition[column] = value
 	return q
 }
 
@@ -643,6 +658,19 @@ func countResourcesFromDB(ctx context.Context, rdb *gorm.DB, query *ResourcesQue
 	for col, q := range query.WhereLikeCondition {
 		db = db.Where(fmt.Sprintf("%s LIKE ?", col), GetLikeExpr(q))
 	}
+
+	if len(query.WhereGreaterEqCondition) > 0 {
+		for col, q := range query.WhereGreaterEqCondition {
+			db = db.Where(fmt.Sprintf("%s >= ?", col), q)
+		}
+	}
+
+	if len(query.WhereLessEqCondition) > 0 {
+		for col, q := range query.WhereLessEqCondition {
+			db = db.Where(fmt.Sprintf("%s <= ?", col), q)
+		}
+	}
+
 	err := db.Count(&resCount).Error
 	return resCount, err
 }
@@ -716,6 +744,19 @@ func getResourcesFromDB(ctx context.Context, rdb *gorm.DB, query *ResourcesQuery
 	for col, q := range query.WhereLikeCondition {
 		db = db.Where(fmt.Sprintf("%s LIKE ?", col), GetLikeExpr(q))
 	}
+
+	if len(query.WhereGreaterEqCondition) > 0 {
+		for col, q := range query.WhereGreaterEqCondition {
+			db = db.Where(fmt.Sprintf("%s >= ?", col), q)
+		}
+	}
+
+	if len(query.WhereLessEqCondition) > 0 {
+		for col, q := range query.WhereLessEqCondition {
+			db = db.Where(fmt.Sprintf("%s <= ?", col), q)
+		}
+	}
+
 	if limit > 0 && offset >= 0 {
 		db = db.Offset(offset).Limit(limit)
 	}

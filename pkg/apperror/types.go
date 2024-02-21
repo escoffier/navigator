@@ -148,8 +148,8 @@ func InvalidTokenError(httpCode int, err error, suberrors ...Suberror) error {
 	return AnError{
 		detailedError{
 			err:       err,
-			English:   "invalid token or token  expired ",
-			Chinese:   "无效的token,token已失效",
+			English:   "invalid token or token expired ",
+			Chinese:   "无效的token 或 token已失效",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 		},
@@ -1695,6 +1695,18 @@ func NewSyslogInvalidArgError(httpCode int, err error, suberrors ...Suberror) er
 			err:       err,
 			English:   "Syslog config invalid args",
 			Chinese:   "Syslog导出配置参数有误，请重新配置",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func NewLearnTaskCreateNullError(httpCode int, err error, suberrors ...Suberror) error {
+	return AddBaitServiceError{
+		detailedError{
+			err:       err,
+			English:   "Please select a resource",
+			Chinese:   "请选择资源",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 		},

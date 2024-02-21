@@ -16,6 +16,7 @@ import (
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/security-rd/go-pkg/cache"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/model"
@@ -180,7 +181,7 @@ func NetProtoConvert(proto uint8) uint8 {
 	return 0
 }
 
-func NewFlowSession(k8sInfo *NodePodsInfo, crim nodeinfo.ContainerInfoManager, clusterManager ClusterManager, consoleURL string) (*FlowSession, error) {
+func NewFlowSession(k8sInfo *NodePodsInfo, crim nodeinfo.ContainerInfoManager, clusterManager ClusterManager, consoleURL string, cifMgr *k8s.ClusterInfoManager) (*FlowSession, error) {
 
 	redisClient, err := cache.NewRedis()
 	if err != nil {
@@ -229,7 +230,7 @@ func NewFlowSession(k8sInfo *NodePodsInfo, crim nodeinfo.ContainerInfoManager, c
 		nsDataChan:     make(chan *daemon.NetSessionLink, 5000),
 		EbpfNetInfo:    make(map[string]*daemon.NetProcData),
 		redisClient:    redisClient,
-		submitter:      NewSubmitter(5*time.Minute, GetSubmitFunc(url)),
+		submitter:      NewSubmitter(cifMgr, 5*time.Minute, GetSubmitFunc(url)),
 	}
 	//
 	err = fs.DialUnixSocket(unixSockFile)
@@ -699,22 +700,22 @@ func (fs *FlowSession) GetProcessName(netinfo *daemon.PidAssociateMnt) (*daemon.
 }
 
 func (fs *FlowSession) GetContainerProcessName(addrType uint8, res *daemon.K8sResData, tuple *model.FiveTuple) (*daemon.ProcessInfo, error) {
-	if len(res.ContainerInfo) == 1 {
-		for id, container := range res.ContainerInfo {
-			pid := container.ContainerPid
-			comm, ok := nodeinfo.GetContainerProcess(pid, "/host")
-			if !ok {
-				break
-			}
-			return &daemon.ProcessInfo{
-				Pid:           pid,
-				Status:        daemon.GET_DATA_SUCC,
-				ProcName:      comm,
-				ContainerName: container.ContainerName,
-				ContainerId:   id,
-			}, nil
-		}
-	}
+	// if len(res.ContainerInfo) == 1 {
+	// 	for id, container := range res.ContainerInfo {
+	// 		pid := container.ContainerPid
+	// 		comm, ok := nodeinfo.GetContainerProcess(pid, "/host")
+	// 		if !ok {
+	// 			break
+	// 		}
+	// 		return &daemon.ProcessInfo{
+	// 			Pid:           pid,
+	// 			Status:        daemon.GET_DATA_SUCC,
+	// 			ProcName:      comm,
+	// 			ContainerName: container.ContainerName,
+	// 			ContainerId:   id,
+	// 		}, nil
+	// 	}
+	// }
 
 	//default value
 	var defValue daemon.ProcessInfo
@@ -926,12 +927,14 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 			return nil
 		}
 	*/
+	logging.Get().Info().Msgf("net session %+v", *netSession)
+
 	//match pod information
 	src, srcOk := fs.nodePodsInfo.GetResDataByIp(netSession.Origin.SrcIp)
 	dst, dstOk := fs.nodePodsInfo.GetResDataByIp(netSession.Reply.SrcIp)
 	//源地址和目的地址都没有查询到pod信息时,则丢弃该session
 	if !srcOk && !dstOk {
-		// logging.Get().Warn().Msgf("query k8s resource failed. %+v", *netSession)
+		logging.Get().Warn().Msgf("query k8s resource failed. %+v", *netSession)
 		return nil
 	}
 	//get cluster key
