@@ -36,7 +36,10 @@ NetStatus ipv4::receive(seastar::net::packet packet) {
   return NetStatus::OK;
 }
 
- NetworkStat ipv4::tcpStat() {
-  return l4_[uint8_t(l4_protocol::TCP)]->stat();
- }
+NetworkStat ipv4::tcpStat() { return l4_[uint8_t(l4_protocol::TCP)]->stat(); }
+
+std::vector<std::string> ipv4::connections() {
+  return l4_[uint8_t(l4_protocol::TCP)]->connections();
+}
+
 } // namespace net

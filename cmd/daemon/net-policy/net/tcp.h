@@ -51,7 +51,9 @@ public:
   NetStatus receive(seastar::net::packet p, uint32_t from, uint32_t to) override;
 
   NetworkStat stat() override;
-  
+
+  std::vector<std::string> connections() override;
+
 private:
   std::unordered_map<ConnectionID, std::shared_ptr<Tcb>, ConnectionIDHash> tcbs_;
 };

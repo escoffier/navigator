@@ -448,7 +448,7 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 			externalversions.WithTweakListOptions(func(lo *v1.ListOptions) {
 				lo.LabelSelector = fmt.Sprintf("kubernetes.io/node-name=%s", hostName)
 			}))
-		ruleController := microseg.NewRuleGroupController(clientset.TensorClientset, tensorFactory, policyClient, hostName)
+		ruleController := microseg.NewRuleGroupController(clientset.TensorClientset, tensorFactory, policyClient, hostName, mqWriter)
 
 		go ruleController.Run(stopChan)
 

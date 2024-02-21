@@ -17,6 +17,8 @@ public:
 
   NetworkStat stat() { return ipv4_->tcpStat(); }
 
+  std::vector<std::string> connections() { return ipv4_->connections(); }
+
 private:
   std::unique_ptr<ipv4> ipv4_;
 };
