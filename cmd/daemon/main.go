@@ -36,6 +36,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/cis"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/learn"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/degrade"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/holmes"
@@ -394,7 +395,7 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 	logging.Get().Info().Msg("Init NodeInfo done")
 
 	// new flow session
-	flow, err := netflow.NewFlowSession(k8sInfo, containerInfo, clusterManager, consoleAddr)
+	flow, err := netflow.NewFlowSession(k8sInfo, containerInfo, clusterManager, consoleAddr, clusterManager)
 	if err != nil {
 		return fmt.Errorf("Failed to initialize flow session, %w", err)
 	}
@@ -625,6 +626,34 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 			}
 			if err = cisChecker.Start(ctx); err != nil {
 				logging.Get().Err(err).Msg("cis checker start failed")
+			}
+		}()
+	}
+
+	// behavior learning
+	blEnabled := os.Getenv("BL_ENABLED")
+	if blEnabled == "1" {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					logging.Get().Error().Msgf("behavior learning panic: %v.stack:%s", r, debug.Stack())
+				}
+			}()
+			bl, err := learn.New(
+				learn.WithClusterInfoManager(clusterManager),
+				learn.WithPodResInfo(podResInfo),
+				learn.WithNodePodResInfo(podWatcher),
+				learn.WithMq(mqWriter),
+			)
+
+			if err != nil {
+				logging.Get().Err(err).Msg("new behavior learning failed")
+				return
+			}
+			if err = bl.Run(ctx); err != nil {
+				logging.Get().Err(err).Msg("behavior learning start failed")
 			}
 		}()
 	}

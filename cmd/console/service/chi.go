@@ -2,9 +2,12 @@ package service
 
 import (
 	"context"
+	"github.com/go-chi/chi/middleware"
+	"github.com/gorilla/websocket"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/security-rd/go-pkg/translate"
 	"net/http"
 	"strings"
@@ -15,11 +18,9 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/token"
 
 	"github.com/go-chi/chi"
-	"github.com/go-chi/chi/middleware"
 	"github.com/go-redis/redis/v8"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/api"
 	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
-	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/elastic"
 )
@@ -78,6 +79,8 @@ func setupChiRouter(
 
 	return r
 }
+
+var upgrader = websocket.Upgrader{} // use default options
 
 func checkChangeTimeout(URI string) bool {
 	checkList := []string{"/files", "ci/tidb/assets", "db/update"}

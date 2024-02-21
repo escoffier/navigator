@@ -53,6 +53,7 @@ var accessUrlMap = map[string][]string{
 		"/api/v2/containerSec/scanner/vulns/topNImage",
 		"/api/v2/containerSec/export/task/list",
 		"/api/v2/containerSec/export/task/download",
+		"/ws/v1/biz",
 		"/api/v2/usercenter/openapi/token",
 	},
 	moduleAudit: {
@@ -95,6 +96,7 @@ var accessUrlMap = map[string][]string{
 		"/api/v2/platform/audit",
 		"/api/v2/platform/nodeImage",
 		"/api/v2/platform/version/ATTCKVersionList",
+		"/api/v2/platform/behavioral-learn",
 	},
 	// 微隔离
 	"4": {

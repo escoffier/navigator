@@ -29,25 +29,29 @@ import (
 
 const JWTKeyUsername = "user_name"
 const (
-	editAction    = "编辑"
-	createAction  = "新增"
-	deleteAction  = "删除"
-	enableAction  = "启用"
-	disableAction = "停用"
-	eAnddAction   = "启用/停用"
-	exportAction  = "导出"
-	uploadAction  = "上传"
-	processAction = "发起处置"
+	editAction      = "编辑"
+	createAction    = "新增"
+	deleteAction    = "删除"
+	enableAction    = "启用"
+	disableAction   = "停用"
+	eAnddAction     = "启用/停用"
+	exportAction    = "导出"
+	uploadAction    = "上传"
+	processAction   = "发起处置"
+	learnAction     = "学习"
+	stopLearnAction = "停止学习"
 
-	editActionEN    = "Edit"
-	createActionEN  = "Create"
-	deleteActionEN  = "Delete"
-	enableActionEN  = "Enable"
-	disableActionEN = "Disable"
-	eAnddActionEN   = "Enable/Disable"
-	importActionEN  = "Import"
-	uploadActionEN  = "Upload"
-	processActionEN = "Process"
+	editActionEN      = "Edit"
+	createActionEN    = "Create"
+	deleteActionEN    = "Delete"
+	enableActionEN    = "Enable"
+	disableActionEN   = "Disable"
+	eAnddActionEN     = "Enable/Disable"
+	importActionEN    = "Import"
+	uploadActionEN    = "Upload"
+	processActionEN   = "Process"
+	learnActionEN     = "Learn"
+	stopLearnActionEN = "StopLearn"
 )
 
 var routeAction *Router
@@ -2154,6 +2158,337 @@ func init() {
 			"en": {
 				"verb":   editActionEN,
 				"detail": "Edit waf rules",
+			},
+		}
+	})
+	routeAction.POST("/api/v2/platform/behavioral-learn/start", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   learnAction,
+				"detail": "学习 {{.}}行为模型",
+			},
+			"en": {
+				"verb":   learnActionEN,
+				"detail": "Start behavioral learning {{.}}",
+			},
+		}
+	})
+	routeAction.POST("/api/v2/platform/behavioral-learn/stop", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   stopLearnAction,
+				"detail": "停止学习 {{.}}行为模型",
+			},
+			"en": {
+				"verb":   stopLearnActionEN,
+				"detail": "Stop behavioral learning {{.}}",
+			},
+		}
+	})
+	routeAction.POST("/api/v2/platform/behavioral-learn/model/file", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑模型内文件读写行为 {{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit behavioral learning file model {{.}}",
+			},
+		}
+	})
+	routeAction.POST("/api/v2/platform/behavioral-learn/model/command", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑模型内命令执行行为 {{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit behavioral learning command model {{.}}",
+			},
+		}
+	})
+	routeAction.POST("/api/v2/platform/behavioral-learn/model/network", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑模型内网络事件行为 {{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit behavioral learning network model {{.}}",
+			},
+		}
+	})
+	routeAction.DELETE("/api/v2/platform/behavioral-learn/model/file", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除模型内文件读写行为 {{.}}",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete behavioral learning file model {{.}}",
+			},
+		}
+	})
+	routeAction.DELETE("/api/v2/platform/behavioral-learn/model/command", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除模型内命令执行行为 {{.}}",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete behavioral learning command model {{.}}",
+			},
+		}
+	})
+	routeAction.DELETE("/api/v2/platform/behavioral-learn/model/network", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除模型内网络事件行为{{.}}",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete behavioral learning network model {{.}}",
+			},
+		}
+	})
+	routeAction.PUT("/api/v2/platform/behavioral-learn/model/file", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增模型内文件读写行为{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Add behavioral learn file model {{.}}",
+			},
+		}
+	})
+	routeAction.PUT("/api/v2/platform/behavioral-learn/model/command", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增模型内命令执行行为{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Add behavioral learning command model {{.}}",
+			},
+		}
+	})
+	routeAction.PUT("/api/v2/platform/behavioral-learn/model/network", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增模型内网络事件行为{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Add behavioral learning network model {{.}}",
+			},
+		}
+	})
+
+	routeAction.PUT("/api/v2/platform/behavioral-learn/global/file/whitelist", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"detail": "新增免疫防御全局模型内文件读写行为 {{.}}",
+				"verb":   createAction,
+			},
+			"en": {
+				"detail": "Add global file whitelist {{.}}",
+				"verb":   createActionEN,
+			},
+		}
+	})
+	routeAction.PUT("/api/v2/platform/behavioral-learn/global/command/whitelist", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"detail": "新增免疫防御全局模型内命令执行行为 {{.}}",
+				"verb":   createAction,
+			},
+			"en": {
+				"detail": "Add global command whitelist {{.}}",
+				"verb":   createActionEN,
+			},
+		}
+	})
+	routeAction.PUT("/api/v2/platform/behavioral-learn/global/network/whitelist", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"detail": "新增免疫防御全局模型内网络事件行为{{.}}",
+				"verb":   createAction,
+			},
+			"en": {
+				"detail": "Add global network whitelist {{.}}",
+				"verb":   createActionEN,
+			},
+		}
+	})
+	routeAction.POST("/api/v2/platform/behavioral-learn/global/file/whitelist", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"detail": "编辑免疫防御全局模型内文件读写行为 {{.}}",
+				"verb":   editAction,
+			},
+			"en": {
+				"detail": "Edit global file whitelist {{.}}",
+				"verb":   editActionEN,
+			},
+		}
+	})
+	routeAction.POST("/api/v2/platform/behavioral-learn/global/command/whitelist", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"detail": "编辑免疫防御全局模型内命令执行行为 {{.}}",
+				"verb":   editAction,
+			},
+			"en": {
+				"detail": "Edit global command whitelist {{.}}",
+				"verb":   editActionEN,
+			},
+		}
+	})
+	routeAction.POST("/api/v2/platform/behavioral-learn/global/network/whitelist", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"detail": "编辑免疫防御全局模型内网络事件行为 {{.}}",
+				"verb":   editAction,
+			},
+			"en": {
+				"detail": "Edit global network whitelist {{.}}",
+				"verb":   editActionEN,
+			},
+		}
+	})
+	routeAction.DELETE("/api/v2/platform/behavioral-learn/global/file/whitelist", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"detail": "删除免疫防御全局模型内文件读写行为 {{.}}",
+				"verb":   deleteAction,
+			},
+			"en": {
+				"detail": "Delete global file whitelist {{.}}",
+				"verb":   deleteActionEN,
+			},
+		}
+	})
+	routeAction.DELETE("/api/v2/platform/behavioral-learn/global/command/whitelist", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"detail": "删除免疫防御全局模型内命令执行行为 {{.}}",
+				"verb":   deleteAction,
+			},
+			"en": {
+				"detail": "Delete global command whitelist {{.}}",
+				"verb":   deleteActionEN,
+			},
+		}
+	})
+	routeAction.DELETE("/api/v2/platform/behavioral-learn/global/network/whitelist", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"detail": "删除免疫防御全局模型内网络事件行为 {{.}}",
+				"verb":   deleteAction,
+			},
+			"en": {
+				"detail": "Delete global network whitelist {{.}}",
+				"verb":   deleteActionEN,
+			},
+		}
+	})
+	routeAction.POST("/api/v2/platform/behavioral-learn/model/config", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"detail": "启用/停用{{.}}行为模型 ",
+				"verb":   eAnddAction,
+			},
+			"en": {
+				"detail": "Enable/Disable behavioral learning model {{.}}",
+				"verb":   eAnddActionEN,
+			},
+		}
+	})
+	routeAction.PUT("/api/v2/platform/behavioral-learn/gonekey/learn", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"detail": "一键启动行为学习 {{.}}",
+				"verb":   learnAction,
+			},
+			"en": {
+				"detail": "Start onekey behavioral learning {{.}}",
+				"verb":   learnActionEN,
+			},
+		}
+	})
+	routeAction.PUT("/api/v2/platform/behavioral-learn//model/onekey/enabled", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"detail": "一键启用所有行为模型 {{.}}",
+				"verb":   enableAction,
+			},
+			"en": {
+				"detail": "Onekey Start model  {{.}}",
+				"verb":   enableActionEN,
+			},
+		}
+	})
+	routeAction.POST("/api/v2/platform/behavioral-learn/model/out/command", func(p Params) map[string]map[string]interface{} {
+
+		return map[string]map[string]interface{}{
+			"zh": {
+				"detail": "新增模型外行为命令 {{.}}",
+				"verb":   createAction,
+			},
+			"en": {
+				"detail": "Add model out command {{.}}",
+				"verb":   createActionEN,
+			},
+		}
+	})
+
+	routeAction.POST("/api/v2/platform/behavioral-learn/model/out/file", func(p Params) map[string]map[string]interface{} {
+
+		return map[string]map[string]interface{}{
+			"zh": {
+				"detail": "新增模型外行为文件 {{.}}",
+				"verb":   createAction,
+			},
+			"en": {
+				"detail": "Add model out file {{.}}",
+				"verb":   createActionEN,
+			},
+		}
+	})
+
+	routeAction.POST("/api/v2/platform/behavioral-learn/model/out/network", func(p Params) map[string]map[string]interface{} {
+
+		return map[string]map[string]interface{}{
+			"zh": {
+				"detail": "新增模型外行为网络 {{.}}",
+				"verb":   createAction,
+			},
+			"en": {
+				"detail": "Add model out network {{.}}",
+				"verb":   createActionEN,
+			},
+		}
+	})
+	routeAction.POST("/api/v2/platform/behavioral-learn/global/config", func(p Params) map[string]map[string]interface{} {
+
+		return map[string]map[string]interface{}{
+			"zh": {
+				"detail": "编辑免疫防御学习配置",
+				"verb":   editAction,
+			},
+			"en": {
+				"detail": "Edit Immune Defense global config",
+				"verb":   editActionEN,
 			},
 		}
 	})

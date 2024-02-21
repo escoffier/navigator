@@ -3,31 +3,29 @@ package api
 import (
 	"context"
 
-	"gitlab.com/security-rd/go-pkg/translate"
-
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
-	"gitlab.com/piccolo_su/vegeta/pkg/audit"
-	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-
 	"github.com/go-chi/chi"
 	"github.com/go-redis/redis/v8"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/api/apikey"
+	"gitlab.com/piccolo_su/vegeta/pkg/audit"
+	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
+	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	"gitlab.com/piccolo_su/vegeta/pkg/middleware"
+	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/piccolo_su/vegeta/pkg/token"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/elastic"
 	"gitlab.com/security-rd/go-pkg/logging"
-
-	"gitlab.com/piccolo_su/vegeta/pkg/middleware"
-	"gitlab.com/piccolo_su/vegeta/pkg/token"
-
-	"gitlab.com/piccolo_su/vegeta/pkg/api/apikey"
-	"gitlab.com/piccolo_su/vegeta/pkg/harbor"
-	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/security-rd/go-pkg/translate"
 )
 
 const (
 	InternalAPIURLPrefix = "/api/openapi"
 	OpenAPIURLPrefix     = "/openapi/v1"
 	NormalAPIURLPrefix   = "/api/v2"
+	WebsocketURLPrefix   = "/ws/v1"
 )
 
 // SetupRoutes is to set up the chi router
@@ -85,6 +83,7 @@ func SetupRoutes(
 			r.Route("/drift", api.drift())
 			r.Route("/waf", api.waf())
 			r.Post("/hunter-report/{uuid}", api.reportKubeHunterResult())
+			// r.Route("/behavioral-learn", api.behavioralLearn())
 		})
 	})
 
@@ -100,6 +99,14 @@ func SetupRoutes(
 			r.Route("/containerSec", api.OpenApiContainerSec())
 			// proxy to tensor-microseg
 			r.Handle("/microseg/*", api.microSegmentation())
+		})
+	})
+
+	// ws v1
+	r.Route(WebsocketURLPrefix, func(r chi.Router) {
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.Authenticator(api.tokenManager, api.rdb), middleware.Access(api.rdb))
+			r.Get("/biz", api.wsHandler()) // 业务长连接
 		})
 	})
 

@@ -204,23 +204,26 @@ func (m *Managers) Value() (driver.Value, error) {
 }
 
 type TensorResource struct {
-	TableBase                      // id: cluster_key/namespace/kind/resource_name
-	Name            string         `gorm:"column:name"`
-	Namespace       string         `gorm:"column:namespace;index:idx_tr_list_q,priority:2"`
-	ClusterKey      string         `gorm:"column:cluster_key;index:idx_tr_list_q,priority:1"`
-	UID             string         `gorm:"column:uid"`
-	Generation      int64          `gorm:"column:generation;type:bigint"`
-	Kind            string         `gorm:"column:kind;index:idx_tr_list_q,priority:3"`
-	LabelSelector   *LabelSelector `gorm:"column:label_selector;type:varchar(256)"`
-	OwnerReferences OwnerRefs      `gorm:"column:owner_references;type:varchar(256)"`
-	Labels          []byte         `gorm:"column:labels;type:blob"`
-	PodTemplate     *PodTemplate   `gorm:"column:pod_template;type:text"`
-	Alias           string         `gorm:"column:alias"`
-	Managers        Managers       `gorm:"column:managers;type:varchar(256)"`
-	Authority       string         `gorm:"column:authority"`
-	IsSupportDrift  bool           `gorm:"column:is_support_drift;type:boolean;default:true"`
-	Reason          string         `gorm:"column:reason;type:text"`
-	ScannerStatus   int8           `gorm:"column:scanner_status;type:tinyint;default:0"`
+	TableBase                               // id: cluster_key/namespace/kind/resource_name
+	Name                     string         `gorm:"column:name"`
+	Namespace                string         `gorm:"column:namespace;index:idx_tr_list_q,priority:2"`
+	ClusterKey               string         `gorm:"column:cluster_key;index:idx_tr_list_q,priority:1"`
+	UID                      string         `gorm:"column:uid"`
+	Generation               int64          `gorm:"column:generation;type:bigint"`
+	Kind                     string         `gorm:"column:kind;index:idx_tr_list_q,priority:3"`
+	LabelSelector            *LabelSelector `gorm:"column:label_selector;type:varchar(256)"`
+	OwnerReferences          OwnerRefs      `gorm:"column:owner_references;type:varchar(256)"`
+	Labels                   []byte         `gorm:"column:labels;type:blob"`
+	PodTemplate              *PodTemplate   `gorm:"column:pod_template;type:text"`
+	Alias                    string         `gorm:"column:alias"`
+	Managers                 Managers       `gorm:"column:managers;type:varchar(256)"`
+	Authority                string         `gorm:"column:authority"`
+	IsSupportDrift           bool           `gorm:"column:is_support_drift;type:boolean;default:true"`
+	Reason                   string         `gorm:"column:reason;type:text"`
+	ScannerStatus            int8           `gorm:"column:scanner_status;type:tinyint;default:0"`
+	BehavioralLearnStatus    int8           `gorm:"column:behavioral_learn_status;type:tinyint;default:0"` // 0: not start, 1: running, 2: ready, 3: enabled
+	BehavioralLearnTime      int64          `gorm:"column:behavioral_learn_time;type:bigint"`
+	BehavioralLearnStartTime int64          `gorm:"column:behavioral_learn_start_time;type:bigint"`
 }
 
 func (TensorResource) TableName() string {

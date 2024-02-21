@@ -71,7 +71,7 @@ func (s *Subscriber) RuntimeEventCallBack(config *ConfigManager, rt container.Ru
 				}
 			}()
 
-			logging.Get().Info().Msgf("runtime event callback event: %+v\n", m)
+			logging.Get().Debug().Msgf("runtime event callback event: %+v\n", m)
 			if m.Event == "kill" {
 				logging.Get().Info().Interface("message", m).Msg("runtime event callback stop")
 				for _, v := range m.ContainerInfo.ImageDigest {
@@ -87,7 +87,7 @@ func (s *Subscriber) RuntimeEventCallBack(config *ConfigManager, rt container.Ru
 
 				if !s.shouldInject(m) {
 					logging.Get().
-						Info().
+						Debug().
 						Interface("imageRepoTags", m.ContainerInfo.ImageRepoTags).
 						Msg("not match image rule,ignore inject")
 					return

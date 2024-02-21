@@ -1036,8 +1036,8 @@ github.com/gliderlabs/ssh v0.3.5/go.mod h1:8XB4KraRrX39qHhT6yxPsHedjA08I/uBVwj4x
 github.com/go-asn1-ber/asn1-ber v1.5.1/go.mod h1:hEBeB/ic+5LoWskz+yKT7vGhhPYkProFKoKdwZRWMe0=
 github.com/go-asn1-ber/asn1-ber v1.5.3 h1:u7utq56RUFiynqUzgVMFDymapcOtQ/MZkh3H4QYkxag=
 github.com/go-asn1-ber/asn1-ber v1.5.3/go.mod h1:hEBeB/ic+5LoWskz+yKT7vGhhPYkProFKoKdwZRWMe0=
-github.com/go-chi/chi v4.1.2+incompatible h1:fGFk2Gmi/YKXk0OmGfBh0WgmN3XB8lVnEyNz34tQRec=
-github.com/go-chi/chi v4.1.2+incompatible/go.mod h1:eB3wogJHnLi3x/kFX2A+IbTBlXxmMeXJVKy9tTv1XzQ=
+github.com/go-chi/chi v1.5.5 h1:vOB/HbEMt9QqBqErz07QehcOKHaWFtuj87tTDVz2qXE=
+github.com/go-chi/chi v1.5.5/go.mod h1:C9JqLr3tIYjDOZpzn+BCuxY8z8vmca43EeMgyZt7irw=
 github.com/go-critic/go-critic v0.3.5-0.20190526074819-1df300866540/go.mod h1:+sE8vrLDS2M0pZkBk0wy6+nLdKexVDrl/jBqQOTDThA=
 github.com/go-errors/errors v1.0.1/go.mod h1:f4zRHt4oKfwPJE5k8C9vpYG+aDHdBFUsgrm6/TyX73Q=
 github.com/go-errors/errors v1.4.2 h1:J6MZopCL4uSllY1OfXM374weqZFFItUbrImctkmUxIA=
@@ -1407,6 +1407,7 @@ github.com/gorilla/securecookie v1.1.1/go.mod h1:ra0sb63/xPlUeL+yeDciTfxMRAA+MP+
 github.com/gorilla/sessions v1.2.1/go.mod h1:dk2InVEVJ0sfLlnXv9EAgkf6ecYs/i80K/zI+bUmuGM=
 github.com/gorilla/websocket v0.0.0-20170926233335-4201258b820c/go.mod h1:E7qHFY5m1UJ88s3WnNqhKjPHQ0heANvMoAMk2YaljkQ=
 github.com/gorilla/websocket v1.4.0/go.mod h1:E7qHFY5m1UJ88s3WnNqhKjPHQ0heANvMoAMk2YaljkQ=
+github.com/gorilla/websocket v1.4.2 h1:+/TMaTYc4QFitKJxsQ7Yye35DkWvkdLcvGKqM+x0Ufc=
 github.com/gorilla/websocket v1.4.2/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
 github.com/gostaticanalysis/analysisutil v0.0.0-20190318220348-4088753ea4d3/go.mod h1:eEOZF4jCKGi+aprrirO9e7WKB3beBRtWgqGunKl6pKE=
 github.com/gosuri/uitable v0.0.4 h1:IG2xLKRvErL3uhY6e1BylFzG+aJiwQviDDTfOKeKTpY=
@@ -3830,8 +3831,8 @@ scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.2.63 h1:rlC7a54rTUP+Uqsf/w
 scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.2.63/go.mod h1:wGvHhUyoHdxk1be1UG7dzMBcbmv5AlRl/OsnE7nrdtg=
 scm.tensorsecurity.cn/tensorsecurity-rd/fanal v1.1.4 h1:F2n2D9GncWMEP0yUEwjIQjRDMHYDNZ3HuSHG1J9hrj8=
 scm.tensorsecurity.cn/tensorsecurity-rd/fanal v1.1.4/go.mod h1:bundoOq4JwUNgwhAe2zcvVx0zx65eE7OL9HaqaFmK1M=
-scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.92 h1:zOO5SFkKlUQzs0ASeZ83ByL3vvXl9vSO3bry6TIhAAY=
-scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.92/go.mod h1:NCNnjcnKiyzfMexukTQ1P36CJVfevIk4JBy3tM5WIaE=
+scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.93-0.20240125133240-243feaafcb42 h1:+J7KiGrBgHcheOAPdW9y+X/t+vbBc0jQPUeJmmp/POY=
+scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.93-0.20240125133240-243feaafcb42/go.mod h1:NCNnjcnKiyzfMexukTQ1P36CJVfevIk4JBy3tM5WIaE=
 scm.tensorsecurity.cn/tensorsecurity-rd/podman/v3 v3.4.6-20220425170000 h1:rDGiAo7tgLYDTzUOVlK31AfAcRHqr1DCtI24mi+LzyE=
 scm.tensorsecurity.cn/tensorsecurity-rd/podman/v3 v3.4.6-20220425170000/go.mod h1:ITId80W6JXHyW8fOwmaPCQtzMYkbL/F7EGE0A2nJmDI=
 scm.tensorsecurity.cn/tensorsecurity-rd/trivy v1.0.6 h1:91vz9n7Bbs7R32N9cAV/bhkWBuP7wYaTP/iygGWW0iU=

@@ -434,7 +434,7 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, uint32, error) {
 		osTarget = "unknown"
 		supportInfo.IsSupportDrift = false
 	}
-	logging.Get().Info().Str("support info:", fmt.Sprintf("%+v", supportInfo)).Msg("")
+	// logging.Get().Info().Str("support info:", fmt.Sprintf("%+v", supportInfo)).Msg("")
 
 	msg, err := json.Marshal(supportInfo)
 	if err != nil {
@@ -446,7 +446,7 @@ func (ij *Injector) DoInject(cm container.ContainerMeta) (bool, uint32, error) {
 	}
 
 	if !isSupport {
-		logging.Get().Warn().Interface("containerMeta", cm).Msg("not support os,ignore inject")
+		// logging.Get().Warn().Interface("containerMeta", cm).Msg("not support os,ignore inject")
 		return false, 0, nil
 	}
 
