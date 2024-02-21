@@ -82,9 +82,10 @@ const (
 	DefaultExportBathSize = 1000
 	ExportTimeFormat      = "2006-01-02 15:04:05"
 
-	KoaCodeSuccess   = 200 // html生成服务调用成功的状态码
-	KoaStatusSuccess = "success"
-	KoaStatusFailed  = "failed"
-	KoaAddr          = "http://localhost:8090"
-	ExportHtmlReady  = 1
+	KoaCodeSuccess      = 200 // html生成服务调用成功的状态码
+	KoaStatusSuccess    = "success"
+	KoaStatusFailed     = "failed"
+	KoaStatusInprogress = "inprogress"
+	KoaAddr             = "http://localhost:8090"
+	ExportHtmlReady     = 1
 )
