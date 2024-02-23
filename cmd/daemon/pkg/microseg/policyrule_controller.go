@@ -154,7 +154,6 @@ func buildPolicyRuleMessage(msgType int, ruleGroup *crdv1alpha1.NetworkPolicyRul
 		if r.ToIPBlock != nil {
 			newRule.ToAddresses = append(newRule.ToAddresses, Address{IP: r.ToIPBlock.CIDR})
 		}
-		newRule.ToAddresses = append(newRule.ToAddresses, Address{IP: "10.99.0.1"})
 		rules = append(rules, newRule)
 	}
 	message.Rules = rules
