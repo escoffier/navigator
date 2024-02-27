@@ -222,10 +222,15 @@ func (rov *RiskOverView) StatisticsImageAttr(images []*imagesec.ImageBaseRespons
 				rov.ImageSecurity.HasExceptLicense++
 			case imagesec.TrustedString:
 				rov.TrustedImageCount++
-			case imagesec.HasFixedVulnString:
-				rov.HasFixedVulnImageCount++
+				// case imagesec.ImageHasSuggestionString:
+				// 	rov.HasFixedVulnImageCount++
 			}
 		}
+
+		if images[i].ImageAttr.HasFixSuggest {
+			rov.HasFixedVulnImageCount++
+		}
+
 	}
 }
 
