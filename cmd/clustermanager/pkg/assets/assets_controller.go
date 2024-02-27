@@ -183,7 +183,6 @@ func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory 
 	resources, err := k8sClient.Discovery().ServerPreferredResources()
 	if err != nil {
 		logging.Get().Err(err).Msgf("get api-resources failed.")
-		return nil, err
 	}
 	for _, resource := range resources {
 		if resource == nil {
