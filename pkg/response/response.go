@@ -232,7 +232,7 @@ func JSONError(ctx *gin.Context, err error, opts ...ResponseErrorOptionFunc) {
 		data.Error.Message = err.Error()
 	}
 
-	httpCode := http.StatusBadRequest
+	httpCode := http.StatusInternalServerError
 	if err2, ok := err.(*HTTPError); ok {
 		if err2 != nil {
 			httpCode = err2.Code

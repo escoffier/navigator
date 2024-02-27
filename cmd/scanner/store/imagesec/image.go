@@ -241,7 +241,7 @@ func (dal *ImageMetaDao) SearchImage(ctx context.Context, param imagesecModel.Im
 	[]*imagesecModel.Image, int64, error) {
 	param.Serialize()
 
-	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	cancelCtx, cancelFunc := context.WithTimeout(ctx, time.Second*100)
 	defer cancelFunc()
 
 	m := &imagesecModel.Image{}

@@ -140,7 +140,7 @@ func (dal *ScanResultDao) CreateMalware(ctx context.Context, data2 []*imagesecMo
 
 func (dal *ScanResultDao) SearchMalware(ctx context.Context, param imagesecModel.ScanResultSearchParam) (
 	[]*imagesecModel.Malware, int64, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*100)
 	defer cancelFunc()
 
 	scanModel, issueModel := &imagesecModel.Malware{}, &imagesecModel.MalwareToImage{}
@@ -264,7 +264,7 @@ func (dal *ScanResultDao) CreateWebshell(ctx context.Context, data2 []*imagesecM
 
 func (dal *ScanResultDao) SearchWebshell(ctx context.Context, param imagesecModel.ScanResultSearchParam) (
 	[]*imagesecModel.Webshell, int64, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*100)
 	defer cancelFunc()
 
 	scanModel, issueModel := &imagesecModel.Webshell{}, &imagesecModel.WebshellToImage{}
@@ -383,7 +383,7 @@ func (dal *ScanResultDao) CreateSensitive(ctx context.Context, data2 []*imagesec
 
 func (dal *ScanResultDao) SearchSensitive(ctx context.Context, param imagesecModel.ScanResultSearchParam) (
 	[]*imagesecModel.SensitiveFile, int64, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*100)
 	defer cancelFunc()
 
 	scanModel, issueModel := &imagesecModel.SensitiveFile{}, &imagesecModel.SensitiveToImage{}
@@ -903,7 +903,7 @@ func (dal *ScanResultDao) CreateVuln(ctx context.Context, param imagesecModel.Cr
 
 func (dal *ScanResultDao) SearchVuln(ctx context.Context, param imagesecModel.SearchVulnDalParam) (
 	[]*imagesecModel.Vuln, int64, error) {
-	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*30)
+	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*100)
 	defer cancelFunc()
 
 	mo := &imagesecModel.Vuln{OnlineVuln: param.OnlineVuln}

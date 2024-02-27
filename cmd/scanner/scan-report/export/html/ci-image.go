@@ -457,6 +457,7 @@ func (s *ExportCiImageHtmlSrv) Run(ctx context.Context) {
 		return
 	}
 	if len(tasks) == 0 {
+		time.Sleep(time.Second * 30)
 		return
 	}
 	task := tasks[0]

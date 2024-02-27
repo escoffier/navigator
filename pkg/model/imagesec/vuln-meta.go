@@ -624,3 +624,7 @@ func GenVulnCVSSV3AttrView(attr map[string]string, lang string) map[string]strin
 	}
 	return after
 }
+
+func GetVulnDefaultOmitFields() []string {
+	return []string{"references", "cvss", "ced_ids", "description_en", "description_zh"}
+}

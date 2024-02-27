@@ -147,7 +147,7 @@ func (s *BackgroundTasks) Start(ctx context.Context) {
 
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("ScanReport")
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("ScanReport panic")
 			}
 		}()
 
@@ -170,7 +170,7 @@ func (s *BackgroundTasks) Start(ctx context.Context) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("ScanReport")
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("ScanReport panic")
 			}
 		}()
 
@@ -187,7 +187,7 @@ func (s *BackgroundTasks) Start(ctx context.Context) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("ScanReport")
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("ScanReport panic")
 			}
 		}()
 
@@ -204,7 +204,7 @@ func (s *BackgroundTasks) Start(ctx context.Context) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("ScanReport")
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("ScanReport panic")
 			}
 		}()
 
@@ -221,7 +221,7 @@ func (s *BackgroundTasks) Start(ctx context.Context) {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("ScanReport")
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("ScanReport panic")
 			}
 		}()
 

@@ -64,6 +64,10 @@ func (s *VulnExport) Run(ctx context.Context) {
 		logging.Get().Err(err).Msg("SearchExportTask")
 		return
 	}
+	if len(tasks) == 0 {
+		time.Sleep(time.Second * 30)
+		return
+	}
 
 	for i := range tasks {
 		// 支持横向扩展
