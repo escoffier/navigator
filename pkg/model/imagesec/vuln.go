@@ -486,6 +486,7 @@ type VulnView struct {
 	References         []string          `json:"references"`    // 参考链接
 	CweIds             []string          `json:"cweIds"`
 	Title              string            `json:"title"`
+	CnvdTitle          string            `json:"cnvdTitle"`
 	PublishAt          int64             `json:"publishAt"`
 	ModifyAt           int64             `json:"modifyAt"`
 	CVSSV2Score        float64           `json:"cvssV2Score"`
@@ -535,6 +536,9 @@ func (vi *VulnView) AdaptI18(ctx context.Context) {
 
 	if lang == LangZh {
 		vi.Description = vi.DescriptionZh
+		if vi.CnvdTitle != "" {
+			vi.Title = vi.CnvdTitle
+		}
 	}
 	if lang == LangEn {
 		vi.Description = vi.DescriptionEn

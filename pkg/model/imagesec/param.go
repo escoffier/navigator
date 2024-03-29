@@ -755,7 +755,10 @@ type SearchResourceParam struct {
 	WebshellMD5   string
 	MalwareMD5    string
 	SensitiveMD5  string
+	StartID       string
 	Fields        []string
+	NotNeedCont   bool
+	Running       string
 	Filter        *Filter
 }
 

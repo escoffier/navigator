@@ -3,8 +3,10 @@ package imagesecStore
 import (
 	"context"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 
 	"gitlab.com/security-rd/go-pkg/databases"
 
@@ -44,6 +46,14 @@ func (dal *ResourceDao) SearchResources(ctx context.Context, param imagesec.Sear
 	if param.ImageUUID > 0 {
 		db = db.Where("image_uuid = ?", param.ImageUUID)
 	}
+	if param.StartID != "" {
+		db = db.Where("id > ?", param.StartID)
+	}
+
+	if param.Running == consts.TrueString {
+		db = db.Where("status = 0")
+	}
+
 	if len(param.ImageUUIDs) > 0 {
 		db = db.Where("image_uuid IN ?", param.ImageUUIDs)
 	}
@@ -100,10 +110,11 @@ func (dal *ResourceDao) SearchResources(ctx context.Context, param imagesec.Sear
 
 	res := make([]model.TensorRawContainer, 0)
 	var cnt int64
-	if err := db.Count(&cnt).Error; err != nil {
-		return nil, 0, err
+	if !param.NotNeedCont {
+		if err := db.Count(&cnt).Error; err != nil {
+			return nil, 0, err
+		}
 	}
-
 	db = imagesec.AddFilter(db, param.Filter)
 
 	if err := db.Find(&res).Error; err != nil {

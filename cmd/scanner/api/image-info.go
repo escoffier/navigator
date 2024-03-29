@@ -1,7 +1,6 @@
 package api
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -710,6 +709,64 @@ func (s *ImageInfoAPI) SearchResources2(ctx *gin.Context) {
 	response.JSONOK(ctx, response.WithItems(res))
 }
 
+func (s *ImageInfoAPI) SearchRunningDigest(ctx *gin.Context) {
+	type RunningDigest struct {
+		Digest []string `json:"digest"`
+		LastID string   `json:"lastID"`
+		End    bool     `json:"end"`
+	}
+
+	lastID := util.GetKeywordFromQuery(ctx, "lastID")
+	param := imagesecModel.SearchResourceParam{
+		StartID: lastID,
+		Fields:  []string{"id", "image_digest"},
+		Filter:  imagesecModel.GetFilter(ctx).SetMaxLimit(1000).SetSortFiledByID().SetSortAsc(), // 一批最多取1000条数据,
+	}
+
+	res := RunningDigest{
+		Digest: make([]string, 0),
+		LastID: lastID,
+	}
+	exit := make(map[string]bool)
+	for {
+		param.StartID = lastID
+		if int64(len(res.Digest)) >= param.Filter.Limit {
+			break
+		}
+		images, _, err := s.ImageSrv.SearchResources(ctx, param)
+
+		if err != nil {
+			response.JSONError(ctx, err)
+			return
+		}
+
+		if len(images) == 0 {
+			res.End = true
+			break
+		}
+
+		for i := range images {
+			im := images[i]
+			if im.ImageDigest == "" {
+				continue
+			}
+			lastID = images[i].ContainerID
+			res.LastID = lastID
+
+			if exit[im.ImageDigest] {
+				continue
+			}
+			exit[im.ImageDigest] = true
+			res.Digest = append(res.Digest, images[i].ImageDigest)
+
+			if int64(len(res.Digest)) >= param.Filter.Limit {
+				break
+			}
+		}
+	}
+	response.JSONOK(ctx, response.WithItem(res))
+}
+
 func (s *ImageInfoAPI) GetImageByVuln(ctx *gin.Context) {
 
 	// 资产那边使用，暂时保留
@@ -755,20 +812,6 @@ func (s *ImageInfoAPI) GetImageByVuln(ctx *gin.Context) {
 		response.WithItemsPerPage(filter.Limit),
 		response.WithStartIndex(filter.Offset))
 
-}
-
-func mapToString(mm map[string]string) string {
-	if len(mm) == 0 {
-		return ""
-	}
-	bys, err := json.Marshal(mm)
-	if err != nil {
-		return ""
-	}
-	if string(bys) == "null" {
-		return ""
-	}
-	return string(bys)
 }
 
 func conStatus(sta int32) int64 {
