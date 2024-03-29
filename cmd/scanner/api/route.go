@@ -336,6 +336,7 @@ func OpenAPI(router *gin.Engine,
 	{
 		image.GET("/image/image", ciSrv.GetCiPolicies)
 		image.GET("/assets/image", imageBaseApi.SearchResources2)
+		image.GET("/assets/running/digest", imageBaseApi.SearchRunningDigest)
 		image.POST("/list", imageBaseApi.SearchImageWithScan)
 	}
 

@@ -4,11 +4,13 @@ import (
 	// don't replace it; need the order of fields for marshal
 	"encoding/json"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/model"
-	netv1 "k8s.io/api/networking/v1"
 	"strconv"
 	"strings"
 	"time"
+
+	netv1 "k8s.io/api/networking/v1"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/model"
 
 	"gitlab.com/security-rd/go-pkg/logging"
 	appsv1 "k8s.io/api/apps/v1"
@@ -73,7 +75,7 @@ const ( // 服务名称
 	BusiSvcNginx    = "Nginx"
 	BusiSvcWeblogic = "Weblogic"
 	BusiSvcWildfly  = "Wildfly"
-	//BusiSvcJboss      = "Jboss"
+	// BusiSvcJboss      = "Jboss"
 	BusiSvcWebSphere  = "WebSphere"
 	BusiSvcOpenResty  = "OpenResty"
 	BusiSvcGrafana    = "Grafana"
@@ -108,7 +110,7 @@ var BusiSvcTypeMap = map[string]string{
 	BusiSvcNginx:    BusiSvcTypeWebEn,
 	BusiSvcWeblogic: BusiSvcTypeWebEn,
 	BusiSvcWildfly:  BusiSvcTypeWebEn,
-	//BusiSvcJboss:      BusiSvcTypeWeb,
+	// BusiSvcJboss:      BusiSvcTypeWeb,
 	BusiSvcWebSphere:  BusiSvcTypeWebEn,
 	BusiSvcOpenResty:  BusiSvcTypeWebEn,
 	BusiSvcGrafana:    BusiSvcTypeMonitorEn,
