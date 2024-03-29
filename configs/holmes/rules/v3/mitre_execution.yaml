@@ -585,3 +585,32 @@
     priority: INFO
     urgency: false
     tags: [ATT&CK, exec, filesystem, mitre_execution, L3]
+
+#export CONTAINER_IP=$(ip route get 1 | awk '{print $7}'); curl -k $CONTAINER_IP:10250/runningpods
+- key: kubelet unauthorized access
+  disable: true
+  hid: exec_21
+  condition: >
+    container
+    and fd.sport = 10250
+    and shell_parent_procs
+    and proc.name!=kubelet
+    and not falco_sensitive_mount_containers
+    and not user_sensitive_mount_containers
+    and not tensorsec_namespace
+  output: >
+    pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_name=%proc.name,parent=%proc.pname,proc.aname[0]=%proc.aname[0],proc.aname[1]=%proc.aname[1],gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4]
+  info:
+    name:
+      en: "kubelet unauthorized access"
+      zh: "kubelet未授权访问"
+    desc:
+      en: "Kubelet is one of the core components of Kubernetes and is responsible for running containers on nodes. Generally, we believe that normal users will not perform this behavior within the container. The high probability is that after the attack, the attacker attempts to obtain sensitive information, modify or delete cluster resources, execute malicious containers, move laterally, or conduct lateral movement through unauthorized kubelet access. Extend the attack."
+      zh: "Kubelet 是 Kubernetes 的核心组件之一，负责在节点上运行容器。通常我们认为正常用户不会在容器内进行此行为，大概率是攻击者在进行攻击后，通过未经授权的 kubelet 访问尝试获取敏感信息、修改或删除集群资源、执行恶意容器、横向移动或进行拓展攻击。"
+    suggestion:
+      en: "(1). Please first combine the process command line, (parent) process name, file path and other fields of the alarm to initially determine whether it is a business, R&D/operation and maintenance behavior (2). If it is a repeated expected behavior, and after investigation After judging that the security risk is controllable, you can consider whitening it (3). If it is an unexpected behavior, please conduct correlation analysis through the container ID, associated alarm list, etc., and check whether the process name is an abnormal name such as curl, kubeletctl, etc. Contact security personnel promptly for further investigation"
+      zh: "(1).请先结合告警的进程命令行、(父)进程名、文件路径等字段初步判断是否为业务、研发/运维的行为 (2).如果是重复出现的预期行为，且经排查后判断安全风险可控，可以考虑对其进行加白 (3).如果是非预期行为，请通过容器id、关联告警列表等内容进行关联分析，查看进程名是否为异常名如curl、kubeletctl等，及时联系安全人员进一步排查"
+    rule_type: Execution
+    priority: WARNING
+    urgency: false
+    tags: [ATT&CK, exec, k8s, mitre_execution, L3]
