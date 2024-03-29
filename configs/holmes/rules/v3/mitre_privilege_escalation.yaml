@@ -584,6 +584,7 @@
     urgency: true
     tags: [ATT&CK, kernel, users, filesystem, mitre_privilege_escalation, L4]
 
+# ln -s /etc/passwd /var/tmp/test1
 - key: Create Symlink Over Sensitive Files
   hid: priv_26
   condition: >
@@ -840,3 +841,56 @@
     priority: ALERT
     urgency: true
     tags: [ATT&CK, filesystem, mitre_privilege_escalation, L3]
+
+# # 
+# - key: Start a container with sensitive permissions
+#   disabled: true
+#   hid: priv_36
+#   condition: >
+#     container_started and container
+#     and container.securityContext.capabilities.add.contains("CAP_SYS_ADMIN")
+#     and not falco_privileged_containers
+#     and not user_privileged_containers
+#     and not tensorsec_namespace
+#     and not k8s.ns.name = "kube-system"
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container.info=%container.info,image=%container.image.repository,image_tag=%container.image.tag,container_id=%container.id,container_name=%container.name
+#   info:
+#     name:
+#       en: "Start a container with sensitive permissions"
+#       zh: "启动具有敏感权限的容器"
+#     desc:
+#       en: "Starting a privileged container means that users in the container can mount the host disk into the container without restrictions. Once the container is compromised, the attacker can easily escape to the host by mounting the host directory to control the host. Therefore In our opinion, the startup of this type of container carries certain risks."
+#       zh: "启动特权容器意味着容器内的用户可以不受限制的挂载主机磁盘到容器内，一旦容器被攻陷，攻击者可以很容易的通过挂载主机目录逃逸到主机上从而实现对主机的控制，因此该类容器的启动在我们看来是具备一定风险的。"
+#     suggestion:
+#       en: "(1). Please first combine the alarm process command line, (parent) process name, server IP address and other fields to initially determine whether it is a business, R&D/operation and maintenance behavior (2). If it is a repeated expected behavior, and After investigation, it is judged that the security risk is controllable, and you can consider whitening it (3). If it is an unexpected behavior, please conduct correlation analysis through the container ID, associated alarm list, etc., and check the /proc/1/status file in the container Whether it contains 0:3ffffffff, analyze the k8s api request log to check the log of creating the container, and contact the security personnel in time for further investigation."
+#       zh: "(1).请先结合告警的进程命令行、(父)进程名、服务端IP地址等字段初步判断是否为业务、研发/运维的行为 (2).如果是重复出现的预期行为，且经排查后判断安全风险可控，可以考虑对其进行加白 (3).如果是非预期行为，请通过容器id、关联告警列表等内容进行关联分析，查看该容器中/proc/1/status文件是否包含0:3fffffff，分析k8s api请求日志查看创建该容器的日志，及时联系安全人员进一步排查"
+#     rule_type: Privilege_Escalation
+#     priority: INFO
+#     urgency: false
+#     tags: [ATT&CK, container, mitre_privilege_escalation, L1]
+
+#git clone https://github.com/brompwnie/CVE-2019-1002101-Helpers.git && cd CVE-2019-1002101-Helpers && mv createPwnTar.sh 1.sh && bash 1.sh
+- key: kubectl escape (CVE-2019-1002101)
+  hid: priv_37
+  condition: >
+    container
+    and proc.name=tar
+    and proc.pname=runc and proc.cmdline contains "tar cf - "
+    and not tensorsec_namespace
+  output: >
+    pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,fd_name=%fd.name,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_pname=%proc.pname,proc_name=%proc.name,parent=%proc.pname,user=%user.name,user_loginuid=%user.loginuid
+  info:
+    name:
+      en: "kubectl escape (CVE-2019-1002101)"
+      zh: "kubectl逃逸(CVE-2019-1002101)"
+    desc:
+      en: "CVE-2019-1002101 is a security vulnerability in Kubernetes, mainly involving the use of the kubectl cp command. There is a high probability that the attacker implants a malicious tar package in the container or image, uses the symbolic link header, and modifies or monitors any file under the symbolic link header when the administrator uses the kubectl cp command to perform the decompression process. This may allow attackers to execute remote code, read or tamper with sensitive files and other malicious operations, causing serious security issues and data leakage."
+      zh: "CVE-2019-1002101是Kubernetes中的一个安全漏洞，主要涉及kubectl cp命令的使用。大概率是攻击者通过在容器或镜像中植入恶意的tar包，利用符号链接（symbolic links）头，在管理员使用kubectl cp命令执行解压过程中修改或监控符号链接头下的任意文件触发。这可能导致攻击者执行远程代码、读取或篡改敏感文件等恶意操作，造成严重的安全问题和数据泄露。"
+    suggestion:
+      en: "(1). Please first combine the alarm process command line, (parent) process name, server IP address and other fields to initially determine whether it is a business, R&D/operation and maintenance behavior (2). If it is a repeated expected behavior, and After investigation, it is judged that the security risk is controllable, and you can consider whitening it (3). If it is an unexpected behavior, please conduct correlation analysis through the container ID, associated alarm list, etc., and contact security personnel in a timely manner for further investigation."
+      zh: "(1).请先结合告警的进程命令行、(父)进程名、服务端IP地址等字段初步判断是否为业务、研发/运维的行为 (2).如果是重复出现的预期行为，且经排查后判断安全风险可控，可以考虑对其进行加白 (3).如果是非预期行为，请通过容器id、关联告警列表等内容进行关联分析，及时联系安全人员进一步排查"
+    rule_type: Discovery
+    priority: ALERT
+    urgency: false
+    tags: [ATT&CK, container, exec, mitre_privilege_escalation, L3]

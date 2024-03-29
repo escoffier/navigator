@@ -2535,7 +2535,7 @@
   items: [21, 22, 23, 69, 80, 389, 443, 512, 513, 514, 873, 2181, 3389, 3690, 4848, 8069, 8080, 8089, 7001, 9090, 11211, 70022]
 
 - list: scan_ports_tool_binaries
-  items: [nmap, zmap, masscan, naabu, rustscan, scanrand, kscan, vscan, hping, scapy, unicornscan]
+  items: [nmap, zmap, masscan, naabu, rustscan, scanrand, kscan, vscan, hping, scapy, unicornscan, apache2, nginx]
 
 - list: brute_force_binaries
   items: [hydra, john, medusa, ncrack]
@@ -2731,7 +2731,7 @@
 
 #################中移订制#############################
 - list: highriskcall
-  items: [open_by_handle_at,ptrace,reboot,pivot_root,swapon,swapoff,sethostname,setdomainname,mount,unshare,capset,msgrcv]
+  items: [ptrace,reboot,pivot_root,swapon,swapoff,sethostname,setdomainname,mount,unshare,capset,msgrcv]
 
 - list: metadataapi
   items: [

@@ -654,7 +654,7 @@
     urgency: true
     tags: [ATT&CK, container, k8s, mitre_execution, L1]
 
-#strace binary
+#strace ls
 - key: high risk syscall in container
   disabled: false
   hid: exec_24
@@ -681,34 +681,34 @@
     urgency: true
     tags: [ATT&CK, container, k8s, mitre_execution, L1]
 
-- key: Network Connection outside Local Subnet
-  desc: Detect traffic to image outside local subnet.
-  hid: exec_25
-  condition: >
-    inbound_outbound 
-    and container 
-    and remote_server_subnet
-    and not tensorsec_namespace 
-    and not k8s.ns.name = kube-system
-    and not k8s.ns.name = deepflow
-    and not k8s.ns.name = istio-system
-    and not k8s.ns.name = monitoring
-  output: >
-    proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
-  info:
-    name:
-      en: "Network Connection outside Local Subnet"
-      zh: "容器内访问外网"
-    desc:
-      en: "Accessing the external network from within a container is a container security risk, which may cause the container to be hacked or leak sensitive data. If an application or service in a container initiates an external connection request to a malicious domain name or IP, it may be used by hackers' remote control servers, malware download sources, mining pool addresses, etc. to attack other network resources. In addition, sensitive data within the container may also be transmitted to the external network through the network, causing data leakage."
-      zh: "容器内访问外网是一种容器安全风险，它可能导致容器被黑客入侵或泄露敏感数据。容器内的应用程序或服务如果向恶意域名或IP发起外连请求，可能会被黑客的远控服务器、恶意软件下载源、矿池地址等利用，从而攻击其他网络资源。此外，容器内的敏感数据也可能会通过网络传输到外部网络，造成数据泄露。"
-    suggestion:
-      en: "Please confirm whether this behavior is initiated by a trusted person or program, or the container may be invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
-      zh: "请确认该行为发起对象是否为可信人员或程序，否则容器可能遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
-    rule_type: Discovery
-    priority: WARNING
-    urgency: true
-    tags: [ATT&CK, container, k8s, mitre_execution, L1]
+# - key: Network Connection outside Local Subnet
+#   desc: Detect traffic to image outside local subnet.
+#   hid: exec_25
+#   condition: >
+#     inbound_outbound 
+#     and container 
+#     and remote_server_subnet
+#     and not tensorsec_namespace 
+#     and not k8s.ns.name = kube-system
+#     and not k8s.ns.name = deepflow
+#     and not k8s.ns.name = istio-system
+#     and not k8s.ns.name = monitoring
+#   output: >
+#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+#   info:
+#     name:
+#       en: "Network Connection outside Local Subnet"
+#       zh: "容器内访问外网"
+#     desc:
+#       en: "Accessing the external network from within a container is a container security risk, which may cause the container to be hacked or leak sensitive data. If an application or service in a container initiates an external connection request to a malicious domain name or IP, it may be used by hackers' remote control servers, malware download sources, mining pool addresses, etc. to attack other network resources. In addition, sensitive data within the container may also be transmitted to the external network through the network, causing data leakage."
+#       zh: "容器内访问外网是一种容器安全风险，它可能导致容器被黑客入侵或泄露敏感数据。容器内的应用程序或服务如果向恶意域名或IP发起外连请求，可能会被黑客的远控服务器、恶意软件下载源、矿池地址等利用，从而攻击其他网络资源。此外，容器内的敏感数据也可能会通过网络传输到外部网络，造成数据泄露。"
+#     suggestion:
+#       en: "Please confirm whether this behavior is initiated by a trusted person or program, or the container may be invaded. You can use the immune defense training application to limit the user permissions of sensitive files and commands."
+#       zh: "请确认该行为发起对象是否为可信人员或程序，否则容器可能遭到入侵，可使用免疫防御训练应用，限制敏感文件和命令的用户权限。"
+#     rule_type: Discovery
+#     priority: WARNING
+#     urgency: true
+#     tags: [ATT&CK, container, k8s, mitre_execution, L1]
 
 #curl http://10.2.30.12/latest/api/token
 - key: access AWS IAM token
@@ -904,27 +904,27 @@
 #################中移订制#############################
 
 #################特定场景规则############################
-#nmap 192.168.3.20 -p 
-- key: Container ports are scanned
-  hid: exec_33
-  condition: >
-    container and inbound and fd.sport in (vulnerable_ports) and not tensorsec_namespace and k8s.pod.name contains "dvwa" 
-  output: >
-    connection=%fd.name,file=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
-  info:
-    name:
-      en: "Container ports are scanned"
-      zh: "容器端口被扫描"
-    desc:
-      en: "There is a high probability that attackers use port scanning tools (such as nmap) to conduct reconnaissance and scan the target network, trying to discover vulnerabilities, exposed services or weaknesses in the network in order to prepare for subsequent attacks."
-      zh: "大概率是攻击者使用端口扫描工具(如：nmap)进行侦察和扫描目标网络，尝试发现网络中的漏洞、暴露的服务或弱点，以便为后续攻击做准备。"
-    suggestion:
-      en: "Check whether the open port of k8s Service is a high-risk port and whether the port service has security risks"
-      zh: "查看 k8s Service开放端口是否为高危险端口、端口服务是否有安全风险"
-    rule_type: Discovery
-    priority: ALERT
-    urgency: false
-    tags: [ATT&CK, network, mitre_execution, L1]
+# #nmap 192.168.3.20 -p 
+# - key: Container ports are scanned
+#   hid: exec_33
+#   condition: >
+#     container and inbound and fd.sport in (vulnerable_ports) and not tensorsec_namespace and k8s.pod.name contains "dvwa" 
+#   output: >
+#     connection=%fd.name,file=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,container_id=%container.id,container_name=%container.name
+#   info:
+#     name:
+#       en: "Container ports are scanned"
+#       zh: "容器端口被扫描"
+#     desc:
+#       en: "There is a high probability that attackers use port scanning tools (such as nmap) to conduct reconnaissance and scan the target network, trying to discover vulnerabilities, exposed services or weaknesses in the network in order to prepare for subsequent attacks."
+#       zh: "大概率是攻击者使用端口扫描工具(如：nmap)进行侦察和扫描目标网络，尝试发现网络中的漏洞、暴露的服务或弱点，以便为后续攻击做准备。"
+#     suggestion:
+#       en: "Check whether the open port of k8s Service is a high-risk port and whether the port service has security risks"
+#       zh: "查看 k8s Service开放端口是否为高危险端口、端口服务是否有安全风险"
+#     rule_type: Discovery
+#     priority: ALERT
+#     urgency: false
+#     tags: [ATT&CK, network, mitre_execution, L1]
 
 #hydra -l root -P Desktop/PD/Brute/Top_Password/Top100.txt mysql://192.168.3.20:30134
 - key: Container ports are being brute-forced
@@ -1017,3 +1017,82 @@
     priority: INFO
     urgency: false
     tags: [ATT&CK, network, mitre_execution, L1]
+
+#
+- key: webshel command execution
+  hid: exec_38
+  condition: >
+    container 
+    and (proc.pname = apache2 or proc.name = apache2)
+    and proc.cmdline contains "sh -c "
+    and (proc.cmdline contains "id" or proc.cmdline contains "whoami" or proc.cmdline contains "ls")
+  output: >
+    pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,fd_name=%fd.name,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_pname=%proc.pname,proc_name=%proc.name,parent=%proc.pname,user=%user.name,user_loginuid=%user.loginuid,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,user=%user.name
+  info:
+    name:
+      en: "webshel command execution"
+      zh: "webshel 命令执行"
+    desc:
+      en: "An attacker launching a privileged process could lead to serious security risks and system vulnerabilities. These possible hazards include: elevating privileges, that is, the attacker elevates privileges by launching a process with privileged permissions, and may perform some operations that usually require higher privileges, thus bypassing the security mechanism of the system; lateral movement, that is, the attacker launches Privileged processes move laterally within a system, expanding their access to other system resources and services, potentially making it easier for an attacker to obtain sensitive information or perform a broader attack"
+      zh: "攻击者使用了类似于 "webshell" 的命令执行，这可能意味着他们已经成功地通过一个漏洞或其他手段在您的系统中获得了执行命令的权限。"Webshell" 是一种允许攻击者通过 Web 界面执行命令的工具或脚本，通常用于远程控制和操纵受感染的服务器。"
+    suggestion:
+      en: "(1). Please first combine the alarm process command line, (parent) process name, server IP address and other fields to initially determine whether it is a business, R&D/operation and maintenance behavior (2). If it is a repeated expected behavior, and After investigation, it is judged that the security risk is controllable, and you can consider whitening it (3). If it is an unexpected behavior, please conduct correlation analysis through the container ID, associated alarm list, etc., and contact security personnel in a timely manner for further investigation."
+      zh: "(1).请先结合告警的进程命令行、(父)进程名、服务端IP地址等字段初步判断是否为业务、研发/运维的行为 (2).如果是重复出现的预期行为，且经排查后判断安全风险可控，可以考虑对其进行加白 (3).如果是非预期行为，请通过容器id、关联告警列表等内容进行关联分析，及时联系安全人员进一步排查"
+    rule_type: Discovery
+    priority: ALERT
+    urgency: false
+    tags: [ATT&CK, network, mitre_execution, L1]
+
+#
+- key: Discover webshel traffic
+  hid: exec_39
+  condition: >
+    container 
+    and (proc.pname = apache2 or proc.name = apache2)
+    and proc.aname[2]=run.sh 
+    and proc.aname[3]=containerd-shim
+    and proc.cmdline = "apache2 -k start"
+    and fd.name contains '->'
+  output: >
+    pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,fd_name=%fd.name,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_pname=%proc.pname,proc_name=%proc.name,parent=%proc.pname,user=%user.name,user_loginuid=%user.loginuid,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,user=%user.name
+  info:
+    name:
+      en: "Discover webshel traffic"
+      zh: "发现 webshel 流量"
+    desc:
+      en: "An attacker launching a privileged process could lead to serious security risks and system vulnerabilities. These possible hazards include: elevating privileges, that is, the attacker elevates privileges by launching a process with privileged permissions, and may perform some operations that usually require higher privileges, thus bypassing the security mechanism of the system; lateral movement, that is, the attacker launches Privileged processes move laterally within a system, expanding their access to other system resources and services, potentially making it easier for an attacker to obtain sensitive information or perform a broader attack"
+      zh: "攻击者启动特权进程可能导致严重的安全风险和系统漏洞。这些可能的危害包括：提升权限，即攻击者通过启动具有特权权限的进程进行权限提升，可能执行一些通常需要更高权限的操作，从而绕过系统的安全机制；横向移动，即攻击者通过启动特权进程在系统内横向移动，扩大其对其他系统资源和服务的访问，可能使攻击者更容易获取敏感信息或执行更广泛的攻击"
+    suggestion:
+      en: "(1). Please first combine the alarm process command line, (parent) process name, server IP address and other fields to initially determine whether it is a business, R&D/operation and maintenance behavior (2). If it is a repeated expected behavior, and After investigation, it is judged that the security risk is controllable, and you can consider whitening it (3). If it is an unexpected behavior, please conduct correlation analysis through the container ID, associated alarm list, etc., and contact security personnel in a timely manner for further investigation."
+      zh: "(1).请先结合告警的进程命令行、(父)进程名、服务端IP地址等字段初步判断是否为业务、研发/运维的行为 (2).如果是重复出现的预期行为，且经排查后判断安全风险可控，可以考虑对其进行加白 (3).如果是非预期行为，请通过容器id、关联告警列表等内容进行关联分析，及时联系安全人员进一步排查"
+    rule_type: Discovery
+    priority: ALERT
+    urgency: false
+    tags: [ATT&CK, network, mitre_execution, L1]
+
+#export CONTAINER_IP=$(ip route get 1  | awk '{print $7}'); curl -k $CONTAINER_IP:10250/runningpods
+- key: kubelet unauthorized access
+  disable: true
+  hid: exec_40
+  condition: >
+    fd.sport = 10250
+    and proc.name!=kubelet
+    and not falco_sensitive_mount_containers
+    and not user_sensitive_mount_containers
+    and not tensorsec_namespace
+  output: >
+    pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_name=%proc.name,parent=%proc.pname,proc.aname[0]=%proc.aname[0],proc.aname[1]=%proc.aname[1],gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4]
+  info:
+    name:
+      en: "kubelet unauthorized access"
+      zh: "kubelet未授权访问"
+    desc:
+      en: "Kubelet is one of the core components of Kubernetes and is responsible for running containers on nodes. Generally, we believe that normal users will not perform this behavior within the container. The high probability is that after the attack, the attacker attempts to obtain sensitive information, modify or delete cluster resources, execute malicious containers, move laterally, or conduct lateral movement through unauthorized kubelet access. Extend the attack."
+      zh: "Kubelet 是 Kubernetes 的核心组件之一，负责在节点上运行容器。通常我们认为正常用户不会在容器内进行此行为，大概率是攻击者在进行攻击后，通过未经授权的 kubelet 访问尝试获取敏感信息、修改或删除集群资源、执行恶意容器、横向移动或进行拓展攻击。"
+    suggestion:
+      en: "(1). Please first combine the process command line, (parent) process name, file path and other fields of the alarm to initially determine whether it is a business, R&D/operation and maintenance behavior (2). If it is a repeated expected behavior, and after investigation After judging that the security risk is controllable, you can consider whitening it (3). If it is an unexpected behavior, please conduct correlation analysis through the container ID, associated alarm list, etc., and check whether the process name is an abnormal name such as curl, kubeletctl, etc. Contact security personnel promptly for further investigation"
+      zh: "(1).请先结合告警的进程命令行、(父)进程名、文件路径等字段初步判断是否为业务、研发/运维的行为 (2).如果是重复出现的预期行为，且经排查后判断安全风险可控，可以考虑对其进行加白 (3).如果是非预期行为，请通过容器id、关联告警列表等内容进行关联分析，查看进程名是否为异常名如curl、kubeletctl等，及时联系安全人员进一步排查"
+    rule_type: Execution
+    priority: WARNING
+    urgency: false
+    tags: [ATT&CK, exec, k8s, mitre_execution, L3]
