@@ -745,21 +745,22 @@ type RegSyncStatusReport struct {
 }
 
 type SearchResourceParam struct {
-	ImageID       int64
-	ImageUniqueID uint64
-	Keyword       string
-	ImageUUID     uint32
-	ImageUUIDs    []uint32
-	VulnUniqueID  uint64
-	PkgUniqueID   uint64
-	WebshellMD5   string
-	MalwareMD5    string
-	SensitiveMD5  string
-	StartID       string
-	Fields        []string
-	NotNeedCont   bool
-	Running       string
-	Filter        *Filter
+	ImageID         int64
+	ImageUniqueID   uint64
+	Keyword         string
+	ImageUUID       uint32
+	ImageUUIDs      []uint32
+	VulnUniqueID    uint64
+	PkgUniqueID     uint64
+	WebshellMD5     string
+	MalwareMD5      string
+	SensitiveMD5    string
+	StartID         string
+	Fields          []string
+	NotNeedCont     bool
+	NotFilterStatus bool
+	Running         string
+	Filter          *Filter
 }
 
 type SearchDeployWhiteImageParam struct {

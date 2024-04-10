@@ -13,6 +13,7 @@ import (
 	scani18 "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/scanI18"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts/preConsts"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
@@ -718,9 +719,10 @@ func (s *ImageInfoAPI) SearchRunningDigest(ctx *gin.Context) {
 
 	lastID := util.GetKeywordFromQuery(ctx, "lastID")
 	param := imagesecModel.SearchResourceParam{
-		StartID: lastID,
-		Fields:  []string{"id", "image_digest"},
-		Filter:  imagesecModel.GetFilter(ctx).SetMaxLimit(1000).SetSortFiledByID().SetSortAsc(), // 一批最多取1000条数据,
+		StartID:         lastID,
+		NotFilterStatus: true,
+		Fields:          []string{"id", "image_digest", "status"},
+		Filter:          imagesecModel.GetFilter(ctx).SetMaxLimit(1000).SetSortFiledByID().SetSortAsc(), // 一批最多取1000条数据,
 	}
 
 	res := RunningDigest{
@@ -747,9 +749,10 @@ func (s *ImageInfoAPI) SearchRunningDigest(ctx *gin.Context) {
 
 		for i := range images {
 			im := images[i]
-			if im.ImageDigest == "" {
+			if im.ImageDigest == "" || im.Status != assets.Running {
 				continue
 			}
+
 			lastID = images[i].ContainerID
 			res.LastID = lastID
 
