@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
+	"gitlab.com/security-rd/go-pkg/databases"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
-
-	"gitlab.com/security-rd/go-pkg/databases"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
@@ -32,17 +32,9 @@ func (dal *ResourceDao) SearchResources(ctx context.Context, param imagesec.Sear
 	ctx, cancelFunc := context.WithTimeout(ctx, time.Second*10)
 	defer cancelFunc()
 	db := dal.db.Get().WithContext(ctx).Table(new(model.TensorRawContainer).TableName())
-	// pkg/assets/types.go
-	/*
-		Running = iota
-			Created
-			Restarting
-			Removing
-			Paused
-			Exited
-			Dead
-	*/
-	db = db.Where("status < ? ", assets.ActiveCRIState)
+	if !param.NotFilterStatus {
+		db = db.Where("status < ? ", assets.ActiveCRIState)
+	}
 	if param.ImageUUID > 0 {
 		db = db.Where("image_uuid = ?", param.ImageUUID)
 	}
