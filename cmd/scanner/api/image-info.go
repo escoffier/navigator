@@ -721,6 +721,7 @@ func (s *ImageInfoAPI) SearchRunningDigest(ctx *gin.Context) {
 	param := imagesecModel.SearchResourceParam{
 		StartID:         lastID,
 		NotFilterStatus: true,
+		NotNeedCont:     true,
 		Fields:          []string{"id", "image_digest", "status"},
 		Filter:          imagesecModel.GetFilter(ctx).SetMaxLimit(1000).SetSortFiledByID().SetSortAsc(), // 一批最多取1000条数据,
 	}
