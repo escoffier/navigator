@@ -478,8 +478,8 @@ func (rl *TensorDriftService) GetPoliciesCount(ctx context.Context, clusterKey s
 	return dal.GetDriftPoliciesCount(ctx, rl.rdb.GetReadDB(), clusterKey)
 }
 
-func (rl *TensorDriftService) GetSupportResources(ctx context.Context, clusterKey string) ([]model.TensorResource, error) {
-	return dal.GetDriftSupportResources(ctx, rl.rdb.GetReadDB(), clusterKey)
+func (rl *TensorDriftService) GetSupportResources(ctx context.Context, clusterKey string, excludeNamespaces []string) ([]model.TensorResource, error) {
+	return dal.GetDriftSupportResources(ctx, rl.rdb.GetReadDB(), clusterKey, excludeNamespaces)
 }
 
 func (rl *TensorDriftService) GetPolicyByID(ctx context.Context, id int64) (model.DriftPolicy, error) {

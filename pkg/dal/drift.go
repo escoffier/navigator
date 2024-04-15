@@ -451,11 +451,23 @@ func GetDriftPoliciesCount(ctx context.Context, rdb *gorm.DB, clusterKey string)
 	return len, nil
 }
 
-func GetDriftSupportResources(ctx context.Context, rdb *gorm.DB, clusterKey string) ([]model.TensorResource, error) {
-	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
+func GetDriftSupportResources(ctx context.Context, rdb *gorm.DB, clusterKey string, excludeNamespaces []string) ([]model.TensorResource, error) {
+	// ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	// defer cancel()
+
+	subQuery := rdb.Select("cluster_key", "namespace", "resource_kind", "resource_name").Table("ivan_assets_raw_containers")
+	subQuery = subQuery.Where("status = ?", 0)
+	subQuery = subQuery.Where("cluster_key = ?", clusterKey)
+	subQuery = subQuery.Where("namespace NOT IN ?", excludeNamespaces)
+
+	mainQuery := rdb.Model(&model.TensorResource{}).Select("id").WithContext(ctx)
+
+	mainQuery = mainQuery.Where("is_support_drift = ?", true)
+	mainQuery = mainQuery.Where("status = ?", 0)
+	mainQuery = mainQuery.Where("(cluster_key, namespace, kind, name) in (?)", subQuery)
+
 	res := []model.TensorResource{}
-	err := rdb.Model(&model.TensorResource{}).WithContext(ctx).Where("cluster_key = ? AND is_support_drift = ?", clusterKey, true).Find(&res).Error
+	err := mainQuery.Find(&res).Error
 	if err != nil {
 		return nil, err
 	}
