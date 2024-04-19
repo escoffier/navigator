@@ -151,6 +151,9 @@ func (s *Submitter) asyncLoop() {
 				} else {
 					sflow.Increment += 1
 					sflow.UpdatedAt = time.Now()
+					if behavioralLearnFlag {
+						go s.SendToBehavioralLearn(*flow)
+					}
 				}
 
 			case <-ticker.C:

@@ -691,7 +691,7 @@ func filterSelfByProcessName(processName string) bool {
 }
 
 func isSameProcess(p processInfo, pMap *sync.Map) bool {
-	logging.GetLogger().Debug().Msgf("isSameProcess: process: %+v, pMap: %v", p, pMap)
+	logging.GetLogger().Debug().Msgf("isSameProcess: process: %+v", p)
 	pid := p.ProcessID
 	if pid <= 0 {
 		logging.GetLogger().Debug().Msgf("isSameProcess: pid: %d <= 0", pid)
@@ -702,6 +702,7 @@ func isSameProcess(p processInfo, pMap *sync.Map) bool {
 		logging.GetLogger().Debug().Msgf("isSameProcess: pid: %d not in pMap", p.ProcessID)
 		return false
 	}
+	logging.GetLogger().Debug().Msgf("isSameProcess: pid: %d cmd: %s cmdLine2: %v", p.ProcessID, p.CMD, cmdLine2)
 	if value, ok := cmdLine2.(string); ok && value == p.CMD {
 		logging.GetLogger().Debug().Msgf("isSameProcess: pid: %d cmd: %s equal to pid2: %v", p.ProcessID, p.CMD, cmdLine2)
 		return true

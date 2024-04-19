@@ -2895,6 +2895,7 @@ func (api *api) getNamespace() http.HandlerFunc {
 // @Router /api/v2/platform/assets/cluster/{cluster_key}/namespace/{namespace}/kind/{kind}/resources/{name}
 func (api *api) getResource() http.HandlerFunc {
 	type resource struct {
+		ResourceID  uint32    `json:"resource_id"`
 		Cluster     string    `json:"cluster"`
 		Namespace   string    `json:"namespace"`
 		Kind        string    `json:"kind"`
@@ -2907,6 +2908,7 @@ func (api *api) getResource() http.HandlerFunc {
 	}
 	modelToResource := func(rm *model.TensorResource) *resource {
 		r := new(resource)
+		r.ResourceID = rm.ID
 		r.Cluster = rm.ClusterKey
 		r.Namespace = rm.Namespace
 		r.Kind = rm.Kind

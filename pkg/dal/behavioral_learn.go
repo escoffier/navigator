@@ -11,6 +11,11 @@ import (
 	"gorm.io/gorm"
 )
 
+var (
+	ErrGlobalWhiteListExist     = errors.New("global white list exist")
+	ErrGlobalWhiteListNotChange = errors.New("global white list not change")
+)
+
 func BehavioralLearnFileModelQuery(ctx context.Context, rdb *gorm.DB, resourceUUID uint32,
 	searchStr string, permission int, isInModel bool,
 	offset, limit int, startID uint64, cNames []string) ([]*model.BehavioralLearnFileModel, int64, error) {
@@ -77,7 +82,7 @@ func BehavioralLearnCommandModelQuery(ctx context.Context, rdb *gorm.DB, resourc
 
 	}
 	if err != nil {
-		logging.GetLogger().Error().Msgf("get command model fail, uuid: %d limit: %d offset: %d total: %d", resourceUUID, limit, offset, total)
+		logging.GetLogger().Err(err).Msgf("get command model fail, uuid: %d limit: %d offset: %d total: %d", resourceUUID, limit, offset, total)
 		return nil, 0, err
 	}
 
@@ -395,13 +400,28 @@ func BehavioralLearnDeleteNetworkModel(ctx context.Context, rdb *gorm.DB, resour
 	return nil
 }
 
+func BehavioralLearnGetResourceByUUID(ctx context.Context, rdb *gorm.DB, uuid uint32) (model.TensorResource, error) {
+	var res model.TensorResource
+	query := model.TensorResource{}
+	query.ID = uuid
+
+	err := rdb.WithContext(ctx).Model(&model.TensorResource{}).Where(&query).First(&res).Error
+	if err != nil {
+		return res, err
+	}
+
+	return res, nil
+}
+
 func BehavioralLearnUpdateResourceStatus(ctx context.Context, rdb *gorm.DB, tasks []model.BehavioralLearnTaskItem, op int) ([]model.TensorResource, error) {
 	// update resource status
 	res := []model.TensorResource{}
 	uuids := []uint32{}
+
 	for _, task := range tasks {
 		uuids = append(uuids, task.ResourceUUID)
 	}
+
 	logging.GetLogger().Debug().Msgf("update resource status, uuids: %+v", uuids)
 	// update resource status
 	err := rdb.WithContext(ctx).Model(&model.TensorResource{}).Where("id in ?", uuids).Updates(map[string]interface{}{
@@ -524,7 +544,7 @@ func BehavioralLearnUpdateModelConfig(ctx context.Context, rdb *gorm.DB, data []
 		}
 		if res.BehavioralLearnStatus == status {
 			logging.GetLogger().Warn().Msgf("resource status not change, uuid: %d", d.ResourceUUID)
-			continue
+
 		}
 		err = rdb.WithContext(ctx).Model(&model.TensorResource{}).Where("id = ?", d.ResourceUUID).
 			Updates(map[string]interface{}{
@@ -650,7 +670,7 @@ func BehavioralLearnGetFileModelGlobalWhiteList(ctx context.Context, rdb *gorm.D
 
 	var total int64
 	db.Count(&total)
-	err := db.Order("updated_at DESC").Offset(offset).Limit(limit).Find(&res).Error
+	err := db.Order("created_at DESC").Offset(offset).Limit(limit).Find(&res).Error
 	if err != nil {
 		return nil, 0, err
 	}
@@ -661,12 +681,12 @@ func BehavioralLearnGetFileModelGlobalWhiteList(ctx context.Context, rdb *gorm.D
 func BehavioralLearnInsertFileModelGlobalWhiteList(ctx context.Context, rdb *gorm.DB, data model.BehavioralLearnFileModelGlobalWhiteList) (model.BehavioralLearnFileModelGlobalWhiteList, error) {
 	// if exist, return error
 	var res []model.BehavioralLearnFileModelGlobalWhiteList
-	err := rdb.WithContext(ctx).Model(&model.BehavioralLearnFileModelGlobalWhiteList{}).Where("name = ? and path = ? and permission = ?",
-		data.Name, data.Path, data.Permission).First(&res).Error
+	err := rdb.WithContext(ctx).Model(&model.BehavioralLearnFileModelGlobalWhiteList{}).Where("path = ? and permission = ?",
+		data.Path, data.Permission).First(&res).Error
 
 	if err == nil && len(res) > 0 {
-		logging.GetLogger().Warn().Msgf("file model global white list exist, name: %s, path: %s, permission: %d", data.Name, data.Path, data.Permission)
-		return res[0], errors.New("file model global white list exist")
+		logging.GetLogger().Warn().Msgf("file model global white list exist, path: %s, permission: %d", data.Path, data.Permission)
+		return res[0], ErrGlobalWhiteListExist
 	}
 
 	err = rdb.WithContext(ctx).Model(&model.BehavioralLearnFileModelGlobalWhiteList{}).Create(&data).Error
@@ -684,7 +704,19 @@ func BehavioralLearnDeleteFileModelGlobalWhiteList(ctx context.Context, rdb *gor
 }
 
 func BehavioralLearnUpdateFileModelGlobalWhiteList(ctx context.Context, rdb *gorm.DB, data model.BehavioralLearnFileModelGlobalWhiteList) error {
-	err := rdb.WithContext(ctx).Model(&model.BehavioralLearnFileModelGlobalWhiteList{}).Where("id = ?", data.ID).Updates(&data).Error
+	var res []model.BehavioralLearnFileModelGlobalWhiteList
+	err := rdb.WithContext(ctx).Model(&model.BehavioralLearnFileModelGlobalWhiteList{}).Where("path = ? and permission = ?",
+		data.Path, data.Permission).First(&res).Error
+
+	if err == nil && len(res) > 0 {
+		if res[0].ID == data.ID {
+			return ErrGlobalWhiteListNotChange
+		}
+		logging.GetLogger().Warn().Msgf("file model global white list exist, path: %s, permission: %d", data.Path, data.Permission)
+		return ErrGlobalWhiteListExist
+	}
+
+	err = rdb.WithContext(ctx).Model(&model.BehavioralLearnFileModelGlobalWhiteList{}).Where("id = ?", data.ID).Updates(&data).Error
 	if err != nil {
 		return err
 	}
@@ -704,7 +736,7 @@ func BehavioralLearnGetCommandModelGlobalWhiteList(ctx context.Context, rdb *gor
 
 	var total int64
 	db.Count(&total)
-	err := db.Order("updated_at DESC").Offset(offset).Limit(limit).Find(&res).Error
+	err := db.Order("created_at DESC").Offset(offset).Limit(limit).Find(&res).Error
 	if err != nil {
 		return nil, 0, err
 	}
@@ -723,7 +755,7 @@ func BehavioralLearnInsertCommandModelGlobalWhiteList(ctx context.Context, rdb *
 	if err == nil && len(res) > 0 {
 		logging.GetLogger().Warn().Msgf("command model global white list exist, command: %s, user: %s, path: %s", data.Command, data.User, data.Path)
 
-		return res[0], errors.New("command model global white list exist")
+		return res[0], ErrGlobalWhiteListExist
 	}
 
 	err = rdb.WithContext(ctx).Model(&model.BehavioralLearnCommandModelGlobalWhiteList{}).Create(&data).Error
@@ -738,7 +770,21 @@ func BehavioralLearnDeleteCommandModelGlobalWhiteList(ctx context.Context, rdb *
 }
 
 func BehavioralLearnUpdateCommandModelGlobalWhiteList(ctx context.Context, rdb *gorm.DB, data model.BehavioralLearnCommandModelGlobalWhiteList) error {
-	err := rdb.WithContext(ctx).Model(&model.BehavioralLearnCommandModelGlobalWhiteList{}).Where("id = ?", data.ID).Updates(&data).Error
+	var res []model.BehavioralLearnCommandModelGlobalWhiteList
+
+	err := rdb.WithContext(ctx).Model(&model.BehavioralLearnCommandModelGlobalWhiteList{}).Where("command = ? and user = ? and path = ?",
+		data.Command, data.User, data.Path).First(&res).Error
+
+	if err == nil && len(res) > 0 {
+		if res[0].ID == data.ID {
+			return ErrGlobalWhiteListNotChange
+		}
+
+		logging.GetLogger().Warn().Msgf("command model global white list exist, command: %s, user: %s, path: %s", data.Command, data.User, data.Path)
+		return ErrGlobalWhiteListExist
+	}
+
+	err = rdb.WithContext(ctx).Model(&model.BehavioralLearnCommandModelGlobalWhiteList{}).Where("id = ?", data.ID).Updates(&data).Error
 	if err != nil {
 		return err
 	}
@@ -760,7 +806,7 @@ func BehavioralLearnGetNetworkModelGlobalWhiteList(ctx context.Context, rdb *gor
 
 	var total int64
 	db.Count(&total)
-	err := db.Order("updated_at DESC").Offset(offset).Limit(limit).Find(&res).Error
+	err := db.Order("created_at DESC").Offset(offset).Limit(limit).Find(&res).Error
 	if err != nil {
 		return nil, 0, err
 	}
@@ -776,7 +822,7 @@ func BehavioralLearnInsertNetworkModelGlobalWhiteList(ctx context.Context, rdb *
 
 	if err == nil && len(res) > 0 {
 		logging.GetLogger().Warn().Msgf("file model global white list exist, port: %d, object_resource_uuid: %d, stream_direction: %d", data.Port, data.ObjectResourceUUID, data.StreamDirection)
-		return res[0], errors.New("file model global white list exist")
+		return res[0], ErrGlobalWhiteListExist
 	}
 
 	err = rdb.WithContext(ctx).Model(&model.BehavioralLearnNetworkModelGlobalWhiteList{}).Create(&data).Error
@@ -791,7 +837,19 @@ func BehavioralLearnDeleteNetworkModelGlobalWhiteList(ctx context.Context, rdb *
 }
 
 func BehavioralLearnUpdateNetworkModelGlobalWhiteList(ctx context.Context, rdb *gorm.DB, data model.BehavioralLearnNetworkModelGlobalWhiteList) error {
-	err := rdb.WithContext(ctx).Model(&model.BehavioralLearnNetworkModelGlobalWhiteList{}).Where("id = ?", data.ID).Updates(&data).Error
+	var res []model.BehavioralLearnNetworkModelGlobalWhiteList
+	err := rdb.WithContext(ctx).Model(&model.BehavioralLearnNetworkModelGlobalWhiteList{}).Where("port = ? and object_resource_uuid = ? and stream_direction = ?",
+		data.Port, data.ObjectResourceUUID, data.StreamDirection).First(&res).Error
+
+	if err == nil && len(res) > 0 {
+		logging.GetLogger().Warn().Msgf("file model global white list exist, port: %d, object_resource_uuid: %d, stream_direction: %d", data.Port, data.ObjectResourceUUID, data.StreamDirection)
+		if res[0].ID == data.ID {
+			return ErrGlobalWhiteListNotChange
+		}
+		return ErrGlobalWhiteListExist
+	}
+
+	err = rdb.WithContext(ctx).Model(&model.BehavioralLearnNetworkModelGlobalWhiteList{}).Where("id = ?", data.ID).Updates(&data).Error
 	if err != nil {
 		return err
 	}

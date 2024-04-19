@@ -148,7 +148,7 @@ type BehavioralLearnGlobalConfig struct {
 	LearnTime         int   `gorm:"column:learn_time" json:"learn_time,omitempty"`
 	ShowUnrelatedRes  bool  `gorm:"column:show_unrelated_res" json:"show_unrelated_res,omitempty"`
 	AutoLearnNewRes   bool  `gorm:"column:auto_learn_new_res" json:"auto_learn_new_res,omitempty"`
-	UpdatedAt         int64 `gorm:"column:updated_at; autoUpdateTime" json:"updated_at,omitempty" `
+	UpdatedAt         int64 `gorm:"column:updated_at; autoUpdateTime" json:"updated_at,omitempty"`
 }
 
 func (BehavioralLearnGlobalConfig) TableName() string {
@@ -161,6 +161,7 @@ type BehavioralLearnFileModelGlobalWhiteList struct {
 	Path       string `gorm:"column:path" json:"path"`
 	Permission int    `gorm:"column:permission" json:"permission"`
 	UpdatedAt  int64  `gorm:"column:updated_at; autoUpdateTime" json:"updated_at"`
+	CreatedAt  int64  `gorm:"column:created_at; autoCreateTime:milli" json:"created_at"`
 }
 
 func (BehavioralLearnFileModelGlobalWhiteList) TableName() string {
@@ -173,6 +174,7 @@ type BehavioralLearnCommandModelGlobalWhiteList struct {
 	User      string `gorm:"column:user" json:"user"`
 	Path      string `gorm:"column:path" json:"path"`
 	UpdatedAt int64  `gorm:"column:updated_at; autoUpdateTime" json:"updated_at"`
+	CreatedAt int64  `gorm:"column:created_at; autoCreateTime:milli" json:"created_at"`
 }
 
 func (BehavioralLearnCommandModelGlobalWhiteList) TableName() string {
@@ -189,6 +191,7 @@ type BehavioralLearnNetworkModelGlobalWhiteList struct {
 	Name               string `gorm:"column:name" json:"name"`
 	Namespace          string `gorm:"column:namespace" json:"namespace"`
 	UpdatedAt          int64  `gorm:"column:updated_at; autoUpdateTime" json:"updated_at"`
+	CreatedAt          int64  `gorm:"column:created_at; autoCreateTime:milli" json:"created_at"`
 }
 
 func (BehavioralLearnNetworkModelGlobalWhiteList) TableName() string {
@@ -210,4 +213,5 @@ type BehavioralLearnStatusMix struct {
 	Name                     string   `gorm:"name"`
 	NotInModelCount          int64    `gorm:"not_in_model_count"`
 	Images                   []string `json:"images"`
+	IsCanLearn               bool     `json:"is_can_learn"`
 }
