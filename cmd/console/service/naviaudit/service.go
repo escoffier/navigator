@@ -107,7 +107,7 @@ func (s *Service) GetAuditLog(ctx context.Context, opt *QueryNaviAuditLogOpt) ([
 		if k != "" && v != "" {
 			if k == "Verb" {
 				if opt.Lang == "zh" {
-					queries = append(queries, elastic.NewMatchQuery(k, v))
+					queries = append(queries, elastic.NewMatchQuery(k+".keyword", v))
 				} else {
 					queryKey := fmt.Sprintf("MetaData.%s.verb", opt.Lang)
 					queries = append(queries, elastic.NewMatchQuery(queryKey, v))

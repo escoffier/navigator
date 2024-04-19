@@ -38,10 +38,21 @@ const (
 )
 
 var (
-	instance             *BehavioralLearn
-	rlOnce               sync.Once
-	globalConfig         *model.BehavioralLearnGlobalConfig
-	globalResourceStatus = make(map[uint32]int)
+	instance                 *BehavioralLearn
+	rlOnce                   sync.Once
+	globalConfig             *model.BehavioralLearnGlobalConfig
+	globalResourceStatus           = make(map[uint32]int)
+	globalAutoLearnStartTime int64 = time.Now().Unix()
+)
+
+var (
+	AlreadyEnabledError     = errors.New("resource already enabled")
+	AlreadyDisabledError    = errors.New("resource already disabled")
+	AlreadyLearningError    = errors.New("resource already learning")
+	AlreadyNotLearningError = errors.New("resource already not learning")
+	ErrEnabledInLearning    = errors.New("resource enabled in learning")
+	ErrDisabledInLearning   = errors.New("resource disabled in learning")
+	ErrGlobalWhiteListExist = dal.ErrGlobalWhiteListExist
 )
 
 type BehavioralLearn struct {
@@ -262,6 +273,7 @@ func (b *BehavioralLearn) GetResourcesStatus(ctx context.Context,
 	// logging.GetLogger().Debug().Msgf("rets: %+v", res)
 
 	for _, r := range res {
+		isCanLearn := false
 		tmpRes := model.BehavioralLearnStatusMix{
 			ResourceUUID:             r.ID,
 			BehavioralLearnStatus:    r.BehavioralLearnStatus,
@@ -275,9 +287,13 @@ func (b *BehavioralLearn) GetResourcesStatus(ctx context.Context,
 		if err != nil {
 			logging.GetLogger().Error().Msgf("get containers by uuid fail, uuid: %d", r.ID)
 		}
+
 		images := make([]string, 0)
 		imageMap := make(map[string]struct{})
 		for _, c := range containers {
+			if c.Status == 0 {
+				isCanLearn = true
+			}
 			image := c.ImageName
 			if _, ok := imageMap[image]; ok {
 				continue
@@ -291,6 +307,7 @@ func (b *BehavioralLearn) GetResourcesStatus(ctx context.Context,
 			logging.GetLogger().Error().Msgf("get abnormal count fail, uuid: %d", r.ID)
 		}
 		tmpRes.NotInModelCount = notInModelCount
+		tmpRes.IsCanLearn = isCanLearn
 		retRes = append(retRes, tmpRes)
 	}
 
@@ -521,7 +538,9 @@ func (b *BehavioralLearn) DeleteResourcesNetworkModel(ctx context.Context, resou
 }
 
 func (b *BehavioralLearn) SetGlobalConfig(ctx context.Context, config *model.BehavioralLearnGlobalConfig) error {
-
+	if config.AutoLearnNewRes != globalConfig.AutoLearnNewRes && config.AutoLearnNewRes {
+		globalAutoLearnStartTime = time.Now().Unix()
+	}
 	err := dal.BehavioralLearnUpdateGlobalConfig(ctx, b.rdb.Get(), *config)
 	if err != nil {
 		logging.GetLogger().Error().Msgf("update global config fail, err: %v", err)
@@ -595,8 +614,17 @@ func (b *BehavioralLearn) UpdateGlobalConfigMap(ctx context.Context) error {
 }
 
 func (b *BehavioralLearn) BehavioralLearnStart(ctx context.Context, tasks []model.BehavioralLearnTaskItem) ([]model.TensorResource, error) {
-	// add task to queue
 
+	if len(tasks) == 1 {
+		oldRes, err := dal.BehavioralLearnGetResourceByUUID(ctx, b.rdb.Get(), tasks[0].ResourceUUID)
+		if err != nil {
+			logging.GetLogger().Error().Msgf("get resource by uuid fail, uuid: %d", tasks[0].ResourceUUID)
+			return nil, err
+		}
+		if oldRes.BehavioralLearnStatus == model.BehavioralLearningStatusRunning {
+			return nil, AlreadyLearningError
+		}
+	}
 	res, err := b.doBehavioralLearnStart(ctx, tasks)
 	if err != nil {
 		logging.GetLogger().Error().Msgf("doBehavioralLearnStart fail, err: %v", err)
@@ -778,7 +806,11 @@ func (bl *BehavioralLearn) BehavioralLearnAutoLearnNewResource(ctx context.Conte
 		if rawCNum == 0 {
 			continue
 		}
-
+		logging.GetLogger().Debug().Msgf("resource: %+v, raw container num: %d", res, rawCNum)
+		if res.CreatedAt.Unix() < globalAutoLearnStartTime {
+			logging.GetLogger().Debug().Msgf("resource: %+v, created at: %d, auto learn start time: %d", res, res.CreatedAt.Unix(), globalAutoLearnStartTime)
+			continue
+		}
 		tasks = append(tasks, model.BehavioralLearnTaskItem{
 			ResourceUUID: res.ID,
 			LearnTime:    int64(globalConfig.LearnTime),
@@ -954,12 +986,23 @@ func (b *BehavioralLearn) doBehavioralLearnStart(ctx context.Context, tasks []mo
 }
 
 func (b *BehavioralLearn) BehavioralLearnStop(ctx context.Context, task model.BehavioralLearnTaskItem) ([]model.TensorResource, error) {
-	// remove task from queue
+
+	// get learning status
+	oldRes, err := dal.BehavioralLearnGetResourceByUUID(ctx, b.rdb.Get(), task.ResourceUUID)
+	if err != nil {
+		logging.GetLogger().Error().Msgf("get resource by uuid fail, uuid: %d", task.ResourceUUID)
+		return nil, err
+	}
+	if oldRes.BehavioralLearnStatus != model.BehavioralLearningStatusRunning {
+		return nil, AlreadyNotLearningError
+	}
+
 	res, err := b.doBehavioralLearnStop(ctx, []model.BehavioralLearnTaskItem{task})
 	if err != nil {
 		logging.GetLogger().Error().Msgf("do behavioral learn stop fail, err: %v", err)
 		return res, err
 	}
+
 	// sync configmap to all nodes
 	err = b.learningConfigMapDelete(ctx, []model.BehavioralLearnTaskItem{task})
 	if err != nil {
@@ -1243,6 +1286,26 @@ func (b *BehavioralLearn) BehavioralLearnModelUpdateModelKey(ctx context.Context
 }
 
 func (b *BehavioralLearn) BehavioralLearnModelConfig(ctx context.Context, data []model.BehavioralLearnModelConfig, userName string) ([]model.TensorResource, int, error) {
+	if len(data) == 1 {
+		oldRes, err := dal.BehavioralLearnGetResourceByUUID(ctx, b.rdb.Get(), data[0].ResourceUUID)
+		if err != nil {
+			logging.GetLogger().Error().Msgf("get resource by uuid fail, uuid: %d", data[0].ResourceUUID)
+			return nil, 0, err
+		}
+		if oldRes.BehavioralLearnStatus == model.BehavioralLearningStatusEnabled && data[0].Enabled {
+			return nil, 0, AlreadyEnabledError
+		}
+		if oldRes.BehavioralLearnStatus == model.BehavioralLearningStatusReady && !data[0].Enabled {
+			return nil, 0, AlreadyDisabledError
+		}
+		if oldRes.BehavioralLearnStatus == model.BehavioralLearningStatusRunning && data[0].Enabled {
+			return nil, 0, ErrEnabledInLearning
+		}
+		if oldRes.BehavioralLearnStatus == model.BehavioralLearningStatusRunning && !data[0].Enabled {
+			return nil, 0, ErrDisabledInLearning
+		}
+	}
+
 	// update model config
 	ress, resMap, n, err := dal.BehavioralLearnUpdateModelConfig(ctx, b.rdb.Get(), data)
 	if err != nil {
@@ -1455,6 +1518,10 @@ func (b *BehavioralLearn) InsertGlobalNetworkWhitelist(ctx context.Context, data
 func (b *BehavioralLearn) UpdateGlobalCommandWhitelist(ctx context.Context, data model.BehavioralLearnCommandModelGlobalWhiteList) error {
 	err := dal.BehavioralLearnUpdateCommandModelGlobalWhiteList(ctx, b.rdb.Get(), data)
 	if err != nil {
+		if errors.Is(err, dal.ErrGlobalWhiteListNotChange) {
+			logging.GetLogger().Warn().Msg("global white list not change")
+			return nil
+		}
 		logging.GetLogger().Error().Msgf("update global command whitelist fail, err: %v", err)
 		return err
 	}
@@ -1471,21 +1538,35 @@ func (b *BehavioralLearn) UpdateGlobalCommandWhitelist(ctx context.Context, data
 func (b *BehavioralLearn) UpdateGlobalFileWhitelist(ctx context.Context, data model.BehavioralLearnFileModelGlobalWhiteList) error {
 	err := dal.BehavioralLearnUpdateFileModelGlobalWhiteList(ctx, b.rdb.Get(), data)
 	if err != nil {
+		if errors.Is(err, dal.ErrGlobalWhiteListNotChange) {
+			logging.GetLogger().Warn().Msg("global white list not change")
+			return nil
+		}
+
 		logging.GetLogger().Error().Msgf("update global file whitelist fail, err: %v", err)
 		return err
 	}
+	// syncTime := time.Now()
 	// sync config map
 	err = b.UpdateGlobalWhiteListConfigMap(ctx, fmt.Sprintf(model.BehavioralLearnFileModelKeyTemplate, uint64(data.ID)),
 		fmt.Sprintf(model.BehavioralLearnFileModelWlsValueTemplate, data.Path, data.Permission))
 	if err != nil {
 		logging.GetLogger().Error().Msgf("update configmap fail, err: %v", err)
 	}
+
+	// logging.GetLogger().Debug().Msgf("syncTime: %d", time.Since(syncTime))
+
 	return nil
 }
 
 func (b *BehavioralLearn) UpdateGlobalNetworkWhitelist(ctx context.Context, data model.BehavioralLearnNetworkModelGlobalWhiteList) error {
 	err := dal.BehavioralLearnUpdateNetworkModelGlobalWhiteList(ctx, b.rdb.Get(), data)
 	if err != nil {
+		if errors.Is(err, dal.ErrGlobalWhiteListNotChange) {
+			logging.GetLogger().Warn().Msg("global white list not change")
+			return nil
+		}
+
 		logging.GetLogger().Error().Msgf("update global network whitelist fail, err: %v", err)
 		return err
 	}
@@ -1671,6 +1752,7 @@ func (b *BehavioralLearn) GetResourceContainerInfo(ctx context.Context, cluster,
 			ContainerID: c.ContainerID,
 			Name:        c.Name,
 			Image:       c.ImageName,
+			Status:      c.Status,
 		})
 		cNameNodeNameMap[c.Name] = struct{}{}
 	}

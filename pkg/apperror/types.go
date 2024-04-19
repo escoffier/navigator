@@ -1737,6 +1737,114 @@ func NewImportStatusError(httpCode int, err error, suberrors ...Suberror) error 
 	}
 }
 
+func BehavioralLearnEnableError(httpCode int, err error, suberrors ...Suberror) error {
+	return ArgError{
+		detailedError{
+			err:       err,
+			English:   "model is enabled",
+			Chinese:   "模型已启用",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func BehavioralLearnDisableError(httpCode int, err error, suberrors ...Suberror) error {
+	return ArgError{
+		detailedError{
+			err:       err,
+			English:   "model is disabled",
+			Chinese:   "模型已禁用",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func BehavioralLearnStartError(httpCode int, err error, suberrors ...Suberror) error {
+	return ArgError{
+		detailedError{
+			err:       err,
+			English:   "behavioral learning is started",
+			Chinese:   "学习已开始",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func BehavioralLearnStopError(httpCode int, err error, suberrors ...Suberror) error {
+	return ArgError{
+		detailedError{
+			err:       err,
+			English:   "behavioral learning is stopped",
+			Chinese:   "学习已停止",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func BehavioralLearnWhitelistExistError(httpCode int, err error, suberrors ...Suberror) error {
+	return ArgError{
+		detailedError{
+			err:       err,
+			English:   "whitelist already exists",
+			Chinese:   "白名单已存在",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func BehavioralLearnModelExistError(httpCode int, err error, suberrors ...Suberror) error {
+	return ArgError{
+		detailedError{
+			err:       err,
+			English:   "model already exists",
+			Chinese:   "行为已存在",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func BehavioralLearnEnableInLearningError(httpCode int, err error, suberrors ...Suberror) error {
+	return ArgError{
+		detailedError{
+			err:       err,
+			English:   "model is in learning",
+			Chinese:   "启用失败,模型正在学习中",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func BehavioralLearnDisableInLearningError(httpCode int, err error, suberrors ...Suberror) error {
+	return ArgError{
+		detailedError{
+			err:       err,
+			English:   "model is in learning",
+			Chinese:   "禁用失败,模型正在学习中",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
+func BehavioralPortNumError(httpCode int, err error, suberrors ...Suberror) error {
+	return ArgError{
+		detailedError{
+			err:       err,
+			English:   "port number is invalid",
+			Chinese:   "端口号无效",
+			HTTPCode:  httpCode,
+			Suberrors: suberrors,
+		},
+	}
+}
+
 const (
 	ErrFieldBenchmarkName        = "benchmark_name"
 	ErrFieldBenchmarkDescription = "benchmark_description"

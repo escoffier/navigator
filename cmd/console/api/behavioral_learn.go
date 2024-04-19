@@ -116,6 +116,11 @@ func (api *api) startLearning() http.HandlerFunc {
 
 		res, err := blSvc.BehavioralLearnStart(ctx, tasks)
 		if err != nil {
+			if errors.Is(err, bl.AlreadyLearningError) {
+				apperror.RespAndLog(w, ctx, apperror.BehavioralLearnStartError(http.StatusInternalServerError, err))
+				return
+			}
+
 			logging.GetLogger().Error().Err(err).Msg("start behavioral learn fail")
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("start behavioral learn fail")))
 			return
@@ -153,6 +158,7 @@ func (api *api) getLearningStatus() http.HandlerFunc {
 		StartTime    int64    `json:"start_time"`
 		LearnTime    int64    `json:"learn_time"`
 		Images       []string `json:"images"`
+		IsCanLearn   bool     `json:"is_can_learn"`
 	}
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 60*time.Second)
@@ -296,6 +302,11 @@ func (api *api) stopLearning() http.HandlerFunc {
 
 		res, err := blSvc.BehavioralLearnStop(ctx, task)
 		if err != nil {
+			if errors.Is(err, bl.AlreadyNotLearningError) {
+				apperror.RespAndLog(w, ctx, apperror.BehavioralLearnStopError(http.StatusInternalServerError, err))
+				return
+			}
+
 			logging.GetLogger().Error().Err(err).Msg("stop behavioral learn fail")
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("stop behavioral learn fail")))
 			return
@@ -339,6 +350,7 @@ func (api *api) getLearningBasicInfo() http.HandlerFunc {
 		StartTime    int64             `json:"start_time"`
 		LearnTime    int64             `json:"learn_time"`
 		Containers   []bhrespContainer `json:"containers"`
+		IsCanLearn   bool              `json:"is_can_learn"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -372,8 +384,12 @@ func (api *api) getLearningBasicInfo() http.HandlerFunc {
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get resource container info fail")))
 			return
 		}
+		isCanLearn := false
 		respContainers := make([]bhrespContainer, 0)
 		for _, c := range containers {
+			if c.Status == 0 {
+				isCanLearn = true
+			}
 			respContainers = append(respContainers, bhrespContainer{
 				ContainerID: c.ContainerID,
 				Image:       c.Image,
@@ -390,6 +406,7 @@ func (api *api) getLearningBasicInfo() http.HandlerFunc {
 			LearnTime:    resource.BehavioralLearnTime,
 			LearnStatus:  resource.BehavioralLearnStatus,
 			Containers:   respContainers,
+			IsCanLearn:   isCanLearn,
 		}
 
 		response.Ok(w, response.WithItem(resp))
@@ -428,6 +445,23 @@ func (api *api) behavioralLearnModelConfig() http.HandlerFunc {
 		res, n, err := blSvc.BehavioralLearnModelConfig(ctx, reqData, userName)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("set behavioral learn model config fail")
+			if errors.Is(err, bl.AlreadyEnabledError) {
+				apperror.RespAndLog(w, ctx, apperror.BehavioralLearnEnableError(http.StatusInternalServerError, err))
+				return
+			}
+			if errors.Is(err, bl.AlreadyDisabledError) {
+				apperror.RespAndLog(w, ctx, apperror.BehavioralLearnDisableError(http.StatusInternalServerError, err))
+				return
+			}
+			if errors.Is(err, bl.ErrEnabledInLearning) {
+				apperror.RespAndLog(w, ctx, apperror.BehavioralLearnEnableInLearningError(http.StatusInternalServerError, err))
+				return
+			}
+			if errors.Is(err, bl.ErrDisabledInLearning) {
+				apperror.RespAndLog(w, ctx, apperror.BehavioralLearnDisableInLearningError(http.StatusInternalServerError, err))
+				return
+			}
+
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("set behavioral learn model config fail")))
 			return
 		}
@@ -721,9 +755,7 @@ func (api *api) behavioralLearnModelCommand() http.HandlerFunc {
 		if !isInModel {
 			inModelCommandModel, _, err := blSvc.GetResourcesCommandModel(ctx, resourceUUID, searchStr, true, 0, 0, 0, cNames)
 			if err != nil {
-				logging.GetLogger().Error().Err(err).Msg("get command model fail")
-				apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get command model fail")))
-				return
+				logging.GetLogger().Warn().Err(err).Msg("get command model fail")
 			}
 			for _, c := range inModelCommandModel {
 				commandModelsExistMap[c.Path+c.Command+c.User] = struct{}{}
@@ -998,6 +1030,12 @@ func (api *api) behavioralLearnModelUpdateFile() http.HandlerFunc {
 		res, err := blSvc.UpdateResourcesFileModel(ctx, updateData)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("update file model fail")
+			if strings.Contains(strings.ToLower(err.Error()), "duplicate") {
+				apperror.RespAndLog(w, ctx,
+					apperror.BehavioralLearnModelExistError(http.StatusInternalServerError,
+						errors.New("file model already exist")))
+				return
+			}
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("update file model fail")))
 			return
 		}
@@ -1064,6 +1102,12 @@ func (api *api) behavioralLearnModelUpdateCommand() http.HandlerFunc {
 		res, err := blSvc.UpdateResourcesCommandModel(ctx, updateData)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("update command model fail")
+			if strings.Contains(strings.ToLower(err.Error()), "duplicate") {
+				apperror.RespAndLog(w, ctx,
+					apperror.BehavioralLearnModelExistError(http.StatusInternalServerError,
+						errors.New("command model already exist")))
+				return
+			}
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("update command model fail")))
 			return
 		}
@@ -1145,9 +1189,21 @@ func (api *api) behavioralLearnModelUpdateNetwork() http.HandlerFunc {
 			ContainerName:      req.ContainerName,
 		}
 
+		if req.Port > 65535 || req.Port < 0 {
+			logging.GetLogger().Error().Msg("port out of range")
+			apperror.RespAndLog(w, ctx, apperror.BehavioralPortNumError(http.StatusInternalServerError, errors.New("port out of range")))
+			return
+		}
+
 		res, err := blSvc.UpdateResourcesNetworkModel(ctx, updateData)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("update network model fail")
+			if strings.Contains(strings.ToLower(err.Error()), "duplicate") {
+				apperror.RespAndLog(w, ctx,
+					apperror.BehavioralLearnModelExistError(http.StatusInternalServerError,
+						errors.New("network model already exist")))
+				return
+			}
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("update network model fail")))
 			return
 		}
@@ -1422,6 +1478,13 @@ func (api *api) behavioralLearnModelAddFile() http.HandlerFunc {
 		if err != nil {
 			logging.GetLogger().Error().Err(err).
 				Msg("add file model fail")
+			if strings.Contains(strings.ToLower(err.Error()), "duplicate") {
+				apperror.RespAndLog(w, ctx,
+					apperror.BehavioralLearnModelExistError(http.StatusInternalServerError,
+						errors.New("file model already exist")))
+				return
+			}
+
 			apperror.RespAndLog(w, ctx,
 				apperror.NewAnError(http.StatusInternalServerError,
 					errors.New("add file model fail")))
@@ -1528,6 +1591,14 @@ func (api *api) behavioralLearnModelAddCommand() http.HandlerFunc {
 
 		retData, err := blSvc.InsertResourcesCommandModels(ctx, commandModels)
 		if err != nil {
+			if strings.Contains(strings.ToLower(err.Error()), "duplicate") {
+				logging.GetLogger().Error().Err(err).
+					Msg("command model already exist")
+				apperror.RespAndLog(w, ctx,
+					apperror.BehavioralLearnModelExistError(http.StatusInternalServerError,
+						errors.New("command model already exist")))
+				return
+			}
 			logging.GetLogger().Error().Err(err).
 				Msg("add command model fail")
 			apperror.RespAndLog(w, ctx,
@@ -1646,8 +1717,22 @@ func (api *api) behavioralLearnModelAddNetwork() http.HandlerFunc {
 			networkModels = append(networkModels, networkModel)
 		}
 
+		if req.Port > 65535 || req.Port < 0 {
+			logging.GetLogger().Error().Msg("port out of range")
+			apperror.RespAndLog(w, ctx, apperror.BehavioralPortNumError(http.StatusInternalServerError, errors.New("port out of range")))
+			return
+		}
+
 		retData, err := blSvc.InsertResourcesNetworkModels(ctx, networkModels)
 		if err != nil {
+			if strings.Contains(strings.ToLower(err.Error()), "duplicate") {
+				logging.GetLogger().Error().Err(err).
+					Msg("network model already exist")
+				apperror.RespAndLog(w, ctx,
+					apperror.BehavioralLearnModelExistError(http.StatusInternalServerError,
+						errors.New("network model already exist")))
+				return
+			}
 			logging.GetLogger().Error().Err(err).
 				Msg("add network model fail")
 			apperror.RespAndLog(w, ctx,
@@ -1815,6 +1900,12 @@ func (api *api) behavioralLearnGlobalCommandWhitelistAdd() http.HandlerFunc {
 
 		retData, err := blSvc.InsertGlobalCommandWhitelist(ctx, commandModel)
 		if err != nil {
+			if errors.Is(err, bl.ErrGlobalWhiteListExist) {
+				logging.GetLogger().Error().Err(err).Msg("global command whitelist exist")
+				apperror.RespAndLog(w, ctx, apperror.BehavioralLearnWhitelistExistError(http.StatusInternalServerError, err))
+				return
+			}
+
 			logging.GetLogger().Error().Err(err).Msg("add global command whitelist fail")
 			apperror.RespAndLog(w, ctx,
 				apperror.NewAnError(http.StatusInternalServerError,
@@ -1871,6 +1962,12 @@ func (api *api) behavioralLearnGlobalCommandWhitelistUpdate() http.HandlerFunc {
 		err = blSvc.UpdateGlobalCommandWhitelist(ctx, commandModel)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("update global command whitelist fail")
+			if errors.Is(err, bl.ErrGlobalWhiteListExist) {
+				logging.GetLogger().Error().Err(err).Msg("global command whitelist exist")
+				apperror.RespAndLog(w, ctx, apperror.BehavioralLearnWhitelistExistError(http.StatusInternalServerError, err))
+				return
+			}
+
 			apperror.RespAndLog(w, ctx,
 				apperror.NewAnError(http.StatusInternalServerError,
 					errors.New("update global command whitelist fail")))
@@ -2001,7 +2098,7 @@ func (api *api) behavioralLearnGlobalFileWhitelistAdd() http.HandlerFunc {
 		blSvc, ok := bl.GetBehavioralLearnService()
 		if !ok {
 			logging.GetLogger().Error().Msg("get behavioral learn service fail")
-			apperror.RespAndLog(w, r.Context(), apperror.NewAnError(http.StatusInternalServerError, errors.New("get behavioral learn service fail")))
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get behavioral learn service fail")))
 			return
 		}
 
@@ -2013,9 +2110,13 @@ func (api *api) behavioralLearnGlobalFileWhitelistAdd() http.HandlerFunc {
 
 		retData, err := blSvc.InsertGlobalFileWhitelist(ctx, fileModel)
 		if err != nil {
+			if errors.Is(err, bl.ErrGlobalWhiteListExist) {
+				apperror.RespAndLog(w, ctx, apperror.BehavioralLearnWhitelistExistError(http.StatusInternalServerError, err))
+				return
+			}
 			logging.GetLogger().Error().Err(err).
 				Msg("add global file whitelist fail")
-			apperror.RespAndLog(w, r.Context(), apperror.NewAnError(http.StatusInternalServerError, errors.New("add global file whitelist fail")))
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("add global file whitelist fail")))
 			return
 		}
 
@@ -2063,6 +2164,10 @@ func (api *api) behavioralLearnGlobalFileWhitelistUpdate() http.HandlerFunc {
 		err = blSvc.UpdateGlobalFileWhitelist(ctx, fileModel)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("update global file whitelist fail")
+			if errors.Is(err, bl.ErrGlobalWhiteListExist) {
+				apperror.RespAndLog(w, ctx, apperror.BehavioralLearnWhitelistExistError(http.StatusInternalServerError, err))
+				return
+			}
 			apperror.RespAndLog(w, r.Context(), apperror.NewAnError(http.StatusInternalServerError, errors.New("update global file whitelist fail")))
 			return
 		}
@@ -2242,11 +2347,23 @@ func (api *api) behavioralLearnGlobalNetworkWhitelistAdd() http.HandlerFunc {
 			Name:               req.ResourceName,
 		}
 
+		if networkModel.Port > 65535 || networkModel.Port < 0 {
+			logging.GetLogger().Error().Msg("port is invalid")
+			apperror.RespAndLog(w, ctx, apperror.BehavioralPortNumError(http.StatusInternalServerError, errors.New("port is invalid")))
+			return
+		}
+
 		retData, err := blSvc.InsertGlobalNetworkWhitelist(ctx, networkModel)
 		if err != nil {
+			if errors.Is(err, bl.ErrGlobalWhiteListExist) {
+				logging.GetLogger().Error().Err(err).
+					Msg("global network whitelist already exist")
+				apperror.RespAndLog(w, ctx, apperror.BehavioralLearnWhitelistExistError(http.StatusInternalServerError, err))
+				return
+			}
 			logging.GetLogger().Error().Err(err).
 				Msg("add global network whitelist fail")
-			apperror.RespAndLog(w, r.Context(), apperror.NewAnError(http.StatusInternalServerError, errors.New("add global network whitelist fail")))
+			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("add global network whitelist fail")))
 			return
 		}
 
@@ -2313,9 +2430,18 @@ func (api *api) behavioralLearnGlobalNetworkWhitelistUpdate() http.HandlerFunc {
 			Name:               req.Name,
 		}
 
+		if networkModel.Port > 65535 || networkModel.Port < 0 {
+			logging.GetLogger().Error().Msg("port is invalid")
+			apperror.RespAndLog(w, ctx, apperror.BehavioralPortNumError(http.StatusInternalServerError, errors.New("port is invalid")))
+		}
+
 		err = blSvc.UpdateGlobalNetworkWhitelist(ctx, networkModel)
 		if err != nil {
 			logging.GetLogger().Error().Err(err).Msg("update global network whitelist fail")
+			if errors.Is(err, bl.ErrGlobalWhiteListExist) {
+				apperror.RespAndLog(w, ctx, apperror.BehavioralLearnWhitelistExistError(http.StatusInternalServerError, err))
+				return
+			}
 			apperror.RespAndLog(w, r.Context(), apperror.NewAnError(http.StatusInternalServerError, errors.New("update global network whitelist fail")))
 			return
 		}
