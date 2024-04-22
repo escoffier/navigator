@@ -425,6 +425,7 @@ create table if not exists ivan_scan_image_meta
     heartbeat        bigint unsigned not null default 0,
     layer_str        longtext        not null,
     pull_count       bigint unsigned not null default 0,
+    check_sum        bigint unsigned not null default 0,
     policy_unique_id varchar(500)    not null default '',
     created_at       bigint unsigned not null default 0,
     updated_at       bigint unsigned not null default 0,

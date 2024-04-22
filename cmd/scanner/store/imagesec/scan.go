@@ -177,9 +177,21 @@ func (dal *ScanResultDao) SearchMalware(ctx context.Context, param imagesecModel
 	if err := db.Find(&res).Error; err != nil {
 		return nil, 0, err
 	}
-	for i := range res {
-		res[i].Deserialize()
+	iss := make([]*imagesecModel.MalwareToImage, 0)
+	if param.AddLayer && param.ImageUniqueID > 0 {
+		uniqueIds := make([]uint64, 0)
+		for _, ch := range res {
+			uniqueIds = append(uniqueIds, ch.UniqueID)
+		}
+		if err := dal.db.Get().WithContext(ctx).Table(issueTableName).Where("image_unique_id = ?", param.ImageUniqueID).Find(&iss).Error; err != nil {
+			return nil, 0, err
+		}
 	}
+
+	for i := range res {
+		res[i].Deserialize(iss)
+	}
+
 	return res, cnt, nil
 }
 
@@ -302,6 +314,22 @@ func (dal *ScanResultDao) SearchWebshell(ctx context.Context, param imagesecMode
 	if err := db.Find(&res).Error; err != nil {
 		return nil, 0, err
 	}
+
+	iss := make([]*imagesecModel.WebshellToImage, 0)
+	if param.AddLayer && param.ImageUniqueID > 0 {
+		uniqueIds := make([]uint64, 0)
+		for _, ch := range res {
+			uniqueIds = append(uniqueIds, ch.UniqueID)
+		}
+		if err := dal.db.Get().WithContext(ctx).Table(issueTableName).Where("image_unique_id = ?", param.ImageUniqueID).Find(&iss).Error; err != nil {
+			return nil, 0, err
+		}
+	}
+
+	for i := range res {
+		res[i].Deserialize(iss)
+	}
+
 	return res, cnt, nil
 }
 
@@ -418,8 +446,20 @@ func (dal *ScanResultDao) SearchSensitive(ctx context.Context, param imagesecMod
 	if err := db.Find(&res).Error; err != nil {
 		return nil, 0, err
 	}
+
+	iss := make([]*imagesecModel.SensitiveToImage, 0)
+	if param.AddLayer && param.ImageUniqueID > 0 {
+		uniqueIds := make([]uint64, 0)
+		for _, ch := range res {
+			uniqueIds = append(uniqueIds, ch.UniqueID)
+		}
+		if err := dal.db.Get().WithContext(ctx).Table(issueTableName).Where("image_unique_id = ?", param.ImageUniqueID).Find(&iss).Error; err != nil {
+			return nil, 0, err
+		}
+	}
+
 	for i := range res {
-		res[i].Deserialize()
+		res[i].Deserialize(iss)
 	}
 
 	return res, cnt, nil
@@ -785,8 +825,19 @@ func (dal *ScanResultDao) SearchLicense(ctx context.Context, param imagesecModel
 		return nil, 0, err
 	}
 
+	iss := make([]*imagesecModel.LicenseToImage, 0)
+	if param.AddLayer && param.ImageUniqueID > 0 {
+		uniqueIds := make([]uint64, 0)
+		for _, ch := range res {
+			uniqueIds = append(uniqueIds, ch.UniqueID)
+		}
+		if err := dal.db.Get().WithContext(ctx).Table(issueTableName).Where("image_unique_id = ?", param.ImageUniqueID).Find(&iss).Error; err != nil {
+			return nil, 0, err
+		}
+	}
+
 	for i := range res {
-		res[i].Deserialize()
+		res[i].Deserialize(iss)
 	}
 
 	return res, cnt, nil
@@ -911,6 +962,8 @@ func (dal *ScanResultDao) SearchVuln(ctx context.Context, param imagesecModel.Se
 	tableName := mo.TableName()
 
 	db := dal.db.Get().WithContext(ctx).Table(tableName)
+	itv := &imagesecModel.VulnToImage{}
+	issueTableName := itv.TableName()
 
 	if len(param.VulnUniqueIds) > 0 {
 		db = db.Where("unique_id IN  ?", param.VulnUniqueIds)
@@ -959,9 +1012,7 @@ func (dal *ScanResultDao) SearchVuln(ctx context.Context, param imagesecModel.Se
 		db = db.Where("id > ?", param.StartID)
 	}
 	if param.ImageUniqueID > 0 {
-		itv := &imagesecModel.VulnToImage{}
-		vulnToImageTableName := itv.TableName()
-		sub := dal.db.Get().WithContext(ctx).Table(vulnToImageTableName).Select("distinct unique_target").
+		sub := dal.db.Get().WithContext(ctx).Table(issueTableName).Select("distinct unique_target").
 			Where("image_unique_id =  ?", param.ImageUniqueID)
 		if param.ImageLayerDigest != "" {
 			sub = sub.Where("layer_digest = ?", param.ImageLayerDigest)
@@ -1018,8 +1069,20 @@ func (dal *ScanResultDao) SearchVuln(ctx context.Context, param imagesecModel.Se
 		return nil, 0, err
 	}
 
+	iss := make([]*imagesecModel.WebshellToImage, 0)
+	if param.AddLayer && param.ImageUniqueID > 0 {
+		uniqueIds := make([]uint64, 0)
+		for _, ch := range res {
+			uniqueIds = append(uniqueIds, ch.UniqueID)
+		}
+		if err := dal.db.Get().WithContext(ctx).Table(issueTableName).Where("image_unique_id = ?", param.ImageUniqueID).Find(&iss).Error; err != nil {
+			return nil, 0, err
+		}
+	}
+
 	for i := range res {
 		res[i].Deserialize()
+		res[i].AddLayer(iss)
 		res[i].OnlineVuln = param.OnlineVuln
 	}
 	return res, cnt, nil

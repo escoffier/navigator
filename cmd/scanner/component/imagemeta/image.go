@@ -197,7 +197,7 @@ func (s *ImageInfoMetaSrv) GetImageCorrelateData(ctx context.Context,
 	// 镜像表中的flag 字段保存很多信息，但是 flag 的更新逻辑是，读取数据->计算值->再更新回数据库，这种方式难免会有数据更新冲突，
 	// 解决办法是用事务，因为更新 flag 是一个很频繁的操作，如果用事务会严重影响性能
 	// 这里统一做一下兼容
-	if !param.NotNeedCompImageSafe && ans.GenSafe() == imagesecModel.ImageSafeUnknown {
+	if param.ImageFromType != imagesecModel.ImageFromDeploy && !param.NotNeedCompImageSafe && ans.GenSafe() == imagesecModel.ImageSafeUnknown {
 		param.VulnEnable = false
 		param.SensitiveEnable = false
 		param.MalwareEnable = false
@@ -208,6 +208,8 @@ func (s *ImageInfoMetaSrv) GetImageCorrelateData(ctx context.Context,
 		param.RiskPolicyEnable = false
 		param.SimplePolicyEnable = false
 	}
+
+	s.Log.Debug().Interface("param", param).Any("ans", ans).Msg("GetImageCorrelateData")
 
 	errs := make([]error, 0)
 	errs = append(errs, s.addRegistryData(ctx, &param, ans))
@@ -266,6 +268,7 @@ func (s *ImageInfoMetaSrv) GetImageCorrelateData(ctx context.Context,
 	}()
 	// 程序中分页
 	ans = ans.AddFilter(filter)
+	s.Log.Debug().Any("ans", ans).Msg("GetImageCorrelateData")
 	return ans, nil
 }
 

@@ -535,8 +535,8 @@ type ApiSearchVulnParam struct {
 	OnlineImageVuln  string
 	JustReturnCount  bool
 	NotReturnCount   bool
-
-	Filter *Filter
+	AddLayer         bool
+	Filter           *Filter
 }
 
 type SearchVulnPkgParam struct {
@@ -579,6 +579,7 @@ type SearchVulnDalParam struct {
 	OnlineVuln        bool
 	ClassTypeFlag     uint64
 	AttackPathFlag    uint64
+	AddLayer          bool
 
 	Filter          *Filter
 	JustReturnCount bool
@@ -586,11 +587,10 @@ type SearchVulnDalParam struct {
 }
 
 type SearchScanLayerParam struct {
-	ImageDigest string
-	Layers      []string
-	Issue       string
-	FileM5d     string
-	AddDetail   bool // 需要查询出具体的数据
+	Layers    []string
+	Issue     string
+	FileM5d   string
+	AddDetail bool // 需要查询出具体的数据
 }
 
 func (vi ApiSearchVulnParam) ToDaoSearchVulnParam() SearchVulnDalParam {
@@ -613,6 +613,7 @@ func (vi ApiSearchVulnParam) ToDaoSearchVulnParam() SearchVulnDalParam {
 		StartID:           vi.StartID,
 		LanguageName:      vi.LanguageName,
 		LanguagePath:      vi.LanguagePath,
+		AddLayer:          vi.AddLayer,
 		Filter:            vi.Filter,
 		JustReturnCount:   vi.JustReturnCount,
 		NotReturnCount:    vi.NotReturnCount,

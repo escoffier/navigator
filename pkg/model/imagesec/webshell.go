@@ -59,6 +59,7 @@ type WebshellView struct {
 	DownloadFilename string         `json:"downloadFilename"`
 	CreatedAt        int64          `json:"createdAt"`
 	UpdatedAt        int64          `json:"updatedAt"`
+	Layer            string         `json:"layer"`
 	PolicyDetect     PolicyDetect   `json:"policyDetect"` // 对各个策略的检测结果
 }
 
@@ -111,6 +112,7 @@ func (vi *Webshell) ToWebshellView() *WebshellView {
 		Description: vi.Description,
 		CreatedAt:   vi.CreatedAt,
 		UpdatedAt:   vi.UpdatedAt,
+		Layer:       vi.Layer,
 	}
 
 	split := strings.Split(vi.Filename, "/")
@@ -194,8 +196,13 @@ func (vi *WebshellView) AdaptI18(ctx context.Context) {
 
 }
 
-func (vi *Webshell) Deserialize() {
-
+func (vi *Webshell) Deserialize(iss []*WebshellToImage) {
+	for i := range iss {
+		if vi.UniqueID == iss[i].UniqueTarget {
+			vi.Layer = iss[i].LayerDigest
+			break
+		}
+	}
 }
 
 func ParseWebshellCode(pre string) string {

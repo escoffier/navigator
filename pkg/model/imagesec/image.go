@@ -3,7 +3,6 @@ package imagesec
 import (
 	"encoding/json"
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -38,10 +37,11 @@ type Image struct {
 	ImageUUID        uint32                `gorm:"column:image_uuid" json:"imageUUID"`
 	RegID            int64                 `gorm:"column:reg_id" json:"regID"`
 	NodeID           uint64                `gorm:"column:node_id" json:"nodeID,string"`
-	Project          string                `gorm:"column:project" json:"project"`                           // 仓库层级
-	Heartbeat        int64                 `gorm:"column:heartbeat" json:"heartbeat"`                       // 上一次上报的心跳 milliseconds
-	PullCount        int64                 `gorm:"pull_count" json:"pullCount"`                             // 镜像的下载时间
-	PolicyUniqueJson string                `gorm:"column:policy_unique_id" json:"-"`                        // 主要是为了策略查询
+	Project          string                `gorm:"column:project" json:"project"`     // 仓库层级
+	Heartbeat        int64                 `gorm:"column:heartbeat" json:"heartbeat"` // 上一次上报的心跳 milliseconds
+	PullCount        int64                 `gorm:"pull_count" json:"pullCount"`       // 镜像的下载时间
+	PolicyUniqueJson string                `gorm:"column:policy_unique_id" json:"-"`  // 主要是为了策略查询
+	CheckSum         uint64                `gorm:"column:check_sum" json:"checkSum"`
 	CreatedAt        int64                 `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
 	UpdatedAt        int64                 `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
 }
@@ -70,25 +70,19 @@ const (
 	DockerHost = "index.docker.io"
 )
 
-type Layers []imagesecTypes.Layer
+func (vi *Image) GenCheckSum() uint64 {
+	if vi.CheckSum > 0 {
+		return vi.CheckSum
+	}
+	createdAt, updatedAt, preCheck, uniqueID := vi.CreatedAt, vi.UpdatedAt, vi.CheckSum, vi.UniqueID
+	vi.CreatedAt, vi.UpdatedAt, vi.CheckSum, vi.UniqueID = 0, 0, 0, 0
 
-func (vi Layers) Len() int {
-	return len(vi)
-}
-
-func (vi Layers) Less(i, j int) bool {
-	return vi[i].Created < vi[j].Created
-}
-
-func (vi Layers) Swap(i, j int) {
-	vi[i], vi[j] = vi[j], vi[i]
-}
-
-func (vi *Image) SortLayer() {
-	lay := vi.Layer
-
-	sort.Sort(Layers(lay))
-	vi.Layer = lay
+	bys, err := json.Marshal(vi)
+	vi.CreatedAt, vi.UpdatedAt, vi.CheckSum, vi.UniqueID = createdAt, updatedAt, preCheck, uniqueID
+	if err != nil {
+		return 0
+	}
+	return util.GenerateUUID64(string(bys))
 }
 
 func (vi *Image) BootRoot() bool {
@@ -99,7 +93,7 @@ func (vi *Image) BootRoot() bool {
 }
 
 func (vi *Image) Same(after *Image) bool {
-	return vi.UniqueID == after.UniqueID && vi.Digest == after.Digest
+	return vi.UniqueID == after.UniqueID && vi.Digest == after.Digest && vi.CheckSum == after.CheckSum
 }
 
 func (vi *Image) GetImageName() string {
@@ -194,6 +188,7 @@ func (vi *Image) Serialize() {
 	vi.UniqueID = vi.GenUniqueID()
 	vi.ImageUUID = vi.GenUUID()
 	vi.LayerStr = vi.GenLayerStr()
+	vi.CheckSum = vi.GenCheckSum()
 }
 
 func (vi *Image) DeepCopy() *Image {

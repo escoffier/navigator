@@ -530,7 +530,6 @@ func (s *ScanResultReportSrv) CreatePkgVuln(ctx context.Context, data *imagesecT
 	vulnIssue := make([]*imagesecModel.VulnToImage, 0)
 
 	pkgMap := make(map[uint64]*imagesecModel.Pkg)
-	pkgLayerMap := make(map[uint64]string)
 
 	for i := range results {
 		res := results[i]
@@ -561,6 +560,7 @@ func (s *ScanResultReportSrv) CreatePkgVuln(ctx context.Context, data *imagesecT
 			p2i := &imagesecModel.PkgToImage{
 				UniqueTarget:  pkg.UniqueID,
 				ImageUniqueID: imageUniqueID,
+				LayerDigest:   pk.Layer.Digest,
 			}
 			p2i.UniqueID = p2i.GenUniqueID()
 
@@ -618,7 +618,7 @@ func (s *ScanResultReportSrv) CreatePkgVuln(ctx context.Context, data *imagesecT
 			v2i := &imagesecModel.VulnToImage{
 				UniqueTarget:  vu.UniqueID,
 				ImageUniqueID: imageUniqueID,
-				LayerDigest:   pkgLayerMap[vu.PkgUniqueID],
+				LayerDigest:   vul.Layer.Digest,
 			}
 
 			vulnIssue = append(vulnIssue, v2i)
@@ -1226,6 +1226,7 @@ func (s *ScanResultReportSrv) ReceiveImageScanResult(ctx context.Context, msg ka
 	s.Log.Debug().Int64("subtaskID", data.SubTaskID).Interface("data", data).
 		Msg("receive image scan result report")
 	s.Log.Info().Str("result", data.LogStr()).Msg("receive image scan result report")
+	s.Log.Info().Any("OriginArtifact", data.OriginArtifact).Msg("receive image scan result report")
 
 	if data.StatusStr == imagesecModel.TaskStatusFailedStr {
 		s.Log.Info().Str("result", data.LogStr()).Msg("scan failed just update scan subtask")

@@ -395,6 +395,7 @@ type ScanResultSearchParam struct {
 	WebshellRiskLevel   []string `json:"webshellRiskLevel"` //
 	DeployRecordID      int64    `json:"deployRecordID"`
 	DeployAction        string   `json:"deployAction"`
+	AddLayer            bool     `json:"addLayer"` // 增加问题信息和层级的对应关系
 	OmitFields          []string // 数据库中不查询的字段
 	Fields              []string // 数据库中查询的字段
 	SecurityPolicyIds   []int64  `json:"securityPolicyIds"` // 检测策略ID
@@ -785,6 +786,139 @@ func (iws *ImageWithCorrelateData2) GenVulnSuggest() ImageSuggest {
 	}
 
 	return ImageSuggest{Data: suggest, Title: VulnSuggestTitle}
+}
+
+func (iws *ImageWithCorrelateData2) GenImageLayer() []*Layer {
+	lys := make(map[string]*Layer)
+
+	for _, ly := range iws.Image.Layer {
+		lys[ly.Digest] = &Layer{
+			Comment:        ly.Comment,
+			Created:        ly.Created,
+			CreatedBy:      ly.CreatedBy,
+			Size:           ly.Size,
+			Digest:         ly.Digest,
+			DiffID:         ly.DiffID,
+			SecurityIssue2: make(map[string]bool),
+			SecurityIssue:  make([]SecurityIssueLabel, 0),
+		}
+	}
+
+	// 加上安全问题
+	for _, issue := range iws.Env {
+		ly, ok := lys[issue.LayerDigest]
+		if !ok {
+			continue
+		}
+		if ly.SecurityIssue2[ExceptionEnv] {
+			continue
+		}
+
+		ly.SecurityIssue = append(ly.SecurityIssue, SecurityIssueLabel{
+			Value:   ExceptionEnv,
+			LabelZH: GetSecurityIssueLabelZH(FlagHasExceptionEnv),
+			LabelEN: GetSecurityIssueLabelEN(FlagHasExceptionEnv),
+		})
+		ly.SecurityIssue2[ExceptionEnv] = true
+		lys[issue.LayerDigest] = ly
+	}
+
+	for _, issue := range iws.Vuln {
+		ly, ok := lys[issue.Layer]
+		if !ok {
+			continue
+		}
+		if ly.SecurityIssue2[ExceptionVuln] {
+			continue
+		}
+
+		ly.SecurityIssue = append(ly.SecurityIssue, SecurityIssueLabel{
+			Value:   ExceptionVuln,
+			LabelZH: GetSecurityIssueLabelZH(FlagHasExceptionVuln),
+			LabelEN: GetSecurityIssueLabelEN(FlagHasExceptionVuln),
+		})
+		ly.SecurityIssue2[ExceptionVuln] = true
+		lys[issue.Layer] = ly
+	}
+
+	for _, issue := range iws.WebshellView {
+		ly, ok := lys[issue.Layer]
+		if !ok {
+			continue
+		}
+		if ly.SecurityIssue2[ExceptionWebshell] {
+			continue
+		}
+		ly.SecurityIssue = append(ly.SecurityIssue, SecurityIssueLabel{
+			Value:   ExceptionWebshell,
+			LabelZH: GetSecurityIssueLabelZH(FlagHasExceptionWebshell),
+			LabelEN: GetSecurityIssueLabelEN(FlagHasExceptionWebshell),
+		})
+
+		ly.SecurityIssue2[ExceptionWebshell] = true
+		lys[issue.Layer] = ly
+	}
+
+	for _, issue := range iws.License {
+		ly, ok := lys[issue.Layer]
+		if !ok {
+			continue
+		}
+		if ly.SecurityIssue2[ExceptionLicense] {
+			continue
+		}
+		ly.SecurityIssue = append(ly.SecurityIssue, SecurityIssueLabel{
+			Value:   ExceptionLicense,
+			LabelZH: GetSecurityIssueLabelZH(FlagHasExceptionLicense),
+			LabelEN: GetSecurityIssueLabelEN(FlagHasExceptionLicense),
+		})
+		ly.SecurityIssue2[ExceptionLicense] = true
+		lys[issue.Layer] = ly
+	}
+
+	for _, issue := range iws.Malware {
+		ly, ok := lys[issue.Layer]
+		if !ok {
+			continue
+		}
+
+		if ly.SecurityIssue2[ExceptionMalware] {
+			continue
+		}
+		ly.SecurityIssue = append(ly.SecurityIssue, SecurityIssueLabel{
+			Value:   ExceptionMalware,
+			LabelZH: GetSecurityIssueLabelZH(FlagHasExceptionMalware),
+			LabelEN: GetSecurityIssueLabelEN(FlagHasExceptionMalware),
+		})
+		ly.SecurityIssue2[ExceptionMalware] = true
+		lys[issue.Layer] = ly
+	}
+
+	for _, issue := range iws.Sensitive {
+		ly, ok := lys[issue.Layer]
+		if !ok {
+			continue
+		}
+		if ly.SecurityIssue2[ExceptionSensitive] {
+			continue
+		}
+
+		ly.SecurityIssue = append(ly.SecurityIssue, SecurityIssueLabel{
+			Value:   ExceptionSensitive,
+			LabelZH: GetSecurityIssueLabelZH(FlagHasExceptionSensitive),
+			LabelEN: GetSecurityIssueLabelEN(FlagHasExceptionSensitive),
+		})
+		ly.SecurityIssue2[ExceptionSensitive] = true
+		lys[issue.Layer] = ly
+	}
+	layers := make([]*Layer, 0)
+	for _, ly := range lys {
+		layers = append(layers, ly)
+	}
+
+	sort.Sort(Layers(layers))
+
+	return layers
 }
 
 const (
