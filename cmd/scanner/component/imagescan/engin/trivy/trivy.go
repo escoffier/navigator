@@ -192,6 +192,7 @@ func (s *TrivySrv) ImageScan(ctx context.Context, prep *imagesecTypes.PrepareSca
 	for i := range trivyRes.Results {
 		art = append(art, trivyRes.Results[i].Artifact)
 	}
+
 	res.OriginArtifact = art
 	result = append(result, res)
 	return result

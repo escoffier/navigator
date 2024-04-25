@@ -176,6 +176,7 @@ func (dal *ImageMetaDao) CreateRegImage(ctx context.Context, images2 []*imagesec
 			continue
 		}
 		if !im.Same(images[i]) {
+			createData = append(createData, images[i])
 			deleteData = append(deleteData, im.ID)
 			continue
 		}

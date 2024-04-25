@@ -235,6 +235,8 @@ type Vuln struct {
 	Flag               uint64          `gorm:"column:flag" json:"flag,string"`                          // 把在线镜像的漏洞更新到这里
 	CreatedAt          int64           `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
 	UpdatedAt          int64           `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
+
+	Layer string `gorm:"-" json:"layer"`
 }
 
 type VulnToPkg struct {
@@ -394,6 +396,25 @@ func (vi *Vuln) Deserialize() {
 	if vi.Target != "" && !strings.HasPrefix(vi.Target, "/") {
 		vi.Target = "/" + vi.Target
 	}
+
+}
+
+func (vi *Vuln) AddLayer(iss []*WebshellToImage) {
+	for _, ch := range iss {
+		if ch.UniqueTarget == vi.UniqueID {
+			vi.Layer = ch.LayerDigest
+			break
+		}
+	}
+}
+
+func (vi *VulnView) AddLayer(iss []*WebshellToImage) {
+	for _, ch := range iss {
+		if ch.UniqueTarget == vi.UniqueID {
+			vi.Layer = ch.LayerDigest
+			break
+		}
+	}
 }
 
 func (vi *Vuln) GenVulnView() *VulnView {
@@ -432,6 +453,7 @@ func (vi *Vuln) GenVulnView() *VulnView {
 		KernelVuln:         util.ExistBit1(vi.Flag, VulnFlagKernel),
 		Language:           vi.Language,
 		Frame:              vi.Frame,
+		Layer:              vi.Layer,
 		FixedVersion:       vi.FixedVersion,
 		Target:             vi.Target,
 		CnnvdFixSuggestion: vi.CnnvdFixSuggestion,
@@ -515,6 +537,7 @@ type VulnView struct {
 	CreatedAt          int64             `json:"createdAt"`     // milliseconds
 	UpdatedAt          int64             `json:"updatedAt"`     // milliseconds
 	PolicyDetect       PolicyDetect      `json:"policyDetect"`  // 对各个策略的检测结果
+	Layer              string            `json:"layer"`
 }
 
 func (vi *VulnView) Simplify() *VulnView {

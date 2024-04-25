@@ -368,3 +368,29 @@ func (vi *LayerFile) GenUniqueID() uint64 {
 	uid := util.GenerateUUID64(fmt.Sprintf("%s-%d", vi.FileMD5, vi.LayerUniqueID))
 	return uid
 }
+
+// Layer 镜像层级，兼顾docker history结果和registry的layer
+type Layer struct {
+	Comment        string               `json:"comment"`
+	Created        int64                `json:"created"`   // 镜像layer创建时间,unix time stamp
+	CreatedBy      string               `json:"createdBy"` // 创建的命令,如：RUN apt-get install bash
+	Size           int64                `json:"size"`      // 镜像layer大小
+	Digest         string               `json:"digest"`    // 镜像layer标识。对registry的manifest文件，此值为layer的sha256值。对docker api，为docker自定义的id
+	DiffID         string               `json:"diffID"`
+	SecurityIssue2 map[string]bool      `json:"-"`             // 为了去重
+	SecurityIssue  []SecurityIssueLabel `json:"securityIssue"` // 安全问题
+}
+
+type Layers []*Layer
+
+func (vi Layers) Len() int {
+	return len(vi)
+}
+
+func (vi Layers) Less(i, j int) bool {
+	return vi[i].Created < vi[j].Created
+}
+
+func (vi Layers) Swap(i, j int) {
+	vi[i], vi[j] = vi[j], vi[i]
+}

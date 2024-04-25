@@ -72,7 +72,7 @@ func (s *RegSyncSrv) getExtender() warehouse.Extender {
 }
 
 func (s *RegSyncSrv) GetLayers(image warehouse.Image) []imagesecTypes.Layer {
-	// FIXME 没有对ManifestV2做兼容
+	// FIXME 没有对ManifestV1做兼容
 	manifestV2 := model.ManifestV2{}
 	if image.ManifestV2 != "" {
 		_ = json.Unmarshal([]byte(image.ManifestV2), &manifestV2)
@@ -109,15 +109,21 @@ func (s *RegSyncSrv) GetLayers(image warehouse.Image) []imagesecTypes.Layer {
 		layers2 = append(layers2, nl)
 	}
 	layers := make([]imagesecTypes.Layer, 0)
-	minInt := util.MinInt(len(layers1), len(layers2))
-	for i := 0; i < minInt; i++ {
+	// minInt := util.MinInt(len(layers1), len(layers2))
+	for i := 0; i < len(layers1); i++ {
 		nl := imagesecTypes.Layer{
-			Comment:   layers2[i].Comment,
-			Created:   layers2[i].Created,
-			CreatedBy: layers2[i].CreatedBy,
-			Size:      layers1[i].Size,
-			Digest:    layers1[i].Digest,
+			// Comment:   layers2[i].Comment,
+			// Created:   layers2[i].Created,
+			// CreatedBy: layers2[i].CreatedBy,
+			Size:   layers1[i].Size,
+			Digest: layers1[i].Digest,
 		}
+		if i < len(layers2) {
+			nl.Comment = layers2[i].Comment
+			nl.Created = layers2[i].Created
+			nl.CreatedBy = layers2[i].CreatedBy
+		}
+
 		layers = append(layers, nl)
 	}
 	return layers

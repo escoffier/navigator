@@ -325,8 +325,20 @@ func Merge(result *imagesecTypes.ReportScanResult, res imagesecTypes.ScanJobResu
 		result.License = append(result.License, lic)
 	}
 
-	if res.OS.Name != "" && result.OS.Name == "" {
-		result.OS = res.OS
+	// 更新 OS
+	for _, ch := range res.OriginArtifact {
+		if ch.OS == nil {
+			continue
+		}
+		if result.OS.Name == "" {
+			result.OS.Name = ch.OS.Name
+		}
+		if result.OS.Family == "" {
+			result.OS.Family = ch.OS.Family
+		}
+		if ch.OS.Family != "" || ch.OS.Name != "" {
+			result.OS.Eosl = ch.OS.Eosl
+		}
 	}
 
 	// 通知已缓存和可缓存的信息缓存

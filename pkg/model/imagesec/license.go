@@ -67,7 +67,7 @@ func (vi *License) GenUniqueID() uint64 {
 	return uid
 }
 
-func (vi *License) Deserialize() {
+func (vi *License) Deserialize(iss []*LicenseToImage) {
 
 	split := strings.Split(vi.Filename, "/")
 
@@ -90,6 +90,13 @@ func (vi *License) Deserialize() {
 	}
 
 	vi.DownloadFilename = vi.GenDownloadFilename()
+
+	for i := range iss {
+		if vi.UniqueID == iss[i].UniqueTarget {
+			vi.Layer = iss[i].LayerDigest
+			break
+		}
+	}
 }
 
 func (vi *License) Serialize() {

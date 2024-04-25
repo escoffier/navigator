@@ -24,7 +24,7 @@ func NewVulnAPISrv(vulnSrv imagescanSrv.ScanResultService) *VulnAPISrv {
 
 func (vi *VulnAPISrv) SearchVuln(ctx *gin.Context) {
 	vulnParam := GetSearchVulnParamFromCtx(ctx)
-	vulnParam.Filter = vulnParam.Filter.SetMaxLimit(consts.DefaultPerPage)
+	vulnParam.Filter = vulnParam.Filter.SetMaxLimit(consts.DefaultPerPage).SetSortDesc().SetSortFiled("severity")
 
 	vuln, cnt, err := vi.VulnSrv.SearchVuln(ctx, vulnParam)
 	if err != nil {

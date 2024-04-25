@@ -76,7 +76,7 @@ func (vi *SensitiveFile) Check() error {
 	return nil
 }
 
-func (vi *SensitiveFile) Deserialize() {
+func (vi *SensitiveFile) Deserialize(iss []*SensitiveToImage) {
 
 	split := strings.Split(vi.Filename, "/")
 	if len(split) == 0 || (len(split) == 1 && split[0] == "") {
@@ -99,6 +99,13 @@ func (vi *SensitiveFile) Deserialize() {
 	}
 
 	vi.DownloadFilename = vi.GenDownloadFilename()
+
+	for i := range iss {
+		if vi.UniqueID == iss[i].UniqueTarget {
+			vi.Layer = iss[i].LayerDigest
+			break
+		}
+	}
 }
 
 type SensitiveToImage struct {
