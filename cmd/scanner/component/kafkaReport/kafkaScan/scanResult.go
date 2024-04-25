@@ -1226,7 +1226,7 @@ func (s *ScanResultReportSrv) ReceiveImageScanResult(ctx context.Context, msg ka
 	s.Log.Debug().Int64("subtaskID", data.SubTaskID).Interface("data", data).
 		Msg("receive image scan result report")
 	s.Log.Info().Str("result", data.LogStr()).Msg("receive image scan result report")
-	s.Log.Info().Any("OriginArtifact", data.OriginArtifact).Msg("receive image scan result report")
+	s.Log.Debug().Any("OriginArtifact", data.OriginArtifact).Msg("receive image scan result report")
 
 	if data.StatusStr == imagesecModel.TaskStatusFailedStr {
 		s.Log.Info().Str("result", data.LogStr()).Msg("scan failed just update scan subtask")
