@@ -156,26 +156,40 @@ func (s *TrivySrv) ImageScan(ctx context.Context, prep *imagesecTypes.PrepareSca
 	defer s.logScanEnd(start, prep)
 
 	result := make([]imagesecTypes.ScanJobResult, 0)
-	res := imagesecTypes.ScanJobResult{
+	osJobRes := imagesecTypes.ScanJobResult{
+		Layer: prep.ImageManifest.ImageDigest,
+		Issue: imagesecModel.OSCacheData,
+	}
+
+	vulnJobRes := imagesecTypes.ScanJobResult{
 		DBVersion: s.WorkingVersion.TrivyVersion.Version,
 		Layer:     prep.ImageManifest.ImageDigest,
 		Issue:     imagesecModel.VulnCacheData,
 	}
 	// 检测缓存
 	if prep.Subtask.VulnCache.In(prep.ImageManifest.ImageDigest) {
-		res.InCache = true
-		result = append(result, res)
+		vulnJobRes.InCache = true
+		result = append(result, vulnJobRes)
+	}
+	if prep.Subtask.OsCache.In(prep.ImageManifest.ImageDigest) {
+		osJobRes.InCache = true
+		result = append(result, osJobRes)
+	}
+	// 取巧的判断
+	if len(result) >= 2 {
 		return result
 	}
-	res.Scanned = true
+
+	vulnJobRes.Scanned = true
+	osJobRes.Scanned = true
 
 	imageName := prep.Subtask.RegImageMeta.ImageName()
 	imageName, err := s.changCacheUrl(imageName)
 
 	if err != nil {
 		s.Log.Err(err).Str("subtask", prep.Subtask.LogStr()).Msg("changCacheUrl")
-		res.Errors = append(res.Errors, err)
-		result = append(result, res)
+		vulnJobRes.Errors = append(vulnJobRes.Errors, err)
+		result = append(result, vulnJobRes)
 		return result
 	}
 
@@ -183,8 +197,8 @@ func (s *TrivySrv) ImageScan(ctx context.Context, prep *imagesecTypes.PrepareSca
 	trivyRes, err := s.TrivyScanner.Scan(ctx, imageName, opt)
 	if err != nil {
 		s.Log.Err(err).Str("subtask", prep.Subtask.LogStr()).Msg("Scan")
-		res.Errors = append(res.Errors, err)
-		result = append(result, res)
+		vulnJobRes.Errors = append(vulnJobRes.Errors, err)
+		result = append(result, vulnJobRes)
 		return result
 	}
 
@@ -193,8 +207,26 @@ func (s *TrivySrv) ImageScan(ctx context.Context, prep *imagesecTypes.PrepareSca
 		art = append(art, trivyRes.Results[i].Artifact)
 	}
 
-	res.OriginArtifact = art
-	result = append(result, res)
+	vulnJobRes.OriginArtifact = art
+
+	// 更新 OS
+	for _, ch := range vulnJobRes.OriginArtifact {
+		if ch.OS == nil {
+			continue
+		}
+		if osJobRes.OS.Name == "" {
+			osJobRes.OS.Name = ch.OS.Name
+		}
+		if osJobRes.OS.Family == "" {
+			osJobRes.OS.Family = ch.OS.Family
+		}
+		if ch.OS.Family != "" || ch.OS.Name != "" {
+			osJobRes.OS.Eosl = ch.OS.Eosl
+		}
+	}
+
+	result = append(result, vulnJobRes)
+	result = append(result, osJobRes)
 	return result
 }
 

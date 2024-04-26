@@ -15,10 +15,9 @@ func GetVulnUpdate() *VulnUpdate {
 	if vulnUpdate != nil {
 		return vulnUpdate
 	}
-	ans := &VulnUpdate{
+	vulnUpdate = &VulnUpdate{
 		AddImage: make(chan *imagesecModel.Image),
 		SubImage: make(chan *imagesecModel.Image),
 	}
-	vulnUpdate = ans
 	return vulnUpdate
 }

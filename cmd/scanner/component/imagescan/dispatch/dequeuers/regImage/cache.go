@@ -20,7 +20,7 @@ func (s *RegImageScanQueue) BuildScanTask(ctx context.Context,
 
 	// 查询缓存
 	imageLayer := make([]string, 0)
-	// 这一步主要是为了加漏洞的缓存
+	// 这一步主要是为了加漏洞 和 OS 的缓存
 	imageLayer = append(imageLayer, imageData.Image.Digest)
 
 	for _, ly := range imageData.Image.Layer {
@@ -197,6 +197,8 @@ func (s *RegImageScanQueue) modelToType(
 				sub.SensitiveCache[ca.Layer] = true
 			case imagesecModel.LicenseCacheData:
 				sub.LicenseCache[ca.Layer] = true
+			case imagesecModel.OSCacheData:
+				sub.OsCache[ca.Layer] = true // 对于OS// 来说，这里的 layer 就是镜像的 digest
 			}
 		}
 	}

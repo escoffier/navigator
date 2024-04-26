@@ -91,6 +91,7 @@ type ScanSubTask struct {
 	LicenseCache   LayerInCache  `json:"licenseCache"`
 	SensitiveCache LayerInCache  `json:"sensitiveCache"`
 	MalwareCache   LayerInCache  `json:"malwareCache"`
+	OsCache        LayerInCache  `json:"osCache"`
 	MalwareScanAll bool          `json:"malwareScanAll"`
 	DeepScan       bool          `json:"deepScan"`
 }
@@ -157,6 +158,7 @@ type ReportScanResult struct {
 	LicenseCache    []CacheScan             `json:"licenseCache,omitempty"`
 	WebshellCache   []CacheScan             `json:"webshellCache,omitempty"`
 	VulnCache       []CacheScan             `json:"vulnCache,omitempty"`
+	OSCache         []CacheScan             `json:"oSCache,omitempty"`
 	DBVersion       RuleVersion             `json:"dbVersion,omitempty"`     // 主集群下发任务时，当前所使用的版本号
 	IgnoreVulnPkg   bool                    `json:"ignoreVulnPkg,omitempty"` // 这个参数是为了做数据迁移及兼容老版本的扫描器
 }
