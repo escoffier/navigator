@@ -842,37 +842,9 @@
     urgency: true
     tags: [ATT&CK, filesystem, mitre_privilege_escalation, L3]
 
-# # 
-# - key: Start a container with sensitive permissions
-#   disabled: true
-#   hid: priv_36
-#   condition: >
-#     container_started and container
-#     and container.securityContext.capabilities.add.contains("CAP_SYS_ADMIN")
-#     and not falco_privileged_containers
-#     and not user_privileged_containers
-#     and not tensorsec_namespace
-#     and not k8s.ns.name = "kube-system"
-#   output: >
-#     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,user=%user.name,user_loginuid=%user.loginuid,container.info=%container.info,image=%container.image.repository,image_tag=%container.image.tag,container_id=%container.id,container_name=%container.name
-#   info:
-#     name:
-#       en: "Start a container with sensitive permissions"
-#       zh: "启动具有敏感权限的容器"
-#     desc:
-#       en: "Starting a privileged container means that users in the container can mount the host disk into the container without restrictions. Once the container is compromised, the attacker can easily escape to the host by mounting the host directory to control the host. Therefore In our opinion, the startup of this type of container carries certain risks."
-#       zh: "启动特权容器意味着容器内的用户可以不受限制的挂载主机磁盘到容器内，一旦容器被攻陷，攻击者可以很容易的通过挂载主机目录逃逸到主机上从而实现对主机的控制，因此该类容器的启动在我们看来是具备一定风险的。"
-#     suggestion:
-#       en: "(1). Please first combine the alarm process command line, (parent) process name, server IP address and other fields to initially determine whether it is a business, R&D/operation and maintenance behavior (2). If it is a repeated expected behavior, and After investigation, it is judged that the security risk is controllable, and you can consider whitening it (3). If it is an unexpected behavior, please conduct correlation analysis through the container ID, associated alarm list, etc., and check the /proc/1/status file in the container Whether it contains 0:3ffffffff, analyze the k8s api request log to check the log of creating the container, and contact the security personnel in time for further investigation."
-#       zh: "(1).请先结合告警的进程命令行、(父)进程名、服务端IP地址等字段初步判断是否为业务、研发/运维的行为 (2).如果是重复出现的预期行为，且经排查后判断安全风险可控，可以考虑对其进行加白 (3).如果是非预期行为，请通过容器id、关联告警列表等内容进行关联分析，查看该容器中/proc/1/status文件是否包含0:3fffffff，分析k8s api请求日志查看创建该容器的日志，及时联系安全人员进一步排查"
-#     rule_type: Privilege_Escalation
-#     priority: INFO
-#     urgency: false
-#     tags: [ATT&CK, container, mitre_privilege_escalation, L1]
-
 #git clone https://github.com/brompwnie/CVE-2019-1002101-Helpers.git && cd CVE-2019-1002101-Helpers && mv createPwnTar.sh 1.sh && bash 1.sh
 - key: kubectl escape (CVE-2019-1002101)
-  hid: priv_37
+  hid: priv_36
   condition: >
     container
     and proc.name=tar

@@ -73,7 +73,8 @@
 - key: Contact EC2 Instance Metadata Service From Container
   hid: exf_04
   condition: >
-    outbound and fd.sip="169.254.169.254" and container
+    outbound and fd.sip="169.254.169.254" and container 
+    and proc.name!=pilot-agent
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,connection=%fd.name,container.info=%container.info,image=%container.image.repository,image_tag=%container.image.tag,container_id=%container.id,container_name=%container.name
   info:

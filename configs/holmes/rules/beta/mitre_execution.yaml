@@ -1034,7 +1034,7 @@
       zh: "webshel 命令执行"
     desc:
       en: "An attacker launching a privileged process could lead to serious security risks and system vulnerabilities. These possible hazards include: elevating privileges, that is, the attacker elevates privileges by launching a process with privileged permissions, and may perform some operations that usually require higher privileges, thus bypassing the security mechanism of the system; lateral movement, that is, the attacker launches Privileged processes move laterally within a system, expanding their access to other system resources and services, potentially making it easier for an attacker to obtain sensitive information or perform a broader attack"
-      zh: "攻击者使用了类似于 "webshell" 的命令执行，这可能意味着他们已经成功地通过一个漏洞或其他手段在您的系统中获得了执行命令的权限。"Webshell" 是一种允许攻击者通过 Web 界面执行命令的工具或脚本，通常用于远程控制和操纵受感染的服务器。"
+      zh: "攻击者使用了类似于 'webshell' 的命令执行，这可能意味着他们已经成功地通过一个漏洞或其他手段在您的系统中获得了执行命令的权限。'Webshell' 是一种允许攻击者通过 Web 界面执行命令的工具或脚本，通常用于远程控制和操纵受感染的服务器。"
     suggestion:
       en: "(1). Please first combine the alarm process command line, (parent) process name, server IP address and other fields to initially determine whether it is a business, R&D/operation and maintenance behavior (2). If it is a repeated expected behavior, and After investigation, it is judged that the security risk is controllable, and you can consider whitening it (3). If it is an unexpected behavior, please conduct correlation analysis through the container ID, associated alarm list, etc., and contact security personnel in a timely manner for further investigation."
       zh: "(1).请先结合告警的进程命令行、(父)进程名、服务端IP地址等字段初步判断是否为业务、研发/运维的行为 (2).如果是重复出现的预期行为，且经排查后判断安全风险可控，可以考虑对其进行加白 (3).如果是非预期行为，请通过容器id、关联告警列表等内容进行关联分析，及时联系安全人员进一步排查"
