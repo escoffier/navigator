@@ -326,19 +326,15 @@ func Merge(result *imagesecTypes.ReportScanResult, res imagesecTypes.ScanJobResu
 	}
 
 	// 更新 OS
-	for _, ch := range res.OriginArtifact {
-		if ch.OS == nil {
-			continue
-		}
-		if result.OS.Name == "" {
-			result.OS.Name = ch.OS.Name
-		}
-		if result.OS.Family == "" {
-			result.OS.Family = ch.OS.Family
-		}
-		if ch.OS.Family != "" || ch.OS.Name != "" {
-			result.OS.Eosl = ch.OS.Eosl
-		}
+	ch := res.OS
+	if result.OS.Name == "" {
+		result.OS.Name = ch.Name
+	}
+	if result.OS.Family == "" {
+		result.OS.Family = ch.Family
+	}
+	if ch.Family != "" || ch.Name != "" {
+		result.OS.Eosl = ch.Eosl
 	}
 
 	// 通知已缓存和可缓存的信息缓存
@@ -360,6 +356,8 @@ func Merge(result *imagesecTypes.ReportScanResult, res imagesecTypes.ScanJobResu
 		result.LicenseCache = append(result.LicenseCache, ca)
 	case imagesecModel.VulnCacheData:
 		result.VulnCache = append(result.VulnCache, ca)
+	case imagesecModel.OSCacheData:
+		result.OSCache = append(result.OSCache, ca)
 	}
 
 	return result

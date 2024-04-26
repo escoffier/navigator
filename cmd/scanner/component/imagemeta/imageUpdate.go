@@ -367,15 +367,16 @@ func (s *ImageUpdateSrv) deleteOverdueImage(ctx context.Context) error {
 func (s *ImageUpdateSrv) updateOnlineImage(ctx context.Context) error {
 	updateVuln := metaGlobal.GetVulnUpdate()
 
-	uuids, err := s.onlineImageDal.GetOnlineImageUUID(ctx)
+	assertUuids, err := s.onlineImageDal.GetOnlineImageUUID(ctx)
 	if err != nil {
 		s.Log.Err(err).Msg("updateOnlineImage")
 		return err
 	}
-	s.Log.Info().Int("uuidCnt", len(uuids)).Msg("updateOnlineImage get resource uuid")
+
+	s.Log.Info().Int("assertUuid", len(assertUuids)).Msg("updateOnlineImage get resource uuid")
 
 	// 程序开始时做一次全量检测
-	add, sub, nw := onlineUUID(s.OnlineUUID, uuids)
+	add, sub, nw := onlineUUID(s.OnlineUUID, assertUuids)
 	if len(add) == 0 && len(sub) == 0 {
 		s.Log.Info().Int("add", len(add)).Int("sub", len(sub)).Int("nowImage", len(nw)).Msg("updateOnlineImage")
 		return nil
@@ -387,7 +388,7 @@ func (s *ImageUpdateSrv) updateOnlineImage(ctx context.Context) error {
 	for j := range add {
 		images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{
 			UUIDs:  []uint32{add[j]},
-			Fields: []string{"id", "flag", "image_uuid", "unique_id"},
+			Fields: []string{"id", "flag", "image_uuid", "unique_id", "image_name"},
 		})
 		if err != nil {
 			s.Log.Err(err).Msg("updateOnlineImage SearchImage")
@@ -421,7 +422,7 @@ func (s *ImageUpdateSrv) updateOnlineImage(ctx context.Context) error {
 	for j := range sub {
 		images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{
 			UUIDs:  []uint32{sub[j]},
-			Fields: []string{"id", "flag", "image_uuid"},
+			Fields: []string{"id", "flag", "image_uuid", "unique_id", "image_name"},
 		})
 		if err != nil {
 			s.Log.Err(err).Msg("updateOnlineImage SearchImage")
@@ -830,7 +831,8 @@ func onlineUUID(pre map[uint32]struct{}, now []uint32) ([]uint32, []uint32, map[
 		}
 	}
 
-	return add, sub, nw
+	// 每次都全量更新在线 uuid
+	return now, sub, nw
 }
 
 func (s *ImageUpdateSrv) updatePolicyAfterDeleteReg(ctx context.Context, regID int64) error {

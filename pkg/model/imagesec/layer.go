@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"strings"
 
+	"scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -15,12 +17,13 @@ const (
 	LicenseCacheData   = "license"
 	VulnCacheData      = "vuln"
 	PKGCacheData       = "pkg"
+	OSCacheData        = "os"
 )
 
 type ScanLayerData struct {
 	ID        int64  `gorm:"column:id" json:"id"`
 	UniqueID  uint64 `gorm:"column:unique_id" json:"uniqueID,string"`
-	Layer     string `gorm:"column:layer" json:"layer"` // 对于漏洞来说，这里就是镜像的 digest
+	Layer     string `gorm:"column:layer" json:"layer"` // 对于漏洞和OS来说，这里就是镜像的digest
 	Issue     string `gorm:"column:issue" json:"issue"`
 	DbVersion string `gorm:"column:db_version" json:"dbVersion"`
 	DataJson  string `gorm:"column:data" json:"-"`                                    //
@@ -40,6 +43,7 @@ type ScanLayerData struct {
 	Malware   []*Malware       `gorm:"-" json:"aviraMalware"`
 	Vuln      []*Vuln          `gorm:"-" json:"vuln"`
 	Pkg       []*Pkg           `gorm:"-" json:"pkg"`
+	OS        types.OS         `gorm:"-" json:"os"`
 }
 
 type ScanCache struct {
@@ -200,6 +204,11 @@ func (vi *ScanLayerData) Deserialize(layerData *ScanLayerData) {
 		if err := json.Unmarshal([]byte(vi.DataJson), &ss); err == nil {
 			vi.PkgUnique = ss
 		}
+	case OSCacheData:
+		ss := types.OS{}
+		if err := json.Unmarshal([]byte(vi.DataJson), &ss); err == nil {
+			vi.OS = ss
+		}
 	}
 
 	if layerData != nil {
@@ -328,7 +337,12 @@ func (vi *ScanLayerData) Serialize() {
 		if bys, err := json.Marshal(vi.PkgUnique); err == nil {
 			vi.DataJson = string(bys)
 		}
+	case OSCacheData:
+		if bys, err := json.Marshal(vi.OS); err == nil {
+			vi.DataJson = string(bys)
+		}
 	}
+
 	vi.UniqueID = vi.GenUniqueID()
 }
 

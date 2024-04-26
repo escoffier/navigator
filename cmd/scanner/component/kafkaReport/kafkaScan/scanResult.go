@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/go-redis/redis/v8"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 
@@ -84,7 +85,8 @@ func (s *ScanResultReportSrv) CreateScanResult(ctx context.Context, data imagese
 
 	correlate := &imagesecModel.ImageWithCorrelateData2{Image: image}
 
-	correlate.Image.OS = data.OS
+	correlate.Image.OS = s.GetImageOS(ctx, data)
+
 	if !data.IgnoreVulnPkg {
 		// fixme 如果都是老集群，漏洞发现就没有数据
 		vulns, _ := s.CreatePkgVuln(ctx, &data, correlate)
@@ -132,6 +134,23 @@ func (s *ScanResultReportSrv) CreateScanLayer(ctx context.Context, data *imagese
 	sensitive := make(map[string]imagesecModel.ScanLayerData)
 	vuln := make(map[string]imagesecModel.ScanLayerData)
 	pkg := make(map[string]imagesecModel.ScanLayerData)
+	oss := make(map[string]imagesecModel.ScanLayerData) // 镜像版本
+
+	for i := range data.OSCache {
+		v := data.OSCache[i]
+		if !v.CanInCache || data.OS.Family == "" {
+			continue
+		}
+		if _, ok := oss[v.Layer]; !ok {
+			ca := imagesecModel.ScanLayerData{
+				Layer: v.Layer,
+				Issue: imagesecModel.OSCacheData,
+			}
+			ca.SetEmpty()
+			ca.OS = data.OS
+			oss[v.Layer] = ca
+		}
+	}
 
 	for i := range data.VulnCache {
 		v := data.VulnCache[i]
@@ -311,6 +330,10 @@ func (s *ScanResultReportSrv) CreateScanLayer(ctx context.Context, data *imagese
 		v := pkg[ly]
 		layerCache = append(layerCache, &v)
 	}
+	for ly := range oss {
+		v := oss[ly]
+		layerCache = append(layerCache, &v)
+	}
 
 	// 对于没做版本管理的 job，暂时就用发版时的版本
 	sv := os.Getenv("SOFT_VERSION")
@@ -336,7 +359,8 @@ func (s *ScanResultReportSrv) CreateScanLayer(ctx context.Context, data *imagese
 		return err
 	}
 
-	s.Log.Info().Int64("subtaskID", data.SubTaskID).Int("layerCache", len(layerCache)).Msg("create scan layer data")
+	s.Log.Info().Int64("subtaskID", data.SubTaskID).Int("layerCache", len(layerCache)).
+		Int("layerFiles", len(layerFiles)).Msg("create scan layer data")
 	return nil
 }
 
@@ -789,6 +813,29 @@ func (s *ScanResultReportSrv) CreateSensitive(ctx context.Context, data imagesec
 	correlate.SensitiveCnt = int64(len(res))
 	s.Log.Info().Int("sentCnt", len(res)).Uint64("imageUniqueID", imageUniqueID).Msg("CreateSensitive")
 	return nil
+}
+
+func (s *ScanResultReportSrv) GetImageOS(ctx context.Context, data imagesecTypes.ReportScanResult) types.OS {
+	if data.OS.Name != "" || data.OS.Family != "" {
+		return data.OS
+	}
+	for _, oss := range data.OSCache {
+		if !oss.InCache {
+			continue
+		}
+		param := imagesecModel.SearchScanLayerParam{Layers: []string{oss.Layer}, Issue: imagesecModel.OSCacheData}
+		cache, err := s.scanResultDal.SearchScanLayerData(ctx, param)
+		if err != nil {
+			s.Log.Err(err).Int64("subtaskID", data.SubTaskID).Int64("taskID", data.TaskID).
+				Msg("SearchScanLayerData")
+			continue
+		}
+		if len(cache) == 0 {
+			continue
+		}
+		return cache[0].OS
+	}
+	return types.OS{}
 }
 
 func (s *ScanResultReportSrv) CreateWebFrameInfo(ctx context.Context, data imagesecTypes.ReportScanResult) error {
