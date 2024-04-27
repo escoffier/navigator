@@ -74,11 +74,8 @@ func (vi *Image) GenCheckSum() uint64 {
 	if vi.CheckSum > 0 {
 		return vi.CheckSum
 	}
-	createdAt, updatedAt, preCheck, uniqueID := vi.CreatedAt, vi.UpdatedAt, vi.CheckSum, vi.UniqueID
-	vi.CreatedAt, vi.UpdatedAt, vi.CheckSum, vi.UniqueID = 0, 0, 0, 0
-
-	bys, err := json.Marshal(vi)
-	vi.CreatedAt, vi.UpdatedAt, vi.CheckSum, vi.UniqueID = createdAt, updatedAt, preCheck, uniqueID
+	// 暂时只记录 layer
+	bys, err := json.Marshal(vi.Layer)
 	if err != nil {
 		return 0
 	}

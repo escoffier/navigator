@@ -231,8 +231,8 @@ func (s *Detector) detectTask(ctx context.Context, task *imagesecModel.ImageDete
 			CreateAt:      time.Now().UnixMilli(),
 			DetectResult:  resultAll,
 		}
-
-		go func() { s.updateImageChan <- up }()
+		// 变成同步
+		s.updateImageChan <- up
 
 		for _, subID := range subData.SubtaskIds {
 			_ = s.UpdateDetectSubTask(ctx, subID, getEndUpdater(nil))
