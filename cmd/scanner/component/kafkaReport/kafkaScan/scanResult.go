@@ -101,10 +101,10 @@ func (s *ScanResultReportSrv) CreateScanResult(ctx context.Context, data imagese
 	_ = s.CreateWebshell(ctx, data, correlate)
 	_ = s.CreateLicense(ctx, data, correlate)
 	_ = s.CreateWebFrameInfo(ctx, data)
+	// 变成同步
+	_ = s.UpdateImage(ctx, image.ID, correlate)
 
 	go func() { _ = s.SetRiskScore(ctx, correlate) }()
-
-	go func() { _ = s.UpdateImage(ctx, image.ID, correlate) }()
 
 	go func() {
 		dd := DetectImageData{

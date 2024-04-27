@@ -333,7 +333,7 @@ func Merge(result *imagesecTypes.ReportScanResult, res imagesecTypes.ScanJobResu
 	if result.OS.Family == "" {
 		result.OS.Family = ch.Family
 	}
-	if ch.Family != "" || ch.Name != "" {
+	if ch.Family != "" && ch.Name != "" {
 		result.OS.Eosl = ch.Eosl
 	}
 
