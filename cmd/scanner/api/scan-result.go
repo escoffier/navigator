@@ -328,16 +328,18 @@ func (s *ScanResultAPI) SecurityIssueOverview(ctx *gin.Context) {
 		LicenseEnable:      true,
 		SensitiveEnable:    true,
 		WebshellEnable:     true,
+		SubtaskEnable:      true,
 		RegistryEnable:     true,
-		DetectResultEnable: true,
 		RiskPolicyEnable:   true,
-		DetectParam:        imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
+		DetectResultEnable: true,
 		ScanResultSearchParam: imagesecModel.ScanResultSearchParam{
 			LayerDigest:       param.LayerDigest,
 			SecurityPolicyIds: param.SecurityPolicyIds,
 			ImageID:           param.ImageID,
 			ImageUniqueID:     param.ImageUniqueID,
 		},
+		SearchVulnParam: imagesecModel.ApiSearchVulnParam{},
+		DetectParam:     imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
 	}
 	if len(param.SecurityPolicyIds) == 0 {
 		assParam.RiskPolicyEnable = false

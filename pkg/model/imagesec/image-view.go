@@ -308,8 +308,8 @@ type ImageAssociateParam struct {
 	TrustedEnable        bool // 查可digest 是否是可信
 	ImageInReg           bool // 查看节点镜像及部署上线的镜像是否在仓库中
 	NodeInfoEnable       bool // 查询节点镜像的节点信息
-	RiskPolicyEnable     bool // 查风险来源
-	SimplePolicyEnable   bool // 查看命中的策略
+	RiskPolicyEnable     bool // 查风险来源，需要拼装策略的详情
+	SimplePolicyEnable   bool // 查看命中的策略，不会拼装策略的详情
 	DetectResultEnable   bool // 查看检测结果
 	NotNeedCompImageSafe bool
 
@@ -1018,10 +1018,10 @@ func (iws *ImageWithCorrelateData2) GetImageAttr() ImageAttrResponse {
 	} else if util.ExistBit1(imageFlag, FlagAppImage) {
 		attr.ImageType = AppImageTypeString
 	}
-	if util.ExistBit1(imageFlag, FlagHasFixedVuln) {
+	if util.ExistBit1(imageFlag, FlagHasFixedVuln) && !util.ExistBit1(imageFlag, FlagImageSafeUnknown) {
 		attr.HasFixedVuln = true
 	}
-	if util.ExistBit1(imageFlag, FlagImageHasFixSuggest) {
+	if util.ExistBit1(imageFlag, FlagImageHasFixSuggest) && !util.ExistBit1(imageFlag, FlagImageSafeUnknown) {
 		attr.HasFixSuggest = true
 	}
 
@@ -1031,6 +1031,12 @@ func (iws *ImageWithCorrelateData2) GetImageAttr() ImageAttrResponse {
 func (iws *ImageWithCorrelateData2) GetSecurityIssue() []SecurityIssueLabel {
 	securityIssue := make([]SecurityIssueLabel, 0)
 	imageFlag := iws.Image.Flag
+	// 镜像扫描完成之后就会更新 flag，但是只有到镜像检测完成才会有扫描数据，就会存在一些中间状态，镜像是未知的,
+	// 列表中也没有漏洞，但是会展示安全问题
+	// 所以做一步兼容，当镜像的安全状态是末知时不展示安全问题
+	if util.ExistBit1(imageFlag, FlagImageSafeUnknown) {
+		return securityIssue
+	}
 
 	if util.ExistBit1(imageFlag, FlagHasExceptionVuln) {
 		securityIssue = append(securityIssue, SecurityIssueLabel{
