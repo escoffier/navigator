@@ -161,6 +161,8 @@ func (c *ClusterAgent) Init() error {
 	if err != nil {
 		return err
 	}
+	clusterConfig.QPS = 100
+	clusterConfig.Burst = 150
 
 	if c.apiServerAddr == "" {
 		c.apiServerAddr = clusterConfig.Host
@@ -512,10 +514,11 @@ func loadCertsFromFile(path string) (*CertsData, error) {
 func (c *ClusterAgent) fetchClusterKey() error {
 	var err error
 	c.getPlatform()
+	cluster_key := os.Getenv("CLUSTER_KEY")
 	cm, err := c.HostClient.CoreV1().ConfigMaps(c.workerNamespace).Get(context.TODO(), clusterInfo, v1.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
-			err = c.saveClusterInfo()
+			err = c.saveClusterInfo(cluster_key)
 			if err != nil {
 				return err
 			}
@@ -530,11 +533,24 @@ func (c *ClusterAgent) fetchClusterKey() error {
 		if err != nil {
 			return err
 		}
-		c.CusterID = clusterInfo.Key
+		if cluster_key != "" {
+			c.CusterID = cluster_key
+		} else {
+			c.CusterID = clusterInfo.Key
+		}
 
+		var needUpate bool
 		if clusterInfo.Platform == "" {
 			clusterInfo.Platform = c.platform
-			err = c.updateClusterConfig(clusterInfo)
+			needUpate = true
+		}
+		if cluster_key != "" && cluster_key != clusterInfo.Key {
+			clusterInfo.Key = cluster_key
+			needUpate = true
+		}
+
+		if needUpate {
+			err = c.updateClusterCM(clusterInfo, cm)
 			if err != nil {
 				return err
 			}
@@ -544,8 +560,11 @@ func (c *ClusterAgent) fetchClusterKey() error {
 	return fmt.Errorf("no cluster key")
 }
 
-func (c *ClusterAgent) saveClusterInfo() error {
-	clusterKey := uuid.NewUUID()
+func (c *ClusterAgent) saveClusterInfo(key string) error {
+	clusterKey := string(uuid.NewUUID())
+	if key != "" {
+		clusterKey = key
+	}
 	cluster := &k8s.TensorCluster{
 		Key:         string(clusterKey),
 		Name:        c.Name,
@@ -563,11 +582,26 @@ func (c *ClusterAgent) saveClusterInfo() error {
 		ObjectMeta: v1.ObjectMeta{Name: clusterInfo, Namespace: c.workerNamespace, Finalizers: []string{"security.cluster/cm-protection"}},
 		BinaryData: map[string][]byte{clusterInfoKey: data},
 	}
+	logging.Get().Info().Msgf("create cluster info :%s", string(data))
 	_, err = c.HostClient.CoreV1().ConfigMaps(c.workerNamespace).Create(context.TODO(), cm, v1.CreateOptions{})
 	if err != nil {
 		return err
 	}
 	c.CusterID = string(clusterKey)
+	return nil
+}
+
+func (c *ClusterAgent) updateClusterCM(cluster *k8s.TensorCluster, oldConfigmap *corev1.ConfigMap) error {
+	data, err := json.Marshal(cluster)
+	if err != nil {
+		return err
+	}
+	cm := oldConfigmap.DeepCopy()
+	cm.BinaryData = map[string][]byte{clusterInfoKey: data}
+	_, err = c.HostClient.CoreV1().ConfigMaps(c.workerNamespace).Update(context.TODO(), cm, v1.UpdateOptions{})
+	if err != nil {
+		return err
+	}
 	return nil
 }
 

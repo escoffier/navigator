@@ -17,7 +17,6 @@ require (
 	github.com/florianl/go-conntrack v0.4.0 //conntrack
 	github.com/fsnotify/fsnotify v1.6.0 // indirect
 	github.com/gin-gonic/gin v1.9.1
-	//github.com/go-chi/chi v4.1.2+incompatible
 	github.com/go-ldap/ldap/v3 v3.4.1
 	github.com/go-openapi/swag v0.22.3 // indirect
 	github.com/go-playground/validator/v10 v10.14.1 // indirect
@@ -116,7 +115,7 @@ require (
 	github.com/sony/gobreaker v0.5.0
 	github.com/tealeg/xlsx/v3 v3.3.0
 	github.com/xuri/excelize/v2 v2.6.0
-	gitlab.com/security-rd/go-pkg v0.2.92
+	gitlab.com/security-rd/go-pkg v0.2.97
 	go.uber.org/atomic v1.11.0
 	golang.org/x/exp v0.0.0-20230522175609-2e198f4a06a1
 	gomodules.xyz/jsonpatch/v3 v3.0.1
@@ -127,7 +126,7 @@ require (
 	k8s.io/kubernetes v1.24.0
 	layeh.com/radius v0.0.0-20210819152912-ad72663a72ab
 	moul.io/http2curl v1.0.0
-	scm.tensorsecurity.cn/tensorsecurity-rd/api v0.2.4-0.20231025065239-cf3e4dec1164
+	scm.tensorsecurity.cn/tensorsecurity-rd/api v0.2.4
 	scm.tensorsecurity.cn/tensorsecurity-rd/trivy-db v0.0.5
 )
 
@@ -615,7 +614,7 @@ require (
 replace (
 	github.com/containernetworking/cni => github.com/containernetworking/cni v0.8.1
 	github.com/containers/podman/v3 => scm.tensorsecurity.cn/tensorsecurity-rd/podman/v3 v3.4.6-20220425170000
-	gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.95-0.20240221055409-669a8c08663a
+	gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.2.99
 	go.opentelemetry.io/otel/metric => go.opentelemetry.io/otel/metric v0.35.0
 	helm.sh/helm/v3 => helm.sh/helm/v3 v3.11.1
 	k8s.io/api => k8s.io/kubernetes/staging/src/k8s.io/api v0.0.0-20220503133649-4ce5a8954017

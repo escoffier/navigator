@@ -40,7 +40,8 @@ typedef enum
     HEAP_DUMP = 9,
     CONF_DUMP = 10,
     CONN_DUMP = 11,
-    RESET = 12,
+    RESET     = 12,
+    NODE_CFG = 13,
     NET_INFO_MAX
 } NET_DATA_TYPE;
 
@@ -48,9 +49,10 @@ typedef enum
 {
     NET_DENY      = 0,
     NET_ALLOW     = 1,
-    NET_ALLOW_RSP = 2,
-    NET_ALLOW_REQ = 3,
-    NET_DEFAULT   = 4,
+    NET_MARK      = 2,
+    NET_ALLOW_RSP = 3,
+    NET_ALLOW_REQ = 4,
+    NET_DEFAULT   = 5,
     NET_POLICY_MAX
 } NET_POLICY_RULE;
 
@@ -130,6 +132,7 @@ typedef struct
     void *nfctCb = NULL;
     void *nfctHd = NULL;
     void *nfctCbHd = NULL;
+    int pollFd = 0;
 } ;
 
 typedef struct
@@ -171,6 +174,7 @@ struct RULE_DETAIL
     int  addrType;//ipv4 OR ipv6
     FLOW_DIR direction; //流量策略方向
     NET_POLICY_RULE action;//策略
+    std::string ActionDsc;//策略描述
     std::vector<RULE_PORT> vPorts;//
     std::string policyKey;//策略主键
     std::string srcIp;//源地址

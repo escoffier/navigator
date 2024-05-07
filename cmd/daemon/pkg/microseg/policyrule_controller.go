@@ -106,6 +106,7 @@ func (rg *RuleGroupController) handleErr(err error, key interface{}) {
 
 func podID(e *crdv1alpha1.EntityReference) uint64 {
 	str := fmt.Sprintf("%s/%s", e.Namespace, e.Name)
+	logging.Get().Info().Msgf("sync pod :%s", str)
 	h := fnv.New64a()
 	h.Write([]byte(str))
 	return h.Sum64()
@@ -143,16 +144,15 @@ func buildPolicyRuleMessage(msgType int, ruleGroup *crdv1alpha1.NetworkPolicyRul
 		for _, a := range r.FromAddress {
 			newRule.FromAddress = append(newRule.FromAddress, addressFromRule(&a))
 		}
-
-		if r.FromIPBlock != nil {
-			newRule.FromAddress = append(newRule.FromAddress, Address{IP: r.FromIPBlock.CIDR})
+		for _, ipBlock := range r.FromIPBlock {
+			newRule.FromAddress = append(newRule.FromAddress, Address{IP: ipBlock.CIDR})
 		}
 
 		for _, a := range r.ToAddresses {
 			newRule.ToAddresses = append(newRule.ToAddresses, addressFromRule(&a))
 		}
-		if r.ToIPBlock != nil {
-			newRule.ToAddresses = append(newRule.ToAddresses, Address{IP: r.ToIPBlock.CIDR})
+		for _, ipBlock := range r.ToIPBlock {
+			newRule.ToAddresses = append(newRule.ToAddresses, Address{IP: ipBlock.CIDR})
 		}
 		rules = append(rules, newRule)
 	}
@@ -167,7 +167,7 @@ func (rg *RuleGroupController) handlePolicyStatus(err error, ruleGroup *crdv1alp
 	var intStatus int
 	var detail string
 	if err != nil {
-		intStatus = 1
+		intStatus = 2
 		detail = err.Error()
 	}
 	status := &model.PolicyStatus{
@@ -259,13 +259,13 @@ func (rg *RuleGroupController) worker() {
 }
 
 func (rg *RuleGroupController) ReSyncAllPolicy() error {
-	logging.Get().Info().Msg("resync all policies")
+	log.Info().Msg("resync all policies")
 	ruleList, err := rg.ruleLister.List(labels.Everything())
 	if err != nil {
 		return err
 	}
 	for _, r := range ruleList {
-		rg.syncPolicy(r.Name)
+		err = rg.syncPolicy(r.Name)
 		if err != nil {
 			return err
 		}

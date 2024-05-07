@@ -84,3 +84,16 @@ func dedupPods(ps []*corev1.Pod) []*corev1.Pod {
 	}
 	return result
 }
+
+// func dedupNodeRules(ps []v1alpha1.NodeRule) []v1alpha1.NodeRule {
+// 	var result []v1alpha1.NodeRule
+// 	ruleMap := make(map[v1alpha1.NodeRule]struct{})
+// 	for _, p := range ps {
+// 		key := podKey(p)
+// 		if _, exist := podMap[key]; !exist {
+// 			podMap[key] = struct{}{}
+// 			result = append(result, p)
+// 		}
+// 	}
+// 	return result
+// }

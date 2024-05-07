@@ -37,13 +37,13 @@ func TestNetworkPolicyController_caculatePolicy(t *testing.T) {
 		policyInfomer     cache.SharedIndexInformer
 		podInformer       cache.SharedIndexInformer
 		namespaceInformer cache.SharedIndexInformer
-		policyLister      v1alpha1.MicrosegClusterNetworkPolicyLister
+		policyLister      v1alpha1.ClusterNetworkPolicyLister
 		podLister         listerv1.PodLister
 		namespaceLister   listerv1.NamespaceLister
 		queue             workqueue.RateLimitingInterface
 	}
 	type args struct {
-		cnp *crdv1alpha1.MicrosegClusterNetworkPolicy
+		cnp *crdv1alpha1.ClusterNetworkPolicy
 	}
 
 	client := fake.NewSimpleClientset()
@@ -159,11 +159,11 @@ func TestNetworkPolicyController_caculatePolicy(t *testing.T) {
 				namespaceLister:   factory.Core().V1().Namespaces().Lister(),
 			},
 			args: args{
-				cnp: &crdv1alpha1.MicrosegClusterNetworkPolicy{
+				cnp: &crdv1alpha1.ClusterNetworkPolicy{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "cnp-1",
 					},
-					Spec: crdv1alpha1.MicrosegClusterNetworkPolicySpec{
+					Spec: crdv1alpha1.ClusterNetworkPolicySpec{
 						PodSelector: &v1.LabelSelector{MatchLabels: map[string]string{"app": "http"}},
 						Ingress: []crdv1alpha1.Rule{
 							{
@@ -216,11 +216,11 @@ func TestNetworkPolicyController_caculatePolicy(t *testing.T) {
 				namespaceLister:   factory.Core().V1().Namespaces().Lister(),
 			},
 			args: args{
-				cnp: &crdv1alpha1.MicrosegClusterNetworkPolicy{
+				cnp: &crdv1alpha1.ClusterNetworkPolicy{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "namespace-policy",
 					},
-					Spec: crdv1alpha1.MicrosegClusterNetworkPolicySpec{
+					Spec: crdv1alpha1.ClusterNetworkPolicySpec{
 						PodSelector: &v1.LabelSelector{MatchLabels: map[string]string{"app": "frontend"}},
 						Ingress: []crdv1alpha1.Rule{
 							{
@@ -273,7 +273,7 @@ func TestNetworkPolicyController_calulateAddress(t *testing.T) {
 		policyInfomer     cache.SharedIndexInformer
 		podInformer       cache.SharedIndexInformer
 		namespaceInformer cache.SharedIndexInformer
-		policyLister      v1alpha1.MicrosegClusterNetworkPolicyLister
+		policyLister      v1alpha1.ClusterNetworkPolicyLister
 		podLister         listerv1.PodLister
 		namespaceLister   listerv1.NamespaceLister
 		queue             workqueue.RateLimitingInterface
@@ -404,9 +404,9 @@ func TestPolicyIndex(t *testing.T) {
 	// factory := informers.NewSharedInformerFactory(client, time.Hour)
 	stopChan := make(chan struct{})
 
-	policyInfomer := factory.Microsegmentation().V1alpha1().MicrosegClusterNetworkPolicies().Informer()
+	policyInfomer := factory.Microsegmentation().V1alpha1().ClusterNetworkPolicies().Informer()
 	// policyInfomer.AddIndexers(cache.Indexers{"label-index": func(obj interface{}) ([]string, error) {
-	// 	pol := obj.(*crdv1alpha1.MicrosegClusterNetworkPolicy)
+	// 	pol := obj.(*crdv1alpha1.ClusterNetworkPolicy)
 	// 	var values []string
 	// 	if pol.Spec.PodSelector != nil {
 	// 		values = append(values, v1.FormatLabelSelector(pol.Spec.PodSelector))
@@ -420,12 +420,12 @@ func TestPolicyIndex(t *testing.T) {
 	factory.Start(stopChan)
 	factory.WaitForCacheSync(stopChan)
 
-	policyStore := factory.Microsegmentation().V1alpha1().MicrosegClusterNetworkPolicies().Informer().GetIndexer()
-	policy1 := &crdv1alpha1.MicrosegClusterNetworkPolicy{
+	policyStore := factory.Microsegmentation().V1alpha1().ClusterNetworkPolicies().Informer().GetIndexer()
+	policy1 := &crdv1alpha1.ClusterNetworkPolicy{
 		ObjectMeta: v1.ObjectMeta{
 			Name: "frontend-policy-1",
 		},
-		Spec: crdv1alpha1.MicrosegClusterNetworkPolicySpec{
+		Spec: crdv1alpha1.ClusterNetworkPolicySpec{
 			PodSelector: &v1.LabelSelector{MatchLabels: map[string]string{"app": "frontend"}},
 			Ingress: []crdv1alpha1.Rule{
 				{
@@ -447,11 +447,11 @@ func TestPolicyIndex(t *testing.T) {
 			},
 		},
 	}
-	policy2 := &crdv1alpha1.MicrosegClusterNetworkPolicy{
+	policy2 := &crdv1alpha1.ClusterNetworkPolicy{
 		ObjectMeta: v1.ObjectMeta{
 			Name: "frontend-policy-2",
 		},
-		Spec: crdv1alpha1.MicrosegClusterNetworkPolicySpec{
+		Spec: crdv1alpha1.ClusterNetworkPolicySpec{
 			PodSelector: &v1.LabelSelector{MatchLabels: map[string]string{"app": "frontend"}},
 			Ingress: []crdv1alpha1.Rule{
 				{
@@ -483,7 +483,7 @@ func TestPolicyIndex(t *testing.T) {
 		t.Fatalf("should get 2 policies, but get %d", len(objs))
 	}
 	for _, obj := range objs {
-		policy := obj.(*crdv1alpha1.MicrosegClusterNetworkPolicy)
+		policy := obj.(*crdv1alpha1.ClusterNetworkPolicy)
 		t.Log(policy.Name)
 	}
 
@@ -491,7 +491,7 @@ func TestPolicyIndex(t *testing.T) {
 
 func Test_getPodPolicyRelationShips(t *testing.T) {
 	type args struct {
-		policyLister    v1alpha1.MicrosegClusterNetworkPolicyLister
+		policyLister    v1alpha1.ClusterNetworkPolicyLister
 		namespaceLister listerv1.NamespaceLister
 		pod             *corev1.Pod
 	}
@@ -507,8 +507,8 @@ func Test_getPodPolicyRelationShips(t *testing.T) {
 	crdFactory.Start(stopChan)
 	crdFactory.WaitForCacheSync(stopChan)
 
-	policyInfomer := crdFactory.Microsegmentation().V1alpha1().MicrosegClusterNetworkPolicies().Informer()
-	policyLister := crdFactory.Microsegmentation().V1alpha1().MicrosegClusterNetworkPolicies().Lister()
+	policyInfomer := crdFactory.Microsegmentation().V1alpha1().ClusterNetworkPolicies().Informer()
+	policyLister := crdFactory.Microsegmentation().V1alpha1().ClusterNetworkPolicies().Lister()
 
 	namespaceLister := factory.Core().V1().Namespaces().Lister()
 
@@ -539,73 +539,73 @@ func Test_getPodPolicyRelationShips(t *testing.T) {
 		},
 	})
 
-	policyInfomer.GetIndexer().Add(&crdv1alpha1.MicrosegClusterNetworkPolicy{
+	policyInfomer.GetIndexer().Add(&crdv1alpha1.ClusterNetworkPolicy{
 		ObjectMeta: v1.ObjectMeta{
 			Name: "policy-1",
 		},
-		Spec: crdv1alpha1.MicrosegClusterNetworkPolicySpec{
+		Spec: crdv1alpha1.ClusterNetworkPolicySpec{
 			PodSelector: &v1.LabelSelector{
 				MatchLabels: map[string]string{"app": "httpbin"},
 			},
 		},
 	})
 
-	policyInfomer.GetIndexer().Add(&crdv1alpha1.MicrosegClusterNetworkPolicy{
+	policyInfomer.GetIndexer().Add(&crdv1alpha1.ClusterNetworkPolicy{
 		ObjectMeta: v1.ObjectMeta{
 			Name: "policy-2",
 		},
-		Spec: crdv1alpha1.MicrosegClusterNetworkPolicySpec{
+		Spec: crdv1alpha1.ClusterNetworkPolicySpec{
 			PodSelector: &v1.LabelSelector{
 				MatchLabels: map[string]string{"tier": "backend"},
 			},
 		},
 	})
 
-	policyInfomer.GetIndexer().Add(&crdv1alpha1.MicrosegClusterNetworkPolicy{
+	policyInfomer.GetIndexer().Add(&crdv1alpha1.ClusterNetworkPolicy{
 		ObjectMeta: v1.ObjectMeta{
 			Name: "policy-3",
 		},
-		Spec: crdv1alpha1.MicrosegClusterNetworkPolicySpec{
+		Spec: crdv1alpha1.ClusterNetworkPolicySpec{
 			PodSelector: &v1.LabelSelector{
 				MatchLabels: map[string]string{"app": "front"},
 			},
 		},
 	})
-	policyInfomer.GetIndexer().Add(&crdv1alpha1.MicrosegClusterNetworkPolicy{
+	policyInfomer.GetIndexer().Add(&crdv1alpha1.ClusterNetworkPolicy{
 		ObjectMeta: v1.ObjectMeta{
 			Name: "policy-4",
 		},
-		Spec: crdv1alpha1.MicrosegClusterNetworkPolicySpec{
+		Spec: crdv1alpha1.ClusterNetworkPolicySpec{
 			PodSelector: &v1.LabelSelector{
 				MatchLabels: map[string]string{"app": "front"},
 			},
 		},
 	})
-	policyInfomer.GetIndexer().Add(&crdv1alpha1.MicrosegClusterNetworkPolicy{
+	policyInfomer.GetIndexer().Add(&crdv1alpha1.ClusterNetworkPolicy{
 		ObjectMeta: v1.ObjectMeta{
 			Name: "policy-5",
 		},
-		Spec: crdv1alpha1.MicrosegClusterNetworkPolicySpec{
+		Spec: crdv1alpha1.ClusterNetworkPolicySpec{
 			NamespaceSelector: &v1.LabelSelector{
 				MatchLabels: map[string]string{"tier": "front"},
 			},
 		},
 	})
-	policyInfomer.GetIndexer().Add(&crdv1alpha1.MicrosegClusterNetworkPolicy{
+	policyInfomer.GetIndexer().Add(&crdv1alpha1.ClusterNetworkPolicy{
 		ObjectMeta: v1.ObjectMeta{
 			Name: "policy-6",
 		},
-		Spec: crdv1alpha1.MicrosegClusterNetworkPolicySpec{
+		Spec: crdv1alpha1.ClusterNetworkPolicySpec{
 			NamespaceSelector: &v1.LabelSelector{
 				MatchLabels: map[string]string{"tier": "front"},
 			},
 		},
 	})
-	policyInfomer.GetIndexer().Add(&crdv1alpha1.MicrosegClusterNetworkPolicy{
+	policyInfomer.GetIndexer().Add(&crdv1alpha1.ClusterNetworkPolicy{
 		ObjectMeta: v1.ObjectMeta{
 			Name: "policy-7",
 		},
-		Spec: crdv1alpha1.MicrosegClusterNetworkPolicySpec{
+		Spec: crdv1alpha1.ClusterNetworkPolicySpec{
 			NamespaceSelector: &v1.LabelSelector{
 				MatchLabels: map[string]string{"tier": "storage"},
 			},
@@ -624,11 +624,11 @@ func Test_getPodPolicyRelationShips(t *testing.T) {
 			},
 		},
 	})
-	policyInfomer.GetIndexer().Add(&crdv1alpha1.MicrosegClusterNetworkPolicy{
+	policyInfomer.GetIndexer().Add(&crdv1alpha1.ClusterNetworkPolicy{
 		ObjectMeta: v1.ObjectMeta{
 			Name: "policy-8",
 		},
-		Spec: crdv1alpha1.MicrosegClusterNetworkPolicySpec{
+		Spec: crdv1alpha1.ClusterNetworkPolicySpec{
 			NamespaceSelector: &v1.LabelSelector{
 				MatchLabels: map[string]string{"tier": "storage"},
 			},
@@ -647,11 +647,11 @@ func Test_getPodPolicyRelationShips(t *testing.T) {
 			},
 		},
 	})
-	policyInfomer.GetIndexer().Add(&crdv1alpha1.MicrosegClusterNetworkPolicy{
+	policyInfomer.GetIndexer().Add(&crdv1alpha1.ClusterNetworkPolicy{
 		ObjectMeta: v1.ObjectMeta{
 			Name: "policy-9",
 		},
-		Spec: crdv1alpha1.MicrosegClusterNetworkPolicySpec{
+		Spec: crdv1alpha1.ClusterNetworkPolicySpec{
 			NamespaceSelector: &v1.LabelSelector{
 				MatchLabels: map[string]string{"tier": "backend"},
 			},
@@ -788,7 +788,7 @@ func TestNetworkPolicyController_caculateAddressMap(t *testing.T) {
 		policyInfomer     cache.SharedIndexInformer
 		podInformer       cache.SharedIndexInformer
 		namespaceInformer cache.SharedIndexInformer
-		policyLister      v1alpha1.MicrosegClusterNetworkPolicyLister
+		policyLister      v1alpha1.ClusterNetworkPolicyLister
 		podLister         listerv1.PodLister
 		namespaceLister   listerv1.NamespaceLister
 		queue             workqueue.RateLimitingInterface
@@ -998,14 +998,14 @@ func TestNetworkPolicyController_caculateNodeRules(t *testing.T) {
 		policyInfomer      cache.SharedIndexInformer
 		podInformer        cache.SharedIndexInformer
 		namespaceInformer  cache.SharedIndexInformer
-		policyLister       v1alpha1.MicrosegClusterNetworkPolicyLister
+		policyLister       v1alpha1.ClusterNetworkPolicyLister
 		podLister          listerv1.PodLister
 		namespaceLister    listerv1.NamespaceLister
-		clusterGroupLister v1alpha1.MicrosegClusterGroupLister
+		clusterGroupLister v1alpha1.ClusterWorkloadSetLister
 		queue              workqueue.RateLimitingInterface
 	}
 	type args struct {
-		cnp *crdv1alpha1.MicrosegClusterNetworkPolicy
+		cnp *crdv1alpha1.ClusterNetworkPolicy
 	}
 
 	client := fake.NewSimpleClientset()
@@ -1022,7 +1022,7 @@ func TestNetworkPolicyController_caculateNodeRules(t *testing.T) {
 
 	podStore := factory.Core().V1().Pods().Informer().GetIndexer()
 	namespaceStore := factory.Core().V1().Namespaces().Informer().GetIndexer()
-	clusterGroupStore := crdFactory.Microsegmentation().V1alpha1().MicrosegClusterGroups().Informer().GetIndexer()
+	clusterGroupStore := crdFactory.Microsegmentation().V1alpha1().ClusterWorkloadSets().Informer().GetIndexer()
 
 	pod1 := corev1.Pod{
 		ObjectMeta: v1.ObjectMeta{
@@ -1121,22 +1121,22 @@ func TestNetworkPolicyController_caculateNodeRules(t *testing.T) {
 	podStore.Add(&pod4)
 	podStore.Add(&pod5)
 
-	clusterGroupStore.Add(&crdv1alpha1.MicrosegClusterGroup{
+	clusterGroupStore.Add(&crdv1alpha1.ClusterWorkloadSet{
 		ObjectMeta: v1.ObjectMeta{
 			Name: "cluster-group-1",
 		},
-		Spec: crdv1alpha1.MicrosegClusterGroupSpec{
+		Spec: crdv1alpha1.ClusterWorkloadSetSpec{
 			PodSelector: &v1.LabelSelector{
 				MatchLabels: map[string]string{"app": "http"},
 			},
 		},
 	})
 
-	clusterGroupStore.Add(&crdv1alpha1.MicrosegClusterGroup{
+	clusterGroupStore.Add(&crdv1alpha1.ClusterWorkloadSet{
 		ObjectMeta: v1.ObjectMeta{
 			Name: "cluster-group-2",
 		},
-		Spec: crdv1alpha1.MicrosegClusterGroupSpec{
+		Spec: crdv1alpha1.ClusterWorkloadSetSpec{
 			PodSelector: &v1.LabelSelector{
 				MatchLabels: map[string]string{"app": "redis"},
 			},
@@ -1160,11 +1160,11 @@ func TestNetworkPolicyController_caculateNodeRules(t *testing.T) {
 				podLister:         factory.Core().V1().Pods().Lister(),
 				namespaceLister:   factory.Core().V1().Namespaces().Lister(),
 			},
-			args: args{&crdv1alpha1.MicrosegClusterNetworkPolicy{
+			args: args{&crdv1alpha1.ClusterNetworkPolicy{
 				ObjectMeta: v1.ObjectMeta{
 					Name: "test-1",
 				},
-				Spec: crdv1alpha1.MicrosegClusterNetworkPolicySpec{
+				Spec: crdv1alpha1.ClusterNetworkPolicySpec{
 					PodSelector: &v1.LabelSelector{
 						MatchLabels: map[string]string{
 							"app": "http",
@@ -1218,11 +1218,11 @@ func TestNetworkPolicyController_caculateNodeRules(t *testing.T) {
 				podLister:         factory.Core().V1().Pods().Lister(),
 				namespaceLister:   factory.Core().V1().Namespaces().Lister(),
 			},
-			args: args{&crdv1alpha1.MicrosegClusterNetworkPolicy{
+			args: args{&crdv1alpha1.ClusterNetworkPolicy{
 				ObjectMeta: v1.ObjectMeta{
 					Name: "test-egress",
 				},
-				Spec: crdv1alpha1.MicrosegClusterNetworkPolicySpec{
+				Spec: crdv1alpha1.ClusterNetworkPolicySpec{
 					PodSelector: &v1.LabelSelector{
 						MatchLabels: map[string]string{
 							"app": "http",
@@ -1273,13 +1273,13 @@ func TestNetworkPolicyController_caculateNodeRules(t *testing.T) {
 				namespaceInformer:  factory.Core().V1().Namespaces().Informer(),
 				podLister:          factory.Core().V1().Pods().Lister(),
 				namespaceLister:    factory.Core().V1().Namespaces().Lister(),
-				clusterGroupLister: crdFactory.Microsegmentation().V1alpha1().MicrosegClusterGroups().Lister(),
+				clusterGroupLister: crdFactory.Microsegmentation().V1alpha1().ClusterWorkloadSets().Lister(),
 			},
-			args: args{&crdv1alpha1.MicrosegClusterNetworkPolicy{
+			args: args{&crdv1alpha1.ClusterNetworkPolicy{
 				ObjectMeta: v1.ObjectMeta{
 					Name: "group-policy",
 				},
-				Spec: crdv1alpha1.MicrosegClusterNetworkPolicySpec{
+				Spec: crdv1alpha1.ClusterNetworkPolicySpec{
 					Group: "cluster-group-1",
 					Ingress: []crdv1alpha1.Rule{
 						{
@@ -1342,7 +1342,7 @@ func TestNetworkPolicyController_caculateNodeRules(t *testing.T) {
 
 func Test_getNamespacePolicyRelationShips(t *testing.T) {
 	type args struct {
-		policyLister v1alpha1.MicrosegClusterNetworkPolicyLister
+		policyLister v1alpha1.ClusterNetworkPolicyLister
 		namespace    *corev1.Namespace
 	}
 	crdClient := crdfake.NewSimpleClientset()
@@ -1357,12 +1357,12 @@ func Test_getNamespacePolicyRelationShips(t *testing.T) {
 	crdFactory.Start(stopChan)
 	crdFactory.WaitForCacheSync(stopChan)
 
-	policyStore := crdFactory.Microsegmentation().V1alpha1().MicrosegClusterNetworkPolicies().Informer().GetIndexer()
-	policy1 := crdv1alpha1.MicrosegClusterNetworkPolicy{
+	policyStore := crdFactory.Microsegmentation().V1alpha1().ClusterNetworkPolicies().Informer().GetIndexer()
+	policy1 := crdv1alpha1.ClusterNetworkPolicy{
 		ObjectMeta: v1.ObjectMeta{
 			Name: "policy-1",
 		},
-		Spec: crdv1alpha1.MicrosegClusterNetworkPolicySpec{
+		Spec: crdv1alpha1.ClusterNetworkPolicySpec{
 			NamespaceSelector: &v1.LabelSelector{
 				MatchLabels: map[string]string{
 					"tier": "web",
@@ -1397,11 +1397,11 @@ func Test_getNamespacePolicyRelationShips(t *testing.T) {
 		},
 	}
 
-	policy2 := crdv1alpha1.MicrosegClusterNetworkPolicy{
+	policy2 := crdv1alpha1.ClusterNetworkPolicy{
 		ObjectMeta: v1.ObjectMeta{
 			Name: "policy-2",
 		},
-		Spec: crdv1alpha1.MicrosegClusterNetworkPolicySpec{
+		Spec: crdv1alpha1.ClusterNetworkPolicySpec{
 			NamespaceSelector: &v1.LabelSelector{
 				MatchLabels: map[string]string{"tier": "database"},
 			},
@@ -1420,7 +1420,7 @@ func Test_getNamespacePolicyRelationShips(t *testing.T) {
 		{
 			name: "test-1",
 			args: args{
-				policyLister: crdFactory.Microsegmentation().V1alpha1().MicrosegClusterNetworkPolicies().Lister(),
+				policyLister: crdFactory.Microsegmentation().V1alpha1().ClusterNetworkPolicies().Lister(),
 				namespace: &corev1.Namespace{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "ns-1",
@@ -1436,7 +1436,7 @@ func Test_getNamespacePolicyRelationShips(t *testing.T) {
 		{
 			name: "test-ingress",
 			args: args{
-				policyLister: crdFactory.Microsegmentation().V1alpha1().MicrosegClusterNetworkPolicies().Lister(),
+				policyLister: crdFactory.Microsegmentation().V1alpha1().ClusterNetworkPolicies().Lister(),
 				namespace: &corev1.Namespace{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "ns-1",
@@ -1452,7 +1452,7 @@ func Test_getNamespacePolicyRelationShips(t *testing.T) {
 		{
 			name: "test-egress",
 			args: args{
-				policyLister: crdFactory.Microsegmentation().V1alpha1().MicrosegClusterNetworkPolicies().Lister(),
+				policyLister: crdFactory.Microsegmentation().V1alpha1().ClusterNetworkPolicies().Lister(),
 				namespace: &corev1.Namespace{
 					ObjectMeta: v1.ObjectMeta{
 						Name: "ns-1",
@@ -1487,7 +1487,7 @@ func Test_getNamespacePolicyRelationShips(t *testing.T) {
 // 		podInformer          cache.SharedIndexInformer
 // 		namespaceInformer    cache.SharedIndexInformer
 // 		clusterGroupInformer cache.SharedIndexInformer
-// 		policyLister         v1alpha1.MicrosegClusterNetworkPolicyLister
+// 		policyLister         v1alpha1.ClusterNetworkPolicyLister
 // 		podLister            listerv1.PodLister
 // 		namespaceLister      listerv1.NamespaceLister
 // 		clusterGroupLister   v1alpha1.MicrosegClusterGroupLister
@@ -1498,7 +1498,7 @@ func Test_getNamespacePolicyRelationShips(t *testing.T) {
 // 		queue                workqueue.RateLimitingInterface
 // 	}
 // 	type args struct {
-// 		cnp *crdv1alpha1.MicrosegClusterNetworkPolicy
+// 		cnp *crdv1alpha1.ClusterNetworkPolicy
 // 	}
 
 // 	client := fake.NewSimpleClientset()
@@ -1630,11 +1630,11 @@ func Test_getNamespacePolicyRelationShips(t *testing.T) {
 // 				podLister:         factory.Core().V1().Pods().Lister(),
 // 				namespaceLister:   factory.Core().V1().Namespaces().Lister(),
 // 			},
-// 			args: args{&crdv1alpha1.MicrosegClusterNetworkPolicy{
+// 			args: args{&crdv1alpha1.ClusterNetworkPolicy{
 // 				ObjectMeta: v1.ObjectMeta{
 // 					Name: "test-1",
 // 				},
-// 				Spec: crdv1alpha1.MicrosegClusterNetworkPolicySpec{
+// 				Spec: crdv1alpha1.ClusterNetworkPolicySpec{
 // 					PodSelector: &v1.LabelSelector{
 // 						MatchLabels: map[string]string{
 // 							"app": "http",
@@ -1670,11 +1670,11 @@ func Test_getNamespacePolicyRelationShips(t *testing.T) {
 // 				podLister:         factory.Core().V1().Pods().Lister(),
 // 				namespaceLister:   factory.Core().V1().Namespaces().Lister(),
 // 			},
-// 			args: args{&crdv1alpha1.MicrosegClusterNetworkPolicy{
+// 			args: args{&crdv1alpha1.ClusterNetworkPolicy{
 // 				ObjectMeta: v1.ObjectMeta{
 // 					Name: "test-ipblock",
 // 				},
-// 				Spec: crdv1alpha1.MicrosegClusterNetworkPolicySpec{
+// 				Spec: crdv1alpha1.ClusterNetworkPolicySpec{
 // 					PodSelector: &v1.LabelSelector{
 // 						MatchLabels: map[string]string{
 // 							"app": "http",
@@ -1809,8 +1809,8 @@ func TestCreateCRD(t *testing.T) {
 		panic(err.Error())
 	}
 
-	_, err = clientset.TensorClientset.MicrosegmentationV1alpha1().MicrosegClusterGroups().Create(context.TODO(),
-		&crdv1alpha1.MicrosegClusterGroup{
+	_, err = clientset.TensorClientset.MicrosegmentationV1alpha1().ClusterWorkloadSets().Create(context.TODO(),
+		&crdv1alpha1.ClusterWorkloadSet{
 			ObjectMeta: v1.ObjectMeta{
 				Name: "test-111",
 			},
@@ -1836,12 +1836,12 @@ func TestNetworkPolicyController_caculatePolicyNodeRules1(t *testing.T) {
 		namespaceInformer     cache.SharedIndexInformer
 		endpointsliceInformer cache.SharedIndexInformer
 		clusterGroupInformer  cache.SharedIndexInformer
-		policyLister          v1alpha1.MicrosegClusterNetworkPolicyLister
+		policyLister          v1alpha1.ClusterNetworkPolicyLister
 		podLister             listerv1.PodLister
 		namespaceLister       listerv1.NamespaceLister
 		serviceLister         listerv1.ServiceLister
 		endpointsliceLister   dislisterv1.EndpointSliceLister
-		clusterGroupLister    v1alpha1.MicrosegClusterGroupLister
+		clusterGroupLister    v1alpha1.ClusterWorkloadSetLister
 		ruleGroupLister       v1alpha1.NetworkPolicyRuleGroupLister
 		podSynced             cache.InformerSynced
 		namepaceSynced        cache.InformerSynced
@@ -1851,7 +1851,7 @@ func TestNetworkPolicyController_caculatePolicyNodeRules1(t *testing.T) {
 		queue                 workqueue.RateLimitingInterface
 	}
 	type args struct {
-		cnp *crdv1alpha1.MicrosegClusterNetworkPolicy
+		cnp *crdv1alpha1.ClusterNetworkPolicy
 	}
 	tests := []struct {
 		name    string
@@ -1904,7 +1904,7 @@ func Test_getServicePort(t *testing.T) {
 		svc         *corev1.Service
 		policyPorts []crdv1alpha1.NetworkPolicyPort
 	}
-	tcp := corev1.ProtocolTCP
+	tcp := crdv1alpha1.ProtocolTCP
 	port80 := intstr.FromInt(80)
 	port81 := intstr.FromInt(81)
 
@@ -2043,12 +2043,12 @@ func TestNetworkPolicyController_getRelatedServiceAddr(t *testing.T) {
 		namespaceInformer     cache.SharedIndexInformer
 		endpointsliceInformer cache.SharedIndexInformer
 		clusterGroupInformer  cache.SharedIndexInformer
-		policyLister          v1alpha1.MicrosegClusterNetworkPolicyLister
+		policyLister          v1alpha1.ClusterNetworkPolicyLister
 		podLister             listerv1.PodLister
 		namespaceLister       listerv1.NamespaceLister
 		serviceLister         listerv1.ServiceLister
 		endpointsliceLister   dislisterv1.EndpointSliceLister
-		clusterGroupLister    v1alpha1.MicrosegClusterGroupLister
+		clusterGroupLister    v1alpha1.ClusterWorkloadSetLister
 		ruleGroupLister       v1alpha1.NetworkPolicyRuleGroupLister
 		podSynced             cache.InformerSynced
 		namepaceSynced        cache.InformerSynced
@@ -2242,13 +2242,13 @@ func TestNetworkPolicyController_caculatePolicyAllNodeRules(t *testing.T) {
 		endpointsliceInformer      cache.SharedIndexInformer
 		serviceInformer            cache.SharedIndexInformer
 		clusterGroupInformer       cache.SharedIndexInformer
-		policyLister               v1alpha1.MicrosegClusterNetworkPolicyLister
+		policyLister               v1alpha1.ClusterNetworkPolicyLister
 		podLister                  listerv1.PodLister
 		namespaceLister            listerv1.NamespaceLister
 		serviceLister              listerv1.ServiceLister
 		endpointsliceLister        dislisterv1.EndpointSliceLister
 		endpointsliceListerv1beta1 dislisterv1beta1.EndpointSliceLister
-		clusterGroupLister         v1alpha1.MicrosegClusterGroupLister
+		clusterGroupLister         v1alpha1.ClusterWorkloadSetLister
 		ruleGroupLister            v1alpha1.NetworkPolicyRuleGroupLister
 		podSynced                  cache.InformerSynced
 		namepaceSynced             cache.InformerSynced
@@ -2259,7 +2259,7 @@ func TestNetworkPolicyController_caculatePolicyAllNodeRules(t *testing.T) {
 		pod2Policy                 map[string]string
 	}
 	type args struct {
-		cnp *crdv1alpha1.MicrosegClusterNetworkPolicy
+		cnp *crdv1alpha1.ClusterNetworkPolicy
 	}
 
 	client := fake.NewSimpleClientset()
@@ -2276,7 +2276,7 @@ func TestNetworkPolicyController_caculatePolicyAllNodeRules(t *testing.T) {
 
 	podStore := factory.Core().V1().Pods().Informer().GetIndexer()
 	namespaceStore := factory.Core().V1().Namespaces().Informer().GetIndexer()
-	clusterGroupStore := crdFactory.Microsegmentation().V1alpha1().MicrosegClusterGroups().Informer().GetIndexer()
+	clusterGroupStore := crdFactory.Microsegmentation().V1alpha1().ClusterWorkloadSets().Informer().GetIndexer()
 
 	pod1 := corev1.Pod{
 		ObjectMeta: v1.ObjectMeta{
@@ -2394,22 +2394,22 @@ func TestNetworkPolicyController_caculatePolicyAllNodeRules(t *testing.T) {
 	podStore.Add(&pod5)
 	podStore.Add(&pod21)
 
-	clusterGroupStore.Add(&crdv1alpha1.MicrosegClusterGroup{
+	clusterGroupStore.Add(&crdv1alpha1.ClusterWorkloadSet{
 		ObjectMeta: v1.ObjectMeta{
 			Name: "cluster-group-1",
 		},
-		Spec: crdv1alpha1.MicrosegClusterGroupSpec{
+		Spec: crdv1alpha1.ClusterWorkloadSetSpec{
 			PodSelector: &v1.LabelSelector{
 				MatchLabels: map[string]string{"app": "http"},
 			},
 		},
 	})
 
-	clusterGroupStore.Add(&crdv1alpha1.MicrosegClusterGroup{
+	clusterGroupStore.Add(&crdv1alpha1.ClusterWorkloadSet{
 		ObjectMeta: v1.ObjectMeta{
 			Name: "cluster-group-2",
 		},
-		Spec: crdv1alpha1.MicrosegClusterGroupSpec{
+		Spec: crdv1alpha1.ClusterWorkloadSetSpec{
 			PodSelector: &v1.LabelSelector{
 				MatchLabels: map[string]string{"app": "redis"},
 			},
@@ -2430,11 +2430,11 @@ func TestNetworkPolicyController_caculatePolicyAllNodeRules(t *testing.T) {
 				podLister:       factory.Core().V1().Pods().Lister(),
 				namespaceLister: factory.Core().V1().Namespaces().Lister(),
 			},
-			args: args{&crdv1alpha1.MicrosegClusterNetworkPolicy{
+			args: args{&crdv1alpha1.ClusterNetworkPolicy{
 				ObjectMeta: v1.ObjectMeta{
 					Name: "test-1",
 				},
-				Spec: crdv1alpha1.MicrosegClusterNetworkPolicySpec{
+				Spec: crdv1alpha1.ClusterNetworkPolicySpec{
 					PodSelector: &v1.LabelSelector{
 						MatchLabels: map[string]string{
 							"app": "http",
@@ -2466,11 +2466,11 @@ func TestNetworkPolicyController_caculatePolicyAllNodeRules(t *testing.T) {
 				namespaceLister:   factory.Core().V1().Namespaces().Lister(),
 				serviceLister:     factory.Core().V1().Services().Lister(),
 			},
-			args: args{&crdv1alpha1.MicrosegClusterNetworkPolicy{
+			args: args{&crdv1alpha1.ClusterNetworkPolicy{
 				ObjectMeta: v1.ObjectMeta{
 					Name: "test-egress",
 				},
-				Spec: crdv1alpha1.MicrosegClusterNetworkPolicySpec{
+				Spec: crdv1alpha1.ClusterNetworkPolicySpec{
 					PodSelector: &v1.LabelSelector{
 						MatchLabels: map[string]string{
 							"app": "http",

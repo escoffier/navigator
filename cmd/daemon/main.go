@@ -97,7 +97,7 @@ func K8sClient() (*kubernetes.Clientset, error) {
 	return k8sClient, nil
 }
 
-func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, stop <-chan struct{}) (nodeinfo.ContainerInfoManager, *netflow.NodePodsInfo, *nodeinfo.PodResInfo, *nodeinfo.NodePodsWatcher, string, error) {
+func initNodeInfos(rc *netflow.RedisClient, hostName, hostIP, clusterKey, myNamespace string, stop <-chan struct{}) (nodeinfo.ContainerInfoManager, *netflow.NodePodsInfo, *nodeinfo.PodResInfo, *nodeinfo.NodePodsWatcher, string, error) {
 	kubeClient, err := K8sClient()
 	if err != nil {
 		return nil, nil, nil, nil, "", errors.Errorf("k8s client init failed, %v", err)
@@ -124,7 +124,7 @@ func initNodeInfos(hostName, hostIP, clusterKey, myNamespace string, stop <-chan
 
 	agent := containerassets.NewAgent(mqWriter)
 	podResInfo := nodeinfo.NewPodResInfo(agent, clusterKey)
-	k8sInfo := netflow.NewNodePodInfo(kubeClient)
+	k8sInfo := netflow.NewNodePodInfo(rc, kubeClient)
 
 	var containerInfo nodeinfo.ContainerInfoManager
 	switch containerType {
@@ -387,7 +387,12 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 		nodeinfo.ExportRawContainer = false
 	}
 
-	containerInfo, k8sInfo, podResInfo, podWatcher, containerType, err := initNodeInfos(hostName, hostIP, clusterKey, myNamespace, stopCh)
+	rc, err := netflow.NewRedisClient()
+	if err != nil {
+		return fmt.Errorf("redis client init failed, %+v", err)
+	}
+
+	containerInfo, k8sInfo, podResInfo, podWatcher, containerType, err := initNodeInfos(rc, hostName, hostIP, clusterKey, myNamespace, stopCh)
 	if err != nil {
 		return err
 	}
@@ -395,7 +400,7 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 	logging.Get().Info().Msg("Init NodeInfo done")
 
 	// new flow session
-	flow, err := netflow.NewFlowSession(k8sInfo, containerInfo, clusterManager, consoleAddr, clusterManager)
+	flow, err := netflow.NewFlowSession(rc, k8sInfo, containerInfo, clusterManager, consoleAddr, clusterManager)
 	if err != nil {
 		return fmt.Errorf("Failed to initialize flow session, %w", err)
 	}

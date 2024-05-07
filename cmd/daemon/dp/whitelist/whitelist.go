@@ -58,7 +58,7 @@ func (wc *WhitelistCount) GenerateExecWhiteList(image container.ImageInspect) (i
 		repoDigest = strings.Split(image.RepoDigests[0], "@")[1]
 	}
 
-	logging.Get().Info().Msgf("GenerateExecWhiteList image info: %#v", image)
+	//logging.Get().Info().Msgf("GenerateExecWhiteList image info: %#v", image)
 	// check file cache
 	whiteListFileName := fmt.Sprintf(whiteListBackFileTemplate, repoDigest)
 	if isFile(whiteListFileName) {

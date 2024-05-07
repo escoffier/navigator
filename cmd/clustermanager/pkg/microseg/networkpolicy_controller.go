@@ -5,11 +5,16 @@ import (
 	"encoding/json"
 	"fmt"
 	"reflect"
+	"slices"
+	"strings"
 	"time"
 
+	"github.com/segmentio/kafka-go"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/microseg/types"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/model"
+	"gitlab.com/security-rd/go-pkg/mq"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -34,22 +39,26 @@ import (
 
 const maxRetries = 15
 
+var log = logging.Get().With().Str("module", "microseg").Logger()
+
 type NetworkPolicyController struct {
 	clietset              *versioned.Clientset
 	policyInfomer         cache.SharedIndexInformer
 	podInformer           cache.SharedIndexInformer
+	nodeInformer          cache.SharedIndexInformer
 	namespaceInformer     cache.SharedIndexInformer
 	endpointsliceInformer cache.SharedIndexInformer
 	serviceInformer       cache.SharedIndexInformer
 	clusterGroupInformer  cache.SharedIndexInformer
 
-	policyLister               v1alpha1.MicrosegClusterNetworkPolicyLister
+	policyLister               v1alpha1.ClusterNetworkPolicyLister
 	podLister                  listerv1.PodLister
 	namespaceLister            listerv1.NamespaceLister
 	serviceLister              listerv1.ServiceLister
+	nodeLister                 listerv1.NodeLister
 	endpointsliceLister        dislisterv1.EndpointSliceLister
 	endpointsliceListerv1beta1 dislisterv1beta1.EndpointSliceLister
-	clusterGroupLister         v1alpha1.MicrosegClusterGroupLister
+	clusterGroupLister         v1alpha1.ClusterWorkloadSetLister
 	ruleGroupLister            v1alpha1.NetworkPolicyRuleGroupLister
 
 	podSynced           cache.InformerSynced
@@ -57,12 +66,17 @@ type NetworkPolicyController struct {
 	clusterPolicySynced cache.InformerSynced
 	clusterGroupSynced  cache.InformerSynced
 	ruleGroupSynced     cache.InformerSynced
+	nodeSynced          cache.InformerSynced
 	queue               workqueue.RateLimitingInterface
+	nodeQueue           workqueue.RateLimitingInterface
 	pod2Policy          map[string]string
+	NodesIpAddr         map[string]struct{}
+	mqWriter            mq.Writer
+	mqTopic             string
 }
 
 func podLabelIndexFunc(obj interface{}) ([]string, error) {
-	pol := obj.(*crdv1alpha1.MicrosegClusterNetworkPolicy)
+	pol := obj.(*crdv1alpha1.ClusterNetworkPolicy)
 	var values []string
 	if pol.Spec.PodSelector != nil {
 		values = append(values, v1.FormatLabelSelector(pol.Spec.PodSelector))
@@ -88,8 +102,163 @@ func podLabelIndexFunc(obj interface{}) ([]string, error) {
 
 var KeyFunc = cache.DeletionHandlingMetaNamespaceKeyFunc
 
+func matchLabels(ls *v1.LabelSelector, labelSet map[string]string) (bool, error) {
+	selector, err := v1.LabelSelectorAsSelector(ls)
+	if err != nil {
+		return false, err
+	}
+	if selector.Matches(labels.Set(labelSet)) {
+		// set.Insert(policyKey)
+		return true, nil
+	}
+	return false, nil
+}
+
+func (npc *NetworkPolicyController) isPolicyAffectByPod(podLables *v1.LabelSelector, nsLables *v1.LabelSelector, labelSet map[string]string, podNamespace string) (bool, error) {
+	matched, err := matchLabels(podLables, labelSet)
+	if matched {
+		return true, nil
+	}
+	if err != nil {
+		return false, err
+	}
+
+	nsSelector, err := v1.LabelSelectorAsSelector(nsLables)
+	if err != nil {
+		return false, err
+	}
+	namespaces, err := npc.namespaceLister.List(nsSelector)
+	if err != nil {
+		return false, err
+	}
+	for _, ns := range namespaces {
+		if ns.Name == podNamespace {
+			// set.Insert(policyKey)
+			return true, nil
+		}
+	}
+	return false, nil
+}
+func (npc *NetworkPolicyController) getNsgroupByPod(pod *corev1.Pod) (sets.String, error) {
+	ngs := sets.String{}
+	selector, err := labels.ValidatedSelectorFromSet(map[string]string{"microsegmentation/type": "namespace-group"})
+	if err != nil {
+		return nil, err
+	}
+	nsgroups, err := npc.clusterGroupLister.List(selector)
+	if err != nil {
+		return nil, err
+	}
+	for _, ng := range nsgroups {
+		selector, err := v1.LabelSelectorAsSelector(ng.Spec.NamespaceSelector)
+		if err != nil {
+			return nil, err
+		}
+		namespaceLabels := map[string]string{"kubernetes.io/metadata.name": pod.Namespace}
+		if selector.Matches(labels.Set(namespaceLabels)) {
+			ngs.Insert(ng.Name)
+		}
+	}
+	return ngs, nil
+}
+
+func (npc *NetworkPolicyController) getWorkloadSetByPod(pod *corev1.Pod) (sets.String, error) {
+	// workloadSet := sets.String{}
+	groups, err := npc.clusterGroupLister.List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+	return npc.getGroupByPod(pod, groups)
+}
+
+func (npc *NetworkPolicyController) getGroupByPod(pod *corev1.Pod, groups []*crdv1alpha1.ClusterWorkloadSet) (sets.String, error) {
+	workloadSet := sets.String{}
+	for _, ng := range groups {
+		if strings.HasPrefix(ng.Name, "ipgroup-") {
+			continue
+		}
+		selector, err := v1.LabelSelectorAsSelector(ng.Spec.NamespaceSelector)
+		if err != nil {
+			return nil, err
+		}
+		namespaces, err := npc.namespaceLister.List(selector)
+		if err != nil {
+			return nil, err
+		}
+		idx := slices.IndexFunc(namespaces, func(ns *corev1.Namespace) bool {
+			return ns.Name == pod.Namespace
+		})
+		// namespce matched
+		if idx != -1 {
+			if ng.Spec.PodSelector != nil {
+				selector, err := v1.LabelSelectorAsSelector(ng.Spec.PodSelector)
+				if err != nil {
+					return workloadSet, err
+				}
+				if selector.Matches(labels.Set(pod.Labels)) {
+					// set.Insert(policyKey)
+					workloadSet.Insert(ng.Name)
+					// return workloadSet, nil
+				}
+			} else {
+				workloadSet.Insert(ng.Name)
+			}
+			// matchLabels(ng.Spec.PodSelector, pod.Labels)
+		}
+	}
+	return workloadSet, nil
+}
+
+func (npc *NetworkPolicyController) getPodPolicyRelationShipsv2(pod *corev1.Pod) (sets.String, error) {
+	set := sets.String{}
+	policies, err := npc.policyLister.List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+	nsgroups, err := npc.getWorkloadSetByPod(pod)
+	if err != nil {
+		return nil, err
+	}
+	logging.Get().Info().Msgf("matched groups : %v", nsgroups)
+	for _, policy := range policies {
+		key, err := KeyFunc(policy)
+		if err != nil {
+			return nil, err
+		}
+		matched, err := npc.isPolicyAffectByPod(policy.Spec.PodSelector, policy.Spec.NamespaceSelector, labels.Set(pod.Labels), pod.Namespace)
+		if err != nil {
+			return nil, err
+		}
+		if matched {
+			set.Insert(key)
+		}
+
+		for _, rule := range policy.Spec.Rules {
+			for _, peer := range rule.From {
+				matched, err := npc.isPolicyAffectByPod(peer.PodSelector, peer.NamespaceSelector, labels.Set(pod.Labels), pod.Namespace)
+				if err != nil {
+					return nil, err
+				}
+				if matched || nsgroups.Has(peer.Group) {
+					set.Insert(key)
+				}
+			}
+			for _, peer := range rule.To {
+				matched, err := npc.isPolicyAffectByPod(peer.PodSelector, peer.NamespaceSelector, labels.Set(pod.Labels), pod.Namespace)
+				if err != nil {
+					return nil, err
+				}
+				if matched || nsgroups.Has(peer.Group) {
+					set.Insert(key)
+				}
+			}
+		}
+	}
+	return set, nil
+}
+
 // getPodPolicyRelationShips select a set of policy keys that matching a given pod
-func getPodPolicyRelationShips(policyLister v1alpha1.MicrosegClusterNetworkPolicyLister, namespaceLister listerv1.NamespaceLister, pod *corev1.Pod) (sets.String, error) {
+func getPodPolicyRelationShips(policyLister v1alpha1.ClusterNetworkPolicyLister, namespaceLister listerv1.NamespaceLister, pod *corev1.Pod) (sets.String, error) {
 	set := sets.String{}
 	policies, err := policyLister.List(labels.Everything())
 	if err != nil {
@@ -178,7 +347,7 @@ func getPodPolicyRelationShips(policyLister v1alpha1.MicrosegClusterNetworkPolic
 	return set, nil
 }
 
-func getNamespacePolicyRelationShips(policyLister v1alpha1.MicrosegClusterNetworkPolicyLister, namespace *corev1.Namespace) (sets.String, error) {
+func getNamespacePolicyRelationShips(policyLister v1alpha1.ClusterNetworkPolicyLister, namespace *corev1.Namespace) (sets.String, error) {
 	set := sets.String{}
 	policies, err := policyLister.List(labels.Everything())
 	if err != nil {
@@ -231,7 +400,96 @@ func getNamespacePolicyRelationShips(policyLister v1alpha1.MicrosegClusterNetwor
 	return set, nil
 }
 
-func getClusterGroupPolicyRelationShips(policyLister v1alpha1.MicrosegClusterNetworkPolicyLister, clusterGrop *crdv1alpha1.MicrosegClusterGroup) (sets.String, error) {
+func getClusterGroupPolicyRelationShipsV2(policyLister v1alpha1.ClusterNetworkPolicyLister, clusterGrop *crdv1alpha1.ClusterWorkloadSet) (sets.String, error) {
+	set := sets.String{}
+	policies, err := policyLister.List(labels.Everything())
+	if err != nil {
+		return nil, err
+	}
+	for _, policy := range policies {
+		key, err := KeyFunc(policy)
+		if err != nil {
+			return nil, err
+		}
+		for _, rule := range policy.Spec.Rules {
+			for _, peer := range rule.From {
+				if peer.Group == clusterGrop.Name {
+					set.Insert(key)
+				}
+			}
+
+			for _, peer := range rule.To {
+				if peer.Group == clusterGrop.Name {
+					set.Insert(key)
+				}
+			}
+		}
+	}
+	return set, nil
+}
+
+func buildFromNodeIpRules(extras []string) crdv1alpha1.Rule {
+	action := crdv1alpha1.RuleActionAllow
+	ipStr := crdv1alpha1.IPBlock{CIDR: strings.Join(extras, ",")}
+
+	nodeRule := crdv1alpha1.Rule{
+		Name:   "nodeip",
+		Action: &action,
+		To: []crdv1alpha1.NetworkPolicyPeer{
+			{
+				IPBlock: &ipStr,
+			},
+		},
+	}
+
+	nodeRule.From = append(nodeRule.From, crdv1alpha1.NetworkPolicyPeer{
+		IPBlock: &ipStr,
+	})
+
+	return nodeRule
+}
+
+func buildToNodeIpRules(extras []string) crdv1alpha1.Rule {
+	action := crdv1alpha1.RuleActionAllow
+	ipStr := crdv1alpha1.IPBlock{CIDR: strings.Join(extras, ",")}
+
+	nodeRule := crdv1alpha1.Rule{
+		Name:   "nodeip",
+		Action: &action,
+		From: []crdv1alpha1.NetworkPolicyPeer{
+			{
+				IPBlock: &ipStr,
+			},
+		},
+	}
+
+	nodeRule.To = append(nodeRule.To, crdv1alpha1.NetworkPolicyPeer{
+		IPBlock: &ipStr,
+	})
+
+	return nodeRule
+}
+
+func getExtrasNetPolicyName(policyLister v1alpha1.ClusterNetworkPolicyLister) ([]string, error) {
+	policyName := make([]string, 0)
+
+	esLabelSelector := labels.Set(map[string]string{
+		"networkpilicy/type": "extras",
+	}).AsSelectorPreValidated()
+
+	policies, err := policyLister.List(esLabelSelector)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, policy := range policies {
+		policyName = append(policyName, policy.GetName())
+	}
+
+	return policyName, nil
+}
+
+func getClusterGroupPolicyRelationShips(policyLister v1alpha1.ClusterNetworkPolicyLister, clusterGrop *crdv1alpha1.ClusterWorkloadSet) (sets.String, error) {
 	set := sets.String{}
 	policies, err := policyLister.List(labels.Everything())
 	if err != nil {
@@ -275,12 +533,13 @@ func (npc *NetworkPolicyController) addPod(obj interface{}) {
 	if pod.Status.PodIP == "" || pod.Spec.HostNetwork {
 		return
 	}
-	logging.Get().Debug().Msgf("add pod %s/%s", pod.Namespace, pod.Name)
-	policies, err := getPodPolicyRelationShips(npc.policyLister, npc.namespaceLister, pod)
+	log.Info().Msgf("add pod %s/%s", pod.Namespace, pod.Name)
+	policies, err := npc.getPodPolicyRelationShipsv2(pod)
 	if err != nil {
-		logging.Get().Err(err).Msgf("process add pod event err")
+		log.Err(err).Msgf("process add pod event err")
 		return
 	}
+	log.Info().Msgf("policies: %v", policies)
 	for key := range policies {
 		npc.queue.Add(key)
 	}
@@ -292,35 +551,16 @@ func (npc *NetworkPolicyController) updatePod(oldObj, newObject interface{}) {
 	if oldPod.Status.PodIP == newPod.Status.PodIP || newPod.Spec.HostNetwork {
 		return
 	}
-	logging.Get().Debug().Msgf("update pod %s", oldPod.Name)
-	policies, err := getPodPolicyRelationShips(npc.policyLister, npc.namespaceLister, newPod)
+	log.Info().Msgf("update pod %s", oldPod.Name)
+	policies, err := npc.getPodPolicyRelationShipsv2(newPod)
 	if err != nil {
-		logging.Get().Err(err).Msgf("process add pod event err")
+		log.Err(err).Msgf("process add pod event err")
 		return
 	}
+	log.Info().Msgf("policies: %s", policies)
 	for key := range policies {
 		npc.queue.Add(key)
 	}
-}
-
-func GetResourceFromDeleteAction[T corev1.Pod | crdv1alpha1.MicrosegClusterGroup](obj interface{}) *T {
-	if pod, ok := obj.(*T); ok {
-		// Enqueue all the services that the pod used to be a member of.
-		// This is the same thing we do when we add a pod.
-		return pod
-	}
-	// If we reached here it means the pod was deleted but its final state is unrecorded.
-	tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
-	if !ok {
-		// utilruntime.HandleError(fmt.Errorf("couldn't get object from tombstone %#v", obj))
-		return nil
-	}
-	pod, ok := tombstone.Obj.(*T)
-	if !ok {
-		// utilruntime.HandleError(fmt.Errorf("tombstone contained object that is not a Pod: %#v", obj))
-		return nil
-	}
-	return pod
 }
 
 func (npc *NetworkPolicyController) deletePod(obj interface{}) {
@@ -329,14 +569,34 @@ func (npc *NetworkPolicyController) deletePod(obj interface{}) {
 		return
 	}
 	if pod != nil {
-		logging.Get().Debug().Msgf("delete pod %s/%s", pod.Namespace, pod.Name)
+		log.Debug().Msgf("delete pod %s/%s", pod.Namespace, pod.Name)
 		npc.addPod(pod)
 	}
 }
 
+func GetResourceFromDeleteAction[T corev1.Pod | crdv1alpha1.ClusterWorkloadSet](obj interface{}) *T {
+	if res, ok := obj.(*T); ok {
+		// Enqueue all the services that the pod used to be a member of.
+		// This is the same thing we do when we add a pod.
+		return res
+	}
+	// If we reached here it means the pod was deleted but its final state is unrecorded.
+	tombstone, ok := obj.(cache.DeletedFinalStateUnknown)
+	if !ok {
+		// utilruntime.HandleError(fmt.Errorf("couldn't get object from tombstone %#v", obj))
+		return nil
+	}
+	res, ok := tombstone.Obj.(*T)
+	if !ok {
+		// utilruntime.HandleError(fmt.Errorf("tombstone contained object that is not a Pod: %#v", obj))
+		return nil
+	}
+	return res
+}
+
 func (npc *NetworkPolicyController) addClusterPolicy(obj interface{}) {
-	cnp := obj.(*crdv1alpha1.MicrosegClusterNetworkPolicy)
-	logging.Get().Debug().Msgf("add cluster policy %s", cnp.Name)
+	cnp := obj.(*crdv1alpha1.ClusterNetworkPolicy)
+	log.Debug().Msgf("add cluster policy %s", cnp.Name)
 	key, err := KeyFunc(cnp)
 	if err != nil {
 		return
@@ -345,10 +605,10 @@ func (npc *NetworkPolicyController) addClusterPolicy(obj interface{}) {
 }
 
 func (npc *NetworkPolicyController) updateClusterPolicy(oldObj, newObject interface{}) {
-	oldPolicy := oldObj.(*crdv1alpha1.MicrosegClusterNetworkPolicy)
-	newPolicy := newObject.(*crdv1alpha1.MicrosegClusterNetworkPolicy)
+	oldPolicy := oldObj.(*crdv1alpha1.ClusterNetworkPolicy)
+	newPolicy := newObject.(*crdv1alpha1.ClusterNetworkPolicy)
 
-	logging.Get().Debug().Msgf("update cluster policy %s", oldPolicy.Name)
+	log.Debug().Msgf("update cluster policy %s", oldPolicy.Name)
 	key, err := KeyFunc(newPolicy)
 	if err != nil {
 		return
@@ -357,8 +617,8 @@ func (npc *NetworkPolicyController) updateClusterPolicy(oldObj, newObject interf
 }
 
 func (npc *NetworkPolicyController) deleteClusterPolicy(obj interface{}) {
-	policy := obj.(*crdv1alpha1.MicrosegClusterNetworkPolicy)
-	logging.Get().Debug().Msgf("delete cluster policy %s", policy.Name)
+	policy := obj.(*crdv1alpha1.ClusterNetworkPolicy)
+	log.Debug().Msgf("delete cluster policy %s", policy.Name)
 	key, err := KeyFunc(policy)
 	if err != nil {
 		return
@@ -367,27 +627,27 @@ func (npc *NetworkPolicyController) deleteClusterPolicy(obj interface{}) {
 }
 
 func (npc *NetworkPolicyController) addClusterGroup(obj interface{}) {
-	cg := obj.(*crdv1alpha1.MicrosegClusterGroup)
-
-	policies, err := getClusterGroupPolicyRelationShips(npc.policyLister, cg)
+	cg := obj.(*crdv1alpha1.ClusterWorkloadSet)
+	policies, err := getClusterGroupPolicyRelationShipsV2(npc.policyLister, cg)
 	if err != nil {
 		return
 	}
+	logging.Get().Info().Msgf("cluster group for polices %v", policies)
 	for key := range policies {
 		npc.queue.Add(key)
 	}
 }
 
 func (npc *NetworkPolicyController) updateClusterGroup(oldObj, newObj interface{}) {
-	oldGroup := oldObj.(*crdv1alpha1.MicrosegClusterGroup)
-	newGroup := newObj.(*crdv1alpha1.MicrosegClusterGroup)
+	oldGroup := oldObj.(*crdv1alpha1.ClusterWorkloadSet)
+	newGroup := newObj.(*crdv1alpha1.ClusterWorkloadSet)
 	if oldGroup.ResourceVersion == newGroup.ResourceVersion {
 		return
 	}
 	if reflect.DeepEqual(oldGroup.Spec, newGroup.Spec) {
 		return
 	}
-	policies, err := getClusterGroupPolicyRelationShips(npc.policyLister, newGroup)
+	policies, err := getClusterGroupPolicyRelationShipsV2(npc.policyLister, newGroup)
 	if err != nil {
 		return
 	}
@@ -397,9 +657,9 @@ func (npc *NetworkPolicyController) updateClusterGroup(oldObj, newObj interface{
 }
 
 func (npc *NetworkPolicyController) deleteClusterGroup(obj interface{}) {
-	clusterGroup := GetResourceFromDeleteAction[crdv1alpha1.MicrosegClusterGroup](obj)
+	clusterGroup := GetResourceFromDeleteAction[crdv1alpha1.ClusterWorkloadSet](obj)
 	if clusterGroup != nil {
-		logging.Get().Debug().Msgf("delete ClusterGroup %s", clusterGroup.Name)
+		logging.Get().Info().Msgf("delete ClusterGroup %s", clusterGroup.Name)
 		npc.addClusterGroup(clusterGroup)
 	}
 }
@@ -498,29 +758,167 @@ func (npc *NetworkPolicyController) updateService(oldObj, newObj interface{}) {
 func (npc *NetworkPolicyController) deleteService(obj interface{}) {
 }
 
-func NewNetworkPolicyController(clientset *versioned.Clientset, factory informers.SharedInformerFactory, crdFactory externalversions.SharedInformerFactory) *NetworkPolicyController {
-	policyInfomer := crdFactory.Microsegmentation().V1alpha1().MicrosegClusterNetworkPolicies().Informer()
+func (npc *NetworkPolicyController) addNode(obj interface{}) {
+	node := obj.(*corev1.Node)
+	key, err := KeyFunc(obj)
+	if err != nil {
+		return
+	}
+	npc.nodeQueue.Add(key)
+	ipAddr := ""
 
+	for _, addr := range node.Status.Addresses {
+		if addr.Type != corev1.NodeInternalIP {
+			continue
+		}
+		ipAddr = addr.Address
+		break
+	}
+	if len(ipAddr) == 0 {
+		return
+	}
+	log.Debug().Msgf("node ip : %+v", ipAddr)
+
+	if _, ok := npc.NodesIpAddr[ipAddr]; ok {
+		return
+	}
+
+	npc.NodesIpAddr[ipAddr] = struct{}{}
+}
+
+func (npc *NetworkPolicyController) updateNode(oldObj, newObj interface{}) {
+	oldNode := oldObj.(*corev1.Node)
+	newNode := newObj.(*corev1.Node)
+	key, err := KeyFunc(newObj)
+	if err != nil {
+		return
+	}
+	npc.nodeQueue.Add(key)
+	oldAddr := ""
+	newAddr := ""
+	for _, addr := range oldNode.Status.Addresses {
+		if addr.Type != corev1.NodeInternalIP {
+			continue
+		}
+		oldAddr = addr.Address
+		break
+	}
+
+	for _, addr := range newNode.Status.Addresses {
+		if addr.Type != corev1.NodeInternalIP {
+			continue
+		}
+		newAddr = addr.Address
+		break
+	}
+
+	if oldAddr == newAddr {
+		return
+	}
+
+	delete(npc.NodesIpAddr, oldAddr)
+	npc.NodesIpAddr[newAddr] = struct{}{}
+}
+
+func (npc *NetworkPolicyController) deleteNode(obj interface{}) {
+	node := obj.(*corev1.Node)
+	key, err := KeyFunc(obj)
+	if err != nil {
+		return
+	}
+	npc.nodeQueue.Add(key)
+	ipAddr := ""
+	for _, addr := range node.Status.Addresses {
+		if addr.Type != corev1.NodeInternalIP {
+			continue
+		}
+		ipAddr = addr.Address
+		break
+	}
+	if len(ipAddr) == 0 {
+		return
+	}
+	log.Debug().Msgf("node ip : %+v", ipAddr)
+
+	delete(npc.NodesIpAddr, ipAddr)
+}
+
+func (npc *NetworkPolicyController) listNode() error {
+	nodes, err := npc.nodeLister.List(labels.Everything())
+	if err != nil {
+		return fmt.Errorf("list node infor failed, %+v", err)
+	}
+
+	for i := 0; i < len(nodes); i++ {
+		for _, addr := range nodes[i].Status.Addresses {
+			if addr.Type != corev1.NodeInternalIP {
+				continue
+			}
+			logging.Get().Debug().Msgf("node ip address : %+v", addr.Address)
+			npc.NodesIpAddr[addr.Address] = struct{}{}
+			break
+		}
+	}
+
+	return nil
+}
+
+func (npc *NetworkPolicyController) UpdateResourceExtraNetworkPolicy(nodesIp []string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	defer cancel()
+
+	policyNames, err := getExtrasNetPolicyName(npc.policyLister)
+	if err != nil {
+		return fmt.Errorf("get policy name failed, %+v", err)
+	}
+
+	for _, name := range policyNames {
+		policy, err := npc.clietset.MicrosegmentationV1alpha1().ClusterNetworkPolicies().Get(ctx, name, v1.GetOptions{})
+		if err != nil {
+			return err
+		}
+
+		policy.Spec.Rules = slices.DeleteFunc(policy.Spec.Rules, func(rule crdv1alpha1.Rule) bool {
+			return (rule.Name == "nodeip")
+		})
+
+		policy.Spec.Rules = append(policy.Spec.Rules, buildFromNodeIpRules(nodesIp))
+
+		npc.clietset.MicrosegmentationV1alpha1().ClusterNetworkPolicies().Update(ctx, policy, v1.UpdateOptions{})
+	}
+
+	return nil
+}
+
+func NewNetworkPolicyController(clientset *versioned.Clientset, factory informers.SharedInformerFactory, crdFactory externalversions.SharedInformerFactory, writer mq.Writer, topic string) *NetworkPolicyController {
+	policyInfomer := crdFactory.Microsegmentation().V1alpha1().ClusterNetworkPolicies().Informer()
 	controller := NetworkPolicyController{
 		clietset:             clientset,
 		policyInfomer:        policyInfomer,
-		clusterGroupInformer: crdFactory.Microsegmentation().V1alpha1().MicrosegClusterGroups().Informer(),
+		clusterGroupInformer: crdFactory.Microsegmentation().V1alpha1().ClusterWorkloadSets().Informer(),
 		podInformer:          factory.Core().V1().Pods().Informer(),
 		namespaceInformer:    factory.Core().V1().Namespaces().Informer(),
 		serviceInformer:      factory.Core().V1().Services().Informer(),
+		nodeInformer:         factory.Core().V1().Nodes().Informer(),
 		serviceLister:        factory.Core().V1().Services().Lister(),
-		policyLister:         crdFactory.Microsegmentation().V1alpha1().MicrosegClusterNetworkPolicies().Lister(),
-		clusterGroupLister:   crdFactory.Microsegmentation().V1alpha1().MicrosegClusterGroups().Lister(),
+		nodeLister:           factory.Core().V1().Nodes().Lister(),
+		policyLister:         crdFactory.Microsegmentation().V1alpha1().ClusterNetworkPolicies().Lister(),
+		clusterGroupLister:   crdFactory.Microsegmentation().V1alpha1().ClusterWorkloadSets().Lister(),
 		ruleGroupLister:      crdFactory.Microsegmentation().V1alpha1().NetworkPolicyRuleGroups().Lister(),
 		podLister:            factory.Core().V1().Pods().Lister(),
 		namespaceLister:      factory.Core().V1().Namespaces().Lister(),
 		podSynced:            factory.Core().V1().Pods().Informer().HasSynced,
 		namepaceSynced:       factory.Core().V1().Namespaces().Informer().HasSynced,
-		clusterPolicySynced:  crdFactory.Microsegmentation().V1alpha1().MicrosegClusterNetworkPolicies().Informer().HasSynced,
-		clusterGroupSynced:   crdFactory.Microsegmentation().V1alpha1().MicrosegClusterGroups().Informer().HasSynced,
+		nodeSynced:           factory.Core().V1().Nodes().Informer().HasSynced,
+		clusterPolicySynced:  crdFactory.Microsegmentation().V1alpha1().ClusterNetworkPolicies().Informer().HasSynced,
+		clusterGroupSynced:   crdFactory.Microsegmentation().V1alpha1().ClusterWorkloadSets().Informer().HasSynced,
 		ruleGroupSynced:      crdFactory.Microsegmentation().V1alpha1().NetworkPolicyRuleGroups().Informer().HasSynced,
 		queue:                workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "networkpolicy-queue"),
+		nodeQueue:            workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "node_queue"),
 		pod2Policy:           make(map[string]string, 100),
+		NodesIpAddr:          make(map[string]struct{}, 100),
+		mqWriter:             writer,
+		mqTopic:              topic,
 	}
 
 	policyInfomer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
@@ -543,6 +941,11 @@ func NewNetworkPolicyController(clientset *versioned.Clientset, factory informer
 
 	policyInfomer.AddIndexers(cache.Indexers{"pod-label-index": podLabelIndexFunc})
 
+	err = controller.listNode()
+	if err != nil {
+		logging.Get().Err(err).Msgf("list node ip address failed")
+		return nil
+	}
 	// controller.endpointsliceInformer.AddIndexers(cache.Indexers{"pod-name-index": func(obj interface{}) ([]string, error) {
 	// 	eps := obj.(*discovery1.EndpointSlice)
 	// 	var values []string
@@ -578,11 +981,17 @@ func NewNetworkPolicyController(clientset *versioned.Clientset, factory informer
 		DeleteFunc: controller.deleteService,
 	}, time.Hour*8)
 
+	controller.nodeInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
+		AddFunc:    controller.addNode,
+		UpdateFunc: controller.updateNode,
+		DeleteFunc: controller.deleteNode,
+	}, time.Hour*8)
 	// controller.endpointsliceInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 	// 	AddFunc:    controller.addService,
 	// 	UpdateFunc: controller.updateService,
 	// 	DeleteFunc: controller.deleteService,
 	// }, time.Hour*8)
+	logging.Get().Info().Msg("create NetworkPolicyController")
 	return &controller
 }
 
@@ -592,7 +1001,8 @@ func (npc *NetworkPolicyController) Run(stopChan chan struct{}) {
 		npc.podSynced, npc.namepaceSynced, npc.clusterPolicySynced, npc.clusterGroupSynced, npc.ruleGroupSynced) {
 		return
 	}
-	wait.Until(npc.worker, time.Second, stopChan)
+	go wait.Until(npc.worker, time.Second, stopChan)
+	go wait.Until(npc.nodeWorker, time.Second, stopChan)
 }
 
 func (npc *NetworkPolicyController) worker() {
@@ -601,7 +1011,78 @@ func (npc *NetworkPolicyController) worker() {
 	}
 }
 
-func (npc *NetworkPolicyController) syncRules(rules map[string]*crdv1alpha1.NetworkPolicyRuleGroup) error {
+func (npc *NetworkPolicyController) syncNodeRule(key string) error {
+	nodes, err := npc.nodeLister.List(labels.Everything())
+	if err != nil {
+		return err
+	}
+	var curIPs []string
+	for _, node := range nodes {
+		for _, addr := range node.Status.Addresses {
+			if addr.Type == corev1.NodeInternalIP {
+				curIPs = append(curIPs, addr.Address)
+			}
+		}
+	}
+	slices.Sort(curIPs)
+	nodeGroup, err := npc.clietset.MicrosegmentationV1alpha1().ClusterWorkloadSets().Get(context.TODO(), "node-group", v1.GetOptions{})
+	if err != nil {
+		if errors.IsNotFound(err) {
+			logging.Get().Info().Msg("creating node group")
+			nodeGroup = &crdv1alpha1.ClusterWorkloadSet{
+				ObjectMeta: v1.ObjectMeta{
+					Name: "node-group",
+				},
+				Spec: crdv1alpha1.ClusterWorkloadSetSpec{
+					IPBlock: &crdv1alpha1.IPBlock{
+						CIDR: strings.Join(curIPs, ","),
+					},
+				},
+			}
+			_, err = npc.clietset.MicrosegmentationV1alpha1().ClusterWorkloadSets().Create(context.TODO(), nodeGroup, v1.CreateOptions{})
+			return err
+		}
+		return err
+	}
+	ipSet := nodeGroup.Spec.IPBlock.CIDR
+	ips := strings.Split(ipSet, ",")
+	slices.Sort(ips)
+
+	if !slices.Equal(curIPs, ips) {
+		logging.Get().Info().Msg("updating node group")
+		nodeGroup.Spec.IPBlock.CIDR = strings.Join(curIPs, ",")
+		_, err = npc.clietset.MicrosegmentationV1alpha1().ClusterWorkloadSets().Update(context.TODO(), nodeGroup, v1.UpdateOptions{})
+		return err
+	}
+	return nil
+}
+
+func (npc *NetworkPolicyController) processNextNodeItem() bool {
+	key, quit := npc.nodeQueue.Get()
+	if quit {
+		return false
+	}
+	defer npc.nodeQueue.Done(key)
+
+	err := npc.syncNodeRule(key.(string))
+	npc.handleErr(err, key)
+
+	return true
+}
+
+func (npc *NetworkPolicyController) nodeWorker() {
+	logging.Get().Info().Msg("start worker")
+	for npc.processNextNodeItem() {
+	}
+}
+
+func (npc *NetworkPolicyController) syncPolicyRules(policy string, rules map[string]*crdv1alpha1.NetworkPolicyRuleGroup) error {
+	err := npc.clietset.MicrosegmentationV1alpha1().NetworkPolicyRuleGroups().DeleteCollection(context.Background(), v1.DeleteOptions{}, v1.ListOptions{
+		LabelSelector: fmt.Sprintf("kubernetes.io/networkpolicy-name=%s", policy),
+	})
+	if err != nil {
+		log.Err(err).Msgf("delete rules of policy %s", policy)
+	}
 	for _, r := range rules {
 		curRule, err := npc.ruleGroupLister.Get(r.Name)
 		if err != nil {
@@ -623,6 +1104,217 @@ func (npc *NetworkPolicyController) syncRules(rules map[string]*crdv1alpha1.Netw
 	}
 	return nil
 }
+
+func sortPeerForRule(rule crdv1alpha1.NodeRule) {
+	slices.SortFunc(rule.FromAddress, func(a, b crdv1alpha1.Address) int {
+		return strings.Compare(a.IP, b.IP)
+	})
+	slices.SortFunc(rule.ToAddresses, func(a, b crdv1alpha1.Address) int {
+		return strings.Compare(a.IP, b.IP)
+	})
+	slices.SortFunc(rule.FromIPBlock, func(a, b crdv1alpha1.IPBlock) int {
+		return strings.Compare(a.CIDR, b.CIDR)
+	})
+	slices.SortFunc(rule.ToIPBlock, func(a, b crdv1alpha1.IPBlock) int {
+		return strings.Compare(a.CIDR, b.CIDR)
+	})
+}
+
+func (npc *NetworkPolicyController) generateRules(policy *crdv1alpha1.ClusterNetworkPolicy) (map[string]*crdv1alpha1.NetworkPolicyRuleGroup, error) {
+	// var err error
+	// var ruleGroups []*crdv1alpha1.NetworkPolicyRuleGroup
+	// var ruleGroupMap map[string]*crdv1alpha1.NetworkPolicyRuleGroup
+	ruleGroupMap := make(map[string]*crdv1alpha1.NetworkPolicyRuleGroup, 0)
+	for _, r := range policy.Spec.Rules {
+		// var adddress []crdv1alpha1.Address
+		var fromAddressMap map[string][]crdv1alpha1.Address = make(map[string][]crdv1alpha1.Address, 0)
+		var toAddressesMap map[string][]crdv1alpha1.Address = make(map[string][]crdv1alpha1.Address, 0)
+		var fromIPBlock []crdv1alpha1.IPBlock
+		var emptyWorkload bool
+		for _, peer := range r.From {
+			if peer.IPBlock != nil {
+				fromIPBlock = append(fromIPBlock, *peer.IPBlock)
+			}
+			if peer.Group != "" {
+				clusterGroup, err := npc.clusterGroupLister.Get(peer.Group)
+				if err == nil {
+					if clusterGroup.Spec.IPBlock != nil {
+						fromIPBlock = append(fromIPBlock, *clusterGroup.Spec.IPBlock)
+					}
+				} else if !errors.IsNotFound(err) {
+					return nil, err
+				}
+			}
+
+			addressMap, err := npc.caculateAddressMap(peer.PodSelector, peer.NamespaceSelector, peer.Group)
+			if err != nil {
+				return nil, err
+			}
+			if len(addressMap) == 0 && peer.IPBlock == nil && peer.Group == "" {
+				emptyWorkload = true
+			}
+			for node, addr := range addressMap {
+				fromAddressMap[node] = addr
+			}
+		}
+
+		log.Info().Msgf("fromAddressMap %v", fromAddressMap)
+		var toIPBlock []crdv1alpha1.IPBlock
+		var endpoints []endPoint
+		for _, peer := range r.To {
+			var err error
+			endpoints, err = npc.getRelatedServiceAddr(peer.PodSelector, peer.NamespaceSelector, peer.Group, r.Ports)
+			if err != nil {
+				return nil, err
+			}
+
+			addressesMap, err := npc.caculateAddressMap(peer.PodSelector, peer.NamespaceSelector, peer.Group)
+			if err != nil {
+				return nil, err
+			}
+			if len(addressesMap) == 0 && peer.IPBlock == nil && peer.Group == "" {
+				emptyWorkload = true
+			}
+			for node, addr := range addressesMap {
+				toAddressesMap[node] = addr
+			}
+			if peer.IPBlock != nil {
+				toIPBlock = append(toIPBlock, *peer.IPBlock)
+			}
+			if peer.Group != "" {
+				clusterGroup, err := npc.clusterGroupLister.Get(peer.Group)
+				if err == nil {
+					if clusterGroup.Spec.IPBlock != nil {
+						toIPBlock = append(toIPBlock, *clusterGroup.Spec.IPBlock)
+					}
+				} else if !errors.IsNotFound(err) {
+					return nil, err
+				}
+			}
+		}
+
+		if emptyWorkload {
+			continue
+			// return nil, nil
+		}
+
+		for node, addr := range fromAddressMap {
+			log.Info().Msg(node)
+			nodeRules := crdv1alpha1.NodeRule{
+				Action:   string(*r.Action),
+				Protocol: r.Protocol,
+				Ports:    r.Ports,
+				Priority: policy.Spec.Priority,
+			}
+			for _, toAddr := range toAddressesMap {
+				nodeRules.ToAddresses = append(nodeRules.ToAddresses, toAddr...)
+			}
+			nodeRules.ToIPBlock = append(nodeRules.ToIPBlock, toIPBlock...)
+
+			// service rules
+			serviceRules := []crdv1alpha1.NodeRule{}
+			for _, endpoint := range endpoints {
+				nodeRule := crdv1alpha1.NodeRule{
+					Action:   string(*r.Action),
+					Protocol: r.Protocol,
+					Ports:    endpoint.Ports,
+					Priority: policy.Spec.Priority,
+					ToAddresses: []crdv1alpha1.Address{
+						{
+							IP: endpoint.Address,
+						},
+					},
+				}
+				nodeRule.FromAddress = append(nodeRule.FromAddress, addr...)
+				serviceRules = append(serviceRules, nodeRule)
+			}
+
+			nodeRules.FromAddress = append(nodeRules.FromAddress, addr...)
+			if rg, ok := ruleGroupMap[node]; ok {
+				rg.Spec.Rules = append(rg.Spec.Rules, nodeRules)
+				rg.Spec.Rules = append(rg.Spec.Rules, serviceRules...)
+			} else {
+				ownerRef := v1.NewControllerRef(policy, schema.GroupVersionKind{Group: "microsegmentation.security.io", Version: "v1alpha1", Kind: "ClusterNetworkPolicy"})
+				rg := &crdv1alpha1.NetworkPolicyRuleGroup{
+					ObjectMeta: v1.ObjectMeta{
+						Name:            fmt.Sprintf("%s-%s", policy.Name, node),
+						OwnerReferences: []v1.OwnerReference{*ownerRef},
+						Labels: map[string]string{
+							"kubernetes.io/networkpolicy-name": policy.Name,
+							"kubernetes.io/node-name":          node,
+						},
+					},
+					Spec: crdv1alpha1.NetworkPolicyRuleGroupSpec{
+						NodeName: node,
+						Policy:   policy.Name,
+					},
+				}
+				rg.Spec.Rules = append(rg.Spec.Rules, nodeRules)
+				rg.Spec.Rules = append(rg.Spec.Rules, serviceRules...)
+				ruleGroupMap[node] = rg
+			}
+			log.Info().Msg(node)
+		}
+
+		for node, addr := range toAddressesMap {
+			nodeRules := crdv1alpha1.NodeRule{
+				Action:   string(*r.Action),
+				Protocol: r.Protocol,
+				Ports:    r.Ports,
+				Priority: policy.Spec.Priority,
+			}
+			for node1, fromAddr := range fromAddressMap {
+				if reflect.DeepEqual(fromAddr, addr) {
+					continue
+				}
+				if node1 == node {
+					continue
+				}
+				nodeRules.FromAddress = append(nodeRules.FromAddress, fromAddr...)
+			}
+			nodeRules.FromIPBlock = append(nodeRules.FromIPBlock, fromIPBlock...)
+
+			if len(nodeRules.FromAddress) == 0 && len(nodeRules.FromIPBlock) == 0 {
+				continue
+			}
+
+			nodeRules.ToAddresses = append(nodeRules.ToAddresses, addr...)
+			if rg, ok := ruleGroupMap[node]; ok {
+				rg.Spec.Rules = append(rg.Spec.Rules, nodeRules)
+			} else {
+				ownerRef := v1.NewControllerRef(policy, schema.GroupVersionKind{Group: "microsegmentation.security.io", Version: "v1alpha1", Kind: "ClusterNetworkPolicy"})
+				rg := &crdv1alpha1.NetworkPolicyRuleGroup{
+					ObjectMeta: v1.ObjectMeta{
+						Name:            fmt.Sprintf("%s-%s", policy.Name, node),
+						OwnerReferences: []v1.OwnerReference{*ownerRef},
+						Labels: map[string]string{
+							"kubernetes.io/networkpolicy-name": policy.Name,
+							"kubernetes.io/node-name":          node,
+						},
+					},
+					Spec: crdv1alpha1.NetworkPolicyRuleGroupSpec{
+						NodeName: node,
+						Policy:   policy.Name,
+					},
+				}
+				rg.Spec.Rules = append(rg.Spec.Rules, nodeRules)
+				ruleGroupMap[node] = rg
+			}
+		}
+	}
+	return ruleGroupMap, nil
+}
+
+func (npc *NetworkPolicyController) deleteRuleGroup(policyName string) error {
+	err := npc.clietset.MicrosegmentationV1alpha1().NetworkPolicyRuleGroups().DeleteCollection(context.Background(), v1.DeleteOptions{}, v1.ListOptions{
+		LabelSelector: fmt.Sprintf("kubernetes.io/networkpolicy-name=%s", policyName),
+	})
+	if err != nil && !errors.IsNotFound(err) {
+		return err
+	}
+	return nil
+}
+
 func (npc *NetworkPolicyController) syncPolicy(key string) error {
 	namespace, name, err := cache.SplitMetaNamespaceKey(key)
 	if err != nil {
@@ -634,23 +1326,33 @@ func (npc *NetworkPolicyController) syncPolicy(key string) error {
 			if !errors.IsNotFound(err) {
 				return err
 			}
-			logging.Get().Info().Msgf("policy : %s has bedd removed", key)
+			logging.Get().Info().Msgf("policy : %s has been removed", key)
 			return nil
 		}
-		internalPolicy, err := npc.caculatePolicy(cnp)
-		if err != nil {
-			return err
-		}
-		logging.Get().Info().Msgf("generated policy: %v", internalPolicy)
+		// internalPolicy, err := npc.caculatePolicy(cnp)
+		// if err != nil {
+		// 	return err
+		// }
+		// logging.Get().Info().Msgf("generated policy: %v", internalPolicy)
 
 		// rules, err := npc.caculatePolicyNodeRules(cnp)
-		rules, err := npc.caculatePolicyRulesOnAllNodes(cnp)
+
+		// rules, err := npc.caculatePolicyRulesOnAllNodes(cnp)
+		if !cnp.Spec.Enable {
+			return npc.deleteRuleGroup(cnp.Name)
+		}
+		log.Info().Msgf("sync policy %s", cnp.Name)
+		rules, err := npc.generateRules(cnp)
 		if err != nil {
+			log.Err(err).Msgf("generate rules for policy %s", cnp.Name)
 			return err
 		}
+		if len(rules) == 0 {
+			npc.updatePolicyStatus(nil, cnp.Name)
+		}
 		data, _ := json.Marshal(rules)
-		logging.Get().Info().Msgf("generated policy group: %v", string(data))
-		err = npc.syncRules(rules)
+		log.Info().Msgf("generated policy group: %v", string(data))
+		err = npc.syncPolicyRules(cnp.Name, rules)
 		if err != nil {
 			logging.Get().Err(err).Msgf("failed to sync node rules")
 			return err
@@ -672,11 +1374,38 @@ func (npc *NetworkPolicyController) processNextItem() bool {
 	return true
 }
 
+func (npc *NetworkPolicyController) updatePolicyStatus(err error, policy string) {
+	var intStatus int
+	var detail string
+	if err != nil {
+		intStatus = 3
+		detail = err.Error()
+	}
+	status := &model.PolicyStatus{
+		Policy: policy,
+		Status: intStatus,
+		Detail: detail,
+	}
+	data, err := json.Marshal(status)
+	if err != nil {
+		logging.Get().Err(err).Msg("marshal policy status")
+	} else {
+		err = npc.mqWriter.Write(context.Background(), "ivan_microseg_status", kafka.Message{
+			Value: data,
+		})
+		if err != nil {
+			logging.Get().Err(err).Msg("send policy status to mq")
+		}
+	}
+}
+
 func (npc *NetworkPolicyController) handleErr(err error, key interface{}) {
 	if err == nil {
 		npc.queue.Forget(key)
 		return
 	}
+
+	npc.updatePolicyStatus(err, key.(string))
 
 	ns, name, keyErr := cache.SplitMetaNamespaceKey(key.(string))
 	if keyErr != nil {
@@ -684,7 +1413,7 @@ func (npc *NetworkPolicyController) handleErr(err error, key interface{}) {
 	}
 
 	if npc.queue.NumRequeues(key) < maxRetries {
-		klog.V(2).InfoS("Error syncing policy, retrying", "service", klog.KRef(ns, name), "err", err)
+		klog.V(2).InfoS("Error syncing policy, retrying", "policy", klog.KRef(ns, name), "err", err)
 		npc.queue.AddRateLimited(key)
 		return
 	}
@@ -694,7 +1423,7 @@ func (npc *NetworkPolicyController) handleErr(err error, key interface{}) {
 	// utilruntime.HandleError(err)
 }
 
-func (npc *NetworkPolicyController) caculatePolicy(cnp *crdv1alpha1.MicrosegClusterNetworkPolicy) (*types.NetwokPolicy, error) {
+func (npc *NetworkPolicyController) caculatePolicy(cnp *crdv1alpha1.ClusterNetworkPolicy) (*types.NetwokPolicy, error) {
 	var networkpolicy types.NetwokPolicy
 	appliedAddresses, err := npc.caculateAddress(cnp.Spec.PodSelector, cnp.Spec.NamespaceSelector, cnp.Spec.Group)
 	if err != nil {
@@ -740,7 +1469,10 @@ func (npc *NetworkPolicyController) caculatePodsBylabelSelector(podLabels *v1.La
 	var err error
 
 	if namespaceLabels != nil {
-		selector, _ := v1.LabelSelectorAsSelector(namespaceLabels)
+		selector, err := v1.LabelSelectorAsSelector(namespaceLabels)
+		if err != nil {
+			return nil, err
+		}
 		namespaces, err := npc.namespaceLister.List(selector)
 		if err != nil {
 			return nil, err
@@ -748,7 +1480,10 @@ func (npc *NetworkPolicyController) caculatePodsBylabelSelector(podLabels *v1.La
 
 		if podLabels != nil {
 			// Pods are matched from Namespaces matched by the NamespaceSelector.
-			selector, _ := v1.LabelSelectorAsSelector(podLabels)
+			selector, err := v1.LabelSelectorAsSelector(podLabels)
+			if err != nil {
+				return nil, err
+			}
 			for _, ns := range namespaces {
 				podLister := npc.podLister.Pods(ns.Name)
 				ps, err := podLister.List(selector)
@@ -796,6 +1531,9 @@ func (npc *NetworkPolicyController) caculateRelatedPods(podLabels *v1.LabelSelec
 	if group != "" {
 		clusterGroup, err := npc.clusterGroupLister.Get(group)
 		if err != nil {
+			if errors.IsNotFound(err) {
+				return pods, nil
+			}
 			return nil, err
 		}
 		groupPods, err := npc.caculatePodsBylabelSelector(clusterGroup.Spec.PodSelector, clusterGroup.Spec.NamespaceSelector)
@@ -837,7 +1575,7 @@ func (npc *NetworkPolicyController) caculateAddressMap(podLabels *v1.LabelSelect
 	}
 	addresseMap := make(map[string][]crdv1alpha1.Address)
 	for _, pod := range pods {
-		logging.Get().Info().Msgf("pod ip: %s in node %s", pod.Status.PodIP, pod.Spec.NodeName)
+		log.Info().Msgf("pod ip: %s in node %s", pod.Status.PodIP, pod.Spec.NodeName)
 		if pod.Status.PodIP != "" && pod.Spec.NodeName != "" {
 			addresseMap[pod.Spec.NodeName] = append(addresseMap[pod.Spec.NodeName], crdv1alpha1.Address{
 				IP:           pod.Status.PodIP,
@@ -847,10 +1585,11 @@ func (npc *NetworkPolicyController) caculateAddressMap(podLabels *v1.LabelSelect
 	}
 
 	// sort.StringSlice(appliedAddresses).Sort()
+
 	return addresseMap, nil
 }
 
-func (npc *NetworkPolicyController) caculateNodeRules(cnp *crdv1alpha1.MicrosegClusterNetworkPolicy) (map[string][]types.NodeRule, error) {
+func (npc *NetworkPolicyController) caculateNodeRules(cnp *crdv1alpha1.ClusterNetworkPolicy) (map[string][]types.NodeRule, error) {
 	rules := make(map[string][]types.NodeRule)
 	addressesMap, err := npc.caculateAddressMap(cnp.Spec.PodSelector, cnp.Spec.NamespaceSelector, cnp.Spec.Group)
 	if err != nil {
@@ -909,7 +1648,7 @@ func (npc *NetworkPolicyController) caculateNodeRules(cnp *crdv1alpha1.MicrosegC
 	return rules, nil
 }
 
-func (npc *NetworkPolicyController) caculatePolicyNodeRules1(cnp *crdv1alpha1.MicrosegClusterNetworkPolicy) (map[string]*crdv1alpha1.NetworkPolicyRuleGroup, error) {
+func (npc *NetworkPolicyController) caculatePolicyNodeRules1(cnp *crdv1alpha1.ClusterNetworkPolicy) (map[string]*crdv1alpha1.NetworkPolicyRuleGroup, error) {
 	rules := map[string]*crdv1alpha1.NetworkPolicyRuleGroup{}
 	addressesMap, err := npc.caculateAddressMap(cnp.Spec.PodSelector, cnp.Spec.NamespaceSelector, cnp.Spec.Group)
 	if err != nil {
@@ -960,7 +1699,7 @@ func (npc *NetworkPolicyController) caculatePolicyNodeRules1(cnp *crdv1alpha1.Mi
 					Ports:       r.Ports,
 					ToAddresses: ads,
 					FromAddress: adddress,
-					FromIPBlock: peer.IPBlock,
+					FromIPBlock: []crdv1alpha1.IPBlock{*peer.IPBlock},
 					Http:        peer.Http,
 				})
 			}
@@ -979,7 +1718,7 @@ func (npc *NetworkPolicyController) caculatePolicyNodeRules1(cnp *crdv1alpha1.Mi
 						Action:      string(*r.Action),
 						Ports:       r.Ports,
 						FromAddress: ads,
-						ToIPBlock:   peer.IPBlock,
+						ToIPBlock:   []crdv1alpha1.IPBlock{*peer.IPBlock},
 						Http:        peer.Http,
 					})
 				}
@@ -1042,21 +1781,21 @@ func getServicePort(pod *corev1.Pod, svc *corev1.Service, policyPorts []crdv1alp
 		if len(policyPorts) == 0 {
 			port := intstr.FromInt(int(svcPort.Port))
 			ports = append(ports, crdv1alpha1.NetworkPolicyPort{
-				Protocol: &svcProtocol,
-				Port:     &port,
+				// Protocol: &svcProtocol,
+				Port: &port,
 			})
 		}
 		for _, pp := range policyPorts {
 			protocol := corev1.ProtocolTCP
 			if pp.Protocol != nil {
-				protocol = *pp.Protocol
+				// protocol = *pp.Protocol
 			}
 			// if policy port unset, match all ports.
 			if (isPortIn(targetPort, &pp)) && svcProtocol == protocol {
 				port := intstr.FromInt(int(svcPort.Port))
 				ports = append(ports, crdv1alpha1.NetworkPolicyPort{
-					Protocol: &protocol,
-					Port:     &port,
+					// Protocol: &protocol,
+					Port: &port,
 				})
 				break
 			}
@@ -1122,7 +1861,7 @@ func (npc *NetworkPolicyController) getRelatedServiceAddr(podLabels *v1.LabelSel
 	return set, nil
 }
 
-func (npc *NetworkPolicyController) caculatePolicyNodeRules(cnp *crdv1alpha1.MicrosegClusterNetworkPolicy) (map[string]*crdv1alpha1.NetworkPolicyRuleGroup, error) {
+func (npc *NetworkPolicyController) caculatePolicyNodeRules(cnp *crdv1alpha1.ClusterNetworkPolicy) (map[string]*crdv1alpha1.NetworkPolicyRuleGroup, error) {
 	rules := map[string]*crdv1alpha1.NetworkPolicyRuleGroup{}
 	addressesMap, err := npc.caculateAddressMap(cnp.Spec.PodSelector, cnp.Spec.NamespaceSelector, cnp.Spec.Group)
 	if err != nil {
@@ -1133,7 +1872,7 @@ func (npc *NetworkPolicyController) caculatePolicyNodeRules(cnp *crdv1alpha1.Mic
 		return rules, nil
 	}
 
-	generateCRDPolicyRule := func(cnp *crdv1alpha1.MicrosegClusterNetworkPolicy, rule *crdv1alpha1.Rule, addressMap map[string][]crdv1alpha1.Address,
+	generateCRDPolicyRule := func(cnp *crdv1alpha1.ClusterNetworkPolicy, rule *crdv1alpha1.Rule, addressMap map[string][]crdv1alpha1.Address,
 		addresses []crdv1alpha1.Address, ipBlock *crdv1alpha1.IPBlock, direction string) {
 		for node, ads := range addressesMap {
 			if _, ok := rules[node]; !ok {
@@ -1163,7 +1902,7 @@ func (npc *NetworkPolicyController) caculatePolicyNodeRules(cnp *crdv1alpha1.Mic
 					Ports:       rule.Ports,
 					ToAddresses: ads,
 					FromAddress: addresses,
-					FromIPBlock: ipBlock,
+					FromIPBlock: []crdv1alpha1.IPBlock{*ipBlock},
 				})
 			case "egress":
 				rules[node].Spec.Rules = append(rules[node].Spec.Rules, crdv1alpha1.NodeRule{
@@ -1174,7 +1913,7 @@ func (npc *NetworkPolicyController) caculatePolicyNodeRules(cnp *crdv1alpha1.Mic
 					Ports:       rule.Ports,
 					ToAddresses: addresses,
 					FromAddress: ads,
-					ToIPBlock:   ipBlock,
+					ToIPBlock:   []crdv1alpha1.IPBlock{*ipBlock},
 				})
 			default:
 				logging.Get().Error().Msgf("invalid rule direction %s ", direction)
@@ -1250,7 +1989,7 @@ func (npc *NetworkPolicyController) caculatePolicyNodeRules(cnp *crdv1alpha1.Mic
 	return rules, nil
 }
 
-func generateCRDPolicyRule(cnp *crdv1alpha1.MicrosegClusterNetworkPolicy, rule *crdv1alpha1.Rule, addressMap map[string][]crdv1alpha1.Address,
+func generateCRDPolicyRule(cnp *crdv1alpha1.ClusterNetworkPolicy, rule *crdv1alpha1.Rule, addressMap map[string][]crdv1alpha1.Address,
 	addresses []crdv1alpha1.Address, ipBlock *crdv1alpha1.IPBlock, http *crdv1alpha1.Http, direction string) map[string]*crdv1alpha1.NetworkPolicyRuleGroup {
 	rules := map[string]*crdv1alpha1.NetworkPolicyRuleGroup{}
 	for node, ads := range addressMap {
@@ -1281,7 +2020,7 @@ func generateCRDPolicyRule(cnp *crdv1alpha1.MicrosegClusterNetworkPolicy, rule *
 				Ports:       rule.Ports,
 				ToAddresses: ads,
 				FromAddress: addresses,
-				FromIPBlock: ipBlock,
+				FromIPBlock: []crdv1alpha1.IPBlock{*ipBlock},
 				Http:        http,
 			})
 		case "egress":
@@ -1293,7 +2032,7 @@ func generateCRDPolicyRule(cnp *crdv1alpha1.MicrosegClusterNetworkPolicy, rule *
 				Ports:       rule.Ports,
 				ToAddresses: addresses,
 				FromAddress: ads,
-				ToIPBlock:   ipBlock,
+				ToIPBlock:   []crdv1alpha1.IPBlock{*ipBlock},
 				Http:        http,
 			})
 		default:
@@ -1303,7 +2042,7 @@ func generateCRDPolicyRule(cnp *crdv1alpha1.MicrosegClusterNetworkPolicy, rule *
 	return rules
 }
 
-func (npc *NetworkPolicyController) caculatePolicyRulesOnAllNodes(cnp *crdv1alpha1.MicrosegClusterNetworkPolicy) (map[string]*crdv1alpha1.NetworkPolicyRuleGroup, error) {
+func (npc *NetworkPolicyController) caculatePolicyRulesOnAllNodes(cnp *crdv1alpha1.ClusterNetworkPolicy) (map[string]*crdv1alpha1.NetworkPolicyRuleGroup, error) {
 	ruleGroup := map[string]*crdv1alpha1.NetworkPolicyRuleGroup{}
 	addressesMap, err := npc.caculateAddressMap(cnp.Spec.PodSelector, cnp.Spec.NamespaceSelector, cnp.Spec.Group)
 	if err != nil {
@@ -1327,7 +2066,7 @@ func (npc *NetworkPolicyController) caculatePolicyRulesOnAllNodes(cnp *crdv1alph
 	return ruleGroup, nil
 }
 
-func (npc *NetworkPolicyController) caculateIngressRemoteSideRules(cnp *crdv1alpha1.MicrosegClusterNetworkPolicy, r crdv1alpha1.Rule, peer crdv1alpha1.NetworkPolicyPeer, addresses []crdv1alpha1.Address) (map[string]*crdv1alpha1.NetworkPolicyRuleGroup, error) {
+func (npc *NetworkPolicyController) caculateIngressRemoteSideRules(cnp *crdv1alpha1.ClusterNetworkPolicy, r crdv1alpha1.Rule, peer crdv1alpha1.NetworkPolicyPeer, addresses []crdv1alpha1.Address) (map[string]*crdv1alpha1.NetworkPolicyRuleGroup, error) {
 	ruleGroup := map[string]*crdv1alpha1.NetworkPolicyRuleGroup{}
 	addresMap, err := npc.caculateAddressMap(peer.PodSelector, peer.NamespaceSelector, peer.Group)
 	if err != nil {
@@ -1365,7 +2104,7 @@ func (npc *NetworkPolicyController) caculateIngressRemoteSideRules(cnp *crdv1alp
 	return ruleGroup, nil
 }
 
-func (npc *NetworkPolicyController) caculateEgressRemoteSideRules(cnp *crdv1alpha1.MicrosegClusterNetworkPolicy, r crdv1alpha1.Rule, peer crdv1alpha1.NetworkPolicyPeer, addresses []crdv1alpha1.Address) (map[string]*crdv1alpha1.NetworkPolicyRuleGroup, error) {
+func (npc *NetworkPolicyController) caculateEgressRemoteSideRules(cnp *crdv1alpha1.ClusterNetworkPolicy, r crdv1alpha1.Rule, peer crdv1alpha1.NetworkPolicyPeer, addresses []crdv1alpha1.Address) (map[string]*crdv1alpha1.NetworkPolicyRuleGroup, error) {
 	ruleGroup := map[string]*crdv1alpha1.NetworkPolicyRuleGroup{}
 	addresMap, err := npc.caculateAddressMap(peer.PodSelector, peer.NamespaceSelector, peer.Group)
 	if err != nil {
@@ -1413,7 +2152,7 @@ func appendToMap(m1 map[string]*crdv1alpha1.NetworkPolicyRuleGroup, m2 map[strin
 	}
 }
 
-func (npc *NetworkPolicyController) caculateIngressRules(cnp *crdv1alpha1.MicrosegClusterNetworkPolicy, addressesMap map[string][]crdv1alpha1.Address) (map[string]*crdv1alpha1.NetworkPolicyRuleGroup, error) {
+func (npc *NetworkPolicyController) caculateIngressRules(cnp *crdv1alpha1.ClusterNetworkPolicy, addressesMap map[string][]crdv1alpha1.Address) (map[string]*crdv1alpha1.NetworkPolicyRuleGroup, error) {
 	rules := map[string]*crdv1alpha1.NetworkPolicyRuleGroup{}
 	var err error
 	var subjectAddress []crdv1alpha1.Address
@@ -1457,7 +2196,7 @@ func (npc *NetworkPolicyController) caculateIngressRules(cnp *crdv1alpha1.Micros
 	return rules, nil
 }
 
-func (npc *NetworkPolicyController) caculateEgressRules(cnp *crdv1alpha1.MicrosegClusterNetworkPolicy, addressesMap map[string][]crdv1alpha1.Address) (map[string]*crdv1alpha1.NetworkPolicyRuleGroup, error) {
+func (npc *NetworkPolicyController) caculateEgressRules(cnp *crdv1alpha1.ClusterNetworkPolicy, addressesMap map[string][]crdv1alpha1.Address) (map[string]*crdv1alpha1.NetworkPolicyRuleGroup, error) {
 	var err error
 	rules := map[string]*crdv1alpha1.NetworkPolicyRuleGroup{}
 	var subjectAddress []crdv1alpha1.Address

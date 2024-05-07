@@ -81,14 +81,14 @@ FilterStatus PluginContext::ModifyNetPackets()
 FilterStatus PluginContext::onNewConnection(const net::ConnectionInfo &streamInfo)
 {
   //print debug log
-  LOG_D("new connection, dst ip : %s, waf rule size : %ld", streamInfo.to.c_str(), RootContext.GetWafRuleSize());
+  LOG_T("new connection, dst ip : %s, waf rule size : %ld", streamInfo.to.c_str(), RootContext.GetWafRuleSize());
   //get waf rule
   auto ret = RootContext.GetWafRule(streamInfo.to, ruleArr);
   if(!ret) return FilterStatus::StopIteration;
   /*source address*/
   forwardIp_ = streamInfo.from;
   //print debug log
-  LOG_D("new connection, get waf rule success, id : %lu, default action : %d", getConnectionID(), ruleArr.GetDefAction());
+  LOG_T("new connection, get waf rule success, id : %lu, default action : %d", getConnectionID(), ruleArr.GetDefAction());
   //return
   return FilterStatus::Continue;
 }
@@ -98,7 +98,7 @@ FilterStatus PluginContext::onClose()
   char *str = NULL;
   cJSON *root = NULL, *array = nullptr, *obj = nullptr;
   /*link close*/
-  LOG_D("http connection close, app length : %d, id : %lu", (int)atlog.AttackedApp.length(), getConnectionID());
+  LOG_T("http connection close, app length : %d, id : %lu", (int)atlog.AttackedApp.length(), getConnectionID());
   /*check attack app length*/
   if(atlog.AttackedApp.length() == 0) return FilterStatus::Continue;
   /*create json object*/

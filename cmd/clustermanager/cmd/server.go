@@ -60,12 +60,26 @@ var ServerConfig = &conf.Config{}
 var microsegv2 = false
 var enableLeaderElection bool
 
+func GetEnvInfo() bool {
+	filterSvc := true
+
+	filter := os.Getenv("MICROSEG_FILTER_SERVICE")
+	if filter == "false" {
+		filterSvc = false
+	}
+
+	return filterSvc
+}
+
 func NewServer() (*server, error) {
 	Palace, err := palace.Init()
 	if err != nil {
 		logging.Get().Error().Msgf("init palace failed, %+v.", err)
 		return nil, err
 	}
+
+	/*get env*/
+	filterSvc := GetEnvInfo()
 
 	s := &server{
 		config: ServerConfig,
@@ -104,7 +118,10 @@ func NewServer() (*server, error) {
 
 	s.agent = agent
 
-	httpserver, err := clusterserver.NewHTTPServer(agent, s.config, &s.Palace)
+	factory := informers.NewSharedInformerFactory(agent.GetHostClient(), resyncInterval)
+	tensorFactory := externalversions.NewSharedInformerFactory(agent.GetHostClient().TensorClientset, resyncInterval)
+
+	httpserver, err := clusterserver.NewHTTPServer(factory, agent, s.config, &s.Palace, filterSvc)
 	if err != nil {
 		logging.Get().Err(err).Msg("cluster server err")
 		return nil, err
@@ -112,9 +129,6 @@ func NewServer() (*server, error) {
 	s.httpserver = httpserver
 
 	stopChan := make(chan struct{})
-
-	factory := informers.NewSharedInformerFactory(agent.GetHostClient(), resyncInterval)
-	tensorFactory := externalversions.NewSharedInformerFactory(agent.GetHostClient().TensorClientset, resyncInterval)
 
 	mqWriter, err := mq.GetClientFactory().Writer(context.Background())
 	if err != nil {
@@ -133,7 +147,7 @@ func NewServer() (*server, error) {
 	go heartbeat.NewBeatSend(mqWriter, monitorTopic, time.Minute, agent.CusterID).Run()
 
 	if microsegv2 {
-		go microseg.NewNetworkPolicyController(agent.GetHostClient().TensorClientset, factory, tensorFactory).Run(stopChan)
+		go microseg.NewNetworkPolicyController(agent.GetHostClient().TensorClientset, factory, tensorFactory, mqWriter, "ivan_microseg_status").Run(stopChan)
 	}
 
 	if s.config.ClusterType == model.HostCluster {

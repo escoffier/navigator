@@ -24,14 +24,16 @@ const (
 type NodePodsInfo struct {
 	resInfos      *sync.Map // map[string]*daemon.K8sResData
 	k8sCli        *kubernetes.Clientset
+	redisClient   *RedisClient
 	policyCli     microseg.PolicyClient
 	containerInfo nodeinfo.ContainerInfoManager
 }
 
-func NewNodePodInfo(k8sCli *kubernetes.Clientset) *NodePodsInfo {
+func NewNodePodInfo(rc *RedisClient, k8sCli *kubernetes.Clientset) *NodePodsInfo {
 	info := &NodePodsInfo{
-		resInfos: new(sync.Map),
-		k8sCli:   k8sCli,
+		resInfos:    new(sync.Map),
+		k8sCli:      k8sCli,
+		redisClient: rc,
 	}
 
 	return info
@@ -41,12 +43,7 @@ func (n *NodePodsInfo) getContainerData(pod *corev1.Pod) (map[string]*daemon.Con
 	containerData := make(map[string]*daemon.ContainerData)
 
 	for _, container := range pod.Status.ContainerStatuses {
-		if len(pod.Status.ContainerStatuses) != 1 {
-			running := container.State.Running
-			if running == nil {
-				continue
-			}
-		}
+		logging.Get().Debug().Msgf("id : %+v, running : %+v", container.ContainerID, container.State.Running)
 		if container.State.Running == nil {
 			continue
 		}
@@ -76,7 +73,7 @@ func (n *NodePodsInfo) getContainerData(pod *corev1.Pod) (map[string]*daemon.Con
 }
 
 func (n *NodePodsInfo) OnAdd(pod *corev1.Pod) {
-	logging.Get().Info().Msgf("add pod %s/%s", pod.Namespace, pod.Name)
+	logging.Get().Debug().Msgf("add pod %s/%s", pod.Namespace, pod.Name)
 	if pod.Spec.HostNetwork {
 		return
 	}
@@ -142,7 +139,7 @@ func (n *NodePodsInfo) savePodData(pod *corev1.Pod) {
 	rsData.ListenPorts = make(map[string]*daemon.ProcessInfo, 2)
 
 	for _, ip := range keys {
-		logging.Get().Info().Msgf("save pods : %+v.", ip)
+		logging.Get().Debug().Msgf("save pods : %+v.", ip)
 		n.resInfos.LoadOrStore(ip, &rsData)
 	}
 }

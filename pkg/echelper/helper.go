@@ -41,6 +41,10 @@ func (c *SherlockClient) getURL(path string, a ...interface{}) string {
 		return fmt.Sprintf(c.SherlockHost + "/api/v1/palace/wafDetections")
 	case "GetWafDetectionDetail":
 		return fmt.Sprintf(c.SherlockHost+"/api/v1/palace/wafDetections/detail?id=%s", a...)
+	case "FindMicroSegLogs":
+		return fmt.Sprintf(c.SherlockHost + "/api/v1/palace/microSegLogs")
+	case "GetMicroSegLogDetail":
+		return fmt.Sprintf(c.SherlockHost+"/api/v1/palace/microSegLogs/detail?id=%s", a...)
 	}
 
 	return c.SherlockHost
@@ -554,6 +558,135 @@ func (c *SherlockClient) GetWafDetectionDetail(ctx context.Context, id string) (
 
 	if result.Data.Status != 0 || result.Error.Message != "" {
 		err := errors.New("request sherlock GetWafDetectionDetail fails")
+		if result.Error.Message != "" {
+			err = errors.New(result.Error.Message)
+		}
+		return nil, err
+	}
+
+	return result.Data.Item, nil
+}
+
+func (c *SherlockClient) FindMicroSegLogs(ctx context.Context, srcIP, dstIP, srcResName, dstResName *string, proto, action *[]int, clusterKey *string, offset, limit int, token string) ([]*pkgModel.TensorMicrosegEvent, string, error) {
+	microsegEvents := make([]*pkgModel.TensorMicrosegEvent, 0)
+
+	type listPagination struct {
+		Token  string `json:"token"`
+		Offset int    `json:"offset"`
+		Limit  int    `json:"limit"`
+	}
+	type Request struct {
+		SrcIP      *string        `json:"src_ip"`
+		DstIP      *string        `json:"dst_ip"`
+		SrcResName *string        `json:"src_res_name"`
+		DstResName *string        `json:"dst_res_name"`
+		Proto      *[]int         `json:"proto"`
+		Action     *[]int         `json:"action"`
+		ClusterKey *string        `json:"cluster_key"`
+		Page       listPagination `json:"page"`
+	}
+
+	jsonBytes, err := json.Marshal(Request{
+		SrcIP:      srcIP,
+		DstIP:      dstIP,
+		SrcResName: srcResName,
+		DstResName: dstResName,
+		Proto:      proto,
+		Action:     action,
+		ClusterKey: clusterKey,
+		Page: listPagination{
+			Offset: offset,
+			Limit:  limit,
+			Token:  token,
+		},
+	})
+	if err != nil {
+		return microsegEvents, "", err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, c.getURL("FindMicroSegLogs"), bytes.NewBuffer(jsonBytes))
+	if err != nil {
+		return microsegEvents, "", err
+	}
+
+	rsp, err := httputil.DefaultClient.Do(req)
+	if err != nil {
+		return nil, "", err
+	}
+	defer util.CloseBodyWithLog(rsp.Body)
+
+	body, err := io.ReadAll(rsp.Body)
+	if err != nil {
+		return nil, "", err
+	}
+
+	type Response struct {
+		Data struct {
+			Status    int                             `json:"status"`
+			Items     []*pkgModel.TensorMicrosegEvent `json:"items"`
+			PageToken string                          `json:"pageToken,omitempty"`
+		}
+		Error struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+			Data    string `json:"data"`
+		}
+	}
+
+	result := Response{}
+	if err = json.Unmarshal(body, &result); err != nil {
+		return nil, "", err
+	}
+
+	if result.Data.Status != 0 || result.Error.Message != "" {
+		err := errors.New("request sherlock FindMicroSegLogs fails")
+		if result.Error.Message != "" {
+			err = errors.New(result.Error.Message)
+		}
+		return nil, "", err
+	}
+
+	return result.Data.Items, result.Data.PageToken, nil
+}
+
+func (c *SherlockClient) GetMicroSegLogDetail(ctx context.Context, id string) (*pkgModel.TensorMicrosegEvent, error) {
+
+	url := c.getURL("GetMicroSegLogDetail", id)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	rsp, err := httputil.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer util.CloseBodyWithLog(rsp.Body)
+
+	body, err := io.ReadAll(rsp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	type Response struct {
+		Data struct {
+			Status int                           `json:"status"`
+			Item   *pkgModel.TensorMicrosegEvent `json:"item"`
+		}
+		Error struct {
+			Code    int    `json:"code"`
+			Message string `json:"message"`
+			Data    string `json:"data"`
+		}
+	}
+
+	result := Response{}
+	if err = json.Unmarshal(body, &result); err != nil {
+		return nil, err
+	}
+
+	if result.Data.Status != 0 || result.Error.Message != "" {
+		err := errors.New("request sherlock GetMicroSegLogDetail fails")
 		if result.Error.Message != "" {
 			err = errors.New(result.Error.Message)
 		}
