@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/client-go/informers"
+
 	model1 "gitlab.com/security-rd/go-pkg/model"
 	"gitlab.com/security-rd/go-pkg/sdk/palace"
 
@@ -33,10 +35,13 @@ type ClusterServer struct {
 	ClusterID          string
 	Name               string
 	TLSServer          bool
+	MicroSegLogCache   map[string]int64
+	logFilter          *MicroSegLogFilter
 	config             *config.Config
 	clusterManager     *k8s.ClusterManager
 	attackCacheService *attack.CacheService
 	agent              *clusterAgent.ClusterAgent
+	Factory            informers.SharedInformerFactory
 }
 
 func (cs *ClusterServer) SetClusterManager(cm *k8s.ClusterManager) {
@@ -189,14 +194,28 @@ func (cs *ClusterServer) handleAttackLogs(c *gin.Context) {
 }
 
 func (cs *ClusterServer) handleMicrosegEvents(c *gin.Context) {
-	var microsegEvent model1.TensorMicrosegEvent
-	err := c.ShouldBindJSON(&microsegEvent)
+	var microsSegEvent model1.TensorMicrosegEvent
+	err := c.ShouldBindJSON(&microsSegEvent)
 	if err != nil {
 		c.String(http.StatusInternalServerError, "unmarshal microseg event err: %v", err)
 		return
 	}
-	logging.Get().Info().Msgf("microseg event: %+v", microsegEvent)
-	err = cs.Palace.SendMicrosegEvent(microsegEvent)
+
+	ret := cs.FilterMicroSegLog(&microsSegEvent)
+	if ret {
+		logging.Get().Debug().Msgf("drop micro seg event log : %+v", microsSegEvent)
+		return
+	}
+
+	//get resource data
+	ret = cs.FillResToMicroSegLog(&microsSegEvent)
+	if !ret {
+		return
+	}
+	/*print debug log*/
+	logging.Get().Debug().Msgf("save micro seg event: %+v", microsSegEvent)
+
+	err = cs.Palace.SendMicrosegEvent(microsSegEvent)
 	if err != nil {
 		logging.Get().Err(err).Msg("send microseg event")
 		c.String(http.StatusInternalServerError, "send microseg event err: %v", err)
@@ -205,7 +224,7 @@ func (cs *ClusterServer) handleMicrosegEvents(c *gin.Context) {
 	c.String(http.StatusOK, "ok")
 }
 
-func NewHTTPServer(agent *clusterAgent.ClusterAgent, config *config.Config, Palace *palace.Palace) (*ClusterServer, error) {
+func NewHTTPServer(factory informers.SharedInformerFactory, agent *clusterAgent.ClusterAgent, config *config.Config, Palace *palace.Palace, filterSvc bool) (*ClusterServer, error) {
 	tlsConfig := &tls.Config{}
 	if config.TLSServer {
 		tlsKeyPair, err := tls.LoadX509KeyPair(config.CertFile, config.KeyFile)
@@ -217,18 +236,24 @@ func NewHTTPServer(agent *clusterAgent.ClusterAgent, config *config.Config, Pala
 	}
 
 	s := &ClusterServer{
-		Palace:             Palace,
-		ClusterID:          agent.CusterID,
-		Name:               config.Name,
-		config:             config,
+		Palace:           Palace,
+		ClusterID:        agent.CusterID,
+		Name:             config.Name,
+		config:           config,
+		MicroSegLogCache: make(map[string]int64, 0),
+		logFilter: &MicroSegLogFilter{
+			IsFilterService: filterSvc,
+		},
 		attackCacheService: attack.NewCacheService(config.MasterAddr, agent),
 		agent:              agent,
+		Factory:            factory,
 	}
 
 	r := gin.Default()
 	if config.Profile {
 		pprof.Register(r)
 	}
+
 	r.GET("/internal/cluster", s.handleClusterQuery)
 	r.GET("/internal/watch_cluster", s.handleWatchCluster)
 	r.GET("/api/openapi/ATTCK/latestData", s.handleATTACKLatestData)

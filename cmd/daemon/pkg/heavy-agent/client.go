@@ -118,8 +118,8 @@ func (cli *Client) Receive() ([]byte, error) {
 	cli.mutex.Lock()
 	defer cli.mutex.Unlock()
 
-	var data = make([]byte, 4096)
-	cli.conn.SetReadDeadline(time.Now().Add(time.Second * 3))
+	var data = make([]byte, 2000000)
+	cli.conn.SetReadDeadline(time.Now().Add(time.Second * 10))
 	defer cli.conn.SetReadDeadline(time.Time{})
 	nBytes, err := cli.conn.Read(data)
 	if err != nil {
@@ -129,7 +129,7 @@ func (cli *Client) Receive() ([]byte, error) {
 		}
 		return nil, err
 	}
-	logging.Get().Info().Int64("timestamp", time.Now().UnixMilli()).Msgf("response len %d:, body: %s", nBytes, string(data))
+	logging.Get().Info().Int64("timestamp", time.Now().UnixMilli()).Msgf("response len %d:, body: %s", nBytes, string(data[:nBytes]))
 	return data[:nBytes], nil
 }
 

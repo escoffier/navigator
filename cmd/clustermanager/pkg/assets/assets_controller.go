@@ -39,7 +39,9 @@ import (
 )
 
 const (
-	dupCacheSize = 16 * 1024
+	dupCacheSize   = 16 * 1024
+	ServiceIpIndex = "ServiceIp"
+	PodIpIndex     = "PodIp"
 )
 
 var (
@@ -233,6 +235,15 @@ func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory 
 		UpdateFunc: ac.updatePod,
 		DeleteFunc: ac.deletePod,
 	})
+	factory.Core().V1().Pods().Informer().AddIndexers(cache.Indexers{
+		PodIpIndex: func(obj interface{}) ([]string, error) {
+			pod, ok := obj.(*corev1.Pod)
+			if !ok {
+				return nil, fmt.Errorf("object is not a pod")
+			}
+			return []string{pod.Status.PodIP}, nil
+		},
+	})
 	ac.podSynced = factory.Core().V1().Pods().Informer().HasSynced
 
 	// Deployments
@@ -288,6 +299,15 @@ func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory 
 		AddFunc:    ac.addSvc,
 		UpdateFunc: ac.updateSvc,
 		DeleteFunc: ac.deleteSvc,
+	})
+	factory.Core().V1().Services().Informer().AddIndexers(cache.Indexers{
+		ServiceIpIndex: func(obj interface{}) ([]string, error) {
+			service, ok := obj.(*corev1.Service)
+			if !ok {
+				return nil, fmt.Errorf("object is not a Service")
+			}
+			return []string{service.Spec.ClusterIP}, nil
+		},
 	})
 	ac.svcSynced = factory.Core().V1().Services().Informer().HasSynced
 

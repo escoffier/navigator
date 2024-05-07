@@ -10,6 +10,7 @@ import (
 const (
 	RCV_ADDR      = 1
 	SND_ADDR      = 2
+	UNKNOWN_ADDR  = 3
 	MATCH_SUCC    = 1
 	GET_DATA_SUCC = 2
 )

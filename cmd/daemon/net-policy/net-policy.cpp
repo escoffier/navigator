@@ -48,14 +48,10 @@
 
 using namespace std;
 
-namespace {
-    const char *clear  = "iptables -t mangle -F";
-    const char *dichan = "iptables -t mangle -X TS_ZERO_PREROUTING";
-    const char *dochan = "iptables -t mangle -X TS_ZERO_OUTPUT";
-}
 
 int gzLogLevel   = 0;
 bool gbWafEnable = false;
+bool OldMicroSegEnable = false;
 
 struct u32_mask
 {
@@ -72,6 +68,7 @@ static char cDataBuf[102400];
 static std::set<int> MaskCidr;
 static std::set<int> Priority;
 static std::unordered_map<uint64_t, NFQ_RES_INFO *> NfqueResData;
+static std::unordered_map<uint32_t, uint8_t> NodesIp;
 static std::unordered_map<std::string, RULE_DETAIL> NetInputPolicyRule;
 static std::unordered_map<std::string, RULE_DETAIL> NetOutputPolicyRule;
 static std::unordered_map<std::string, std::unordered_map<std::string, FLOW_DIR>*> NetPolicyKey;
@@ -80,6 +77,75 @@ static std::unordered_map<std::string, std::vector<HTTP_RULE_INFO>*> NetOutputHt
 static std::map<TCP_FOUR_TUPLE_V4, http::ConnectionPtr> TcpCtInput;
 static std::map<TCP_FOUR_TUPLE_V4, http::ConnectionPtr> TcpCtOutput;
 static net::ConnectionManager connectionManager;
+
+int NetProtoConvert(std::string proto)
+{
+    if(proto.length() == 0) return 0;
+    if(proto.compare("TCP") == 0) return IPPROTO_TCP;
+    if(proto.compare("UDP") == 0) return IPPROTO_UDP;
+    if(proto.compare("ICMP") == 0) return IPPROTO_ICMP;
+    /*return*/
+    return 0;
+}
+
+int ParseIpString(std::string input, std::vector<std::string> &ret)
+{
+    struct in_addr addr;
+    uint32_t uzIpaddr, uzMask, uzBroadcast;
+    std::stringstream ss(input);
+    std::string segment, value;
+    /*parse string*/
+    while (std::getline(ss, segment, ','))
+    {
+        size_t pos = segment.find('-');
+        if (pos != std::string::npos)
+        {
+            std::string startIP = segment.substr(0, pos);
+            std::string endIP = segment.substr(pos + 1);
+
+            size_t dotCount = std::count(startIP.begin(), startIP.end(), '.');
+            if (dotCount == 3)
+            {
+                // Assuming it's an IPv4 range
+                size_t lastDot = startIP.rfind('.');
+                std::string baseIP = startIP.substr(0, lastDot + 1);
+                int startRange = std::stoi(startIP.substr(lastDot + 1));
+                int endRange = std::stoi(endIP);
+
+                for (int i = startRange; i <= endRange; ++i)
+                {
+                    ret.push_back(baseIP + std::to_string(i));
+                }
+            }
+			continue;
+        }
+        pos = segment.find('/');
+		if (pos != std::string::npos) {
+
+			// Handling CIDR notation
+			std::string baseIP = segment.substr(0, pos);
+			int subnetMask = std::stoi(segment.substr(pos + 1));
+			uzIpaddr = ntohl(inet_addr(baseIP.c_str()));
+			uzMask   = ~0 << (32 - subnetMask);
+			/*count network address*/
+			uzIpaddr &= uzMask;
+			/*count network broadcast*/
+			uzBroadcast = uzIpaddr | (~uzMask);
+			// Generate all IP addresses in the subnet
+			for (uint32_t i = uzIpaddr; i <= uzBroadcast; ++i)
+            {
+				addr.s_addr = htonl(i);
+				value = inet_ntoa(addr);
+				ret.push_back(value);
+			}
+			continue;
+		}	
+		// If not a range or CIDR, directly push the single IP address
+		ret.push_back(segment);
+    }
+    /*return*/
+    return 0;
+}
 
 /*now system second to string*/
 std::string TimeToString()
@@ -215,7 +281,7 @@ std::string ipv6Convert(char *ipv6)
     return sRet;
 }
 
-void ipv4CidrToIp(string cidr, string &ip, int &mask)
+void ipv4CidrToIp(std::string cidr, std::string &ip, int &mask)
 {
     struct in_addr addr;
     uint32_t uzIpaddr, uzMask;
@@ -239,7 +305,7 @@ void ipv4CidrToIp(string cidr, string &ip, int &mask)
     ip = inet_ntoa(addr);
 }
 
-string ipv4CidrToIp(string ip, int mask)
+std::string ipv4CidrToIp(std::string ip, int mask)
 {
     struct in_addr addr;
     uint32_t uzIpaddr, uzMask;
@@ -251,7 +317,16 @@ string ipv4CidrToIp(string ip, int mask)
     return inet_ntoa(addr);
 }
 
-static string CreatePolicyRuleKey(RULE_DETAIL &info)
+uint32_t ipv4StringToInt(std::string ip)
+{
+    struct in_addr addr;
+    if (inet_pton(AF_INET, ip.c_str(), &addr) == 1) {
+        return addr.s_addr;
+    }
+    return 0;
+}
+
+static std::string CreatePolicyRuleKey(RULE_DETAIL &info)
 {
     int mask;
     string key, ip;
@@ -278,6 +353,7 @@ static string CreatePolicyRuleKey(RULE_DETAIL &info)
     /*print debug log*/
     LOG_D("create policy rule key : [%s], priority : %d, priority size : %d", buff, info.priority, (int)Priority.size());
     key = buff;
+    /*return*/
     return key;
 }
 
@@ -292,6 +368,9 @@ static int CreatePolicyRuleKey(FIVE_TUPLE &tuple, FLOW_DIR dir, vector<string> &
     {
         for(auto iter = MaskCidr.begin(); iter != MaskCidr.end(); ++iter)
         {
+            /*clear data*/
+            dstaddr.clear();
+            srcaddr.clear();
             switch (dir)
             {
                 case DIR_INGRESS:
@@ -314,8 +393,6 @@ static int CreatePolicyRuleKey(FIVE_TUPLE &tuple, FLOW_DIR dir, vector<string> &
                 {
                     memset(buff, 0, sizeof(buff));
                     sprintf(buff, "%d-%d-%s-%s", *it, tuple.proto, srcaddr.at(i).c_str(), dstaddr.at(j).c_str());
-                    /*print debug log*/
-                    //if(tuple.dstPort == 80) LOG_D("rule key : [%s]", buff);
                     /*save key*/
                     value.push_back(buff);
                     //all protocol
@@ -323,13 +400,32 @@ static int CreatePolicyRuleKey(FIVE_TUPLE &tuple, FLOW_DIR dir, vector<string> &
                     sprintf(buff, "%d-0-%s-%s", *it, srcaddr.at(i).c_str(), dstaddr.at(j).c_str());
                     /*save key*/
                     value.push_back(buff);
-                    /*print debug log*/
-                    //if(tuple.dstPort == 80) LOG_D("rule key : [%s]", buff);
                 }
             }
             /*clear data*/
             dstaddr.clear();
             srcaddr.clear();
+            /*ingress flow*/
+            if(dir != DIR_INGRESS) continue;
+            srcaddr.push_back("0.0.0.0");
+            srcaddr.push_back(ipv4CidrToIp(tuple.dstAddr, *iter));
+            dstaddr.push_back(tuple.srcAddr);
+             //list priority
+            for(size_t i = 0; i < srcaddr.size(); i++)
+            {
+                for(size_t j = 0; j < dstaddr.size(); j++)
+                {
+                    memset(buff, 0, sizeof(buff));
+                    sprintf(buff, "%d-%d-%s-%s", *it, tuple.proto, srcaddr.at(i).c_str(), dstaddr.at(j).c_str());
+                    /*save key*/
+                    value.push_back(buff);
+                    //all protocol
+                    memset(buff, 0, sizeof(buff));
+                    sprintf(buff, "%d-0-%s-%s", *it, srcaddr.at(i).c_str(), dstaddr.at(j).c_str());
+                    /*save key*/
+                    value.push_back(buff);
+                }
+            }
         }
     }
     return 0;
@@ -358,6 +454,7 @@ int SetNs(int pid, char *basePath)
     return 0;
 err:
     if(fd > 0) close(fd);
+    /*return*/
     return -1;
 }
 
@@ -368,8 +465,6 @@ static int PostMatchMsg(FIVE_TUPLE &tuple, NET_POLICY_RULE action, FLOW_DIR dir,
     char *str = NULL;
     cJSON *root = NULL;
     if(gPostLinkFd <= 0) return 0;
-    //action
-    action = (action == NET_DENY) ? NET_DENY: NET_ALLOW;
     //create json object
     root = cJSON_CreateObject();
     if(!root) RETURN_ERROR(-1, "create json object failed.");
@@ -384,6 +479,8 @@ static int PostMatchMsg(FIVE_TUPLE &tuple, NET_POLICY_RULE action, FLOW_DIR dir,
     cJSON_AddStringToObject(root, "policy_name", sRuleKey.c_str());
     str = cJSON_PrintUnformatted(root);
     if(!str) GOTO_ERROR(err, "json format failed.");
+    /*print debug log*/
+    LOG_D("[post] post micro seg data : %s", str);
     /*data len*/
     len = (int)strlen(str);
     /*send data*/
@@ -426,9 +523,13 @@ static NET_POLICY_RULE MatchNetPolicyRule(FIVE_TUPLE &tuple, FLOW_DIR dir, strin
     int p;
     bool bIsMatch;
     std::string key;
+    char protocol = tuple.proto;
     std::vector<std::string> ruleKeys;
     std::unordered_map<std::string, RULE_DETAIL> *ruleQue;
     std::unordered_map<std::string, RULE_DETAIL>::iterator it;
+    /*is node ip*/
+    auto nodeIt = NodesIp.find(tuple.uzSrcAddr);
+    if(nodeIt != NodesIp.end()) return NET_DEFAULT;
     /*match*/
     ruleQue = (dir == DIR_INGRESS) ? &NetInputPolicyRule : &NetOutputPolicyRule;
     if(ruleQue->size() == 0) return NET_DEFAULT;
@@ -447,10 +548,13 @@ static NET_POLICY_RULE MatchNetPolicyRule(FIVE_TUPLE &tuple, FLOW_DIR dir, strin
         LOG_D("i : %d, match %s rule key, key : %s, tuple proto : %d, dst port : %d, vPorts size : %d, %s.", 
             i, (dir == DIR_INGRESS) ? "ingress" : "egress", ruleKeys.at(i).c_str(), tuple.proto, tuple.dstPort, (int)it->second.vPorts.size(), PrintPortsData(it->second.vPorts).c_str());
         /*match protocol*/
-        if(!((it->second.proto == 0) || (tuple.proto == it->second.proto))) break;
+        if(protocol == IPPROTO_ICMP) protocol = it->second.proto;
+        if(!((it->second.proto == 0) || (protocol == it->second.proto))) break;
+        /*set match false*/
+        bIsMatch = false;
         /*port*/
         auto rulePorts = it->second.vPorts;
-        bIsMatch = (rulePorts.size() == 0) ? true : false;
+        if((rulePorts.size() == 0) || (tuple.proto == IPPROTO_ICMP)) bIsMatch = true;
         /*match port*/
         for(p = 0; p < (int)rulePorts.size(); p++)
         {
@@ -458,6 +562,18 @@ static NET_POLICY_RULE MatchNetPolicyRule(FIVE_TUPLE &tuple, FLOW_DIR dir, strin
                 bIsMatch = true;
                 break;
             }
+            do
+            {
+                if(dir != DIR_INGRESS) break;
+                /*check port rang*/
+                if(tuple.srcPort > rulePorts.at(p).endPort) break;
+                /*check min port*/
+                if(tuple.srcPort < rulePorts.at(p).port) break;
+                /*set match true*/
+                bIsMatch = true;
+            } while(0);
+            /*is match port*/
+            if(bIsMatch) break;
             /*check port rang*/
             if(tuple.dstPort > rulePorts.at(p).endPort) continue;
             /*check min port*/
@@ -589,6 +705,11 @@ static int parse_package(unsigned char *pkg, FIVE_TUPLE &tuple, struct tcphdr *t
             offset += tcph->doff << 2;
             memcpy(tcphdr, tcph, sizeof(struct tcphdr));
             break;
+            
+        case IPPROTO_ICMP:
+            srcPort = 0;
+            dstPort = 0;
+            break;
 
         default:
             return NF_ACCEPT;
@@ -674,7 +795,7 @@ static int input_nfq_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct 
     {
         auto status = connectionManager.receive(seastar::net::packet::from_static_data((char*)pkg, dataLen));
         if (status == net::NetStatus::Drop) {
-        return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW_REQ, dataLen, pkg);
+            return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW_REQ, dataLen, pkg);
         }
     }
     /*tcp four tuple*/
@@ -713,6 +834,7 @@ static int input_nfq_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct 
         /*break*/
         break;
     case IPPROTO_UDP:
+    case IPPROTO_ICMP:
         break;
     default:
         return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
@@ -726,7 +848,7 @@ static int input_nfq_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct 
         /*query http rule*/
         auto httpRule = NetInputHttpPolicy.find(sRuleKey);
         /*check http rule*/
-        if((httpRule == NetInputHttpPolicy.end()) || (tuple.proto == IPPROTO_UDP) || (httpRule->second->size() == 0))
+        if((httpRule == NetInputHttpPolicy.end()) || (tuple.proto == IPPROTO_UDP) || (tuple.proto == IPPROTO_ICMP) || (httpRule->second->size() == 0))
         {
             /*post match message*/
             PostMatchMsg(tuple, ruleRet, DIR_INGRESS, sRuleKey);
@@ -881,6 +1003,7 @@ static int output_nfq_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct
         /*break*/
         break;
     case IPPROTO_UDP:
+    case IPPROTO_ICMP:
         break;
     default:
         return nfq_set_verdict(qh, id, NF_ACCEPT, 0, NULL);
@@ -894,7 +1017,7 @@ static int output_nfq_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct
         /*query http rule*/
         auto httpRule = NetOutputHttpPolicy.find(sRuleKey);
         /*check http rule*/
-        if((httpRule == NetOutputHttpPolicy.end()) || (tuple.proto == IPPROTO_UDP) || (httpRule->second->size() == 0))
+        if((httpRule == NetOutputHttpPolicy.end()) || (tuple.proto == IPPROTO_UDP) || (tuple.proto == IPPROTO_ICMP) || (httpRule->second->size() == 0))
         {
             /*post match message*/
             PostMatchMsg(tuple, ruleRet, DIR_EGRESS, sRuleKey);
@@ -968,7 +1091,7 @@ static int output_nfq_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct
 }
 
 /*destroy nfqueue resource*/
-void DestroyNfqueResource(int efd, NFQ_RES_INFO *nfqres)
+void DestroyNfqueResource(int efd, NFQ_RES_INFO *nfqres, bool isErase)
 {
     struct epoll_event ev;
     struct nfq_q_handle *qh = NULL;
@@ -1008,7 +1131,7 @@ void DestroyNfqueResource(int efd, NFQ_RES_INFO *nfqres)
     if(nfqres->nfctHd) nfct_close((struct nfct_handle *)nfqres->nfctHd);
     if(nfqres->nfctCbHd) nfct_close((struct nfct_handle *)nfqres->nfctCbHd);
     /*delete pid*/
-    NfqueResData.erase(nfqres->podId);
+    if(isErase) NfqueResData.erase(nfqres->podId);
     //delete memory
     delete nfqres;
     /*print debug log*/
@@ -1101,7 +1224,7 @@ int NfqueueRcvData(int32_t zRcvEvFd, int32_t fd, void *ptr)
         RETURN_ERROR(0, "read nfqueue data failed, ret : %d, fd : %d, pid : %d, %s.", ret, fd, nfqRes->pid, strerror(errno));
     }
     /*check buffer*/
-    if(ret == (int)sizeof(buf)) RETURN_ERROR(0, "read nfqueue data is overflow.");
+    //if(ret == (int)sizeof(buf)) RETURN_ERROR(0, "read nfqueue data is overflow.");
     /*get nfq handle*/
     qh = (struct nfq_q_handle *)nfqRes->inputQue;
     if(fd != nfqRes->inputFd) qh = (struct nfq_q_handle *)nfqRes->outputQue;
@@ -1159,8 +1282,9 @@ int InitNfqueue(int zRcvEvFd, NET_CTRL_INFO &ctrl)
     nfqres = new NFQ_RES_INFO;
     if(!nfqres) RETURN_ERROR(-3, "new nfq resource info failed, %s.", strerror(errno));
     /*save pid*/
-    nfqres->pid = ctrl.pid;
-    nfqres->podId = ctrl.podId;
+    nfqres->pid    = ctrl.pid;
+    nfqres->podId  = ctrl.podId;
+    nfqres->pollFd = zRcvEvFd;
     /*init input queue*/
     ret = OpenNfque(DIR_INGRESS, nfqres);
     if(ret != 0) GOTO_ERROR(err, "init input queue resource failed, pid : %d.", ctrl.pid);
@@ -1179,7 +1303,7 @@ int InitNfqueue(int zRcvEvFd, NET_CTRL_INFO &ctrl)
     return 0;
 
 err:
-    DestroyNfqueResource(zRcvEvFd, nfqres);
+    DestroyNfqueResource(zRcvEvFd, nfqres, true);
     /*return*/
     return -1;
 }
@@ -1191,7 +1315,7 @@ int ReleaseNfqueResource(int efd, int podId)
     auto it = NfqueResData.find(podId);
     if(it == NfqueResData.end()) return 0;
     /*release resource*/
-    DestroyNfqueResource(efd, it->second);
+    DestroyNfqueResource(efd, it->second, true);
     /*return*/
     return 0;
 }
@@ -1208,7 +1332,6 @@ int ClearSetData()
 int DeletePolicy(NET_CTRL_INFO &ctrl)
 {
     string key;
-    FLOW_DIR value;
     std::unordered_map<string, FLOW_DIR>* subPolicy;
     std::unordered_map<string, std::unordered_map<string, FLOW_DIR>*>::iterator keyIt;
     /*clear input http policy*/
@@ -1243,7 +1366,8 @@ int DeletePolicy(NET_CTRL_INFO &ctrl)
     for(auto it = subPolicy->begin(); it != subPolicy->end(); it++)
     {
         key = it->first;
-        value = it->second;
+#if OldMicroSegEnable
+        auto value = it->second;
         //print debug log
         LOG_V("flow dir : %s, key : %s.", (value == DIR_INGRESS) ? "ingress" : "egress", key.c_str());
         //
@@ -1258,6 +1382,10 @@ int DeletePolicy(NET_CTRL_INFO &ctrl)
             default:
                 break;
         }
+#else
+        NetInputPolicyRule.erase(key);
+        NetOutputPolicyRule.erase(key);
+#endif
     }
     /*clear net policy*/
     subPolicy->clear();
@@ -1317,6 +1445,7 @@ int AddNewPolicy(RULE_DETAIL &policy, RULE_PORT &stPort)
     }
     /*clear ports*/
     policy.vPorts.clear();
+#if OldMicroSegEnable
     //create policy rule key
     key = CreatePolicyRuleKey(policy);
     ruleQue = (policy.direction == DIR_INGRESS) ? &NetInputPolicyRule : &NetOutputPolicyRule;
@@ -1338,8 +1467,54 @@ int AddNewPolicy(RULE_DETAIL &policy, RULE_PORT &stPort)
         /*print debug log*/
         LOG_D("key : %s, mutil port : %d ~ %d, num : %d", key.c_str(), stPort.port, stPort.endPort, (int)value.vPorts.size());
     }
+#else
+    policy.direction = DIR_INGRESS;
+    key = CreatePolicyRuleKey(policy);
+    ruleQue = &NetInputPolicyRule;
+    /*check key*/
+    ruleIt = ruleQue->find(key);
+    if(ruleIt == ruleQue->end())
+    {
+        policy.vPorts.push_back(stPort);
+        ruleQue->insert(make_pair(key, policy));
+    }
+    else
+    {
+        auto value = ruleIt->second;
+        value.vPorts.push_back(stPort);
+        /*delete source key*/
+        ruleQue->erase(ruleIt);
+        /*insert key*/
+        ruleQue->insert(make_pair(key, value));
+        /*print debug log*/
+        LOG_D("key : %s, mutil port : %d ~ %d, num : %d", key.c_str(), stPort.port, stPort.endPort, (int)value.vPorts.size());
+    }
+    subPolicy->insert(make_pair(key, DIR_INGRESS));
+
+    policy.direction = DIR_EGRESS;
+    key = CreatePolicyRuleKey(policy);
+    ruleQue = &NetOutputPolicyRule;
+    /*check key*/
+    ruleIt = ruleQue->find(key);
+    if(ruleIt == ruleQue->end())
+    {
+        policy.vPorts.push_back(stPort);
+        ruleQue->insert(make_pair(key, policy));
+    }
+    else
+    {
+        auto value = ruleIt->second;
+        value.vPorts.push_back(stPort);
+        /*delete source key*/
+        ruleQue->erase(ruleIt);
+        /*insert key*/
+        ruleQue->insert(make_pair(key, value));
+        /*print debug log*/
+        LOG_D("key : %s, mutil port : %d ~ %d, num : %d", key.c_str(), stPort.port, stPort.endPort, (int)value.vPorts.size());
+    }
+#endif
     /*insert key*/
-    subPolicy->insert(make_pair(key, policy.direction));
+    subPolicy->insert(make_pair(key, DIR_EGRESS));
     //return
     return 0;
 }
@@ -1380,7 +1555,11 @@ bool CheckIptablesRule()
     return true;
 }
 
-void clearNfqRules() {
+void ClearIptabelsRule()
+{
+    const char *clear  = "iptables -t mangle -F";
+    const char *dichan = "iptables -t mangle -X TS_ZERO_PREROUTING";
+    const char *dochan = "iptables -t mangle -X TS_ZERO_OUTPUT";
     system(clear);
     system(dichan);
     system(dochan);
@@ -1420,7 +1599,7 @@ void WriteIptableRule(int iMarkNum, int oMarkNum)
     //check iptables rule
     //if(CheckIptablesRule()) return;
     if(CheckIptablesRule()) {
-        clearNfqRules();
+        ClearIptabelsRule();
     }
     //
     fp = popen(pcheck, "r");
@@ -1460,6 +1639,60 @@ err:
     return;
 }
 
+NET_POLICY_RULE ConvertRuleAction(std::string &str)
+{
+    if((str.compare("Allow") == 0) || (str.compare("Log") == 0)) return NET_ALLOW;
+    if(str.compare("Alert") == 0) return NET_MARK;
+    /*default*/
+    return NET_DENY;
+}
+
+int ParseNodeCfg(char *buf)
+{
+    uint32_t uzIp;
+    int i, size, action;
+    std::string value, ip;
+    cJSON *root = NULL, *item, *param;
+    /*check argument*/
+    if(!buf) return -1;
+    //ctrl json
+    root = cJSON_Parse(buf);
+    if(!root) GOTO_ERROR(err, "parse net policy json failed! original data : %s.", buf);
+    //get action
+    item = cJSON_GetObjectItem(root, "action");
+    if(!item) GOTO_ERROR(err, "get node action failed.");
+    value = item->valuestring;
+    action = (value.compare("delete") == 0) ? 0 : 1;
+
+    //get node ips
+    item = cJSON_GetObjectItem(root, "node_ips");
+    if(!item) GOTO_ERROR(err, "get node ip address failed.");
+
+    size = cJSON_GetArraySize(item);
+    for(i = 0; i < size; i++)
+    {
+        param = cJSON_GetArrayItem(item, i);
+        if(!param) break;
+        //node ip
+        ip = param->valuestring;
+        uzIp = ipv4StringToInt(ip);
+        //add or delete node ip
+        if(action == 0) {
+            NodesIp.erase(uzIp);
+        } else {
+            NodesIp[uzIp] = 1;
+        }
+    }
+    //free resource
+    cJSON_Delete(root);
+    //return
+    return 0;
+
+err:
+    if(root) cJSON_Delete(root);
+    return -1;
+}
+
 int ParseNetPolicy(char *buf)
 {
     uint64_t podId;
@@ -1469,7 +1702,7 @@ int ParseNetPolicy(char *buf)
     std::vector<RULE_PORT> rulePorts = {};
     std::vector<std::string> srcip = {}, dstip = {};
     RULE_PORT rulePort = {};
-    RULE_DETAIL rule = {};
+    RULE_DETAIL rule   = {};
     NET_CTRL_INFO ctrl = {};
     HTTP_RULE_INFO http;
     std::unordered_map<uint64_t, string> cgRes = {};
@@ -1500,12 +1733,15 @@ int ParseNetPolicy(char *buf)
         item = cJSON_GetObjectItem(array, "action");
         if(!item) BREAK_ERROR("get rule's action failed");
         action = item->valuestring;
-        rule.action =(action.compare("Allow") == 0 || action.compare("Log") == 0) ? NET_ALLOW : NET_DENY;
+        rule.ActionDsc = action;
+        rule.action = ConvertRuleAction(rule.ActionDsc);
         //direction
+#if OldMicroSegEnable
         item = cJSON_GetObjectItem(array, "direction");
         if(!item) BREAK_ERROR("get rule's direction failed");
         dir = item->valuestring;
         rule.direction = (dir.compare("ingress") == 0) ? DIR_INGRESS : DIR_EGRESS;
+#endif
         //list http rule
         httparr = cJSON_GetObjectItem(array, "http");
         if(httparr)
@@ -1537,15 +1773,21 @@ int ParseNetPolicy(char *buf)
         {
             item = cJSON_GetArrayItem(ipaddr, j);
             if(!item) BREAK_ERROR("get source address info failed.");
+            /*get ip string*/
             param = cJSON_GetObjectItem(item, "ip");
             if(!param) BREAK_ERROR("get source ip address failed.");
             value = cJSON_GetStringValue(param);
             //save source ip address
-            srcip.push_back(value);
+            ParseIpString(value, srcip);
             //
+#if OldMicroSegEnable
             if(rule.direction != DIR_EGRESS) continue;
             param = cJSON_GetObjectItem(item, "pod_id");
             if(!param) CONTINUE_ERROR("get pod id failed.");
+#else
+            param = cJSON_GetObjectItem(item, "pod_id");
+            if(!param) continue;
+#endif
             podId = (uint64_t)param->valuedouble;
             cgRes.insert(make_pair(podId, value));
         }
@@ -1556,7 +1798,9 @@ int ParseNetPolicy(char *buf)
             num = cJSON_GetArraySize(ports);
             for(int j = 0; j < num; j++)
             {
+                value = "";
                 rulePort = {};
+                //
                 param = cJSON_GetArrayItem(ports, j);
                 if(!param) BREAK_ERROR("get port information failed.");
                 //
@@ -1567,11 +1811,10 @@ int ParseNetPolicy(char *buf)
                 if(item) rulePort.port = item->valueint;
                 //
                 item = cJSON_GetObjectItem(param, "protocol");
-                if(item)
-                {
-                    value = item->valuestring;
-                    rulePort.proto = (value.compare("TCP") == 0) ? IPPROTO_TCP : IPPROTO_UDP;
-                }
+                if(item) value = item->valuestring;
+                //
+                rulePort.proto = NetProtoConvert(value);
+                //
                 rulePort.endPort = (rulePort.endPort == 0) ? rulePort.port : rulePort.endPort;
                 //push
                 rulePorts.push_back(rulePort);
@@ -1594,11 +1837,16 @@ int ParseNetPolicy(char *buf)
             if(!param) BREAK_ERROR("get source ip address failed.");
             value = cJSON_GetStringValue(param);
             //save source ip address
-            dstip.push_back(value);
+            ParseIpString(value, dstip);
             //
+#if OldMicroSegEnable
             if(rule.direction != DIR_INGRESS) continue;
             param = cJSON_GetObjectItem(item, "pod_id");
             if(!param) CONTINUE_ERROR("get pod id failed.");
+#else
+            param = cJSON_GetObjectItem(item, "pod_id");
+            if(!param) continue;
+#endif
             podId = (uint64_t)param->valuedouble;
             cgRes.insert(make_pair(podId, value));
         }
@@ -1707,7 +1955,7 @@ cJSON* dumpConfig() {
     //     });
     //     cJSON_AddItemToArray(policies, cJSON *item)
     // } );
-    cJSON* rules = cJSON_CreateArray();
+    cJSON* inbound_rules = cJSON_CreateArray();
     for(auto it = NetInputPolicyRule.begin(); it != NetInputPolicyRule.end(); it++) {
         auto rule = it->second;
         auto r = cJSON_CreateObject();
@@ -1719,9 +1967,25 @@ cJSON* dumpConfig() {
         cJSON_AddItemToObject(r, "prtocol", proto);
         cJSON_AddStringToObject(r, "fromAddess", rule.srcIp.c_str());
         cJSON_AddStringToObject(r, "toAddess", rule.dstIp.c_str());
-        cJSON_AddItemToArray(rules, r);
+        cJSON_AddItemToArray(inbound_rules, r);
     }
-    cJSON_AddItemToObject(config, "rules", rules);
+    cJSON_AddItemToObject(config, "inbound_rules", inbound_rules);
+
+    cJSON* outbound_rules = cJSON_CreateArray();
+    for (auto it = NetOutputPolicyRule.begin(); it != NetOutputPolicyRule.end(); it++) {
+        auto rule = it->second;
+        auto r = cJSON_CreateObject();
+        cJSON* proto = cJSON_CreateNumber(rule.proto);
+        cJSON_AddStringToObject(r, "policy_name", rule.policyKey.c_str());
+        cJSON_AddNumberToObject(r, "priority", rule.priority);
+        cJSON_AddNumberToObject(r, "direction", rule.direction);
+        cJSON_AddNumberToObject(r, "action", rule.action);
+        cJSON_AddItemToObject(r, "prtocol", proto);
+        cJSON_AddStringToObject(r, "fromAddess", rule.srcIp.c_str());
+        cJSON_AddStringToObject(r, "toAddess", rule.dstIp.c_str());
+        cJSON_AddItemToArray(outbound_rules, r);
+    }
+    cJSON_AddItemToObject(config, "outbound_rules", outbound_rules);
 
     cJSON* containers = cJSON_CreateArray();
     for (auto it = NfqueResData.begin(); it != NfqueResData.end(); it++) {
@@ -1759,8 +2023,39 @@ cJSON* dumpConnectons(std::string_view req) {
   return connections;
 }
 
-int reset() {
-    clearNfqRules();
+int ClearConfig(int efd)
+{   
+    int ret;
+    /*list nfqueue resource*/
+    for (auto it = NfqueResData.begin(); it != NfqueResData.end(); it++)
+    {
+        /*print debug log*/
+        LOG_V("reset nfqueue, pid : %d.", it->second->pid);
+        /*set network namespace*/
+        ret = SetNs(it->second->pid, (char *)BasePath);
+        if (ret != 0) continue;
+        /*print debug log*/
+        LOG_V("destroy nfqueue, pid : %d.", it->second->pid);
+        /*clear iptables rule*/
+        ClearIptabelsRule();
+        /*destroy nfqueue resource*/
+        DestroyNfqueResource(efd, it->second, false);
+    }
+    /*list policy key*/
+    for(auto it = NetPolicyKey.begin(); it != NetPolicyKey.end(); it++)
+    {
+        it->second->clear();
+    }
+    /*clear policy key*/
+    NetPolicyKey.clear();
+    /*clear pid*/
+    NfqueResData.clear();
+    /*clear rule config*/
+    ClearSetData();
+    /*clear policy rule*/
+    NetInputPolicyRule.clear();
+    NetOutputPolicyRule.clear();
+    /*return*/
     return 0;
 }
 
@@ -1768,6 +2063,7 @@ int ParseRcvData(int32_t zRcvEvFd, int32_t fd, void *ptr)
 {
     bool bRet;
     int ret = 0;
+    char *result;
     NET_CTRL_INFO ctrl = {};
     RULE_DETAIL net = {};
     if((fd <= 0) || (!ptr)) RETURN_ERROR(-2, "[net] parse failed by argumnet is error!");
@@ -1845,7 +2141,11 @@ int ParseRcvData(int32_t zRcvEvFd, int32_t fd, void *ptr)
             goto rsp;
 
         case RESET:
-            ret = reset();
+            ret = ClearConfig(zRcvEvFd);
+            goto rsp;
+
+        case NODE_CFG:
+            ret = ParseNodeCfg(cDataBuf);
             goto rsp;
 
         default:
@@ -1864,15 +2164,21 @@ rsp:
     if (respBody != nullptr) {
         cJSON_AddItemToObject(response, "body", respBody);
     }
-
-    //print debug log
-    auto result = cJSON_Print(response);
+    /*format reponse data*/
+    if(ctrl.msgType == CONF_DUMP) {
+        result = cJSON_Print(response);
+    } else {
+        result = cJSON_PrintUnformatted(response);
+    }
+    /*print response data*/
     LOG_V("rsp msg, time : %s, data : %s.", TimeToString().c_str(), result);
     //send response data
     int length = strlen(result);
     ret = write(fd, result, length);
 
     cJSON_Delete(response);
+    if(result != NULL) free(result);
+
     //judge response result
     if(ret != length)
     {

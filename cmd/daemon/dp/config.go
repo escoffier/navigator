@@ -299,8 +299,6 @@ func (cm *ConfigManager) Start(ij *Injector) error {
 	outTime := time.Minute * 20
 	timer := time.NewTimer(outTime)
 
-
-
 	watcher, err := cm.clusterMgr.HostClient.CoreV1().ConfigMaps(namespace).Watch(context.Background(), metav1.ListOptions{
 		// FieldSelector: "metadata.name=drift-config",
 		LabelSelector: model.DriftConfigMapLabel,
@@ -330,14 +328,14 @@ func (cm *ConfigManager) Start(ij *Injector) error {
 			case watch.Added:
 				//ConfigMap added: &ConfigMap{ObjectMeta:{drift-policies  tensorsec  17d742a7-ea1b-4108-a604-533fb280a843 95767605 0 2023-06-21 08:17:55 +0000 UTC <nil> <nil> map[app:drift-configMap] map[] [] []  [{console Update v1 2023-06-21 08:17:55 +0000 UTC FieldsV1 {"f:data":{".":{},"f:policy-16":{}},"f:metadata":{"f:labels":{".":{},"f:app":{}}}} }]},Data:map[string]string{policy-16: 494c5054-4b9b-4944-8452-84b8893c21b7/del/Deployment/test/0/alert,},BinaryData:map[string][]byte{},Immutable:nil,}
 				configMap := event.Object.(*corev1.ConfigMap)
-				logging.Get().Info().Msgf("ConfigMap added: %v\n", configMap.Data)
+				//logging.Get().Info().Msgf("ConfigMap added: %v\n", configMap.Data)
 				err = cm.updateFromConfigMap(context.Background(), configMap, ij)
 				if err != nil {
 					logging.Get().Error().Err(err).Msg("update from configmap error")
 				}
 			case watch.Modified:
 				configMap := event.Object.(*corev1.ConfigMap)
-				logging.Get().Info().Msgf("ConfigMap updated: %+v\n", configMap)
+				//logging.Get().Info().Msgf("ConfigMap updated: %+v\n", configMap)
 				err = cm.updateFromConfigMap(context.Background(), configMap, ij)
 				if err != nil {
 					logging.Get().Error().Err(err).Msg("update from configmap error")

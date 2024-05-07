@@ -11,13 +11,11 @@ import (
 	"time"
 
 	ct "github.com/florianl/go-conntrack"
-	"github.com/go-redis/redis/v8"
 	json "github.com/json-iterator/go"
 	"github.com/pkg/errors"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo"
 	"gitlab.com/piccolo_su/vegeta/pkg/daemon"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"gitlab.com/security-rd/go-pkg/cache"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/model"
 )
@@ -44,7 +42,7 @@ type FlowSession struct {
 	clusterManager ClusterManager
 	submitter      *Submitter
 	nsDataChan     chan *daemon.NetSessionLink
-	redisClient    *redis.Client
+	redisClient    *RedisClient
 	netLinkData    map[uint32]*daemon.NetSessionLink
 	EbpfNetInfo    map[string]*daemon.NetProcData
 	ebpfLock       sync.Mutex
@@ -181,16 +179,11 @@ func NetProtoConvert(proto uint8) uint8 {
 	return 0
 }
 
-func NewFlowSession(k8sInfo *NodePodsInfo, crim nodeinfo.ContainerInfoManager, clusterManager ClusterManager, consoleURL string, cifMgr *k8s.ClusterInfoManager) (*FlowSession, error) {
-
-	redisClient, err := cache.NewRedis()
-	if err != nil {
-		return nil, errors.Errorf("redis init failed, %v", err)
-	}
+func NewFlowSession(redis *RedisClient, k8sInfo *NodePodsInfo, crim nodeinfo.ContainerInfoManager, clusterManager ClusterManager, consoleURL string, cifMgr *k8s.ClusterInfoManager) (*FlowSession, error) {
 
 	ctFlow := ConntrackTools{Groups: NF_NETLINK_CONNTRACK_UPDATE}
 	//ctFlow := ConntrackTools{Groups: NF_NETLINK_CONNTRACK_NEW | NF_NETLINK_CONNTRACK_UPDATE}
-	err = ctFlow.CreateConntrackSocket()
+	err := ctFlow.CreateConntrackSocket()
 	if err != nil {
 		return nil, errors.Errorf("Failed to get conntrack handle")
 	}
@@ -229,7 +222,7 @@ func NewFlowSession(k8sInfo *NodePodsInfo, crim nodeinfo.ContainerInfoManager, c
 		url:            url,
 		nsDataChan:     make(chan *daemon.NetSessionLink, 5000),
 		EbpfNetInfo:    make(map[string]*daemon.NetProcData),
-		redisClient:    redisClient,
+		redisClient:    redis,
 		submitter:      NewSubmitter(cifMgr, 5*time.Minute, GetSubmitFunc(url)),
 	}
 	//
@@ -559,7 +552,7 @@ func (fs *FlowSession) GetNetProcInfo(netRes *model.TensorNetworkFlow, src, dst 
 		netRes.SrcPid = data.Pid
 		//return
 		if dst == nil {
-			return redisSaveOrUpdate(fs.redisClient, daemon.SND_ADDR, netRes)
+			return fs.redisClient.RedisSaveOrUpdate(daemon.SND_ADDR, netRes)
 		}
 	}
 
@@ -597,7 +590,11 @@ func (fs *FlowSession) GetNetProcInfo(netRes *model.TensorNetworkFlow, src, dst 
 		netRes.DstContainerName = containerName
 		netRes.DstPid = data.Pid
 		//return
-		return redisSaveOrUpdate(fs.redisClient, daemon.RCV_ADDR, netRes)
+		return fs.redisClient.RedisSaveOrUpdate(daemon.RCV_ADDR, netRes)
+	}
+
+	if src == nil && dst == nil {
+		return fs.redisClient.RedisSaveOrUpdate(daemon.UNKNOWN_ADDR, netRes)
 	}
 
 	return false, fmt.Errorf("src and dst info is nil")
@@ -784,15 +781,18 @@ func (fs *FlowSession) GetContainerInfo(netRes *model.TensorNetworkFlow, src, ds
 			if errn != nil {
 				logging.Get().Err(errn).Msg("update src container failed")
 			}
-			return false, errors.Errorf("get src container process name failed, %v", err)
+			//return false, errors.Errorf("get src container process name failed, %v", err)
 		}
-		netRes.SrcProcess = pinfo.ProcName
-		netRes.SrcContainerID = pinfo.ContainerId
-		netRes.SrcContainerName = pinfo.ContainerName
-		netRes.SrcPid = pinfo.Pid
+
+		if pinfo != nil {
+			netRes.SrcProcess = pinfo.ProcName
+			netRes.SrcContainerID = pinfo.ContainerId
+			netRes.SrcContainerName = pinfo.ContainerName
+			netRes.SrcPid = pinfo.Pid
+		}
 		//return
 		if dst == nil {
-			return redisSaveOrUpdate(fs.redisClient, daemon.SND_ADDR, netRes)
+			return fs.redisClient.RedisSaveOrUpdate(daemon.SND_ADDR, netRes)
 		}
 	}
 
@@ -806,16 +806,18 @@ func (fs *FlowSession) GetContainerInfo(netRes *model.TensorNetworkFlow, src, ds
 				if errn != nil {
 					logging.Get().Err(errn).Msg("update dst container failed")
 				}
-				return false, errors.Errorf("get dst container process name failed, %v", err)
+				//return false, errors.Errorf("get dst container process name failed, %v", err)
 			}
-			//process timeout
-			pinfo.Timeout = time.Now().Unix()
-			//save process information
-			dst.ListenPorts[key] = pinfo
-			netRes.DstProcess = pinfo.ProcName
-			netRes.DstContainerID = pinfo.ContainerId
-			netRes.DstContainerName = pinfo.ContainerName
-			netRes.DstPid = pinfo.Pid
+			if pinfo != nil {
+				//process timeout
+				pinfo.Timeout = time.Now().Unix()
+				//save process information
+				dst.ListenPorts[key] = pinfo
+				netRes.DstProcess = pinfo.ProcName
+				netRes.DstContainerID = pinfo.ContainerId
+				netRes.DstContainerName = pinfo.ContainerName
+				netRes.DstPid = pinfo.Pid
+			}
 		} else {
 			netRes.DstProcess = process.ProcName
 			netRes.DstContainerID = process.ContainerId
@@ -827,7 +829,11 @@ func (fs *FlowSession) GetContainerInfo(netRes *model.TensorNetworkFlow, src, ds
 			}
 		}
 		//return
-		return redisSaveOrUpdate(fs.redisClient, daemon.RCV_ADDR, netRes)
+		return fs.redisClient.RedisSaveOrUpdate(daemon.RCV_ADDR, netRes)
+	}
+
+	if src == nil && dst == nil {
+		return fs.redisClient.RedisSaveOrUpdate(daemon.UNKNOWN_ADDR, netRes)
 	}
 
 	return false, nil
@@ -916,34 +922,24 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 			logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
 		}
 	}()
-	/*
-		switch netSession.NlType {
-		case NFCT_T_NEW:
-			fs.SaveNetLinkData(netSession)
-			return nil
-		case NFCT_T_UPDATE, NFCT_T_TIMEOUT:
-			fs.DeleteNetLinkData(netSession)
-		default:
-			return nil
-		}
-	*/
-	logging.Get().Info().Msgf("net session %+v", *netSession)
 
 	//match pod information
 	src, srcOk := fs.nodePodsInfo.GetResDataByIp(netSession.Origin.SrcIp)
 	dst, dstOk := fs.nodePodsInfo.GetResDataByIp(netSession.Reply.SrcIp)
-	//源地址和目的地址都没有查询到pod信息时,则丢弃该session
-	if !srcOk && !dstOk {
-		logging.Get().Warn().Msgf("query k8s resource failed. %+v", *netSession)
-		return nil
-	}
+	//print debug log
+	logging.Get().Debug().Msgf("session : %+v, srcOk : %+v, dstOk : %+v", *netSession, srcOk, dstOk)
 	//get cluster key
 	clusterKey, ok := fs.clusterManager.ClusterKey()
 	if !ok {
 		clusterKey = "default"
 	}
+
+	var state bool
+	var err error
 	//network flow
 	netData := new(model.TensorNetworkFlow)
+	netData.SrcIp = netSession.Origin.SrcIp
+	netData.DstIp = netSession.Reply.SrcIp
 	//get src resource
 	if src != nil {
 		//source resource
@@ -975,43 +971,24 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 		Proto:   netSession.Origin.Proto,
 		SrcPort: netSession.Origin.SrcPort,
 		SrcIp:   netSession.Origin.SrcIp,
-		DstPort: netData.DstPort,
+		DstPort: netSession.Reply.SrcPort,
 		DstIp:   netSession.Reply.SrcIp,
 	}
 	//create associate key
 	netData.CreateAssocKey(netAddr)
-	//put net flow information
-	var state bool
-	var err error
-	//
-	switch netSession.NlType {
-	case NFCT_T_UPDATE: //update event
-		if (fs.EbpfStat == daemon.EBPF_SUCC) && (netSession.DataType == daemon.NET_UPDATE) {
-			state, err = fs.GetNetProcInfo(netData, src, dst, netAddr)
-			//debug log
-			//if err != nil {
-			//	logging.Get().Info().Msgf("[ebpf] get proc failed, %+v, %+v.", err, *netAddr)
-			//}
-		} else {
-			//get container info
-			state, err = fs.GetContainerInfo(netData, src, dst, netAddr)
-			if err != nil {
-				logging.Get().Err(err).Msg("get container info failed")
-			}
-		}
-
-	case NFCT_T_TIMEOUT: //session timeout
-		addrType := daemon.RCV_ADDR
-		if src != nil {
-			addrType = daemon.SND_ADDR
-		}
-		state, err = redisSaveOrUpdate(fs.redisClient, addrType, netData)
+	//ebpf
+	if (fs.EbpfStat == daemon.EBPF_SUCC) && (netSession.DataType == daemon.NET_UPDATE) {
+		state, err = fs.GetNetProcInfo(netData, src, dst, netAddr)
+		//debug log
+		//if err != nil {
+		//	logging.Get().Info().Msgf("[ebpf] get proc failed, %+v, %+v.", err, *netAddr)
+		//}
+	} else {
+		//get container info
+		state, err = fs.GetContainerInfo(netData, src, dst, netAddr)
 		if err != nil {
-			logging.Get().Error().Msgf("get resource info failed, %v.", err)
+			logging.Get().Err(err).Msg("get container info failed")
 		}
-
-	default:
-		return nil
 	}
 
 	//state

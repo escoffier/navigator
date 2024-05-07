@@ -53,6 +53,7 @@ func NewSubmitter(
 	s.asyncLoop()
 	return s
 }
+
 func (s *Submitter) Submit(ctx context.Context, flow *model.TensorNetworkFlow) error {
 	tctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 	defer cancel()
@@ -102,6 +103,7 @@ func (s *Submitter) submitBuffer(flowMap map[uint32]*model.TensorNetworkFlow) {
 		}
 	}()
 }
+
 func (s *Submitter) asyncLoop() {
 	go func() {
 		defer func() {

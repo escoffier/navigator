@@ -120,6 +120,7 @@ func SetupRoutes(
 			r.Use(downloadAuth())
 			r.Route("/files", api.exportDownload())
 		})
+		// r.Handle("/microseg/*", api.microSegmentation())
 
 		r.Group(func(r chi.Router) {
 			// normal check
@@ -148,5 +149,6 @@ func SetupRoutes(
 		r.Route("/defense", api.defense())
 		r.Route("/platform/waf", api.waf())
 		r.Route("/waf", api.waf())
+		r.Handle("/microseg/*", api.microSegmentation())
 	})
 }

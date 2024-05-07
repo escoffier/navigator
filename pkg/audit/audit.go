@@ -858,30 +858,6 @@ func init() {
 			},
 		}
 	})
-	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/tenants/:tenant", func(p Params) map[string]map[string]interface{} {
-		return map[string]map[string]interface{}{
-			"zh": {
-				"verb":   editAction,
-				"detail": "编辑租户{{.}}",
-			},
-			"en": {
-				"verb":   editActionEN,
-				"detail": "Create tenant {{.}}",
-			},
-		}
-	})
-	routeAction.DELETE("/api/v2/microseg/clusters/:clusterKey/tenants/:tenant", func(p Params) map[string]map[string]interface{} {
-		return map[string]map[string]interface{}{
-			"zh": {
-				"verb":   deleteAction,
-				"detail": "删除租户{{.}}",
-			},
-			"en": {
-				"verb":   deleteActionEN,
-				"detail": "Delete tenant {{.}}",
-			},
-		}
-	})
 	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/tenants/:tenant/policy/enabling", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {
@@ -931,6 +907,228 @@ func init() {
 		}
 	})
 
+	routeAction.POST("/api/v2/microseg/policy", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增策略{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Create new policy {{.}}",
+			},
+		}
+	})
+
+	routeAction.DELETE("/api/v2/microseg/policy", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除策略{{.}}",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete policy {{.}}",
+			},
+		}
+	})
+
+	routeAction.PUT("/api/v2/microseg/policy", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑策略{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit policy {{.}}",
+			},
+		}
+	})
+
+	routeAction.POST("/api/v2/microseg/batchpolicies", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增批量策略{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Create batch new policy {{.}}",
+			},
+		}
+	})
+	routeAction.PUT("/api/v2/microseg/policies/enable", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   eAnddActionEN,
+				"detail": "启用/停用策略{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Enable/Disable policy {{.}}",
+			},
+		}
+	})
+	routeAction.POST("/api/v2/microseg/ipgroups", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增IP对象{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Create new IP object {{.}}",
+			},
+		}
+	})
+	routeAction.PUT("/api/v2/microseg/ipgroups", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "编辑IP对象{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Edit IP object {{.}}",
+			},
+		}
+	})
+	routeAction.DELETE("/api/v2/microseg/ipgroups", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "删除IP对象{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Delete IP object {{.}}",
+			},
+		}
+	})
+
+	routeAction.POST("/api/v2/microseg/segments", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增资源组{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Create segment {{.}}",
+			},
+		}
+	})
+
+	routeAction.PUT("/api/v2/microseg/segments", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑资源组{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit segment {{.}}",
+			},
+		}
+	})
+	routeAction.DELETE("/api/v2/microseg/segments", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除资源组{{.}}",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete segment {{.}}",
+			},
+		}
+	})
+	routeAction.PUT("/api/v2/microseg/segments/addresources", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑资源组{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit segment {{.}}",
+			},
+		}
+	})
+	routeAction.PUT("/api/v2/microseg/segments/moveresources", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑资源组{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit segment {{.}}",
+			},
+		}
+	})
+	routeAction.POST("/api/v2/microseg/nsgrps", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   createAction,
+				"detail": "新增命名空间组{{.}}",
+			},
+			"en": {
+				"verb":   createActionEN,
+				"detail": "Create namespace group {{.}}",
+			},
+		}
+	})
+
+	routeAction.PUT("/api/v2/microseg/nsgrps/base", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑命名空间组{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit namespace group {{.}}",
+			},
+		}
+	})
+	routeAction.DELETE("/api/v2/microseg/nsgrps", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   deleteAction,
+				"detail": "删除命名空间组{{.}}",
+			},
+			"en": {
+				"verb":   deleteActionEN,
+				"detail": "Delete namespace group {{.}}",
+			},
+		}
+	})
+	routeAction.PUT("/api/v2/microseg/nsgrps/addnamespaces", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑命名空间组{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit namespace group {{.}}",
+			},
+		}
+	})
+	routeAction.PUT("/api/v2/microseg/nsgrps/movenamespaces", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑命名空间组{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit namespace group {{.}}",
+			},
+		}
+	})
 	// 镜像安全
 	routeAction.POST("/api/v2/containerSec/scanner/scan-config/strategy", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{

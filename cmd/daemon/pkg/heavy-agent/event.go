@@ -1,6 +1,7 @@
 package heavyagent
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -41,7 +42,7 @@ type AttackLogDetail struct {
 func (p *EventProcessor) Run() {
 	logging.Get().Info().Msg("start process agent event")
 	for {
-		var data = make([]byte, 4096)
+		var data = make([]byte, 40960)
 		logging.Get().Info().Msg("begine to read event data")
 		nBytes, err := p.cli.GetConn().Read(data)
 		if err != nil {
@@ -58,18 +59,43 @@ func (p *EventProcessor) Run() {
 				ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 				defer cancel()
 
-				event := make(map[string]interface{})
-				// event := AttackLogDetail{}
-				err = json.Unmarshal(data[:nBytes], &event)
-				if err != nil {
-					logging.Get().Err(err).Msg("unmarshal event")
-					return
+				searchString := "}{"
+				start := 0
+				index := bytes.Index(data, []byte(searchString))
+				if index < 0 {
+					index = len(data) - 1
 				}
-				evtType := event["type"].(string)
-				p.handlers[evtType].Handle(ctx, event)
-				if err != nil {
-					logging.Get().Err(err).Msg("post agent event err")
+				count := bytes.Count(data, []byte(searchString))
+
+				for i := 0; i <= count; i++ {
+					value := data[start : index+1]
+					event := make(map[string]interface{})
+					// event := AttackLogDetail{}
+					err = json.Unmarshal(value, &event)
+					if err != nil {
+						logging.Get().Err(err).Msg("unmarshal event")
+						return
+					}
+					evtType := event["type"].(string)
+					p.handlers[evtType].Handle(ctx, event)
+					if err != nil {
+						logging.Get().Err(err).Msg("post agent event err")
+					}
+
+					start = index + 1
+					index = bytes.Index(data[start:], []byte(searchString))
+
+					if index < 0 {
+						index = len(data) - 1
+					} else {
+						index = index + start
+					}
+
+					if start > index {
+						break
+					}
 				}
+
 			}()
 		}
 	}

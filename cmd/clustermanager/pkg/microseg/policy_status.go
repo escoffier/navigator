@@ -3,6 +3,8 @@ package microseg
 import (
 	"context"
 	"encoding/json"
+	"strconv"
+	"strings"
 
 	"github.com/segmentio/kafka-go"
 	"gitlab.com/security-rd/go-pkg/databases"
@@ -38,6 +40,19 @@ func (w *PolicyStatusWatcher) process(ctx context.Context, message kafka.Message
 	if err != nil {
 		return err
 	}
-	logging.Get().Debug().Msg(string(message.Value))
+	logging.Get().Info().Msgf("policy status %s", string(message.Value))
+	idStr, found := strings.CutPrefix(policyStatus.Policy, "policy-")
+	if found {
+		id, err := strconv.ParseUint(idStr, 10, 32)
+		if err != nil {
+			log.Err(err).Msgf("invalid policy name %s", idStr)
+			return nil
+		}
+		err = w.db.Get().WithContext(ctx).Table("ivan_microseg_rules").Where("id = ?", id).Update("status", policyStatus.Status).Error
+		if err != nil {
+			log.Err(err).Msgf("update policy (%s) status", idStr)
+			return nil
+		}
+	}
 	return nil
 }

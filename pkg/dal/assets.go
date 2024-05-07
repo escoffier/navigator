@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/env"
-	netv1 "k8s.io/api/networking/v1"
-	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 	"strconv"
 	"strings"
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/env"
+	netv1 "k8s.io/api/networking/v1"
+	kubecontainer "k8s.io/kubernetes/pkg/kubelet/container"
 
 	"github.com/March-deng/godisearch/redisearch"
 	json "github.com/json-iterator/go"
@@ -6470,6 +6471,10 @@ func DeleteClusterAll(ctx context.Context, rdb *gorm.DB, clusterKey string) erro
 			return err
 		}
 		err = tx.WithContext(ctx).Where("cluster_key = ?", clusterKey).Delete(&model.TensorsecContainerMonitor{}).Error
+		if err != nil {
+			return err
+		}
+		err = tx.WithContext(ctx).Where("cluster = ?", clusterKey).Delete(&model.TensorMicrosegResource{}).Error
 		if err != nil {
 			return err
 		}

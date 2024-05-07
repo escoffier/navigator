@@ -51,7 +51,7 @@ func NewPodController(podLister listerv1.PodLister, podInformer cache.SharedInde
 
 func (n *Controller) addPod(obj interface{}) {
 	pod := obj.(*corev1.Pod)
-	logging.Get().Info().Msgf("add pod %s/%s", pod.Namespace, pod.Name)
+	logging.Get().Debug().Msgf("add pod %s/%s", pod.Namespace, pod.Name)
 	if pod.Spec.HostNetwork {
 		return
 	}
@@ -133,7 +133,8 @@ func (n *Controller) syncPod(key string) error {
 
 	pids := n.getPodContainerPid(pod)
 	for _, pid := range pids {
-		err = n.policyCli.AddContainer(pid, podID(pod))
+		logging.Get().Info().Msgf("sync pod : %s", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
+		err = n.policyCli.AddContainer(pid, podID2(pod))
 		if err != nil {
 			logging.Get().Err(err).Msgf("sync pod %s/%s", ns, name)
 			return err
@@ -186,7 +187,7 @@ func (n *Controller) ResynAllPods() error {
 			return err
 		}
 		for _, pid := range pids {
-			err := n.policyCli.AddContainer(pid, podID(pod))
+			err := n.policyCli.AddContainer(pid, podID2(pod))
 			if err != nil {
 				logging.Get().Warn().Str("module", "heavy-agent").Msgf("container (pid: %d) to agent err: %v", pid, err)
 				return err
@@ -196,11 +197,11 @@ func (n *Controller) ResynAllPods() error {
 	return nil
 }
 
-func podID1(namespace, name string) uint32 {
+func podID1(namespace, name string) uint64 {
 	str := fmt.Sprintf("%s/%s", namespace, name)
-	h := fnv.New32a()
+	h := fnv.New64a()
 	h.Write([]byte(str))
-	return h.Sum32()
+	return h.Sum64()
 }
 
 func podID(pod *corev1.Pod) uint32 {
@@ -208,4 +209,11 @@ func podID(pod *corev1.Pod) uint32 {
 	h := fnv.New32a()
 	h.Write([]byte(str))
 	return h.Sum32()
+}
+
+func podID2(pod *corev1.Pod) uint64 {
+	str := fmt.Sprintf("%s/%s", pod.Namespace, pod.Name)
+	h := fnv.New64a()
+	h.Write([]byte(str))
+	return h.Sum64()
 }

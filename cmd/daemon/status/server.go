@@ -40,6 +40,11 @@ type ConnDumpReq struct {
 	Limit       int    `json:"limit"`
 }
 
+type Reset struct {
+	UUID        string `json:"uuid"`
+	MessageType int    `json:"msg_type"`
+}
+
 type Response struct {
 	UUID   string `json:"uuid"`
 	Status int    `json:"status"`
@@ -58,6 +63,7 @@ func (s *Server) Run() {
 	mux.HandleFunc("/debug/agent/config", s.handleDumpAgentConfig)
 	mux.HandleFunc("/debug/agent/heapdump", s.handleDumpAgentHeap)
 	mux.HandleFunc("/debug/agent/connections", s.handleDumpAgentConn)
+	mux.HandleFunc("/debug/agent/reset", s.handleReset)
 
 	go func() {
 		l, err := net.Listen("tcp", fmt.Sprintf(":%d", s.port))
@@ -206,6 +212,31 @@ func (s *Server) dumpAgentConn(limit int) ([]byte, error) {
 	return respData, nil
 }
 
+func (s *Server) reset() error {
+	req := Reset{
+		UUID:        uuid.NewString(),
+		MessageType: 12,
+	}
+	data, err := json.Marshal(&req)
+	if err != nil {
+		return err
+	}
+
+	err = s.cli.Send(data)
+	if err != nil {
+		return err
+	}
+
+	resp, err := s.receiveResponse()
+	if err != nil {
+		return err
+	}
+	if resp.Status != 0 {
+		return fmt.Errorf("agent err %d", resp.Status)
+	}
+	return nil
+}
+
 func (s *Server) receiveResponse() (*Response, error) {
 	data, err := s.cli.Receive()
 	if err != nil {
@@ -222,4 +253,14 @@ func (s *Server) receiveResponse() (*Response, error) {
 		}
 	}
 	return resp, nil
+}
+
+func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
+	err := s.reset()
+	if err != nil {
+		log.Err(err).Msg("reset agent")
+		w.WriteHeader(500)
+		return
+	}
+	w.WriteHeader(200)
 }
