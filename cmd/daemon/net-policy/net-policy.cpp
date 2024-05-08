@@ -77,6 +77,7 @@ static std::unordered_map<std::string, std::vector<HTTP_RULE_INFO>*> NetOutputHt
 static std::map<TCP_FOUR_TUPLE_V4, http::ConnectionPtr> TcpCtInput;
 static std::map<TCP_FOUR_TUPLE_V4, http::ConnectionPtr> TcpCtOutput;
 static net::ConnectionManager connectionManager;
+static int zIptVer = 0;
 
 int NetProtoConvert(std::string proto)
 {
@@ -1541,7 +1542,7 @@ bool CheckIptablesRule()
     int length;
     FILE *fp = NULL;
     char buf[1024];
-    const char *icheck  = "iptables -t mangle -S | grep TS_ZERO_PREROUTING";
+    const char *icheck  = (zIptVer == 0) ? "iptables -t mangle -S | grep TS_ZERO_PREROUTING" : "iptables-legacy -t mangle -S | grep TS_ZERO_PREROUTING";
     //
     fp = popen(icheck, "r");
     if(!fp) RETURN_ERROR(false, "popen iptables input command failed, %s.", strerror(errno));
@@ -1557,9 +1558,9 @@ bool CheckIptablesRule()
 
 void ClearIptabelsRule()
 {
-    const char *clear  = "iptables -t mangle -F";
-    const char *dichan = "iptables -t mangle -X TS_ZERO_PREROUTING";
-    const char *dochan = "iptables -t mangle -X TS_ZERO_OUTPUT";
+    const char *clear  = (zIptVer == 0) ? "iptables -t mangle -F" : "iptables-legacy -t mangle -F";
+    const char *dichan = (zIptVer == 0) ? "iptables -t mangle -X TS_ZERO_PREROUTING" : "iptables-legacy -t mangle -X TS_ZERO_PREROUTING";
+    const char *dochan = (zIptVer == 0) ? "iptables -t mangle -X TS_ZERO_OUTPUT" : "iptables-legacy -t mangle -X TS_ZERO_OUTPUT";
     system(clear);
     system(dichan);
     system(dochan);
@@ -1575,26 +1576,26 @@ void WriteIptableRule(int iMarkNum, int oMarkNum)
     const char *simark = nullptr;
     const char *somark = nullptr;
 
-    const char *pcheck  = "iptables -t mangle -S | grep TS_ZERO_PREROUTING";
-    const char *ocheck  = "iptables -t mangle -S | grep TS_ZERO_OUTPUT";
+    const char *pcheck  = (zIptVer == 0) ? "iptables -t mangle -S | grep TS_ZERO_PREROUTING" : "iptables-legacy -t mangle -S | grep TS_ZERO_PREROUTING";
+    const char *ocheck  = (zIptVer == 0) ? "iptables -t mangle -S | grep TS_ZERO_OUTPUT" : "iptables-legacy -t mangle -S | grep TS_ZERO_OUTPUT";
 
-    const char *icreate = "iptables -t mangle -N TS_ZERO_PREROUTING 2>/dev/null && iptables -t mangle -I PREROUTING -j TS_ZERO_PREROUTING";
-    const char *ocreate = "iptables -t mangle -N TS_ZERO_OUTPUT 2>/dev/null && iptables -t mangle -I OUTPUT -j TS_ZERO_OUTPUT";
+    const char *icreate = (zIptVer == 0) ? "iptables -t mangle -N TS_ZERO_PREROUTING 2>/dev/null && iptables -t mangle -I PREROUTING -j TS_ZERO_PREROUTING" : "iptables-legacy -t mangle -N TS_ZERO_PREROUTING 2>/dev/null && iptables-legacy -t mangle -I PREROUTING -j TS_ZERO_PREROUTING";
+    const char *ocreate = (zIptVer == 0) ? "iptables -t mangle -N TS_ZERO_OUTPUT 2>/dev/null && iptables -t mangle -I OUTPUT -j TS_ZERO_OUTPUT" : "iptables-legacy -t mangle -N TS_ZERO_OUTPUT 2>/dev/null && iptables-legacy -t mangle -I OUTPUT -j TS_ZERO_OUTPUT";
 
-    const char *imark  = "iptables -t mangle -I PREROUTING -j CONNMARK --restore-mark";
-    const char *omark  = "iptables -t mangle -I OUTPUT -j CONNMARK --restore-mark";
+    const char *imark  = (zIptVer == 0) ? "iptables -t mangle -I PREROUTING -j CONNMARK --restore-mark" : "iptables-legacy -t mangle -I PREROUTING -j CONNMARK --restore-mark";
+    const char *omark  = (zIptVer == 0) ? "iptables -t mangle -I OUTPUT -j CONNMARK --restore-mark" : "iptables-legacy -t mangle -I OUTPUT -j CONNMARK --restore-mark";
 
     if(!gbWafEnable)
     {
-        simark = "iptables -t mangle -A INPUT -j CONNMARK --save-mark";
-        somark = "iptables -t mangle -A POSTROUTING -j CONNMARK --save-mark";
+        simark = (zIptVer == 0) ? "iptables -t mangle -A INPUT -j CONNMARK --save-mark" : "iptables-legacy -t mangle -A INPUT -j CONNMARK --save-mark";
+        somark = (zIptVer == 0) ? "iptables -t mangle -A POSTROUTING -j CONNMARK --save-mark" : "iptables-legacy -t mangle -A POSTROUTING -j CONNMARK --save-mark";
     }
 
-    const char *ipass  = "iptables -t mangle -A TS_ZERO_PREROUTING -m mark --mark %d -j ACCEPT";
-    const char *infque = "iptables -t mangle -A TS_ZERO_PREROUTING -j NFQUEUE --queue-num 0 --queue-bypass";
+    const char *ipass  = (zIptVer == 0) ? "iptables -t mangle -A TS_ZERO_PREROUTING -m mark --mark %d -j ACCEPT" : "iptables-legacy -t mangle -A TS_ZERO_PREROUTING -m mark --mark %d -j ACCEPT";
+    const char *infque = (zIptVer == 0) ? "iptables -t mangle -A TS_ZERO_PREROUTING -j NFQUEUE --queue-num 0 --queue-bypass" : "iptables-legacy -t mangle -A TS_ZERO_PREROUTING -j NFQUEUE --queue-num 0 --queue-bypass";
     
-    const char *opass  = "iptables -t mangle -A TS_ZERO_OUTPUT -m mark --mark %d -j ACCEPT";
-    const char *onfque = "iptables -t mangle -A TS_ZERO_OUTPUT -j NFQUEUE --queue-num 1 --queue-bypass";
+    const char *opass  = (zIptVer == 0) ? "iptables -t mangle -A TS_ZERO_OUTPUT -m mark --mark %d -j ACCEPT" : "iptables-legacy -t mangle -A TS_ZERO_OUTPUT -m mark --mark %d -j ACCEPT";
+    const char *onfque = (zIptVer == 0) ? "iptables -t mangle -A TS_ZERO_OUTPUT -j NFQUEUE --queue-num 1 --queue-bypass" : "iptables-legacy -t mangle -A TS_ZERO_OUTPUT -j NFQUEUE --queue-num 1 --queue-bypass";
 
     //check iptables rule
     //if(CheckIptablesRule()) return;
@@ -2310,6 +2311,33 @@ void CustomPrefix(std::ostream &s, const google::LogMessageInfo &l, void*) {
    << l.filename << ':' << l.line_number;
 }
 
+int GetIptablesVersion()
+{
+    int ret;
+    FILE *fp = NULL;
+    std::string value;
+    char buf[1024];
+    /*exec command*/
+    fp = popen("iptables -t nat -S PREROUTING", "r");
+    if(!fp) RETURN_ERROR(-1, "popen iptables command failed, %s.", strerror(errno));
+    /*init memory*/
+    memset(buf, 0, sizeof(buf));
+    /*read data*/
+    ret = fread(buf, 1, sizeof(buf), fp);
+    /*close*/
+    pclose(fp);
+    /*check result*/
+    if(ret < 0) RETURN_ERROR(-1, "fread iptables command's ret failed, %s.", strerror(errno));
+    /*to string*/
+    value = buf;
+    auto pos = value.find("-A PREROUTING");
+    if(pos != std::string::npos) return 0;
+    /*use new iptables*/
+    zIptVer = 1;
+    /*return*/
+    return 0;
+}
+
 int main(int argc, char *argv[])
 {
     google::InitGoogleLogging(argv[0], &CustomPrefix);
@@ -2340,6 +2368,10 @@ int main(int argc, char *argv[])
     if(pcLogLevel) gbWafEnable = (strcmp(pcLogLevel, "true") == 0) ? true : false;
     //open local net ns
     OpenLocalNetNs();
+    /*get iptables version*/
+    GetIptablesVersion();
+    /*print debug log*/
+    LOG_I("choose iptables version : %d", zIptVer);
     /*init cidr*/
     MaskCidr.insert(32);
     //epoll fd
