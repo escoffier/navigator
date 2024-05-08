@@ -61,32 +61,36 @@ func (p *EventProcessor) Run() {
 
 				searchString := "}{"
 				start := 0
-				index := bytes.Index(data, []byte(searchString))
+				index := bytes.Index(data[:nBytes], []byte(searchString))
 				if index < 0 {
-					index = len(data) - 1
+					index = nBytes - 1
 				}
-				count := bytes.Count(data, []byte(searchString))
+				count := bytes.Count(data[:nBytes], []byte(searchString))
 
 				for i := 0; i <= count; i++ {
 					value := data[start : index+1]
 					event := make(map[string]interface{})
 					// event := AttackLogDetail{}
-					err = json.Unmarshal(value, &event)
+					err = json.Unmarshal(value[:index+1-start], &event)
 					if err != nil {
-						logging.Get().Err(err).Msg("unmarshal event")
+						logging.Get().Error().Msgf("unmarshal event, len : %+v, value : %+v, error : %+v", len(value), value, err)
 						return
 					}
 					evtType := event["type"].(string)
-					p.handlers[evtType].Handle(ctx, event)
+					err = p.handlers[evtType].Handle(ctx, event)
 					if err != nil {
 						logging.Get().Err(err).Msg("post agent event err")
 					}
 
 					start = index + 1
-					index = bytes.Index(data[start:], []byte(searchString))
+					if start >= nBytes {
+						break
+					}
+
+					index = bytes.Index(data[start:nBytes], []byte(searchString))
 
 					if index < 0 {
-						index = len(data) - 1
+						index = nBytes - 1
 					} else {
 						index = index + start
 					}
