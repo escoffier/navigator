@@ -32,7 +32,8 @@ import (
 )
 
 const (
-	ImageScopeEnv = "RSCAN_IMAGE_SCOPE"
+	ImageScopeEnv                   = "RSCAN_IMAGE_SCOPE"
+	containerdRuntimeRootfsTemplate = "/run/containerd/io.containerd.runtime.v2.task/k8s.io/%s/rootfs"
 )
 
 type RuntimeScanner struct {
@@ -50,6 +51,7 @@ type RuntimeScanner struct {
 	cim               *k8s.ClusterInfoManager   // get cluster info
 	maxUserWatches    int64
 	concurrentScanNum int64
+	runtimeType       string
 }
 
 type WatchStats struct {
@@ -113,11 +115,19 @@ func (rs *RuntimeScanner) removeWatchContainers(containers []container.Container
 			continue
 		}
 
-		rootPath, ok := meta.GraphDriver.Data["MergedDir"]
-		if !ok {
-			logging.Get().Error().Str("container", meta.Name).Msg("container graph driver err")
-			retErr = multierror.Append(retErr, fmt.Errorf("container graph driver err"))
-			continue
+		rootPath := ""
+		if rs.runtimeType == "containerd" {
+			containerID := meta.ID
+			rootPath = fmt.Sprintf(containerdRuntimeRootfsTemplate, containerID)
+		} else {
+			// check root path
+			mergedDir, ok := meta.GraphDriver.Data["MergedDir"]
+			if !ok {
+				logging.Get().Error().Str("container", meta.Name).Msg("container graph driver err")
+				retErr = multierror.Append(retErr, fmt.Errorf("container graph driver err"))
+				continue
+			}
+			rootPath = mergedDir
 		}
 		// monitor path in docker.e.g./host/var/lib/docker/xxx/...
 		monitorPath := filepath.Join("/host", rootPath)
@@ -145,12 +155,19 @@ func (rs *RuntimeScanner) watchContainers(containers []container.ContainerMeta) 
 			continue
 		}
 
-		// check root path
-		rootPath, ok := meta.GraphDriver.Data["MergedDir"]
-		if !ok {
-			logging.Get().Error().Str("container", meta.Name).Msg("container graph driver err")
-			retErr = multierror.Append(retErr, fmt.Errorf("container graph driver err"))
-			continue
+		rootPath := ""
+		if rs.runtimeType == "containerd" {
+			containerID := meta.ID
+			rootPath = fmt.Sprintf(containerdRuntimeRootfsTemplate, containerID)
+		} else {
+			// check root path
+			mergedDir, ok := meta.GraphDriver.Data["MergedDir"]
+			if !ok {
+				logging.Get().Error().Str("container", meta.Name).Msg("container graph driver err")
+				retErr = multierror.Append(retErr, fmt.Errorf("container graph driver err"))
+				continue
+			}
+			rootPath = mergedDir
 		}
 
 		// monitor path in docker.e.g./host/var/lib/docker/xxx/...
@@ -350,6 +367,7 @@ func (rs *RuntimeScanner) handleInotifyEvent() error {
 				logging.Get().Debug().Str("file", filename).Msg("close write,add to queue")
 				cf := ContainerFile{filenameInHost: filename}
 				c, containerTopPath := rs.ContainerByInotifyFile(filename)
+				// logging.Get().Debug().Str("containerTopPath", containerTopPath).Msg("container top path")
 				if c == nil {
 					logging.Get().Error().Interface("event", event).Msg("not found container by this file")
 				} else {
@@ -664,6 +682,12 @@ func NewRuntimeScanner(opts ...OptionFunc) (*RuntimeScanner, error) {
 		return nil, err
 	}
 	r.rt = rt
+	runtimeInfo, err := rt.RuntimeInfo()
+	if err != nil {
+		logging.Get().Err(err).Msg("failed to get runtime type")
+		return nil, err
+	}
+	r.runtimeType = runtimeInfo.RuntimeType
 
 	// alerter
 	a, err := NewAlert()
