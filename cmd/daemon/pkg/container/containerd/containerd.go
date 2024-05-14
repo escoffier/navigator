@@ -436,7 +436,7 @@ func (c *containerdDriver) SaveImage(namespace, imageID, fullPath string) (strin
 	md5Str := util.MD5Hex(namespace + imageID)
 	// todo tmp
 	tmpFilePath := filepath.Join("/tmp/", md5Str)
-	logging.Get().Debug().Str("tmpFilePath", tmpFilePath).Msg("save image")
+	logging.Get().Debug().Str("tmpFilePath", tmpFilePath).Str("imageID", imageID).Msg("save image")
 	file, err := os.OpenFile(tmpFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
 
 	if err != nil {
@@ -452,6 +452,9 @@ func (c *containerdDriver) SaveImage(namespace, imageID, fullPath string) (strin
 	}
 
 	file, err = os.Open(tmpFilePath)
+	if err != nil {
+		return "", fmt.Errorf("open file failed ,path:%s ,err:%v, imageID: %v", tmpFilePath, err, imageID)
+	}
 	defer func() {
 		file.Close()
 		if err = os.Remove(tmpFilePath); err != nil {
