@@ -4,18 +4,21 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
+	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
 const (
 	hmBinaryFile = "/usr/bin/hm"
 	resultFile   = "result.csv"
+	dataDBFile   = "data.db"
 )
 
 type HMWebshell struct {
@@ -98,6 +101,56 @@ func (hmw *HMWebshell) ScanFile(path string) {
 	}
 }
 
+func (hmw *HMWebshell) readFromDB() ([]ResultItem, error) {
+	// data.db:
+	// 1,Godzilla ASPX-ASPX后门，建议清理,../test_webshell/123.aspx
+	// 2,Godzilla JSP-JSP后门，建议清理,../test_webshell/123.jsp
+
+	dataDBPath := filepath.Join(hmw.cmdDir, dataDBFile)
+	_, err := os.Stat(dataDBPath)
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("data.db not exist")
+		return nil, err
+	}
+
+	db, err := gorm.Open(sqlite.Open(dataDBPath), &gorm.Config{})
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("open hm sqlite error")
+		return nil, err
+	}
+	resB := make([]imagesecModel.CertainWebshell, 0)
+
+	err = db.Model(&imagesecModel.CertainWebshell{}).Select("*").Find(&resB).Error
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("get hm tbl_b error")
+		return nil, err
+	}
+	resS := make([]imagesecModel.MaybeWebshell, 0)
+
+	err = db.Model(&imagesecModel.MaybeWebshell{}).Select("*").Find(&resS).Error
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("get hm tbl_s error")
+		return nil, err
+	}
+	resultItems := make([]ResultItem, 0)
+	for _, item := range resB {
+		resultItem := ResultItem{
+			Name: item.Description,
+			Path: item.Filepath,
+		}
+		resultItems = append(resultItems, resultItem)
+	}
+	for _, item := range resS {
+		resultItem := ResultItem{
+			Name: item.Description,
+			Path: item.Filepath,
+		}
+		resultItems = append(resultItems, resultItem)
+	}
+
+	return resultItems, nil
+}
+
 func (hmw *HMWebshell) ReadAndCleanResult() ([]ResultItem, error) {
 	// result.csv:
 	// 序号,类型,路径
@@ -112,37 +165,5 @@ func (hmw *HMWebshell) ReadAndCleanResult() ([]ResultItem, error) {
 		}
 	}()
 
-	resultPath := filepath.Join(hmw.cmdDir, resultFile)
-	resultBytes, err := os.ReadFile(resultPath)
-	if err != nil {
-		logging.GetLogger().Err(err).Msg("read result file failed")
-		return nil, err
-	}
-
-	result := string(resultBytes)
-	logging.GetLogger().Debug().Str("result", result).Str("file path", resultPath).Msg("read result file")
-	if len(result) > 0 {
-		resultLines := strings.Split(result, "\n")
-		resultItems := make([]ResultItem, 0)
-		for _, line := range resultLines[1:] {
-			if len(line) == 0 {
-				continue
-			}
-			lineParts := strings.Split(line, ",")
-			if len(lineParts) != 3 {
-				logging.GetLogger().Warn().Str("line", line).Msg("result line format error")
-				continue
-			}
-			resultItem := ResultItem{
-				Name: lineParts[1],
-				Path: lineParts[2],
-			}
-			// suggestion := strings.Split(lineParts[1], "，")[1]
-			// resultItem.Suggestion = suggestion
-			resultItems = append(resultItems, resultItem)
-		}
-		return resultItems, nil
-	}
-	return nil, nil
-
+	return hmw.readFromDB()
 }
