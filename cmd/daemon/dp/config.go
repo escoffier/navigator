@@ -538,6 +538,7 @@ func (cm *ConfigManager) DelImageUsedAndTestWhiteList(imageDigest string) {
 }
 
 func (cm *ConfigManager) SetWhiteListNotReady(imageDigest string) error {
+	logging.Get().Debug().Msgf("imageDigest:%v whitelist not ready", imageDigest)
 	cm.imageCountLock.Lock()
 	defer cm.imageCountLock.Unlock()
 
@@ -550,6 +551,7 @@ func (cm *ConfigManager) SetWhiteListNotReady(imageDigest string) error {
 }
 
 func (cm *ConfigManager) SetWhiteListScanning(imageDigest string) error {
+	logging.Get().Debug().Msgf("imageDigest:%v whitelist scanning", imageDigest)
 	cm.imageCountLock.Lock()
 	defer cm.imageCountLock.Unlock()
 
@@ -561,6 +563,7 @@ func (cm *ConfigManager) SetWhiteListScanning(imageDigest string) error {
 }
 
 func (cm *ConfigManager) SetWhiteListReady(imageDigest string) error {
+	logging.Get().Debug().Msgf("imageDigest:%v whitelist ready", imageDigest)
 	cm.imageCountLock.Lock()
 	defer cm.imageCountLock.Unlock()
 	if _, ok := cm.imageUsedCount[imageDigest]; !ok {
@@ -575,6 +578,7 @@ func (cm *ConfigManager) GetWhiteListState(imageDigest string) (WhiteListScanner
 	cm.imageCountLock.Lock()
 	defer cm.imageCountLock.Unlock()
 	if _, ok := cm.imageUsedCount[imageDigest]; !ok {
+		logging.Get().Error().Msgf("imageDigest:%v not exist", imageDigest)
 		return WhiteListNotReady, ok
 	}
 	return cm.imageUsedCount[imageDigest].whiteListState, true

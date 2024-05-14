@@ -165,13 +165,18 @@ func (i *ImageTar) AnalyzeWhiteList(runtime container.Runtime, runtimeInfo conta
 		logging.Get().Err(err).Msg("mkdir fail")
 		return nil, err
 	}
+	defer os.RemoveAll(tmpPath)
 
-	_, err = runtime.SaveImage(image.Namespace, strings.TrimPrefix(image.ID, "sha256:"), tmpPath)
+	imageID := strings.TrimPrefix(image.ID, "sha256:")
+	if runtimeInfo.RuntimeType == "containerd" {
+		imageID = image.ID
+	}
+	_, err = runtime.SaveImage(image.Namespace, imageID, tmpPath)
 	if err != nil {
-		logging.Get().Err(err).Msg("")
+		logging.Get().Err(err).Msg(imageID)
 		return nil, err
 	}
-	defer os.RemoveAll(tmpPath)
+
 
 	var opqDirs []string
 	tarFiles := getImageTarsInPath(tmpPath)
