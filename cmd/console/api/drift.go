@@ -287,6 +287,11 @@ func (api *api) driftPolicyStatsTop() http.HandlerFunc {
 			return
 		}
 
+		if len(policyData) == 0 {
+			response.Ok(w, response.WithItems([]topRankItem{}))
+			return
+		}
+
 		var topRank []topRankItem
 		for _, p := range policyData {
 
@@ -315,9 +320,8 @@ func (api *api) driftPolicyStatsTop() http.HandlerFunc {
 
 func runningContainersUUID(ctx context.Context, clusterKey string, namespaces []string) (map[uint32]struct{}, error) {
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
+	startTime := time.Now()
+	logging.GetLogger().Debug().Str("runningContainersUUID-start", fmt.Sprintf("%d", startTime.UnixNano())).Msg("start")
 	req := &GetRawContainers{
 		ClusterKey: clusterKey,
 		Namespaces: namespaces,
@@ -343,6 +347,7 @@ func runningContainersUUID(ctx context.Context, clusterKey string, namespaces []
 		logging.GetLogger().Warn().Msg("get containers count not match")
 	}
 
+	logging.GetLogger().Debug().Str("runningContainersUUID-end", fmt.Sprintf("%d", time.Since(startTime).Nanoseconds())).Int("size", len(containers)).Msg("end")
 	return containersUUID, nil
 }
 
@@ -362,6 +367,10 @@ func (api *api) driftResourceStats() http.HandlerFunc {
 			Used      int64 `json:"used"`
 			CanCreate int64 `json:"can_create"`
 		}
+
+		startTime := time.Now()
+		logging.GetLogger().Debug().Str("driftResourceStats-start", fmt.Sprintf("%d", startTime.Nanosecond())).Msg("start")
+
 		clusterKey, err := param.QueryString(r, "cluster_key")
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("get cluster_key error")
@@ -389,39 +398,38 @@ func (api *api) driftResourceStats() http.HandlerFunc {
 			policyMap[uuid] = struct{}{}
 		}
 
-		allRes, err := driSvc.GetSupportResources(ctx, clusterKey)
+		excludeNS := getSpecialNameSpaces()
+		excludeNSStr := make([]string, 0, len(excludeNS))
+		for k := range excludeNS {
+			excludeNSStr = append(excludeNSStr, k)
+		}
+		supportRes, err := driSvc.GetSupportResources(ctx, clusterKey, excludeNSStr)
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("get support resource count error")
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get support resource count error")))
 			return
 		}
 
-		excludeNS := getSpecialNameSpaces()
-
 		var total int64 = 0
 
-		containersUUID, err := runningContainersUUID(ctx, clusterKey, []string{})
-		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get containers uuid error")
-			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get containers uuid error")))
-			return
-		}
+		// containersUUID, err := runningContainersUUID(ctx, clusterKey, []string{})
+		// if err != nil {
+		// 	logging.GetLogger().Err(err).Msgf("get containers uuid error")
+		// 	apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("get containers uuid error")))
+		// 	return
+		// }
 
 		canCreateCount := 0
-		for _, res := range allRes {
-			if _, ok := excludeNS[res.Namespace]; ok {
-				continue
-			}
-			if res.TableBase.Status != 0 {
-				continue
-			}
-			uuid := util.GenerateUUID(res.ClusterKey, res.Namespace, res.Kind, res.Name)
-			if _, ok := containersUUID[uuid]; !ok {
-				logging.GetLogger().Debug().Interface("res", res).Msg("resource not running")
-				continue
-			}
+		for _, res := range supportRes {
+			// if _, ok := excludeNS[res.Namespace]; ok {
+			// 	continue
+			// }
+			// if _, ok := containersUUID[res.ID]; !ok {
+			// 	logging.GetLogger().Debug().Interface("res", res).Msg("resource not running")
+			// 	continue
+			// }
 			total += 1
-			if _, ok := policyMap[uuid]; !ok {
+			if _, ok := policyMap[res.ID]; !ok {
 				canCreateCount += 1
 			}
 		}
@@ -431,6 +439,8 @@ func (api *api) driftResourceStats() http.HandlerFunc {
 			Used:      int64(len(policyData)),
 			CanCreate: int64(canCreateCount),
 		}
+
+		logging.GetLogger().Debug().Str("driftResourceStats-end", fmt.Sprintf("%d", time.Since(startTime).Nanoseconds())).Msg("end")
 		response.Ok(w, response.WithItem(res))
 
 	}
@@ -1324,13 +1334,18 @@ func (api *api) driftListPolicy() http.HandlerFunc {
 			return
 		}
 
-		// 程序中分页
 		policies, _, err := driSvc.ListPolicy(ctx, math.MaxInt, 0, clusterKey, resources, namespaces, enables, modes, search)
 		if err != nil {
 			logging.GetLogger().Error().Msg("ListPolicy error")
 			apperror.RespAndLog(w, ctx, apperror.NewAnError(http.StatusInternalServerError, errors.New("ListPolicy error")))
 			return
 		}
+		if len(policies) == 0 {
+			logging.GetLogger().Warn().Msg("policies is empty")
+			response.Ok(w, response.WithItems([]model.DriftListPolicyResp{}), response.WithTotalItems(0))
+			return
+		}
+
 		resSvc, ok := assets.GetResourcesService(ctx)
 		if !ok {
 			logging.GetLogger().Error().Msg("get drift service fail")
