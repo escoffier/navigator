@@ -111,6 +111,7 @@ gflags.a
 ${CMAKE_THREAD_LIBS_INIT}
 libunwind.a
 liblzma.a
+libz.a
 libtcmalloc_and_profiler.a)
 
 # target_link_libraries(net-rule 
@@ -141,6 +142,7 @@ gflags.a
 ${CMAKE_THREAD_LIBS_INIT}
 libunwind.a
 liblzma.a
+libz.a
 GTest::gtest_main)
 
 include(GoogleTest)
