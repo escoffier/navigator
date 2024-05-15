@@ -69,6 +69,7 @@ func (wc *WhitelistCount) GenerateExecWhiteList(image container.ImageInspect) (i
 		} else if len(wl) == 0 {
 			logging.Get().Error().Msg("load from file null, scan from dir")
 		} else {
+			_ = sendWhitelist(wc.mqWriter, strings.Trim(image.ID, "sha256:"), image.RepoTags, image.RepoDigests, wl)
 			return imageInfo{WhiteList: wl}, nil
 		}
 	}
