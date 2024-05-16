@@ -45,6 +45,8 @@ all:
   - cp ~/.docker/clamav.tgz clamav/
   - mkdir hm/
   - cp ~/.docker/hm-linux.tgz hm/
+  - mkdir hmj/
+  - cp ~/.docker/hmj hmj/
   script:
   - make all
   - make rm-local-images || true
@@ -143,6 +145,8 @@ holmes:
     done
   - mkdir avira/
   - cp ~/.docker/savapi-sdk-linux64.tgz avira/
+  - mkdir hmj/
+  - cp ~/.docker/hmj hmj/
   - mkdir hm/
   - cp ~/.docker/hm-linux.tgz hm/
   script:

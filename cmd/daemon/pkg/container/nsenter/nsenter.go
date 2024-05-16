@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os/exec"
 	"strconv"
+
+	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 // Config is the nsenter configuration used to generate
@@ -55,6 +57,8 @@ func (c *Config) ExecuteContext(ctx context.Context, program string, args ...str
 	cmd.Stderr = &stderr
 	cmd.Args = append(cmd.Args, program)
 	cmd.Args = append(cmd.Args, args...)
+
+	logging.Get().Info().Str("cmdStr", cmd.String()).Msg("execute command")
 
 	err = cmd.Run()
 	if err != nil {
