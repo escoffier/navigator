@@ -430,7 +430,7 @@ func (vi *Vuln) GenVulnView() *VulnView {
 		PkgVersion:         vi.PkgVersion,
 		CnnvdName:          vi.CnnvdName,
 		PkgRelease:         vi.PkgType,
-		Description:        vi.DescriptionZh, // default zh
+		Description:        vi.DescriptionEn, // default en,因为 en全一些
 		DescriptionZh:      vi.DescriptionZh,
 		DescriptionEn:      vi.DescriptionEn,
 		References:         vi.References,
@@ -557,13 +557,14 @@ func (vi *VulnView) AdaptI18(ctx context.Context) {
 	vi.AttrValueView = GenVulnCVSSV3AttrView(vi.Attr, lang)
 	vi.AttackPathView = vi.AttrValueView[VulnCvssKeyAV]
 
-	if lang == LangZh {
+	if lang == LangZh && vi.DescriptionZh != "" {
 		vi.Description = vi.DescriptionZh
-		if vi.CnvdTitle != "" {
-			vi.Title = vi.CnvdTitle
-		}
 	}
-	if lang == LangEn {
+
+	if lang == LangZh && vi.CnvdTitle != "" {
+		vi.Title = vi.CnvdTitle
+	}
+	if lang == LangEn && vi.DescriptionEn != "" {
 		vi.Description = vi.DescriptionEn
 	}
 }
