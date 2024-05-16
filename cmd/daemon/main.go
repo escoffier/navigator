@@ -14,6 +14,8 @@ import (
 	"syscall"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/learn"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/memshell"
 	heavyagent "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/heavy-agent"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo/handler"
 	svcdiscovery "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo/svc-discovery"
@@ -36,7 +38,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/scapper"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/cis"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/dp"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/learn"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/containerassets"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/degrade"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/holmes"
@@ -627,6 +628,32 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 			if err = cisChecker.Start(ctx); err != nil {
 				logging.Get().Err(err).Msg("cis checker start failed")
 			}
+		}()
+	}
+
+	memshellEnabled := os.Getenv("MEMSHELL_ENABLED")
+	if memshellEnabled == "1" {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					logging.Get().Error().Msgf("memshell checker panic: %v.stack:%s", r, debug.Stack())
+				}
+			}()
+			memShellHandler, err := memshell.NewMemShell(
+				memshell.WithNodePodResInfo(podWatcher),
+				memshell.WithClusterInfoManager(clusterManager),
+				memshell.WithPodResInfo(podResInfo),
+			)
+			if err != nil {
+				logging.Get().Err(err).Msg("new memshell checker failed")
+				return
+			}
+			if err = memShellHandler.Start(ctx); err != nil {
+				logging.Get().Err(err).Msg("memshell checker start failed")
+			}
+
 		}()
 	}
 
