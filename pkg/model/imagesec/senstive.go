@@ -64,9 +64,9 @@ func (vi *SensitiveFile) Check() error {
 	if vi.Filename == "" {
 		return fmt.Errorf("not get Name")
 	}
-	// if vi.MD5 == "" {
-	// 	return fmt.Errorf("not get MD5")
-	// }
+	if vi.MD5 == "" {
+		return fmt.Errorf("not get MD5")
+	}
 	if vi.UniqueID == 0 {
 		vi.UniqueID = vi.GenUniqueID()
 	}
