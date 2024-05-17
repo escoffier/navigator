@@ -318,6 +318,25 @@ type ImageAssociateParam struct {
 	DetectParam           DetectResultParam
 }
 
+func (vi *ImageAssociateParam) AddExceptionType(exceptionType string) {
+	switch exceptionType {
+	case ExceptionMalware:
+		vi.MalwareEnable = true
+	case ExceptionVuln:
+		vi.VulnEnable = true
+	case ExceptionLicense:
+		vi.LicenseEnable = true
+	case ExceptionPkgLicense, ExceptionPKG:
+		vi.PkgEnable = true
+	case ExceptionWebshell:
+		vi.WebshellEnable = true
+	case ExceptionSensitive:
+		vi.SensitiveEnable = true
+	case ExceptionEnv:
+		vi.EnvEnable = true
+	}
+}
+
 func (vi *ImageAssociateParam) GetDetectTypes() []string {
 	ans := make([]string, 0)
 	if !vi.DetectResultEnable {
@@ -393,6 +412,7 @@ type ScanResultSearchParam struct {
 	LicenseSearch       []string `json:"licenseSearch"`     // 开源协议筛选
 	UniqueIds           []uint64 `json:"uniqueIds"`         //
 	WebshellRiskLevel   []string `json:"webshellRiskLevel"` //
+	ExceptionType       string   `json:"exceptionType"`
 	DeployRecordID      int64    `json:"deployRecordID"`
 	DeployAction        string   `json:"deployAction"`
 	AddLayer            bool     `json:"addLayer"` // 增加问题信息和层级的对应关系

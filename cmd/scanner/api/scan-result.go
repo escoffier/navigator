@@ -321,15 +321,6 @@ func (s *ScanResultAPI) SecurityIssueOverview(ctx *gin.Context) {
 		ImageId:            param.ImageID,
 		ImageUniqueID:      param.ImageUniqueID,
 		DeployRecordID:     param.DeployRecordID,
-		VulnEnable:         true,
-		MalwareEnable:      true,
-		EnvEnable:          true,
-		PkgEnable:          true,
-		LicenseEnable:      true,
-		SensitiveEnable:    true,
-		WebshellEnable:     true,
-		SubtaskEnable:      true,
-		RegistryEnable:     true,
 		RiskPolicyEnable:   true,
 		DetectResultEnable: true,
 		ScanResultSearchParam: imagesecModel.ScanResultSearchParam{
@@ -341,8 +332,11 @@ func (s *ScanResultAPI) SecurityIssueOverview(ctx *gin.Context) {
 		SearchVulnParam: imagesecModel.ApiSearchVulnParam{},
 		DetectParam:     imagesecModel.DetectResultParam{SecurityPolicyIds: param.SecurityPolicyIds},
 	}
-	if len(param.SecurityPolicyIds) == 0 {
-		assParam.RiskPolicyEnable = false
+	assParam.AddExceptionType(param.ExceptionType)
+
+	if len(param.SecurityPolicyIds) == 0 && param.ImageFromType != imagesecModel.ImageFromDeploy {
+		data := imagesecModel.ImageWithCorrelateData2{}
+		response.JSONOK(ctx, response.WithItem(data.ToSecurityIssueOverview1()))
 	}
 
 	data, err := s.ImageSrv.GetImageCorrelateData(ctx, assParam)
@@ -350,6 +344,7 @@ func (s *ScanResultAPI) SecurityIssueOverview(ctx *gin.Context) {
 		response.JSONError(ctx, scani18.GetImageInfo(err))
 		return
 	}
+
 	if param.ImageFromType == imagesecModel.ImageFromDeploy {
 		response.JSONOK(ctx, response.WithItem(data.ToSecurityIssueOverview2()))
 		return

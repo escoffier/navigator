@@ -149,11 +149,16 @@ func (s *ScanSensitive) scanTarLayer(ctx context.Context, ly *imagesecTypes.Imag
 			s.Log.Err(err).Str("filename", header.Name).Msg("ReadAll")
 			continue
 		}
-		sess = append(sess, imagesecTypes.SensitiveFile{
+		ses := imagesecTypes.SensitiveFile{
 			Filename: header.Name,
 			Layer:    ly.Digest,
 			MD5:      scannerUtils.GetContentMd5(fileByte),
-		})
+		}
+		if ses.MD5 == "" || ses.Filename == "" {
+			continue
+		}
+
+		sess = append(sess, ses)
 
 		kaf = append(kaf, imagesecTypes.SaveFileToKafka{
 			Layer:    ly.Digest,
