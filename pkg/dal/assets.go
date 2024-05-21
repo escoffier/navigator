@@ -6181,16 +6181,18 @@ func deleteRawContainerWithTx(tx *gorm.DB, clusterKey, id string, stopTime time.
 	return tx.Where("raw_container_id=?", id).Delete(&model.TensorRawContainerFramework{}).Error
 }
 
-func DeleteRawContainerSyncReason(ctx context.Context, rdb *gorm.DB, clusterKey, namespace, id string) error {
+func DeleteRawContainerSyncReason(ctx context.Context, rdb *gorm.DB, clusterKey, namespace, kind, resourceName, id string) error {
+	logging.GetLogger().Debug().Msgf("DeleteRawContainerSyncReason clusterKey:%s,namespace:%s,kind:%s,resourceName:%s,id:%s", clusterKey, namespace, kind, resourceName, id)
 	rCtx, cancel := context.WithTimeout(ctx, 2500*time.Millisecond)
 	defer cancel()
 	query := model.TensorResource{}
-	db := rdb.Model(&model.TensorResource{}).WithContext(rCtx)
-	db = db.Where("cluster_key = ? and namespace = ? and reason like ?", clusterKey, namespace, "%"+id+"%")
-	err := db.First(&query).Error
+	subQuery := rdb.Select("cluster_key", "namespace", "resource_kind", "resource_name").Table("ivan_assets_raw_containers").Where("id = ?", id)
+	mainQuery := rdb.Model(&model.TensorResource{}).Where("(cluster_key, namespace, kind, name) in (?)", subQuery).WithContext(rCtx)
+	err := mainQuery.First(&query).Error
 	if err != nil {
 		return err
 	}
+	logging.GetLogger().Debug().Interface("query", query).Msg("DeleteRawContainerSyncReason find result")
 	var reasonList []model.ReasonItem
 	err = json.Unmarshal([]byte(query.Reason), &reasonList)
 	if err != nil {
@@ -6216,7 +6218,7 @@ func DeleteRawContainerSyncReason(ctx context.Context, rdb *gorm.DB, clusterKey,
 			break
 		}
 	}
-	err = db.Select("reason", "is_support_drift").Updates(&tmpData).Error
+	err = mainQuery.Select("reason", "is_support_drift").Updates(&tmpData).Error
 	return err
 }
 
