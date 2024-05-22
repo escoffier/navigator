@@ -127,10 +127,11 @@ func ThanVersion(version1 string, version2 string) bool {
 		return false
 	}
 
+	// 最新的版本号会是各种各样的
 	// 如果 version1不是以数据开头的，都认为是最新的
 	firstChar := rune(version1[0])
 	if !unicode.IsDigit(firstChar) {
-		return false
+		return true
 	}
 
 	return CompareVersion(version1, version2) >= 0
