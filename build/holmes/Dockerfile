@@ -143,5 +143,7 @@ COPY ./dist/holmes-starter /
 COPY ./configs/holmes/supervisord.conf /etc/
 COPY ./configs/holmes/docker-entrypoint.sh /
 COPY ./configs/holmes/holmes /
+COPY ./configs/holmes/ppm_events.c /usr/src/holmes-3.0.1+driver/
+COPY ./configs/holmes/holmes-driver-loader /usr/bin/
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
