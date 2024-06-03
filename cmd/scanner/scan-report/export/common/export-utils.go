@@ -180,7 +180,7 @@ func GenVulnInfo(image imagesecModel.ImageBaseResponse, vuln imagesecModel.VulnV
 		getImageName(image),
 		image.RegistryUrl,
 		vuln.Name,
-		imagesecModel.GetSeverityView(vuln.Severity)[lang],
+		imagesecModel.GetSeverityView(lang)[vuln.Severity],
 		vuln.PkgName,
 		vuln.PkgVersion,
 		getVulnIsFixed(vuln.FixedVersion),
