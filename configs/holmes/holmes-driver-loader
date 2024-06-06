@@ -583,7 +583,7 @@ load_bpf_probe() {
 	if [ -f "${HOME}/.holmes/${DRIVER_VERSION}/${ARCH}/${BPF_PROBE_FILENAME}" ]; then
 		echo "* eBPF probe located in ${HOME}/.holmes/${DRIVER_VERSION}/${ARCH}/${BPF_PROBE_FILENAME}"
 
-		ln -sf "${HOME}/.holmes/${BPF_PROBE_FILENAME}" "${HOME}/.holmes/${DRIVER_VERSION}/${ARCH}/${DRIVER_NAME}-bpf.o" \
+		ln -sf "${HOME}/.holmes/${DRIVER_VERSION}/${ARCH}/${BPF_PROBE_FILENAME}" "${HOME}/.holmes/${DRIVER_NAME}-bpf.o" \
 			&& echo "* Success: eBPF probe symlinked to ${HOME}/.holmes/${DRIVER_VERSION}/${ARCH}/${DRIVER_NAME}-bpf.o"
 		exit $?
 	else
