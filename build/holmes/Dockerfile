@@ -22,13 +22,7 @@ RUN sed -i "s!deb.debian.org/!${MIRROR_SOURCE}/!g" /etc/apt/sources.list \
 	&& apt-get install supervisor libdevmapper-dev libgpgme-dev -y \
 	&& export DEBIAN_FRONTEND=noninteractive \
 	&& apt-get install libglib2.0-dev -y \
-	&& apt-get clean \
-	&& rm -rf /var/lib/apt/lists/*
-
-RUN cp /etc/skel/.bashrc /root && cp /etc/skel/.profile /root \
-	&& sed -i "s!deb.debian.org/!${MIRROR_SOURCE}/!g" /etc/apt/sources.list \
-	&& apt-get update \
-	&& apt-get full-upgrade -y \
+	&& cp /etc/skel/.bashrc /root && cp /etc/skel/.profile /root \
 	&& apt-get install -y --no-install-recommends --fix-missing \
 	bash-completion \
 	bc \
@@ -48,6 +42,7 @@ RUN cp /etc/skel/.bashrc /root && cp /etc/skel/.profile /root \
 	# netcat \
 	patchelf \
 	xz-utils \
+	&& apt-get clean \
 	&& rm -rf /var/lib/apt/lists/*
 
 # gcc 6 is no longer included in debian stable, but we need it to
