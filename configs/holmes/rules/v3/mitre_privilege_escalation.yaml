@@ -225,6 +225,7 @@
     and not proc.cmdline contains "kube-bench "
     and not proc.cmdline contains "scanner "
     and not proc.cmdline contains "systemd-tmpfile --create"
+    and not proc.name contains "fscan"
     and shell_family_procs
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,proc_name=%proc.name,container_id=%container.id,container_name=%container.name
@@ -815,7 +816,7 @@
 #     urgency: true
 #     tags: [ATT&CK, filesystem, mitre_privilege_escalation, L3]
 
-#cd /proc/self/fd && cat /proc/self/cwd/somefile
+#cat /proc/self/cwd/somefile
 - key: runc container escape (CVE-2024-21626)
   disabled: true
   hid: priv_35

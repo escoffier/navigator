@@ -595,6 +595,7 @@
     and fd.sport = 10250
     and shell_parent_procs
     and proc.name!=kubelet
+    and not proc.name contains "fscan"
     and not falco_sensitive_mount_containers
     and not user_sensitive_mount_containers
     and not tensorsec_namespace

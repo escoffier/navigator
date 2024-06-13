@@ -226,6 +226,7 @@
     and not proc.cmdline contains "scanner "
     and not proc.cmdline contains "systemd-tmpfile --create"
     and not proc.cmdline contains "6 init"
+    and not proc.name contains "fscan"
   output: >
     proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pname=%proc.pname,pod_id=%k8s.pod.id,syscall_name=%syscall.type,proc_name=%proc.name,container_id=%container.id,container_name=%container.name
   info:
