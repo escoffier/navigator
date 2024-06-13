@@ -288,3 +288,196 @@
     priority: INFO
     urgency: false
     tags: [ATT&CK, exec, docker, mitre_lateral_movement, L1]
+
+- key: nps proxy
+  disable: true
+  hid: move_12
+  condition: >
+    container
+    and evt.args contains "type="
+    and ((syscall.type = read and evt.args contains ".server_addr=" and evt.args contains ".vkey=")
+    or (syscall.type = clone and evt.args contains "-vkey=" and evt.args contains "-server="))
+  output: >
+    pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_name=%proc.name,parent=%proc.pname,proc.aname[0]=%proc.aname[0],proc.aname[1]=%proc.aname[1],gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4],evt_args=%evt.args
+  steps:
+    - name: checkRegexMatch
+      params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.evt_args ]
+  info:
+    name:
+      en: "nps proxy"
+      zh: "nps 代理"
+    desc:
+      en: "Running an nps proxy in a container is usually not a normal user behavior. It is most likely an operation performed by an attacker after an attack to hide network traffic, establish persistent access channels, bypass firewalls and security policies, expand the attack surface, and collect sensitive information. Attackers use proxies to conceal their network activities, ensure persistent access, and obtain intelligence on system and network configurations to further carry out attacks."
+      zh: "容器中运行 nps 代理通常不会是正常用户的行为，这大概率是攻击者在进行攻击后为隐藏网络流量、建立持久访问通道、绕过防火墙和安全策略、扩大攻击面以及收集敏感信息等目的而进行的操作。攻击者利用代理来隐蔽其网络活动，确保持久访问，并获取系统和网络配置的情报，从而进一步实施攻击。"
+    suggestion:
+      en: "(1). Please first combine the alarm process command line, (parent) process name, server IP address and other fields to initially determine whether it is a business, R&D/operation and maintenance behavior (2). If it is a repeated expected behavior, and After investigation, it is judged that the security risk is controllable, and you can consider whitening it (3). If it is an unexpected behavior, please conduct correlation analysis through the container ID, associated alarm list, etc., and check whether the command line contains npc, etc., and promptly Contact security personnel for further investigation"
+      zh: "(1).请先结合告警的进程命令行、(父)进程名、服务端IP地址等字段初步判断是否为业务、研发/运维的行为 (2).如果是重复出现的预期行为，且经排查后判断安全风险可控，可以考虑对其进行加白 (3).如果是非预期行为，请通过容器id、关联告警列表等内容进行关联分析，查看命令行是否包含npc等，及时联系安全人员进一步排查"
+    rule_type: Lateral_Movement
+    priority: ALERT
+    urgency: true
+    tags: [ATT&CK, exec, mitre_lateral_movement, L1]
+
+- key: frp proxy
+  disable: true
+  hid: move_13
+  condition: >
+    container
+    and shell_parent_procs
+    and syscall.type = read
+    and evt.args contains "data=serverAddr"
+    and evt.args contains "serverPort"
+    and evt.args contains "[[proxies]].name"
+  output: >
+    pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_name=%proc.name,parent=%proc.pname,proc.aname[0]=%proc.aname[0],proc.aname[1]=%proc.aname[1],gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4],evt_args=%evt.args
+  steps:
+    - name: checkRegexMatch
+      params: [ '(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})', trigger.payload.output_map.evt_args ]
+  info:
+    name:
+      en: "frp proxy"
+      zh: "frp 代理"
+    desc:
+      en: "Running frp proxy in a container is usually not a normal user behavior. It is most likely an operation performed by an attacker after an attack to hide network traffic, establish persistent access channels, bypass firewalls and security policies, expand the attack surface, and collect sensitive information. Attackers use proxies to conceal their network activities, ensure persistent access, and obtain intelligence on system and network configurations to further carry out attacks."
+      zh: "容器中运行 frp 代理通常不会是正常用户的行为，这大概率是攻击者在进行攻击后为隐藏网络流量、建立持久访问通道、绕过防火墙和安全策略、扩大攻击面以及收集敏感信息等目的而进行的操作。攻击者利用代理来隐蔽其网络活动，确保持久访问，并获取系统和网络配置的情报，从而进一步实施攻击。"
+    suggestion:
+      en: "(1). Please first combine the alarm process command line, (parent) process name, server IP address and other fields to initially determine whether it is a business, R&D/operation and maintenance behavior (2). If it is a repeated expected behavior, and After investigation, it is judged that the security risk is controllable, and you can consider whitening it (3). If it is an unexpected behavior, please conduct correlation analysis through the container ID, associated alarm list, etc., and check whether the command line contains frp etc., and promptly Contact security personnel for further investigation"
+      zh: "(1).请先结合告警的进程命令行、(父)进程名、服务端IP地址等字段初步判断是否为业务、研发/运维的行为 (2).如果是重复出现的预期行为，且经排查后判断安全风险可控，可以考虑对其进行加白 (3).如果是非预期行为，请通过容器id、关联告警列表等内容进行关联分析，查看命令行是否包含frp等，及时联系安全人员进一步排查"
+    rule_type: Lateral_Movement
+    priority: ALERT
+    urgency: true
+    tags: [ATT&CK, exec, mitre_lateral_movement, L1]
+
+- key: EarthWorm(EW) proxy
+  disable: true
+  hid: move_14
+  condition: >
+    container
+    and shell_parent_procs
+    and syscall.type = write
+    and proc.cmdline contains " -s"
+    and (proc.cmdline contains "ssocksd" or proc.cmdline contains "rcsocks" or proc.cmdline contains "rssocks" or proc.cmdline contains "lcx_slave" or proc.cmdline contains "lcx_listen" or proc.cmdline contains "lcx_tran")
+  output: >
+    pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_name=%proc.name,parent=%proc.pname,proc.aname[0]=%proc.aname[0],proc.aname[1]=%proc.aname[1],gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4],evt_args=%evt.args
+  steps:
+    - name: checkRegexMatch
+      params: [ '((25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2})\.){3}(25[0-5]|2[0-4][0-9]|[0-1]?[0-9]{1,2}):([0-9]{1,5})\s<--\[\d+ usec\]-->\s', trigger.payload.output_map.evt_args ]
+  info:
+    name:
+      en: "EarthWorm(EW) proxy"
+      zh: "EarthWorm(EW) 代理"
+    desc:
+      en: "Running EarthWorm(EW) proxy in a container is usually not a normal user behavior. It is most likely an operation performed by an attacker after an attack to hide network traffic, establish persistent access channels, bypass firewalls and security policies, expand the attack surface, and collect sensitive information. Attackers use proxies to conceal their network activities, ensure persistent access, and obtain intelligence on system and network configurations to further carry out attacks."
+      zh: "容器中运行 EarthWorm(EW) 代理通常不会是正常用户的行为，这大概率是攻击者在进行攻击后为隐藏网络流量、建立持久访问通道、绕过防火墙和安全策略、扩大攻击面以及收集敏感信息等目的而进行的操作。攻击者利用代理来隐蔽其网络活动，确保持久访问，并获取系统和网络配置的情报，从而进一步实施攻击。"
+    suggestion:
+      en: "(1). Please first combine the alarm process command line, (parent) process name, server IP address and other fields to initially determine whether it is a business, R&D/operation and maintenance behavior (2). If it is a repeated expected behavior, and After investigation, it is judged that the security risk is controllable, and you can consider whitening it (3). If it is an unexpected behavior, please conduct correlation analysis through the container ID, associated alarm list, etc., and check whether the command line contains EarthWorm(EW) etc., and promptly Contact security personnel for further investigation"
+      zh: "(1).请先结合告警的进程命令行、(父)进程名、服务端IP地址等字段初步判断是否为业务、研发/运维的行为 (2).如果是重复出现的预期行为，且经排查后判断安全风险可控，可以考虑对其进行加白 (3).如果是非预期行为，请通过容器id、关联告警列表等内容进行关联分析，查看命令行是否包含EarthWorm(EW)等，及时联系安全人员进一步排查"
+    rule_type: Lateral_Movement
+    priority: ALERT
+    urgency: true
+    tags: [ATT&CK, exec, mitre_lateral_movement, L1]
+
+- key: Proxychains proxy
+  disable: true
+  hid: move_15
+  condition: >
+    container
+    and shell_parent_procs
+    and syscall.type = execve
+    and (proc.name = "proxychains" or proc.name = "proxychains4")
+  output: >
+    pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_name=%proc.name,parent=%proc.pname,proc.aname[0]=%proc.aname[0],proc.aname[1]=%proc.aname[1],gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4]
+  info:
+    name:
+      en: "Proxychains proxy"
+      zh: "Proxychains 代理"
+    desc:
+      en: "Running Proxychains proxy in a container is usually not a normal user behavior. It is most likely an operation performed by an attacker after an attack to hide network traffic, establish persistent access channels, bypass firewalls and security policies, expand the attack surface, and collect sensitive information. Attackers use proxies to conceal their network activities, ensure persistent access, and obtain intelligence on system and network configurations to further carry out attacks."
+      zh: "容器中运行 Proxychains 代理通常不会是正常用户的行为，这大概率是攻击者在进行攻击后为隐藏网络流量、建立持久访问通道、绕过防火墙和安全策略、扩大攻击面以及收集敏感信息等目的而进行的操作。攻击者利用代理来隐蔽其网络活动，确保持久访问，并获取系统和网络配置的情报，从而进一步实施攻击。"
+    suggestion:
+      en: "(1). Please first combine the alarm process command line, (parent) process name, server IP address and other fields to initially determine whether it is a business, R&D/operation and maintenance behavior (2). If it is a repeated expected behavior, and After investigation, it is judged that the security risk is controllable, and you can consider whitening it (3). If it is an unexpected behavior, please conduct correlation analysis through the container ID, associated alarm list, etc., and check whether the command line contains Proxychains etc., and promptly Contact security personnel for further investigation"
+      zh: "(1).请先结合告警的进程命令行、(父)进程名、服务端IP地址等字段初步判断是否为业务、研发/运维的行为 (2).如果是重复出现的预期行为，且经排查后判断安全风险可控，可以考虑对其进行加白 (3).如果是非预期行为，请通过容器id、关联告警列表等内容进行关联分析，查看命令行是否包含Proxychains等，及时联系安全人员进一步排查"
+    rule_type: Lateral_Movement
+    priority: ALERT
+    urgency: true
+    tags: [ATT&CK, exec, mitre_lateral_movement, L1]
+
+- key: dnstunnel proxy
+  disable: true
+  hid: move_16
+  condition: >
+    container
+    and shell_parent_procs
+    and (((proc.name = "iodine" or proc.name = "iodined") and syscall.type = execve) or 
+    (evt.type=write and evt.dir=< and evt.arg.data contains "Autodetecting DNS query type (use -T to override)"))
+  output: >
+    pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_name=%proc.name,parent=%proc.pname,proc.aname[0]=%proc.aname[0],proc.aname[1]=%proc.aname[1],gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4],evt_args=%evt.args
+  info:
+    name:
+      en: "DNS Tunnel Proxy (iodine)"
+      zh: "dns隧道代理(iodine)"
+    desc:
+      en: "Running DNS Tunnel Proxy (iodine) proxy in a container is usually not a normal user behavior. It is most likely an operation performed by an attacker after an attack to hide network traffic, establish persistent access channels, bypass firewalls and security policies, expand the attack surface, and collect sensitive information. Attackers use proxies to conceal their network activities, ensure persistent access, and obtain intelligence on system and network configurations to further carry out attacks."
+      zh: "容器中运行 dns隧道代理(iodine) 代理通常不会是正常用户的行为，这大概率是攻击者在进行攻击后为隐藏网络流量、建立持久访问通道、绕过防火墙和安全策略、扩大攻击面以及收集敏感信息等目的而进行的操作。攻击者利用代理来隐蔽其网络活动，确保持久访问，并获取系统和网络配置的情报，从而进一步实施攻击。"
+    suggestion:
+      en: "(1). Please first combine the alarm process command line, (parent) process name, server IP address and other fields to initially determine whether it is a business, R&D/operation and maintenance behavior (2). If it is a repeated expected behavior, and After investigation, it is judged that the security risk is controllable, and you can consider whitening it (3). If it is an unexpected behavior, please conduct correlation analysis through the container ID, associated alarm list, etc., and check whether the command line contains iodine etc., and promptly Contact security personnel for further investigation"
+      zh: "(1).请先结合告警的进程命令行、(父)进程名、服务端IP地址等字段初步判断是否为业务、研发/运维的行为 (2).如果是重复出现的预期行为，且经排查后判断安全风险可控，可以考虑对其进行加白 (3).如果是非预期行为，请通过容器id、关联告警列表等内容进行关联分析，查看命令行是否包含iodine等，及时联系安全人员进一步排查"
+    rule_type: Lateral_Movement
+    priority: ALERT
+    urgency: true
+    tags: [ATT&CK, exec, mitre_lateral_movement, L1]
+
+- key: pingtunnel proxy
+  disable: true
+  hid: move_17
+  condition: >
+    container
+    and shell_parent_procs
+    and syscall.type = execve
+    and ((proc.name = "pingtunnel" or proc.pname = "pingtunnel") or 
+          (proc.cmdline contains " -type " 
+          and (proc.cmdline contains " server" or 
+          (proc.cmdline contains " client " and proc.cmdline contains " -l " and proc.cmdline contains ":" and proc.cmdline contains " -s "))))
+  output: >
+    pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_name=%proc.name,parent=%proc.pname,proc.aname[0]=%proc.aname[0],proc.aname[1]=%proc.aname[1],gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4]
+  info:
+    name:
+      en: "pingtunnel(icmp) proxy"
+      zh: "pingtunnel(icmp)代理"
+    desc:
+      en: "Running pingtunnel(icmp) proxy in a container is usually not a normal user behavior. It is most likely an operation performed by an attacker after an attack to hide network traffic, establish persistent access channels, bypass firewalls and security policies, expand the attack surface, and collect sensitive information. Attackers use proxies to conceal their network activities, ensure persistent access, and obtain intelligence on system and network configurations to further carry out attacks."
+      zh: "容器中运行 pingtunnel(icmp)代理 代理通常不会是正常用户的行为，这大概率是攻击者在进行攻击后为隐藏网络流量、建立持久访问通道、绕过防火墙和安全策略、扩大攻击面以及收集敏感信息等目的而进行的操作。攻击者利用代理来隐蔽其网络活动，确保持久访问，并获取系统和网络配置的情报，从而进一步实施攻击。"
+    suggestion:
+      en: "(1). Please first combine the alarm process command line, (parent) process name, server IP address and other fields to initially determine whether it is a business, R&D/operation and maintenance behavior (2). If it is a repeated expected behavior, and After investigation, it is judged that the security risk is controllable, and you can consider whitening it (3). If it is an unexpected behavior, please conduct correlation analysis through the container ID, associated alarm list, etc., and check whether the command line contains pingtunnel etc., and promptly Contact security personnel for further investigation"
+      zh: "(1).请先结合告警的进程命令行、(父)进程名、服务端IP地址等字段初步判断是否为业务、研发/运维的行为 (2).如果是重复出现的预期行为，且经排查后判断安全风险可控，可以考虑对其进行加白 (3).如果是非预期行为，请通过容器id、关联告警列表等内容进行关联分析，查看命令行是否包含pingtunnel等，及时联系安全人员进一步排查"
+    rule_type: Lateral_Movement
+    priority: ALERT
+    urgency: true
+    tags: [ATT&CK, exec, mitre_lateral_movement, L3]
+
+- key: PortMap proxy
+  disable: true
+  hid: move_18
+  condition: >
+    container
+    and shell_parent_procs
+    and syscall.type = execve
+    and (proc.cmdline contains " -m " and proc.cmdline contains " -p1 " and proc.cmdline contains " -p2 " and proc.cmdline contains " -h2 ")
+  output: >
+    pod_id=%k8s.pod.id,syscall_name=%syscall.type,terminal=%proc.tty,user_uid=%user.uid,container_id=%container.id,container_name=%container.name,fd.num=%fd.num,fd.type=%fd.type,connection=%fd.name,client_ip=%fd.cip,client_port=%fd.cport,server_ip=%fd.sip,server_port=%fd.sport,proc_pid=%proc.pid,proc_ppid=%proc.ppid,proc_cmdline=%proc.cmdline,proc_pgid=%proc.vpgid,proc_name=%proc.name,parent=%proc.pname,proc.aname[0]=%proc.aname[0],proc.aname[1]=%proc.aname[1],gparent=%proc.aname[2],ggparent=%proc.aname[3],gggparent=%proc.aname[4]
+  steps:
+    - name: checkRegexMatch
+      params: [ '\s+-h2\s+(((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})(\.((2(5[0-5]|[0-4]\d))|[0-1]?\d{1,2})){3})\s+', trigger.payload.output_map.proc_cmdline ]
+  info:
+    name:
+      en: "PortMap proxy"
+      zh: "PortMap 代理"
+    desc:
+      en: "Running PortMap proxy in a container is usually not a normal user behavior. It is most likely an operation performed by an attacker after an attack to hide network traffic, establish persistent access channels, bypass firewalls and security policies, expand the attack surface, and collect sensitive information. Attackers use proxies to conceal their network activities, ensure persistent access, and obtain intelligence on system and network configurations to further carry out attacks."
+      zh: "容器中运行 PortMap 代理通常不会是正常用户的行为，这大概率是攻击者在进行攻击后为隐藏网络流量、建立持久访问通道、绕过防火墙和安全策略、扩大攻击面以及收集敏感信息等目的而进行的操作。攻击者利用代理来隐蔽其网络活动，确保持久访问，并获取系统和网络配置的情报，从而进一步实施攻击。"
+    suggestion:
+      en: "(1). Please first combine the alarm process command line, (parent) process name, server IP address and other fields to initially determine whether it is a business, R&D/operation and maintenance behavior (2). If it is a repeated expected behavior, and After investigation, it is judged that the security risk is controllable, and you can consider whitening it (3). If it is an unexpected behavior, please conduct correlation analysis through the container ID, associated alarm list, etc., and check whether the command line contains PortMap etc., and promptly Contact security personnel for further investigation"
+      zh: "(1).请先结合告警的进程命令行、(父)进程名、服务端IP地址等字段初步判断是否为业务、研发/运维的行为 (2).如果是重复出现的预期行为，且经排查后判断安全风险可控，可以考虑对其进行加白 (3).如果是非预期行为，请通过容器id、关联告警列表等内容进行关联分析，查看命令行是否包含PortMap等，及时联系安全人员进一步排查"
+    rule_type: Lateral_Movement
+    priority: ALERT
+    urgency: true
+    tags: [ATT&CK, exec, mitre_lateral_movement, L1]

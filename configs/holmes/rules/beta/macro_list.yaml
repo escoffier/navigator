@@ -2057,7 +2057,7 @@
   items: [curl, wget, telnet]
 
 - list: network_tool_binaries
-  items: [nc, nc.openbsd, ncat, nmap, dig, tcpdump, tshark, ngrep, telnet, mitmproxy, socat, zmap, masscan, naabu, rustscan, john]
+  items: [nc, nc.openbsd, ncat, nmap, dig, tcpdump, tshark, ngrep, telnet, mitmproxy, socat, zmap, masscan, naabu, rustscan, john, fscan, fscan_amd64, fscan_arm64]
 
 - macro: network_tool_procs
   condition: (proc.name in (network_tool_binaries))
