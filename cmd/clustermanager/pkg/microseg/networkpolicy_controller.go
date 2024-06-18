@@ -1201,10 +1201,11 @@ func (npc *NetworkPolicyController) generateRules(policy *crdv1alpha1.ClusterNet
 		for node, addr := range fromAddressMap {
 			log.Info().Msg(node)
 			nodeRules := crdv1alpha1.NodeRule{
-				Action:   string(*r.Action),
-				Protocol: r.Protocol,
-				Ports:    r.Ports,
-				Priority: policy.Spec.Priority,
+				Action:    string(*r.Action),
+				Protocol:  r.Protocol,
+				Ports:     r.Ports,
+				Priority:  policy.Spec.Priority,
+				Direction: "egress",
 			}
 			for _, toAddr := range toAddressesMap {
 				nodeRules.ToAddresses = append(nodeRules.ToAddresses, toAddr...)
@@ -1215,10 +1216,11 @@ func (npc *NetworkPolicyController) generateRules(policy *crdv1alpha1.ClusterNet
 			serviceRules := []crdv1alpha1.NodeRule{}
 			for _, endpoint := range endpoints {
 				nodeRule := crdv1alpha1.NodeRule{
-					Action:   string(*r.Action),
-					Protocol: r.Protocol,
-					Ports:    endpoint.Ports,
-					Priority: policy.Spec.Priority,
+					Action:    string(*r.Action),
+					Protocol:  r.Protocol,
+					Ports:     endpoint.Ports,
+					Priority:  policy.Spec.Priority,
+					Direction: "egress",
 					ToAddresses: []crdv1alpha1.Address{
 						{
 							IP: endpoint.Address,
@@ -1258,10 +1260,11 @@ func (npc *NetworkPolicyController) generateRules(policy *crdv1alpha1.ClusterNet
 
 		for node, addr := range toAddressesMap {
 			nodeRules := crdv1alpha1.NodeRule{
-				Action:   string(*r.Action),
-				Protocol: r.Protocol,
-				Ports:    r.Ports,
-				Priority: policy.Spec.Priority,
+				Action:    string(*r.Action),
+				Protocol:  r.Protocol,
+				Ports:     r.Ports,
+				Priority:  policy.Spec.Priority,
+				Direction: "ingress",
 			}
 			for node1, fromAddr := range fromAddressMap {
 				if reflect.DeepEqual(fromAddr, addr) {
