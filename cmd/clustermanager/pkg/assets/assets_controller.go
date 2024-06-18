@@ -3,12 +3,14 @@ package assets
 import (
 	"context"
 	"fmt"
+	"reflect"
+	"time"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/constants"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	netv1 "k8s.io/api/networking/v1"
 	"k8s.io/client-go/kubernetes"
 	netLister "k8s.io/client-go/listers/networking/v1"
-	"reflect"
-	"time"
 
 	json "github.com/json-iterator/go"
 	"github.com/segmentio/kafka-go"
@@ -39,9 +41,7 @@ import (
 )
 
 const (
-	dupCacheSize   = 16 * 1024
-	ServiceIpIndex = "ServiceIp"
-	PodIpIndex     = "PodIp"
+	dupCacheSize = 16 * 1024
 )
 
 var (
@@ -236,7 +236,7 @@ func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory 
 		DeleteFunc: ac.deletePod,
 	})
 	factory.Core().V1().Pods().Informer().AddIndexers(cache.Indexers{
-		PodIpIndex: func(obj interface{}) ([]string, error) {
+		constants.PodIpIndex: func(obj interface{}) ([]string, error) {
 			pod, ok := obj.(*corev1.Pod)
 			if !ok {
 				return nil, fmt.Errorf("object is not a pod")
@@ -301,7 +301,7 @@ func NewAssetsController(factory informers.SharedInformerFactory, tensorFactory 
 		DeleteFunc: ac.deleteSvc,
 	})
 	factory.Core().V1().Services().Informer().AddIndexers(cache.Indexers{
-		ServiceIpIndex: func(obj interface{}) ([]string, error) {
+		constants.ServiceIpIndex: func(obj interface{}) ([]string, error) {
 			service, ok := obj.(*corev1.Service)
 			if !ok {
 				return nil, fmt.Errorf("object is not a Service")

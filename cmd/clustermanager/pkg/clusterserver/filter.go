@@ -7,17 +7,13 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/constants"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/model"
 	"gorm.io/gorm"
 	corev1 "k8s.io/api/core/v1"
-)
-
-const (
-	ServiceIpIndex = "ServiceIp"
-	PodIpIndex     = "PodIp"
 )
 
 type MicroSegLogFilter struct {
@@ -136,7 +132,7 @@ func (cs *MicroSegLogFilter) GetPolicy(id int) (string, string, error) {
 }
 
 func (cs *ClusterServer) GetPodByIp(ip string) (*PodResData, error) {
-	objs, err := cs.Factory.Core().V1().Pods().Informer().GetIndexer().ByIndex(PodIpIndex, ip)
+	objs, err := cs.Factory.Core().V1().Pods().Informer().GetIndexer().ByIndex(constants.PodIpIndex, ip)
 	if err != nil {
 		return nil, err
 	}
@@ -159,7 +155,7 @@ func (cs *ClusterServer) GetPodByIp(ip string) (*PodResData, error) {
 }
 
 func (cs *ClusterServer) GetServiceResByIp(ip string) (string, string, string, error) {
-	objs, err := cs.Factory.Core().V1().Services().Informer().GetIndexer().ByIndex(ServiceIpIndex, ip)
+	objs, err := cs.Factory.Core().V1().Services().Informer().GetIndexer().ByIndex(constants.ServiceIpIndex, ip)
 	if err != nil {
 		return "", "", "", err
 	}
@@ -174,11 +170,8 @@ func (cs *ClusterServer) GetServiceResByIp(ip string) (string, string, string, e
 }
 
 func (cs *ClusterServer) IsServiceIp(ip string) bool {
-	_, err := cs.Factory.Core().V1().Services().Informer().GetIndexer().ByIndex(ServiceIpIndex, ip)
-	if err != nil {
-		return false
-	}
-	return true
+	_, err := cs.Factory.Core().V1().Services().Informer().GetIndexer().ByIndex(constants.ServiceIpIndex, ip)
+	return err == nil
 }
 
 func (cs *ClusterServer) FilterMicroSegLog(log *model.TensorMicrosegEvent) bool {
