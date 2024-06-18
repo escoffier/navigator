@@ -51,7 +51,7 @@ using namespace std;
 
 int gzLogLevel   = 0;
 bool gbWafEnable = false;
-bool OldMicroSegEnable = false;
+bool OldMicroSegEnable = true;
 
 struct u32_mask
 {
@@ -87,6 +87,22 @@ int NetProtoConvert(std::string proto)
     if(proto.compare("ICMP") == 0) return IPPROTO_ICMP;
     /*return*/
     return 0;
+}
+
+const char *GetProtoString(int proto)
+{
+    switch (proto)
+    {
+    case IPPROTO_TCP:
+        return "TCP";
+    case IPPROTO_UDP:
+        return "UDP";
+    case IPPROTO_ICMP:
+        return "ICMP";
+    default:
+        break;
+    }
+    return "UNKNOWN";
 }
 
 int ParseIpString(std::string input, std::vector<std::string> &ret)
@@ -403,6 +419,7 @@ static int CreatePolicyRuleKey(FIVE_TUPLE &tuple, FLOW_DIR dir, vector<string> &
                     value.push_back(buff);
                 }
             }
+#if !OldMicroSegEnable
             /*clear data*/
             dstaddr.clear();
             srcaddr.clear();
@@ -427,6 +444,7 @@ static int CreatePolicyRuleKey(FIVE_TUPLE &tuple, FLOW_DIR dir, vector<string> &
                     value.push_back(buff);
                 }
             }
+#endif
         }
     }
     return 0;
@@ -481,7 +499,7 @@ static int PostMatchMsg(FIVE_TUPLE &tuple, NET_POLICY_RULE action, FLOW_DIR dir,
     str = cJSON_PrintUnformatted(root);
     if(!str) GOTO_ERROR(err, "json format failed.");
     /*print debug log*/
-    LOG_D("[post] post micro seg data : %s", str);
+    if(!((tuple.proto == IPPROTO_UDP) && (tuple.dstPort == 53))) LOG_D("[post] post micro seg data : %s", str);
     /*data len*/
     len = (int)strlen(str);
     /*send data*/
@@ -587,7 +605,7 @@ static NET_POLICY_RULE MatchNetPolicyRule(FIVE_TUPLE &tuple, FLOW_DIR dir, strin
         /*break*/
         if(!bIsMatch) continue;
         //print debug log
-        LOG_D("[policy] match %s name : %s, dir : %d, action : %d, priority : %d, proto : %d, ip : %s <--> %s port : %d ~ %d\n",
+        LOG_D("match %s name : %s, dir : %d, action : %d, priority : %d, proto : %d, ip : %s <--> %s port : %d ~ %d\n",
             (dir == DIR_INGRESS) ? "ingress" : "egress", it->second.policyKey.c_str(), it->second.direction, 
             it->second.action, it->second.priority, it->second.proto, it->second.srcIp.c_str(), it->second.dstIp.c_str(), rulePorts.at(p).port, rulePorts.at(p).endPort);
         //rule policy key
@@ -789,8 +807,7 @@ static int input_nfq_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct 
     ret = parse_package(pkg, tuple, &tcphdr, offset);
     if(ret != NF_MATCH_RULE) nfq_set_verdict(qh, id, ret, 0, NULL);
     /*print debug log*/
-    //if(tuple.srcPort != 53) LOG_V("input receive %s, mark : %d, seq %u, tot len : %d, %s:%u -> %s:%u, memory : %p", (tuple.proto == IPPROTO_UDP) ? "udp" : "tcp", mark, ntohl(tcphdr.seq), tuple.totLen, tuple.srcAddr.c_str(), tuple.srcPort, tuple.dstAddr.c_str(), tuple.dstPort, argv);
-
+    //LOG_V("input receive %s, mark : %d, seq: %u, tot len : %d, %s:%u -> %s:%u, memory : %p ", GetProtoString(tuple.proto), mark, ntohl(tcphdr.seq), tuple.totLen, tuple.srcAddr.c_str(), tuple.srcPort, tuple.dstAddr.c_str(), tuple.dstPort, argv);
     //LOG_D("input receive data: %p", pkg);
     if(gbWafEnable && (tuple.proto == IPPROTO_TCP))
     {
@@ -856,7 +873,7 @@ static int input_nfq_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct 
             //deny
             if(ruleRet == NET_DENY)
             {
-                LOG_D("input drop %s %s:%u -> %s:%u ", (tuple.proto == IPPROTO_UDP) ? "udp" : "tcp", tuple.srcAddr.c_str(), tuple.srcPort, tuple.dstAddr.c_str(), tuple.dstPort);
+                LOG_D("input drop %s %s:%u -> %s:%u ", GetProtoString(tuple.proto), tuple.srcAddr.c_str(), tuple.srcPort, tuple.dstAddr.c_str(), tuple.dstPort);
                 /*drop data*/
                 return nfq_set_verdict(qh, id, NF_DROP, 0, NULL);
             }
@@ -958,7 +975,7 @@ static int output_nfq_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct
     ret = parse_package(pkg, tuple, &tcphdr, offset);
     if(ret != NF_MATCH_RULE) nfq_set_verdict(qh, id, ret, 0, NULL);
     /*print debug log*/
-    //if(tuple.dstPort != 53) LOG_V("output receive %s, mark : %d, seq: %u, tot len : %d, %s:%u -> %s:%u, memory : %p ", (tuple.proto == IPPROTO_UDP) ? "udp" : "tcp", mark, ntohl(tcphdr.seq), tuple.totLen, tuple.srcAddr.c_str(), tuple.srcPort, tuple.dstAddr.c_str(), tuple.dstPort, argv);
+    //LOG_V("output receive %s, mark : %d, seq: %u, tot len : %d, %s:%u -> %s:%u, memory : %p ", GetProtoString(tuple.proto), mark, ntohl(tcphdr.seq), tuple.totLen, tuple.srcAddr.c_str(), tuple.srcPort, tuple.dstAddr.c_str(), tuple.dstPort, argv);
     //LOG_D("input receive data: %p", pkg);
     if(gbWafEnable && (tuple.proto == IPPROTO_TCP))
     {
@@ -1025,7 +1042,7 @@ static int output_nfq_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct
             //deny
             if(ruleRet == NET_DENY)
             {
-                LOG_D("output drop %s %s:%u -> %s:%u ", (tuple.proto == IPPROTO_UDP) ? "udp" : "tcp", tuple.srcAddr.c_str(), tuple.srcPort, tuple.dstAddr.c_str(), tuple.dstPort);
+                LOG_D("output drop %s %s:%u -> %s:%u ", GetProtoString(tuple.proto), tuple.srcAddr.c_str(), tuple.srcPort, tuple.dstAddr.c_str(), tuple.dstPort);
                 /*drop data*/
                 return nfq_set_verdict(qh, id, NF_DROP, 0, NULL);
             }

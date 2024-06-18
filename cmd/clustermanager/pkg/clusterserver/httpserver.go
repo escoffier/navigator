@@ -201,14 +201,14 @@ func (cs *ClusterServer) handleMicrosegEvents(c *gin.Context) {
 		return
 	}
 
-	ret := cs.FilterMicroSegLog(&microsSegEvent)
-	if ret {
-		logging.Get().Debug().Msgf("drop micro seg event log : %+v", microsSegEvent)
-		return
-	}
+	//ret := cs.FilterMicroSegLog(&microsSegEvent)
+	//if ret {
+	//	logging.Get().Debug().Msgf("drop micro seg event log : %+v", microsSegEvent)
+	//	return
+	//}
 
 	//get resource data
-	ret = cs.FillResToMicroSegLog(&microsSegEvent)
+	ret := cs.FillResToMicroSegLog(&microsSegEvent)
 	if !ret {
 		return
 	}
