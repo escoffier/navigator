@@ -175,24 +175,24 @@ func (cs *ClusterServer) IsServiceIp(ip string) bool {
 }
 
 func (cs *ClusterServer) FilterMicroSegLog(log *model.TensorMicrosegEvent) bool {
-	nowtime := time.Now().Unix()
-	key := fmt.Sprintf("%s:%d", log.SrcIP, log.SrcPort)
+	nowTime := time.Now().Unix()
+	key := fmt.Sprintf("%d:%s:%d:%s", log.Proto, log.SrcIP, log.SrcPort, log.DstIP)
 	value, ok := cs.MicroSegLogCache[key]
 	if ok {
-		if (nowtime - value) < 20 {
+		if (nowTime - value) < 10 {
 			if log.Action != 0 {
 				delete(cs.MicroSegLogCache, key)
 			}
 			return true
 		}
 	}
-
-	cs.MicroSegLogCache[key] = nowtime
+	//save
+	cs.MicroSegLogCache[key] = nowTime
 
 	/*clear invalid data*/
-	if len(cs.MicroSegLogCache) > 500 {
+	if len(cs.MicroSegLogCache) > 2000 {
 		for k, v := range cs.MicroSegLogCache {
-			if (nowtime - v) > 30 {
+			if (nowTime - v) > 15 {
 				delete(cs.MicroSegLogCache, k)
 			}
 		}
