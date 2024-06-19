@@ -1,3 +1,4 @@
+#include <cstddef>
 #include <cstdint>
 #include <fstream>
 #include <cstdlib>
@@ -15,6 +16,9 @@
 
 namespace http {
 namespace extension {
+
+const char *PREFIX = "#%% pre";
+const size_t HEADER_LEN = 11;
 
 PluginRootContext RootContext;
 
@@ -596,6 +600,15 @@ int PluginRootContext::HttpPost(std::string value) {
   //
   if(!pzPostFd) RETURN_ERROR(1, "[waf] the post fd is nil");
   //post data
+  char buf[11] = {"#%% pre"};
+  auto len = value.length();
+  buf[7] = len & 0xff;
+  buf[8] = (len >> 8) & 0xff;
+  buf[9] = (len >> 16) & 0xff;
+  buf[10] = (len >> 24) & 0xff;
+  zRet = write(*pzPostFd, buf, HEADER_LEN);
+  if(zRet <= 0) RETURN_ERROR(1, "[waf] post waf data");
+
   zRet = write(*pzPostFd, value.c_str(), value.length());
   if(zRet <= 0) RETURN_ERROR(1, "[waf] post waf data");
   //print debug log

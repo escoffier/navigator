@@ -481,7 +481,7 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 		wafhander := waf.NewHandler(clusterManagerSvc)
 		eventProcessor.AddHandler("waf", wafhander)
 
-		go eventProcessor.Run()
+		go eventProcessor.Run1()
 	}
 
 	wg.Add(1)

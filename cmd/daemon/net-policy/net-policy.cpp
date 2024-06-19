@@ -32,6 +32,7 @@
 #include <gflags/gflags.h>
 #include "cjson.h"
 #include "glog/logging.h"
+#include "http/packet.hh"
 #include "log.h"
 #include "http/codec.h"
 #include "http/connection.h"
@@ -52,6 +53,7 @@ using namespace std;
 int gzLogLevel   = 0;
 bool gbWafEnable = false;
 bool OldMicroSegEnable = true;
+const char *PREFIX = "#%% pre";
 
 struct u32_mask
 {
@@ -483,6 +485,8 @@ static int PostMatchMsg(FIVE_TUPLE &tuple, NET_POLICY_RULE action, FLOW_DIR dir,
     int ret, len;
     char *str = NULL;
     cJSON *root = NULL;
+    char buf[11] = {"#%% pre"};
+
     if(gPostLinkFd <= 0) return 0;
     //create json object
     root = cJSON_CreateObject();
@@ -503,7 +507,18 @@ static int PostMatchMsg(FIVE_TUPLE &tuple, NET_POLICY_RULE action, FLOW_DIR dir,
     /*data len*/
     len = (int)strlen(str);
     /*send data*/
+    
+    buf[7] = len & 0xff;
+    buf[8] = (len >> 8) & 0xff;
+    buf[9] = (len >> 16) & 0xff;
+    buf[10] = (len >> 24) & 0xff;
+    ret = write(gPostLinkFd, buf, 11);
+    if (ret <= 0) {
+       GOTO_ERROR(err, "post match msg to server failed, %s.", strerror(errno));
+    }
+
     ret = write(gPostLinkFd, str, len);
+
     if(ret <= 0) GOTO_ERROR(err, "post match msg to server failed, %s.", strerror(errno));
     /*free*/
     cJSON_Delete(root);
@@ -564,8 +579,10 @@ static NET_POLICY_RULE MatchNetPolicyRule(FIVE_TUPLE &tuple, FLOW_DIR dir, strin
         it = ruleQue->find(ruleKeys.at(i).c_str());
         if(it == ruleQue->end()) continue;
         //print debug log
-        LOG_D("i : %d, match %s rule key, key : %s, tuple proto : %d, dst port : %d, vPorts size : %d, %s.", 
-            i, (dir == DIR_INGRESS) ? "ingress" : "egress", ruleKeys.at(i).c_str(), tuple.proto, tuple.dstPort, (int)it->second.vPorts.size(), PrintPortsData(it->second.vPorts).c_str());
+        if(!((tuple.proto == IPPROTO_UDP) && (tuple.dstPort == 53 || tuple.srcPort == 53))) {
+            LOG_D("i : %d, match %s rule key, key : %s, tuple proto : %d, dst port : %d, vPorts size : %d, %s.", 
+                i, (dir == DIR_INGRESS) ? "ingress" : "egress", ruleKeys.at(i).c_str(), tuple.proto, tuple.dstPort, (int)it->second.vPorts.size(), PrintPortsData(it->second.vPorts).c_str());
+        }
         /*match protocol*/
         if(protocol == IPPROTO_ICMP) protocol = it->second.proto;
         if(!((it->second.proto == 0) || (protocol == it->second.proto))) break;
