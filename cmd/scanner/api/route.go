@@ -2,6 +2,7 @@ package api
 
 import (
 	"os"
+	"path/filepath"
 
 	"github.com/gin-gonic/gin"
 
@@ -327,7 +328,7 @@ func OpenAPI(router *gin.Engine,
 		cig.GET("/policies", ciSrv.GetCiPolicies)
 		cig.GET("/policy/:name", ciSrv.GetCiPolicy)
 		cig.GET("/tidb/version", ciSrv.TiDbVersion)
-		cig.Static("/tidb/assets", global.ScannerOpts.PvcPath)
+		cig.Static("/tidb/assets", filepath.Join(global.ScannerOpts.PvcPath, "vuln", "db"))
 		cig.POST("/result", ciSrv.SaveResult)
 		cig.POST("/sign", apiRejectSrv.SignImageTrusted)
 	}

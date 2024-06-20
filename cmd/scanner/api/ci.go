@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -27,7 +26,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	scanner_ci "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-ci"
-	scannermodel "gitlab.com/piccolo_su/vegeta/pkg/model/scanner-model"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -321,45 +319,12 @@ func (c *CiApiSrv) MatchVulnerability(ctx *gin.Context) {
 
 func (c *CiApiSrv) TiDbVersion(ctx *gin.Context) {
 	logging.Get().Debug().Msg("recv ti db version request")
-	dirExist := func(path string) bool {
-		_, err := os.Stat(path)
-		if err != nil {
-			if os.IsExist(err) {
-				return true
-			}
-			return false
-		}
-		return true
-	}
 
-	var versionFile string
-	versionFile = filepath.Join(global.ScannerOpts.PvcPath, scannermodel.UnzipPath, scannermodel.VulnVersionPath)
-	if !dirExist(versionFile) {
-		versionFile = filepath.Join(global.ScannerOpts.PvcPath, scannermodel.VulnVersionPath)
-	}
+	versionFile := filepath.Join(global.ScannerOpts.PvcPath, "/vuln/db/", consts.VersionStr)
 
-	// open db version file
-	type rsp struct {
-		TiDBVersion scannermodel.ScannerDBVersion `json:"ti_db_version"`
-	}
-	data, err := ioutil.ReadFile(versionFile)
-	if err != nil {
-		logging.Get().Err(err).Msg("read version file failed")
-		response.JSONError(ctx, err)
-		return
-	}
-	versionContent := scannermodel.ScannerDBVersion{}
-	err = json.Unmarshal(data, &versionContent)
-	if err != nil {
-		logging.Get().Err(err).Msg("marshal version file failed")
-		response.JSONError(ctx, err)
-		return
-	}
-	logging.Get().Debug().Msgf("ti db version %v", versionContent)
-
-	response.JSONOK(ctx, response.WithItem(rsp{
-		TiDBVersion: versionContent,
-	}))
+	ver := c.getVersionFromFile(ctx, versionFile)
+	logging.Get().Info().Interface("version", ver).Msg("recv ti db version request")
+	response.JSONOK(ctx, response.WithItem(ver))
 }
 
 func (c *CiApiSrv) SaveResult(ctx *gin.Context) {
@@ -753,4 +718,40 @@ func (c *CiApiSrv) GetParseInt(ctx *gin.Context, s string) int64 {
 		return 0
 	}
 	return num
+}
+
+func (c *CiApiSrv) getVersionFromFile(ctx context.Context, filename string) VulnDBVersion {
+	blank := VulnDBVersion{}
+	if !util.FileExists(filename) {
+		return blank
+	}
+
+	fileContent, err := os.ReadFile(filename)
+	if err != nil {
+		return blank
+	}
+	t := VulnDBVersion{}
+	if err := json.Unmarshal(fileContent, &t); err != nil {
+		return blank
+	}
+	return t
+}
+
+type VulnDBVersion struct {
+	CompressDBVersion string `json:"compressDBVersion"`
+	TrivyVersion      struct {
+		Version string `json:"version"`
+		Comment string `json:"comment"`
+		Hash    string `json:"hash"`
+	} `json:"trivyVersion"`
+	CustomDBVersion struct {
+		Version string `json:"version"`
+		Comment string `json:"comment"`
+		Hash    string `json:"hash"`
+	} `json:"customDBVersion"`
+	UpdateTime int64 `json:"updateTime"`
+}
+
+type IreneRes struct {
+	TiDBVersion string `json:"ti_db_version"`
 }

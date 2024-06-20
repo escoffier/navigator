@@ -20,6 +20,7 @@ import (
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/commands/option"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/types"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd/global"
 	vulnmatch "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/vuln-match"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
@@ -273,6 +274,27 @@ func (s *TrivySrv) copyInitBoltDB(ctx context.Context, prePath string) error {
 		}
 		s.Log.Info().Str("boltdb", fi).Msg("copyInitBoltDB")
 	}
+
+	ciDir := filepath.Join(global.ScannerOpts.PvcPath, "/tidb/assets")
+	stat, err := os.Stat(ciDir)
+	if err != nil || !stat.IsDir() {
+		_ = os.Remove(ciDir) // 尝试删除
+		_ = os.MkdirAll(ciDir, os.ModePerm)
+	}
+	ciFiles := make([]CiVulnDbPath, 0)
+	ciFiles = append(ciFiles, CiVulnDbPath{Src: "trivy.db", CiName: "init_trivy.db"})
+	ciFiles = append(ciFiles, CiVulnDbPath{Src: "version", CiName: "trivy_init_version"})
+
+	for _, fi := range ciFiles {
+		// 先删除当前使用的db
+		_ = os.Remove(filepath.Join(ciDir, fi.CiName))
+		// 再复制需要的文件
+		if err := scannerUtils.CopyFile(filepath.Join(prePath, fi.Src), filepath.Join(ciDir, fi.CiName)); err != nil {
+			s.Log.Err(err).Str("boltdb", fi.CiName).Msg("copy vulndb to ci dir ok")
+			return fmt.Errorf("copy vuln db :%s", fi)
+		}
+		s.Log.Info().Str("boltdb", fi.CiName).Msg("copy vuln db to ci dir ok")
+	}
 	return nil
 }
 
@@ -409,4 +431,9 @@ func NewTrivyScanOptions(image string) artifact.Option {
 		opt.OnlyScanPkgs = false
 	}
 	return opt
+}
+
+type CiVulnDbPath struct {
+	Src    string
+	CiName string
 }

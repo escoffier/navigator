@@ -116,6 +116,7 @@ func (s *ImageInfoMetaSrv) ListImageWithScanInfo(ctx context.Context, param imag
 		param.AssociateParam.ImageId = images[i].ID
 		param.AssociateParam.ImageUniqueID = images[i].UniqueID
 		param.AssociateParam.SearchVulnParam.Fields = []string{"severity"}
+		param.AssociateParam.ContainerEnable = true
 		// 其他数据
 		data, err := s.GetImageCorrelateData(ctx, param.AssociateParam)
 		if err != nil {
