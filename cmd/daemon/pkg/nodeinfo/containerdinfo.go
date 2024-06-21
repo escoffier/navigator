@@ -4,6 +4,15 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
+	"os"
+	"path/filepath"
+	"runtime/debug"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"time"
+
 	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
 	"github.com/containerd/containerd/api/services/tasks/v1"
@@ -28,14 +37,6 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	cri "k8s.io/cri-api/pkg/apis"
 	"k8s.io/kubernetes/pkg/kubelet/cri/remote"
-	"net"
-	"os"
-	"path/filepath"
-	"runtime/debug"
-	"strings"
-	"sync"
-	"sync/atomic"
-	"time"
 )
 
 const containerK8sNamespace = "k8s.io"
@@ -217,7 +218,8 @@ func (d *ContainerdInfoManager) ListenEvents(saveData SaveContainerDataFunc) {
 		fmt.Sprintf(`topic=="%s"`, runtime.TaskPausedEventTopic),
 		fmt.Sprintf(`topic=="%s"`, runtime.TaskResumedEventTopic),
 		fmt.Sprintf(`topic=="%s"`, runtime.TaskDeleteEventTopic),
-		fmt.Sprintf(`topic=="%s"`, runtime.TaskExitEventTopic),
+		// Should not subscribe exit event, see: https://github.com/containerd/containerd/issues/10281
+		// fmt.Sprintf(`topic=="%s"`, runtime.TaskExitEventTopic),
 	}
 
 	msg, errs := d.containerdCli.Subscribe(ctx, filters...)
