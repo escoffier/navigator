@@ -411,78 +411,73 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 	defer flow.Close()
 
 	// microseg and waf
-	microsegEnv := os.Getenv("MICROSEGV2")
 	var agentClient, agentEventClient *heavyagent.Client
-	if microsegEnv == "true" {
-		pathExists := false
-		if err != nil {
-			if os.IsNotExist(err) {
-				err = os.Mkdir("/var/run/heavy-agent", fs.ModeDir)
-				if err != nil {
-					logging.Get().Err(err).Msg("create dir: /var/run/heavy-agent/")
-				} else {
-					pathExists = true
-				}
-			}
-		} else {
-			pathExists = true
-		}
-
-		if pathExists {
-			agentClient, err = heavyagent.NewClient("/var/run/heavy-agent/zero-trust.sock")
-			// policyClient, err = microseg.NewPolicyClient("/var/run/heavy-agent/zero-trust.sock")
+	pathExists := false
+	if err != nil {
+		if os.IsNotExist(err) {
+			err = os.Mkdir("/var/run/heavy-agent", fs.ModeDir)
 			if err != nil {
-				return err
-			}
-
-			agentEventClient, err = heavyagent.NewClient("/var/run/heavy-agent/zero-trust-post.sock")
-			// policyEventClient, err = microseg.NewPolicyClient("/var/run/heavy-agent/zero-trust-post.sock")
-			if err != nil {
-				return err
+				logging.Get().Err(err).Msg("create dir: /var/run/heavy-agent/")
+			} else {
+				pathExists = true
 			}
 		}
-
-		stopChan := make(chan struct{})
-		policyClient := microseg.NewPolicyClient(agentClient)
-		if agentClient == nil {
-			logging.Get().Error().Msg("agentClient is nil")
-		}
-		controller := nodeinfo.NewPodController(podWatcher.PodLister(), podWatcher.PodInformer(), containerInfo, policyClient)
-		go controller.Run(stopChan)
-
-		tensorFactory := externalversions.NewSharedInformerFactoryWithOptions(clientset.TensorClientset, 10*time.Hour,
-			externalversions.WithTweakListOptions(func(lo *v1.ListOptions) {
-				lo.LabelSelector = fmt.Sprintf("kubernetes.io/node-name=%s", hostName)
-			}))
-		ruleController := microseg.NewRuleGroupController(clientset.TensorClientset, tensorFactory, policyClient, hostName, mqWriter)
-
-		go ruleController.Run(stopChan)
-
-		var wafEnabled = true
-		wafEnv := os.Getenv("WAF")
-		if wafEnv == "true" {
-			wafEnabled = true
-		}
-		if wafEnabled {
-			wafClient := waf.NewWafClient(agentClient)
-			wafController := waf.NewWafController(clientset.TensorClientset, factory, tensorFactory, podWatcher, wafClient)
-			go wafController.Run(stopCh)
-		}
-
-		tensorFactory.Start(stopChan)
-		tensorFactory.WaitForCacheSync(stopChan)
-
-		clusterManagerSvc := os.Getenv("CLUSTER_MANAGER_URL")
-		eventProcessor := heavyagent.NewEventProcessor(clusterManagerSvc, agentEventClient)
-
-		microsegHandler := microseg.NewHandler(clusterManagerSvc)
-		eventProcessor.AddHandler("microseg", microsegHandler)
-
-		wafhander := waf.NewHandler(clusterManagerSvc)
-		eventProcessor.AddHandler("waf", wafhander)
-
-		go eventProcessor.Run1()
+	} else {
+		pathExists = true
 	}
+
+	if pathExists {
+		agentClient, err = heavyagent.NewClient("/var/run/heavy-agent/zero-trust.sock")
+		if err != nil {
+			return err
+		}
+
+		agentEventClient, err = heavyagent.NewClient("/var/run/heavy-agent/zero-trust-post.sock")
+		if err != nil {
+			return err
+		}
+	}
+
+	stopChan := make(chan struct{})
+	policyClient := microseg.NewPolicyClient(agentClient)
+	if agentClient == nil {
+		logging.Get().Error().Msg("agentClient is nil")
+	}
+	controller := nodeinfo.NewPodController(podWatcher.PodLister(), podWatcher.PodInformer(), containerInfo, policyClient)
+	go controller.Run(stopChan)
+
+	tensorFactory := externalversions.NewSharedInformerFactoryWithOptions(clientset.TensorClientset, 10*time.Hour,
+		externalversions.WithTweakListOptions(func(lo *v1.ListOptions) {
+			lo.LabelSelector = fmt.Sprintf("kubernetes.io/node-name=%s", hostName)
+		}))
+	ruleController := microseg.NewRuleGroupController(clientset.TensorClientset, tensorFactory, policyClient, hostName, mqWriter)
+
+	go ruleController.Run(stopChan)
+
+	var wafEnabled = true
+	wafEnv := os.Getenv("WAF")
+	if wafEnv == "true" {
+		wafEnabled = true
+	}
+	if wafEnabled {
+		wafClient := waf.NewWafClient(agentClient)
+		wafController := waf.NewWafController(clientset.TensorClientset, factory, tensorFactory, podWatcher, wafClient)
+		go wafController.Run(stopCh)
+	}
+
+	tensorFactory.Start(stopChan)
+	tensorFactory.WaitForCacheSync(stopChan)
+
+	clusterManagerSvc := os.Getenv("CLUSTER_MANAGER_URL")
+	eventProcessor := heavyagent.NewEventProcessor(clusterManagerSvc, agentEventClient)
+
+	microsegHandler := microseg.NewHandler(clusterManagerSvc)
+	eventProcessor.AddHandler("microseg", microsegHandler)
+
+	wafhander := waf.NewHandler(clusterManagerSvc)
+	eventProcessor.AddHandler("waf", wafhander)
+
+	go eventProcessor.Run1()
 
 	wg.Add(1)
 	go func() {

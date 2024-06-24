@@ -57,7 +57,6 @@ type server struct {
 }
 
 var ServerConfig = &conf.Config{}
-var microsegv2 = false
 var enableLeaderElection bool
 
 func GetEnvInfo() bool {
@@ -146,9 +145,7 @@ func NewServer() (*server, error) {
 	}
 	go heartbeat.NewBeatSend(mqWriter, monitorTopic, time.Minute, agent.CusterID).Run()
 
-	if microsegv2 {
-		go microseg.NewNetworkPolicyController(agent.GetHostClient().TensorClientset, factory, tensorFactory, mqWriter, "ivan_microseg_status").Run(stopChan)
-	}
+	go microseg.NewNetworkPolicyController(agent.GetHostClient().TensorClientset, factory, tensorFactory, mqWriter, "ivan_microseg_status").Run(stopChan)
 
 	if s.config.ClusterType == model.HostCluster {
 		rdb, err := databases.NewRDBWithMySQLByEnv(context.Background())
@@ -324,10 +321,6 @@ func (s *server) loadConfig() {
 		}
 		s.config.PoolInfo = poolInfo
 		logging.Get().Info().Msgf("poolInfo: %v", poolInfo)
-	}
-	microsegEnv := os.Getenv("MICROSEGV2")
-	if microsegEnv == "true" {
-		microsegv2 = true
 	}
 }
 
