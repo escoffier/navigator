@@ -1,0 +1,170 @@
+# 获取Filter 包含org.apache.coyote类并获取类中包含_jsp$X@（注：与Suo5TomcatFilter一样特征）
+- key: Godzilla4_0_1_FilterShell_1
+  hid: godzilla_01
+  cmds:
+    - $Filter = "sc *.Filter" | grep "org.apache.coyote"
+    - $Loader = "sc -d $Filter" | grep -E '\+-org\.apache\.jsp\..+_jsp\$X@[0-9a-fA-F]{8}'
+  condition:
+    pass
+  info:
+    name:
+      en: "Godzilla 4.0.1 (FilterShell) Memory Horse"
+      zh: "哥斯拉4.0.1(FilterShell)内存马"
+    desc:
+      en: "Godzilla 4.0.1 (FilterShell) FilterShell is an advanced persistent threat tool designed to maintain covert persistent access on a target system. It achieves continuous control of the system by injecting malicious code into the memory of the target system without leaving any traces on the disk."
+      zh: "哥斯拉4.0.1 (FilterShell) 内存马是一种高级持久性威胁工具，专门用于在目标系统上保持隐蔽的持久访问，它是通过注入恶意代码到目标系统的内存中，实现对系统的持续控制，而不在磁盘上留下痕迹。"
+    suggestion:
+      en: "Immediately isolate infected systems from the network to prevent further spread and data leakage."
+      zh: "立即将受感染的系统从网络中隔离，以防止进一步的传播和数据泄露。"
+
+# 获取j2eeType=Filter信息匹配：,name=一个或多个大小写字母+13个数字(时间戳),（注：与Suo5TomcatFilter一样特征）
+- key: Godzilla4_0_1_FilterShell_2
+  hid: godzilla_02
+  cmds:
+    - mbean | grep "j2eeType=Filter" | grep -E ",name=[A-Za-z]+[0-9]{13},"
+  condition:
+    pass
+  info:
+    name:
+      en: "Godzilla 4.0.1 (FilterShell) Memory Horse"
+      zh: "哥斯拉4.0.1(FilterShell)内存马"
+    desc:
+      en: "Godzilla 4.0.1 (FilterShell) MemoryShell is an advanced persistent threat tool designed to maintain covert persistent access on a target system. It achieves continuous control of the system by injecting malicious code into the memory of the target system without leaving any traces on the disk."
+      zh: "哥斯拉4.0.1 (FilterShell) 内存马是一种高级持久性威胁工具，专门用于在目标系统上保持隐蔽的持久访问，它是通过注入恶意代码到目标系统的内存中，实现对系统的持续控制，而不在磁盘上留下痕迹。"
+    suggestion:
+      en: "Immediately isolate infected systems from the network to prevent further spread and data leakage."
+      zh: "立即将受感染的系统从网络中隔离，以防止进一步的传播和数据泄露。"
+
+# 获取Servlet 并匹配包含/favicon.ico名的Servlet
+- key: Godzilla4_0_1_MemoryShell_1
+  hid: godzilla_03
+  cmds:
+    - mbean | grep "name=/" | grep -E "/favicon.ico"
+  condition:
+    pass
+  info:
+    name:
+      en: "Godzilla 4.0.1 (MemoryShell) Memory Horse"
+      zh: "哥斯拉4.0.1(MemoryShell)内存马"
+    desc:
+      en: "Godzilla 4.0.1 (MemoryShell) MemoryShell is an advanced persistent threat tool designed to maintain covert persistent access on a target system. It achieves continuous control of the system by injecting malicious code into the memory of the target system without leaving any traces on the disk."
+      zh: "哥斯拉4.0.1 (MemoryShell) 内存马是一种高级持久性威胁工具，专门用于在目标系统上保持隐蔽的持久访问，它是通过注入恶意代码到目标系统的内存中，实现对系统的持续控制，而不在磁盘上留下痕迹。"
+    suggestion:
+      en: "Immediately isolate infected systems from the network to prevent further spread and data leakage."
+      zh: "立即将受感染的系统从网络中隔离，以防止进一步的传播和数据泄露。"
+
+# # 获取Filter 并匹配包含FilterMemShell
+# - key: Godzilla4_0_1_MemoryShell_2
+#   hid: godzilla_04
+#   cmds:
+#     - sc *.Filter | grep FilterMemShell
+#     #$Filter = sc *.Filter | grep FilterMemShell
+#     #jad --source-only $Filter | grep "servletRequest.getParameter(\"cmd_\")"
+#     #jad --source-only $Filter | grep "Runtime.getRuntime().exec(cmd)"
+#   condition:
+#     pass
+#   info:
+#     name:
+#       en: "Godzilla 4.0.1 (MemoryShell) Memory Horse"
+#       zh: "哥斯拉4.0.1(MemoryShell)内存马"
+#     desc:
+#       en: "Godzilla 4.0.1 (MemoryShell) MemoryShell is an advanced persistent threat tool designed to maintain covert persistent access on a target system. It achieves continuous control of the system by injecting malicious code into the memory of the target system without leaving any traces on the disk."
+#       zh: "哥斯拉4.0.1 (MemoryShell) 内存马是一种高级持久性威胁工具，专门用于在目标系统上保持隐蔽的持久访问，它是通过注入恶意代码到目标系统的内存中，实现对系统的持续控制，而不在磁盘上留下痕迹。"
+#     suggestion:
+#       en: "Immediately isolate infected systems from the network to prevent further spread and data leakage."
+#       zh: "立即将受感染的系统从网络中隔离，以防止进一步的传播和数据泄露。"
+
+# 查询类加载器并匹配是否存在_jsp$U
+- key: Behinder_v4_1_0_Agent
+  hid: Behinder_05
+  cmds:
+    - $RESULT = classloader | grep "_jsp$U"
+  condition:
+    pass
+  info:
+    name:
+      en: "Behinder_v4.1.0 (Agent) Memory Horse"
+      zh: "冰蝎v4.1.0(Agent)内存马"
+    desc:
+      en: "Behinder4.0.1 (Agent) Memory Horse is an advanced persistent threat tool designed to maintain hidden persistent access on the target system. It achieves continuous control of the system by injecting malicious code into the memory of the target system without leaving any traces on the disk."
+      zh: "Behinder4.0.1 (Agent) 内存马是一种高级持久性威胁工具，专门用于在目标系统上保持隐蔽的持久访问，它是通过注入恶意代码到目标系统的内存中，实现对系统的持续控制，而不在磁盘上留下痕迹。"
+    suggestion:
+      en: "Immediately isolate infected systems from the network to prevent further spread and data leakage."
+      zh: "立即将受感染的系统从网络中隔离，以防止进一步的传播和数据泄露。"
+
+# 获取Filter 并匹配包含memory_shell.filter.AntSword
+- key: AntSword_Filter
+  hid: AntSword_06
+  cmds:
+    - '"sc *.Filter" | grep "memory_shell.filter.AntSword"'
+    #jad --source-only memory_shell.filter.AntSword | grep "AntSword.Base64DecodeToByte"
+  condition:
+    pass
+  info:
+    name:
+      en: "AntSword Filter Memory Horse"
+      zh: "蚁剑 Filter 内存马"
+    desc:
+      en: "AntSword Filter Memory Horse is an advanced persistent threat tool designed to maintain hidden persistent access on the target system. It achieves continuous control of the system by injecting malicious code into the memory of the target system without leaving any traces on the disk."
+      zh: "蚁剑Filter内存马是一种高级持久性威胁工具，专门用于在目标系统上保持隐蔽的持久访问，它是通过注入恶意代码到目标系统的内存中，实现对系统的持续控制，而不在磁盘上留下痕迹。"
+    suggestion:
+      en: "Immediately isolate infected systems from the network to prevent further spread and data leakage."
+      zh: "立即将受感染的系统从网络中隔离，以防止进一步的传播和数据泄露。"
+
+# #####suo5#组件类型 Suo5TomcatServlet
+# - key: suo5_memory_horses
+#   hid: suo5_07
+#   cmds:
+#     - 1
+#   condition:
+#     pass
+#   info:
+#     name:
+#       en: "osuo5 Memory Horse"
+#       zh: "suo5内存马"
+#     desc:
+#       en: "suo5 Memory Horse is an advanced persistent threat tool designed to maintain hidden persistent access on the target system. It achieves continuous control of the system by injecting malicious code into the memory of the target system without leaving any traces on the disk."
+#       zh: "suo5内存马是一种高级持久性威胁工具，专门用于在目标系统上保持隐蔽的持久访问，它是通过注入恶意代码到目标系统的内存中，实现对系统的持续控制，而不在磁盘上留下痕迹。"
+#     suggestion:
+#       en: "Immediately isolate infected systems from the network to prevent further spread and data leakage."
+#       zh: "立即将受感染的系统从网络中隔离，以防止进一步的传播和数据泄露。"
+
+# #####冰蝎#组件类型 Listener & Filter
+# - key: Other_memory_horses
+#   hid: other_08
+#   cmds:
+#     - $Filter = sc *.Filter | grep FilterMemShell
+#     - jad --source-only $Filter | grep "backdoorTomcatFilter"
+#     - mbean | grep "j2eeType=Filter" | grep "tomcatFilterMemShell" # 特征二 可 and or 联合判断
+#   condition:
+#     pass
+#   info:
+#     name:
+#       en: "other Memory Horse"
+#       zh: "其他内存马"
+#     desc:
+#       en: "other Memory Horse is an advanced persistent threat tool designed to maintain hidden persistent access on the target system. It achieves continuous control of the system by injecting malicious code into the memory of the target system without leaving any traces on the disk."
+#       zh: "其他内存马是一种高级持久性威胁工具，专门用于在目标系统上保持隐蔽的持久访问，它是通过注入恶意代码到目标系统的内存中，实现对系统的持续控制，而不在磁盘上留下痕迹。"
+#     suggestion:
+#       en: "Immediately isolate infected systems from the network to prevent further spread and data leakage."
+#       zh: "立即将受感染的系统从网络中隔离，以防止进一步的传播和数据泄露。"
+
+
+
+
+########## #bx webshell检测
+# sc *.Servlet
+# jad org.apache.jsp.bx_jsp | grep "e45e329feb5d925b"
+
+
+
+# sc *.Servlet
+# sc *.Filter
+
+# classloader
+# mbean | grep "name=/"
+# mbean | grep "j2eeType=Filter"
+
+
+
+

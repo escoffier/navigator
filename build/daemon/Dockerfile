@@ -9,7 +9,7 @@ RUN sed -i "s!archive.ubuntu.com/!${MIRROR_SOURCE}/!g" /etc/apt/sources.list \
     && export DEBIAN_FRONTEND=noninteractive \
     && apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt install -y --no-install-recommends \
-    supervisor libdevmapper-dev libgpgme-dev libglib2.0-dev iptables \
+    supervisor libdevmapper-dev libgpgme-dev libglib2.0-dev iptables curl \
     language-pack-zh-han* \
     && apt-get full-upgrade -y \
     && apt-get clean \
@@ -25,7 +25,8 @@ COPY ./configs/daemon/supervisord.conf /etc/
 COPY ./configs/daemon/*.o /
 COPY ./configs/drift-prevention/inject /
 COPY ./configs/daemon/cis /cis
-COPY ./configs/daemon/hmj_licence /hmj_licence
+COPY ./configs/daemon/memshell/Memory_Horse.yaml /etc/
+# COPY ./configs/daemon/hmj_licence /hmj_licence
 
 
 ## avira
@@ -33,8 +34,13 @@ ADD avira/savapi-sdk-linux64.tgz /usr/local
 ADD ./configs/daemon/savapi.conf /etc/savapi/savapi.conf
 
 ## hmj
-COPY hmj/hmj /usr/local/bin/hmj
-## hm
-ADD hm/hm-linux.tgz /usr/bin/
+# COPY hmj/hmj /usr/local/bin/hmj
+# ## hm
+# ADD hm/hm-linux.tgz /usr/bin/
+
+# arthas
+RUN mkdir /arthas
+COPY  ./arthas/arthas*   /arthas/
+
 
 CMD ["supervisord"]

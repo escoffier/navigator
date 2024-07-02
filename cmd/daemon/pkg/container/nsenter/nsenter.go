@@ -47,7 +47,8 @@ func (c *Config) Execute(program string, args ...string) (string, string, error)
 func (c *Config) ExecuteContext(ctx context.Context, program string, args ...string) (string, string, error) {
 	cmd, err := c.buildCommand(ctx)
 	if err != nil {
-		return "", "", fmt.Errorf("Error while building command: %v", err)
+		logging.Get().Error().Err(err).Interface("cmd", cmd).Msg("error while building command")
+		return "", "", fmt.Errorf("error while building command: %v", err)
 	}
 
 	// PullImage command

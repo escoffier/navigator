@@ -47,6 +47,8 @@ all:
   - cp ~/.docker/hm-linux.tgz hm/
   - mkdir hmj/
   - cp ~/.docker/hmj hmj/
+  - mkdir arthas/
+  - cp ~/.docker/arthas/arthas* arthas/
   script:
   - make all
   - make rm-local-images || true
@@ -149,6 +151,8 @@ holmes:
   - cp ~/.docker/hmj hmj/
   - mkdir hm/
   - cp ~/.docker/hm-linux.tgz hm/
+  - mkdir arthas/
+  - cp ~/.docker/arthas/arthas* arthas/
   script:
   - make daemon holmes
   - docker rmi harbor.tensorsecurity.com/tensorsecurity/daemon:ci || true
