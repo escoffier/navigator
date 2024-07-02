@@ -84,6 +84,7 @@ func SetupRoutes(
 			r.Route("/drift", api.drift())
 			r.Route("/waf", api.waf())
 			r.Post("/hunter-report/{uuid}", api.reportKubeHunterResult())
+			r.Route("/memshell", api.memshell())
 			// r.Route("/behavioral-learn", api.behavioralLearn())
 		})
 	})

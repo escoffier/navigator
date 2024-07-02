@@ -97,6 +97,7 @@ var accessUrlMap = map[string][]string{
 		"/api/v2/platform/nodeImage",
 		"/api/v2/platform/version/ATTCKVersionList",
 		"/api/v2/platform/behavioral-learn",
+		"/api/v2/platform/memshell", // 内存马扫描
 	},
 	// 微隔离
 	"4": {

@@ -33,6 +33,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/immune"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/k8saudit"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/license"
+	memshellSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/memshell"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/naviaudit"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/networktopo"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/openapiauth"
@@ -436,6 +437,14 @@ func NewConsole(
 	translation, err := translate.NewTranslation(mainCtx, rdb)
 	if err != nil {
 		logging.Get().Error().Err(err).Msg("ERROR: translation init error")
+		mainCancel()
+		return nil, err
+	}
+
+	// init memshell
+	err = memshellSvc.InitService(es, rdb)
+	if err != nil {
+		logging.Get().Error().Err(err).Msg("ERROR: memshell service init error")
 		mainCancel()
 		return nil, err
 	}
