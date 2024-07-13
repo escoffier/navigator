@@ -428,8 +428,8 @@ func (ec *EngineStreamHandler) engineReloads(ctx context.Context) error {
 	reloadReq.StaticVersion = strconv.FormatInt(sversion, 10)
 	reloadReq.SRuleConfigs = sconfigs.rulesConfig
 	reloadReq.SConfigVersion = strconv.FormatInt(sconfigs.version, 10)
-	logging.Get().Info().Int64("currRulesVersion", ec.getCurrentRulesVersion()).Int64("newRulesVersion", rulesInfo.LatestDataVersion).
-		Int64("currConfigVersion", ec.currentConfigVal.Load().version).Int64("newConfigVersion", rulesInfo.LatestSettingVersion).Msg("Recieve new rules data")
+	//logging.Get().Info().Int64("currRulesVersion", ec.getCurrentRulesVersion()).Int64("newRulesVersion", rulesInfo.LatestDataVersion).
+	//	Int64("currConfigVersion", ec.currentConfigVal.Load().version).Int64("newConfigVersion", rulesInfo.LatestSettingVersion).Msg("Recieve new rules data")
 
 	if rulesChanged || configsChanged {
 		err := ec.doReloadingMozart(ctx, reloadReq, decodedFalcoData, decodedUserData, falcoMozartMap, rulesChanged, configsChanged)
@@ -449,8 +449,8 @@ func (ec *EngineStreamHandler) engineReloads(ctx context.Context) error {
 			logging.Get().Info().Str("sversion", reloadReq.StaticVersion).Int64("sconfigversion", sconfigs.version).Msg("reload ok")
 		}
 	} else {
-		logging.Get().Info().Int64("dataVersion", rulesInfo.LatestDataVersion).Int64("configVersion", rulesInfo.LatestSettingVersion).
-			Int64("currRVersion", ec.getCurrentRulesVersion()).Int64("currCVersion", ec.currentConfigVal.Load().version).Msg("no changes.")
+		//logging.Get().Info().Int64("dataVersion", rulesInfo.LatestDataVersion).Int64("configVersion", rulesInfo.LatestSettingVersion).
+		//	Int64("currRVersion", ec.getCurrentRulesVersion()).Int64("currCVersion", ec.currentConfigVal.Load().version).Msg("no changes.")
 	}
 	return nil
 }

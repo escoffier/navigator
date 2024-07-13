@@ -23,7 +23,10 @@
       "indexPrefix": "events_"
     },
     {
-      "indexPrefix": "microseg-events-"
+      "indexPrefix": "microseg-events-",
+      "condition": {
+        "filter": "{\"bool\":{\"filter\":{\"range\":{\"timestamp\":{\"from\":0,\"to\":$ENDTIME$}}}}}"
+      }
     },
     {
       "indexPrefix": "suggestions",
