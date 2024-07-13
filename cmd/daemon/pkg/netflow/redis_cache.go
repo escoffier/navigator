@@ -51,20 +51,23 @@ func (rc RedisClient) IsExists(key string) (bool, error) {
 	return false, errors.Errorf("query result is : %+v", ret)
 }
 
-func (rc RedisClient) RedisSetPodIp(key string) (bool, error) {
+func (rc RedisClient) RedisSetKey(key, value string, timeout int64) bool {
 	if rc.redisClient == nil || len(key) == 0 {
-		return false, errors.Errorf("argument point is nil")
+		return false
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
 	defer cancel()
 
-	res := rc.redisClient.SetNX(ctx, key, "1", 0)
-
-	return res.Result()
+	res := rc.redisClient.SetNX(ctx, key, value, time.Second*time.Duration(timeout))
+	ok, err := res.Result()
+	if err != nil {
+		return false
+	}
+	return ok
 }
 
-func (rc RedisClient) RedisDelPodIp(key string) (bool, error) {
+func (rc RedisClient) RedisDelKey(key string) (bool, error) {
 	if rc.redisClient == nil || len(key) == 0 {
 		return false, errors.Errorf("argument point is nil")
 	}

@@ -182,11 +182,12 @@ func NetProtoConvert(proto uint8) uint8 {
 func NewFlowSession(redis *RedisClient, k8sInfo *NodePodsInfo, crim nodeinfo.ContainerInfoManager, clusterManager ClusterManager, consoleURL string, cifMgr *k8s.ClusterInfoManager) (*FlowSession, error) {
 
 	ctFlow := ConntrackTools{Groups: NF_NETLINK_CONNTRACK_UPDATE}
-	//ctFlow := ConntrackTools{Groups: NF_NETLINK_CONNTRACK_NEW | NF_NETLINK_CONNTRACK_UPDATE}
-	err := ctFlow.CreateConntrackSocket()
+	err := ctFlow.SetHostNs("/host/proc/1/ns/net")
 	if err != nil {
-		return nil, errors.Errorf("Failed to get conntrack handle")
+		logging.Get().Error().Msgf("set host netns failed, %+v", err)
+		return nil, fmt.Errorf("set host netns failed, %+v", err)
 	}
+
 	//get ebpf env
 	ebpfEnable := false
 	if ok := os.Getenv("EBPF_ENABLE"); ok == "true" {
@@ -253,6 +254,9 @@ func (fs *FlowSession) DialUnixSocket(address string) error {
 }
 
 func (fs *FlowSession) Start(ctx context.Context) {
+	/*print debug log*/
+	logging.Get().Info().Msgf("network flow session start......")
+
 	if !fs.NetFlowEnable {
 		logging.Get().Warn().Msgf("netflow disable!!!")
 		return
@@ -839,6 +843,28 @@ func (fs *FlowSession) GetContainerInfo(netRes *model.TensorNetworkFlow, src, ds
 	return false, nil
 }
 
+func (fs *FlowSession) FilterRepeatSession(list bool, tuple *model.FiveTuple) bool {
+	if list {
+		return false
+	}
+
+	key := fmt.Sprintf("%+v,%+v,%+v,%+v", tuple.Proto, tuple.SrcIp, tuple.DstIp, tuple.DstPort)
+	filterKey := "filter:" + key
+	delKey := fmt.Sprintf("del:%+v,", tuple.SrcPort) + key
+
+	ok, _ := fs.redisClient.IsExists(delKey)
+	if ok {
+		return true
+	}
+
+	ok = fs.redisClient.RedisSetKey(filterKey, "1", 3)
+	if ok {
+		return false
+	}
+
+	return fs.redisClient.RedisSetKey(delKey, "1", 5)
+}
+
 func (fs *FlowSession) ProcSessionQueData() {
 	for {
 		select {
@@ -857,7 +883,7 @@ func (fs *FlowSession) ProcSessionQueData() {
 	}
 }
 
-func (fs *FlowSession) PutNetSession(nlType, netType uint8, origin, reply *model.FiveTuple) {
+func (fs *FlowSession) PutNetSession(list bool, nlType, netType uint8, origin, reply *model.FiveTuple) {
 	ok := fs.filterUnusedSession(origin)
 	if !ok {
 		return
@@ -868,6 +894,19 @@ func (fs *FlowSession) PutNetSession(nlType, netType uint8, origin, reply *model
 		DataType: netType,
 		Origin:   *origin,
 		Reply:    *reply,
+	}
+
+	netAddr := &model.FiveTuple{
+		Proto:   nsData.Origin.Proto,
+		SrcPort: nsData.Origin.SrcPort,
+		SrcIp:   nsData.Origin.SrcIp,
+		DstPort: nsData.Reply.SrcPort,
+		DstIp:   nsData.Reply.SrcIp,
+	}
+
+	ok = fs.FilterRepeatSession(list, netAddr)
+	if ok {
+		return
 	}
 
 	timer := time.NewTimer(200 * time.Millisecond)
@@ -927,7 +966,7 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 	src, srcOk := fs.nodePodsInfo.GetResDataByIp(netSession.Origin.SrcIp)
 	dst, dstOk := fs.nodePodsInfo.GetResDataByIp(netSession.Reply.SrcIp)
 	//print debug log
-	logging.Get().Debug().Msgf("session : %+v, srcOk : %+v, dstOk : %+v", *netSession, srcOk, dstOk)
+	logging.Get().Info().Msgf("session : %+v, srcOk : %+v, dstOk : %+v", *netSession, srcOk, dstOk)
 	//get cluster key
 	clusterKey, ok := fs.clusterManager.ClusterKey()
 	if !ok {
@@ -999,27 +1038,34 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 	netData.CreateUuid()
 	//print debug log
 	if fs.NetLog {
-		logging.Get().Debug().Msgf("[post] %+v, %+v", *netSession, *netData)
+		logging.Get().Info().Msgf("[post] %+v, %+v", *netSession, *netData)
 	}
 	//post net flow
 	return fs.submitter.Submit(context.Background(), netData)
 }
 
 func (fs *FlowSession) conntrackInitList(family ct.Family) error {
-	nfct, err := ct.Open(&ct.Config{})
-	if err != nil {
-		return errors.Errorf("conntrack open faied, %v", err)
-	}
+	/*
+		nfct, err := ct.Open(&ct.Config{})
+		if err != nil {
+			return errors.Errorf("conntrack open faied, %v", err)
+		}
 
-	defer func() {
-		_ = nfct.Close()
-	}()
+		defer func() {
+			_ = nfct.Close()
+		}()
 
-	// Get all IPv4 entries of the expected table.
-	sessions, err := nfct.Dump(ct.Conntrack, family)
+		// Get all IPv4 entries of the expected table.
+		sessions, err := nfct.Dump(ct.Conntrack, family)
+		if err != nil {
+			return errors.Errorf("conntrack dump failed, %v", err)
+		}*/
+	sessions, err := fs.CtFlow.SetHostNsConntrackList("/host/proc/1/ns/net", family)
 	if err != nil {
-		return errors.Errorf("conntrack dump failed, %v", err)
+		return fmt.Errorf("conntracl list failed, %+v", err)
 	}
+	//print debug log
+	logging.Get().Info().Msgf("list session : %+v", len(sessions))
 
 	// Print out all expected sessions.
 	for _, session := range sessions {
@@ -1038,7 +1084,7 @@ func (fs *FlowSession) conntrackInitList(family ct.Family) error {
 
 		origin, reply := SessionToFiveTuple(session, proto)
 		//put net session
-		fs.PutNetSession(NFCT_T_UPDATE, daemon.NET_INIT, origin, reply)
+		fs.PutNetSession(true, NFCT_T_UPDATE, daemon.NET_INIT, origin, reply)
 	}
 
 	return nil
@@ -1073,7 +1119,7 @@ func (fs *FlowSession) onFlowCallback(header *NlMsgHdr, flow *ConntrackFlow) err
 
 		origin, reply := NetlinkToFiveTuple(flow, iptuple.Protocol)
 		//put net session
-		fs.PutNetSession(nfType, daemon.NET_UPDATE, origin, reply)
+		fs.PutNetSession(false, nfType, daemon.NET_UPDATE, origin, reply)
 
 	case IPCTNL_MSG_CT_DELETE:
 		nfType = NFCT_T_DESTROY

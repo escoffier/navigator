@@ -1,6 +1,9 @@
 package netflow
 
 import (
+	"fmt"
+	"github.com/containernetworking/plugins/pkg/ns"
+	ct "github.com/florianl/go-conntrack"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/unix"
@@ -61,9 +64,9 @@ type ConntrackTools struct {
 }
 
 // create conntrack socket
-func (ct *ConntrackTools) CreateConntrackSocket() error {
-	if ct.Groups == 0 {
-		return errors.Errorf("conntrack's groups is error, now groups : %v", ct.Groups)
+func (ctt *ConntrackTools) CreateConntrackSocket() error {
+	if ctt.Groups == 0 {
+		return errors.Errorf("conntrack's groups is error, now groups : %v", ctt.Groups)
 	}
 
 	nlPid := SOCKET_AUTOPID
@@ -75,7 +78,7 @@ func (ct *ConntrackTools) CreateConntrackSocket() error {
 
 	skAddr := &unix.SockaddrNetlink{
 		Family: unix.AF_NETLINK,
-		Groups: ct.Groups,
+		Groups: ctt.Groups,
 		Pid:    uint32(nlPid),
 	}
 	//bind socket address
@@ -84,19 +87,68 @@ func (ct *ConntrackTools) CreateConntrackSocket() error {
 		return errors.Errorf("bind socket address netlink failed, %v", err)
 	}
 	//save socket fd
-	ct.SocketFd = fd
+	ctt.SocketFd = fd
 
 	return nil
 }
 
+func (ctt *ConntrackTools) SetHostNs(path string) error {
+	netns, err := ns.GetNS(path)
+	if err != nil {
+		return fmt.Errorf("get net ns failed, %+v", err)
+	}
+	defer netns.Close()
+
+	err = netns.Do(func(_ ns.NetNS) error {
+		/*create conntrack socket*/
+		err = ctt.CreateConntrackSocket()
+		if err != nil {
+			return errors.Errorf("Failed to get conntrack handle")
+		}
+		return nil
+	})
+
+	return err
+}
+
+func (ctt *ConntrackTools) SetHostNsConntrackList(path string, family ct.Family) ([]ct.Con, error) {
+	var ses []ct.Con
+	netns, err := ns.GetNS(path)
+	if err != nil {
+		return ses, fmt.Errorf("get net ns failed, %+v", err)
+	}
+	defer netns.Close()
+
+	err = netns.Do(func(_ ns.NetNS) error {
+		/*create conntrack socket*/
+		nfct, err := ct.Open(&ct.Config{})
+		if err != nil {
+			return errors.Errorf("conntrack open faied, %v", err)
+		}
+
+		defer func() {
+			_ = nfct.Close()
+		}()
+
+		// Get all IPv4 entries of the expected table.
+		ses, err = nfct.Dump(ct.Conntrack, family)
+		if err != nil {
+			return errors.Errorf("conntrack dump failed, %v", err)
+		}
+		return nil
+	})
+
+	return ses, err
+}
+
 // close conntrack socket
-func (ct ConntrackTools) Close() {
-	if ct.SocketFd > 0 {
-		unix.Close(ct.SocketFd)
+func (ctt ConntrackTools) Close() {
+	if ctt.SocketFd > 0 {
+		unix.Close(ctt.SocketFd)
 	}
 }
 
-func (ct ConntrackTools) SetConntrackAcct(path, acctValue string) error {
+func (ctt ConntrackTools) SetConntrackAcct(path, acctValue string) error {
 	if path == "" {
 		path = "/proc/sys/net/netfilter/nf_conntrack_acct"
 	}
@@ -109,7 +161,7 @@ func (ct ConntrackTools) SetConntrackAcct(path, acctValue string) error {
 	return nil
 }
 
-func (ct ConntrackTools) HeaderConvert(hdr *syscall.NlMsghdr) *NlMsgHdr {
+func (ctt ConntrackTools) HeaderConvert(hdr *syscall.NlMsghdr) *NlMsgHdr {
 	return &NlMsgHdr{
 		Len:   hdr.Len,
 		Type:  hdr.Type,
@@ -119,7 +171,7 @@ func (ct ConntrackTools) HeaderConvert(hdr *syscall.NlMsghdr) *NlMsgHdr {
 	}
 }
 
-func (ct ConntrackTools) RunConntrackEvent(onFlowFunc CtEventCallback) error {
+func (ctt ConntrackTools) RunConntrackEvent(onFlowFunc CtEventCallback) error {
 	if onFlowFunc == nil {
 		return errors.Errorf("need process flow function")
 	}
@@ -127,7 +179,7 @@ func (ct ConntrackTools) RunConntrackEvent(onFlowFunc CtEventCallback) error {
 	buf := make([]byte, RECEIVE_BUFFER_SIZE)
 
 	for {
-		length, _, _, _, err := unix.Recvmsg(ct.SocketFd, buf, nil, 0)
+		length, _, _, _, err := unix.Recvmsg(ctt.SocketFd, buf, nil, 0)
 		if length <= 0 {
 			log.Warnf("Received conntrack message has invalid length, length = %v.", length)
 			continue
@@ -148,7 +200,7 @@ func (ct ConntrackTools) RunConntrackEvent(onFlowFunc CtEventCallback) error {
 			//parse raw data
 			flow := ParseRawData(msg.Data)
 			//process flow data
-			err = onFlowFunc(ct.HeaderConvert(&msg.Header), flow)
+			err = onFlowFunc(ctt.HeaderConvert(&msg.Header), flow)
 			if err != nil {
 				log.Errorf("OnFlowFunc callback failed, %v.", err)
 				return err

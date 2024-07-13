@@ -156,7 +156,7 @@ func (l *Learn) updateFromConfigMap(ctx context.Context, configMap *corev1.Confi
 		l.UpdateWhitelist(configMap.Data)
 	} else if strings.HasPrefix(configMap.Name,
 		model.BehavioralLearnModelConfigMapNameTemplate[:len(model.BehavioralLearnModelConfigMapNameTemplate)-3]) {
-		logging.GetLogger().Info().Msgf("configmap name: %s", configMap.Name)
+		logging.GetLogger().Debug().Msgf("configmap name: %s", configMap.Name)
 		uuidStr := strings.Split(configMap.Name, "-")[2]
 		uuid, err := strconv.ParseUint(uuidStr, 10, 32)
 		if err != nil {
@@ -244,11 +244,11 @@ func (l *Learn) UpdateResourceModel(uuid uint32, cmData map[string]string) {
 	} else {
 		learnStatus.ReportAlready = make(map[uint32]struct{})
 	}
-	logging.GetLogger().Info().Msgf("inModelMap: %+v", inModelMap)
+	logging.GetLogger().Debug().Msgf("inModelMap: %+v", inModelMap)
 	learnStatus.InModel = inModelMap
 	l.ListenResource[uuid] = learnStatus
 
-	logging.GetLogger().Info().Msgf("update resource model: %+v", l.ListenResource)
+	logging.GetLogger().Debug().Msgf("update resource model: %+v", l.ListenResource)
 }
 
 func (l *Learn) UpdateResourceStatus(resourceMap map[uint32]learningStatus) {
@@ -301,7 +301,7 @@ func (l *Learn) ListenConfigMap(ctx context.Context) error {
 			switch event.Type {
 			case watch.Added:
 				configMap := event.Object.(*corev1.ConfigMap)
-				logging.GetLogger().Info().Msgf("ConfigMap added: %v\n", configMap.Data)
+				logging.GetLogger().Debug().Msgf("ConfigMap added: %v\n", configMap.Data)
 				err = l.updateFromConfigMap(ctx, configMap)
 				if err != nil {
 					logging.GetLogger().Error().Msgf("updateFromConfigMap error: %v", err)
