@@ -1040,26 +1040,13 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 	if fs.NetLog {
 		logging.Get().Info().Msgf("[post] %+v, %+v", *netSession, *netData)
 	}
+
 	//post net flow
 	return fs.submitter.Submit(context.Background(), netData)
 }
 
 func (fs *FlowSession) conntrackInitList(family ct.Family) error {
-	/*
-		nfct, err := ct.Open(&ct.Config{})
-		if err != nil {
-			return errors.Errorf("conntrack open faied, %v", err)
-		}
 
-		defer func() {
-			_ = nfct.Close()
-		}()
-
-		// Get all IPv4 entries of the expected table.
-		sessions, err := nfct.Dump(ct.Conntrack, family)
-		if err != nil {
-			return errors.Errorf("conntrack dump failed, %v", err)
-		}*/
 	sessions, err := fs.CtFlow.SetHostNsConntrackList("/host/proc/1/ns/net", family)
 	if err != nil {
 		return fmt.Errorf("conntracl list failed, %+v", err)

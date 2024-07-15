@@ -692,6 +692,13 @@ func (rl *TensorResourcesService) GetPodRelation(arg *ArgumentDetails) ([]Proces
 			res.PodUid = netflows[i].DstPodUid
 			res.ClusterID = netflows[i].DstCluster
 		}
+
+		if len(res.Namespace) == 0 {
+			res.Namespace = "undefined"
+			res.ResourceName = "undefined"
+			res.ResourceKind = "undefined"
+		}
+
 		res.DstPort = netflows[i].DstPort
 		res.CreateAt = netflows[i].CreatedAt
 		res.UpdateAt = netflows[i].UpdatedAt
