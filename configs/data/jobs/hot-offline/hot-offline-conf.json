@@ -25,7 +25,7 @@
     {
       "indexPrefix": "microseg-events-",
       "condition": {
-        "filter": "{\"bool\":{\"filter\":{\"range\":{\"timestamp\":{\"from\":0,\"to\":$ENDTIME$}}}}}"
+        "filter": "{\"bool\":{\"filter\":{\"range\":{\"created_at\":{\"from\":0,\"to\":$ENDTIME$}}}}}"
       }
     },
     {
