@@ -75,7 +75,7 @@ require (
 	k8s.io/apimachinery v0.27.2
 	k8s.io/apiserver v0.27.2
 	k8s.io/client-go v0.27.2
-	scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.2.63
+	scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.2.64
 	scm.tensorsecurity.cn/tensorsecurity-rd/trivy v1.0.7
 )
 
@@ -83,6 +83,7 @@ require (
 	github.com/March-deng/godisearch v0.0.0-20230510033050-3ae5e895e766
 	github.com/afex/hystrix-go v0.0.0-20180502004556-fa1af6a1f4f5
 	github.com/ahmetb/go-linq/v3 v3.2.0
+	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751
 	github.com/apache/pulsar-client-go v0.11.0
 	github.com/containerd/cgroups/v3 v3.0.1
 	github.com/containerd/typeurl/v2 v2.1.0
@@ -113,6 +114,7 @@ require (
 	github.com/shirou/gopsutil/v3 v3.22.12
 	github.com/shopspring/decimal v1.3.1
 	github.com/sony/gobreaker v0.5.0
+	github.com/swaggo/swag v1.16.3
 	github.com/tealeg/xlsx/v3 v3.3.0
 	github.com/xuri/excelize/v2 v2.6.0
 	gitlab.com/security-rd/go-pkg v0.2.97
@@ -133,8 +135,10 @@ require (
 require (
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20230106234847-43070de90fa1 // indirect
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20221215162035-5330a85ea652 // indirect
+	github.com/KyleBanks/depth v1.2.1 // indirect
 	github.com/agnivade/levenshtein v1.1.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
+	github.com/go-openapi/spec v0.20.4 // indirect
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/moby/sys/signal v0.7.0 // indirect
 	k8s.io/cloud-provider v0.0.0 // indirect
