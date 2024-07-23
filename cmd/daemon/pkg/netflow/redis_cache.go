@@ -83,6 +83,22 @@ func (rc RedisClient) RedisDelKey(key string) (bool, error) {
 	return true, nil
 }
 
+func (rc RedisClient) RedisGetValue(key string) (string, error) {
+	if rc.redisClient == nil {
+		return "", errors.Errorf("argument point is nil")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*3)
+	defer cancel()
+
+	ret, err := rc.redisClient.Get(ctx, key).Result()
+	if err != nil {
+		return "", errors.Errorf("get %v failed, %v", key, err)
+	}
+
+	return ret, nil
+}
+
 func (rc RedisClient) RedisGet(key string) (*model.TensorNetworkFlow, error) {
 	if rc.redisClient == nil {
 		return nil, errors.Errorf("argument point is nil")

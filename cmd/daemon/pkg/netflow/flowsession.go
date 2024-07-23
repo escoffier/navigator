@@ -54,7 +54,7 @@ func IpStringToUint32(value string) uint32 {
 	return binary.LittleEndian.Uint32(ip.To4())
 }
 
-func SessionToFiveTuple(data ct.Con, proto uint8) (*model.FiveTuple, *model.FiveTuple) {
+func SessionToFiveTuple(data *ct.Con, proto uint8) (*model.FiveTuple, *model.FiveTuple) {
 	origin := data.Origin
 	reply := data.Reply
 
@@ -276,7 +276,7 @@ func (fs *FlowSession) Start(ctx context.Context) {
 	}()
 	//wait get container information
 	time.Sleep(10 * time.Second)
-	//crontab check session
+
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -295,30 +295,42 @@ func (fs *FlowSession) Start(ctx context.Context) {
 		if err != nil {
 			logging.Get().Error().Msgf("init ipv6 session failed, %v.", err)
 		}
+
+		//print log
+		logging.Get().Info().Msgf("conntrack listen event.")
+		//list ipv4 session
+		err = fs.ConntrackListenEvent()
+		if err != nil {
+			logging.Get().Error().Msgf("listen conntrack session failed, %v.", err)
+		}
 	}()
-	//handling timeout session
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
-			}
+
+	/*
+		//handling timeout session
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+				}
+			}()
+			fs.HandleTimeoutSession()
 		}()
-		fs.HandleTimeoutSession()
-	}()
-	//handling timeout ebpf net data
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
-			}
+		//handling timeout ebpf net data
+		go func() {
+			defer func() {
+				if r := recover(); r != nil {
+					logging.Get().Error().Msgf("Panic: %v. Stack: %s", r, debug.Stack())
+				}
+			}()
+			fs.HandleEbpfNetDataTimeout()
 		}()
-		fs.HandleEbpfNetDataTimeout()
-	}()
-	//listen conntrack event
-	err := fs.CtFlow.RunConntrackEvent(fs.onFlowCallback)
-	if err != nil {
-		logging.Get().Error().Msgf("process conntrack event failed, %v.", err)
-	}
+		//listen conntrack event
+		err := fs.CtFlow.RunConntrackEvent(fs.onFlowCallback)
+		if err != nil {
+			logging.Get().Error().Msgf("process conntrack event failed, %v.", err)
+		}
+
+	*/
 }
 
 func (fs *FlowSession) Close() {
@@ -843,26 +855,26 @@ func (fs *FlowSession) GetContainerInfo(netRes *model.TensorNetworkFlow, src, ds
 	return false, nil
 }
 
-func (fs *FlowSession) FilterRepeatSession(list bool, tuple *model.FiveTuple) bool {
-	if list {
-		return false
-	}
-
+func (fs *FlowSession) FilterRepeatSession(tuple *model.FiveTuple) bool {
 	key := fmt.Sprintf("%+v,%+v,%+v,%+v", tuple.Proto, tuple.SrcIp, tuple.DstIp, tuple.DstPort)
 	filterKey := "filter:" + key
-	delKey := fmt.Sprintf("del:%+v,", tuple.SrcPort) + key
+	tupleKey := fmt.Sprintf("tuple:%+v,", tuple.SrcPort) + key
 
-	ok, _ := fs.redisClient.IsExists(delKey)
-	if ok {
-		return true
-	}
-
-	ok = fs.redisClient.RedisSetKey(filterKey, "1", 3)
+	ok := fs.redisClient.RedisSetKey(filterKey, tupleKey, 5)
 	if ok {
 		return false
 	}
 
-	return fs.redisClient.RedisSetKey(delKey, "1", 5)
+	value, err := fs.redisClient.RedisGetValue(filterKey)
+	if err != nil {
+		return false
+	}
+
+	if value == tupleKey {
+		return false
+	}
+
+	return true
 }
 
 func (fs *FlowSession) ProcSessionQueData() {
@@ -883,7 +895,7 @@ func (fs *FlowSession) ProcSessionQueData() {
 	}
 }
 
-func (fs *FlowSession) PutNetSession(list bool, nlType, netType uint8, origin, reply *model.FiveTuple) {
+func (fs *FlowSession) PutNetSession(nlType, netType uint8, origin, reply *model.FiveTuple) {
 	ok := fs.filterUnusedSession(origin)
 	if !ok {
 		return
@@ -904,7 +916,9 @@ func (fs *FlowSession) PutNetSession(list bool, nlType, netType uint8, origin, r
 		DstIp:   nsData.Reply.SrcIp,
 	}
 
-	ok = fs.FilterRepeatSession(list, netAddr)
+	ok = fs.FilterRepeatSession(netAddr)
+	/*print debug log*/
+	//logging.Get().Info().Msgf("conntrack : %+v, ok : %+v", *netAddr, ok)
 	if ok {
 		return
 	}
@@ -919,7 +933,7 @@ func (fs *FlowSession) PutNetSession(list bool, nlType, netType uint8, origin, r
 	}
 }
 
-func (fs *FlowSession) AllowLinkState(proto uint8, session ct.Con) bool {
+func (fs *FlowSession) AllowLinkState(proto uint8, session *ct.Con) bool {
 	//link state
 	if session.Status != nil && !(*session.Status&IPS_SEEN_REPLY == IPS_SEEN_REPLY) {
 		return false
@@ -966,7 +980,9 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 	src, srcOk := fs.nodePodsInfo.GetResDataByIp(netSession.Origin.SrcIp)
 	dst, dstOk := fs.nodePodsInfo.GetResDataByIp(netSession.Reply.SrcIp)
 	//print debug log
-	logging.Get().Info().Msgf("session : %+v, srcOk : %+v, dstOk : %+v", *netSession, srcOk, dstOk)
+	if fs.NetLog {
+		logging.Get().Debug().Msgf("session : %+v, srcOk : %+v, dstOk : %+v", *netSession, srcOk, dstOk)
+	}
 	//get cluster key
 	clusterKey, ok := fs.clusterManager.ClusterKey()
 	if !ok {
@@ -1045,14 +1061,51 @@ func (fs *FlowSession) ProcSessionData(netSession *daemon.NetSessionLink) error 
 	return fs.submitter.Submit(context.Background(), netData)
 }
 
+func (fs *FlowSession) ConntrackListenEvent() error {
+	err := fs.CtFlow.ConntrackListen()
+	if err != nil {
+		return fmt.Errorf("conntracl list failed, %+v", err)
+	}
+
+	for {
+		select {
+		case data, ok := <-fs.CtFlow.Events:
+			if !ok {
+				logging.Get().Warn().Msgf("netflow data chan closed!")
+				fs.CtFlow.Events = nil
+				return fmt.Errorf("conntrack chan close")
+			}
+
+			if data.Origin == nil || data.Origin.Proto == nil || data.Origin.Proto.Number == nil {
+				continue
+			}
+
+			proto := *data.Origin.Proto.Number
+			if !AllowProto(proto) {
+				continue
+			}
+
+			if !fs.AllowLinkState(proto, data) {
+				continue
+			}
+
+			origin, reply := SessionToFiveTuple(data, proto)
+			//put net session
+			fs.PutNetSession(NFCT_T_UPDATE, daemon.NET_INIT, origin, reply)
+		}
+	}
+
+	return nil
+}
+
 func (fs *FlowSession) conntrackInitList(family ct.Family) error {
 
-	sessions, err := fs.CtFlow.SetHostNsConntrackList("/host/proc/1/ns/net", family)
+	sessions, err := fs.CtFlow.ConntrackList("/host/proc/1/ns/net", family)
 	if err != nil {
 		return fmt.Errorf("conntracl list failed, %+v", err)
 	}
 	//print debug log
-	logging.Get().Info().Msgf("list session : %+v", len(sessions))
+	logging.Get().Info().Msgf("conntrack list session : %+v", len(sessions))
 
 	// Print out all expected sessions.
 	for _, session := range sessions {
@@ -1065,13 +1118,13 @@ func (fs *FlowSession) conntrackInitList(family ct.Family) error {
 			continue
 		}
 
-		if !fs.AllowLinkState(proto, session) {
+		if !fs.AllowLinkState(proto, &session) {
 			continue
 		}
 
-		origin, reply := SessionToFiveTuple(session, proto)
+		origin, reply := SessionToFiveTuple(&session, proto)
 		//put net session
-		fs.PutNetSession(true, NFCT_T_UPDATE, daemon.NET_INIT, origin, reply)
+		fs.PutNetSession(NFCT_T_UPDATE, daemon.NET_INIT, origin, reply)
 	}
 
 	return nil
@@ -1106,7 +1159,7 @@ func (fs *FlowSession) onFlowCallback(header *NlMsgHdr, flow *ConntrackFlow) err
 
 		origin, reply := NetlinkToFiveTuple(flow, iptuple.Protocol)
 		//put net session
-		fs.PutNetSession(false, nfType, daemon.NET_UPDATE, origin, reply)
+		fs.PutNetSession(nfType, daemon.NET_UPDATE, origin, reply)
 
 	case IPCTNL_MSG_CT_DELETE:
 		nfType = NFCT_T_DESTROY
