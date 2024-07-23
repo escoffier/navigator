@@ -1,14 +1,16 @@
 package netflow
 
 import (
+	"context"
 	"fmt"
 	"github.com/containernetworking/plugins/pkg/ns"
 	ct "github.com/florianl/go-conntrack"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"gitlab.com/security-rd/go-pkg/logging"
 	"golang.org/x/sys/unix"
-	"io/ioutil"
 	"syscall"
+	"time"
 )
 
 const (
@@ -61,6 +63,8 @@ type CtEventCallback func(header *NlMsgHdr, flow *ConntrackFlow) error
 type ConntrackTools struct {
 	Groups   uint32
 	SocketFd int
+	NfCt     *ct.Nfct
+	Events   chan *ct.Con
 }
 
 // create conntrack socket
@@ -111,7 +115,49 @@ func (ctt *ConntrackTools) SetHostNs(path string) error {
 	return err
 }
 
-func (ctt *ConntrackTools) SetHostNsConntrackList(path string, family ct.Family) ([]ct.Con, error) {
+func (c *ConntrackTools) ConntrackListen() error {
+	c.Events = make(chan *ct.Con, 5000)
+
+	// 定义回调函数
+	fn := func(con ct.Con) int {
+		//logging.Get().Info().Msgf("conntrack data, %+v:%+v <--> %+v:%+v", con.Origin.Src.String(), *con.Origin.Proto.SrcPort, con.Origin.Dst.String(), *con.Origin.Proto.DstPort)
+
+		proto := *con.Origin.Proto.Number
+		if proto != IPPROTO_TCP && proto != IPPROTO_UDP {
+			return 0
+		}
+
+		if proto == IPPROTO_TCP && con.ProtoInfo != nil && con.ProtoInfo.TCP != nil {
+			state := *con.ProtoInfo.TCP.State
+			if state != TCP_CONNTRACK_ESTABLISHED {
+				return 0
+			}
+		}
+
+		//logging.Get().Info().Msgf("data to chan, %+v:%+v <--> %+v:%+v", con.Origin.Src.String(), *con.Origin.Proto.SrcPort, con.Origin.Dst.String(), *con.Origin.Proto.DstPort)
+
+		timer := time.NewTimer(200 * time.Millisecond)
+		defer timer.Stop()
+
+		select {
+		case c.Events <- &con:
+		case <-timer.C:
+			logging.Get().Warn().Msgf("send to queue timeout: %+v:%+v <--> %+v:%+v", con.Origin.Src.String(), *con.Origin.Proto.SrcPort, con.Origin.Dst.String(), *con.Origin.Proto.DstPort)
+		}
+
+		return 0
+	}
+
+	// 开始监听连接跟踪事件
+	err := c.NfCt.Register(context.Background(), ct.Conntrack, ct.NetlinkCtUpdate, fn)
+	if err != nil {
+		logging.Get().Error().Msgf("Could not register events: %v", err)
+	}
+
+	return err
+}
+
+func (c *ConntrackTools) ConntrackList(path string, family ct.Family) ([]ct.Con, error) {
 	var ses []ct.Con
 	netns, err := ns.GetNS(path)
 	if err != nil {
@@ -121,44 +167,38 @@ func (ctt *ConntrackTools) SetHostNsConntrackList(path string, family ct.Family)
 
 	err = netns.Do(func(_ ns.NetNS) error {
 		/*create conntrack socket*/
-		nfct, err := ct.Open(&ct.Config{})
+		c.NfCt, err = ct.Open(&ct.Config{})
 		if err != nil {
 			return errors.Errorf("conntrack open faied, %v", err)
 		}
 
-		defer func() {
-			_ = nfct.Close()
-		}()
-
-		// Get all IPv4 entries of the expected table.
-		ses, err = nfct.Dump(ct.Conntrack, family)
-		if err != nil {
-			return errors.Errorf("conntrack dump failed, %v", err)
-		}
 		return nil
 	})
+
+	if err != nil {
+		return nil, fmt.Errorf("open conntrack failed, %+v", err)
+	}
+
+	// Get all IPv4 entries of the expected table.
+	ses, err = c.NfCt.Dump(ct.Conntrack, family)
+	if err != nil {
+		return nil, errors.Errorf("conntrack dump failed, %v", err)
+	}
 
 	return ses, err
 }
 
 // close conntrack socket
-func (ctt ConntrackTools) Close() {
-	if ctt.SocketFd > 0 {
-		unix.Close(ctt.SocketFd)
-	}
-}
-
-func (ctt ConntrackTools) SetConntrackAcct(path, acctValue string) error {
-	if path == "" {
-		path = "/proc/sys/net/netfilter/nf_conntrack_acct"
+func (c ConntrackTools) Close() {
+	if c.SocketFd > 0 {
+		unix.Close(c.SocketFd)
 	}
 
-	err := ioutil.WriteFile(path, []byte(acctValue), 0644) // not sure about permissions
-	if err != nil {
-		return errors.Errorf("set conntrack acct failed, acctValue : %s, path : %s, error : %v", acctValue, path, err)
+	if c.NfCt != nil {
+		_ = c.NfCt.Close()
 	}
 
-	return nil
+	c.NfCt = nil
 }
 
 func (ctt ConntrackTools) HeaderConvert(hdr *syscall.NlMsghdr) *NlMsgHdr {
