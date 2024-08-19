@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"strconv"
-	"strings"
 
 	"github.com/segmentio/kafka-go"
 	"gitlab.com/security-rd/go-pkg/databases"
@@ -41,18 +40,29 @@ func (w *PolicyStatusWatcher) process(ctx context.Context, message kafka.Message
 		return err
 	}
 	logging.Get().Info().Msgf("policy status %s", string(message.Value))
-	idStr, found := strings.CutPrefix(policyStatus.Policy, "policy-")
-	if found {
-		id, err := strconv.ParseUint(idStr, 10, 32)
-		if err != nil {
-			log.Err(err).Msgf("invalid policy name %s", idStr)
-			return nil
-		}
-		err = w.db.Get().WithContext(ctx).Table("ivan_microseg_rules").Where("id = ?", id).Update("status", policyStatus.Status).Error
-		if err != nil {
-			log.Err(err).Msgf("update policy (%s) status", idStr)
-			return nil
-		}
+	// idStr, found := strings.CutPrefix(policyStatus.Policy, "policy-")
+	// if found {
+	name := policyStatus.Policy
+	// result := strings.SplitN(name, "-", 2)
+	// if len(result) < 2 {
+	// 	logging.Get().Error().Msgf("invalid policy name %s", name)
+	// 	return nil
+	// }
+	// idStr := result[0]
+
+	id, err := strconv.ParseUint(name, 10, 32)
+	if err != nil {
+		log.Err(err).Msgf("invalid policy name %s", name)
+		return nil
 	}
+	err = w.db.Get().WithContext(ctx).Table("ivan_microseg_rules").Where("id = ? and enable = true", id).Updates(map[string]interface{}{
+		"status":        policyStatus.Status,
+		"status_detail": policyStatus.Detail,
+	}).Error
+	if err != nil {
+		log.Err(err).Msgf("update policy (%s) status", name)
+		return nil
+	}
+	// }
 	return nil
 }

@@ -14,6 +14,8 @@ import (
 	"gitlab.com/security-rd/go-pkg/model"
 	"gorm.io/gorm"
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 type MicroSegLogFilter struct {
@@ -165,8 +167,47 @@ func (cs *ClusterServer) GetServiceResByIp(ip string) (string, string, string, e
 	}
 
 	service := objs[0].(*corev1.Service)
+	logging.Get().Info().Msgf("service traffic: %s, name: %s", ip, service.Name)
+	epslices, err := cs.Factory.Discovery().V1().EndpointSlices().Lister().List(labels.SelectorFromValidatedSet(map[string]string{
+		"kubernetes.io/service-name":             service.Name,
+		"endpointslice.kubernetes.io/managed-by": "endpointslice-controller.k8s.io",
+	}))
+	if err != nil {
+		logging.Get().Err(err).Msg("get ep owner service")
+		return "", "", "", err
+	}
 
-	return service.GetNamespace(), service.Name, service.Kind, nil
+	logging.Get().Info().Msgf("epslice: %+v", epslices)
+
+	var epslice *discoveryv1.EndpointSlice
+	for _, slice := range epslices {
+		if slice.Namespace == service.Namespace {
+			epslice = slice
+		}
+	}
+	var workLoadName, kind string
+	logging.Get().Info().Msgf("epslices len: %+v", len(epslices))
+	if epslice != nil {
+		logging.Get().Info().Msgf("endpoints: %+v", epslice.Endpoints)
+		if len(epslice.Endpoints) > 0 {
+			ep := epslice.Endpoints[0]
+			logging.Get().Info().Msgf("endpoint: %+v", ep)
+			if ep.TargetRef.Kind == "Pod" {
+				pod, exist, err := cs.Factory.Core().V1().Pods().Informer().GetIndexer().GetByKey(fmt.Sprintf("%s/%s", ep.TargetRef.Namespace, ep.TargetRef.Name))
+				if err != nil {
+					return "", "", "", err
+				}
+				if !exist {
+					return "", "", "", fmt.Errorf("not found pod for service")
+				}
+				workLoadName, kind = util.GetOwnerOfPod(pod.(*corev1.Pod))
+			} else {
+				return "", "", "", fmt.Errorf("no pod for service")
+			}
+		}
+	}
+
+	return service.GetNamespace(), workLoadName, kind, nil
 }
 
 func (cs *ClusterServer) IsServiceIp(ip string) bool {
@@ -175,24 +216,23 @@ func (cs *ClusterServer) IsServiceIp(ip string) bool {
 }
 
 func (cs *ClusterServer) FilterMicroSegLog(log *model.TensorMicrosegEvent) bool {
+	if log.Action == 0 {
+		return false
+	}
+
 	nowTime := time.Now().Unix()
-	key := fmt.Sprintf("%d:%s:%d:%s", log.Proto, log.SrcIP, log.SrcPort, log.DstIP)
-	value, ok := cs.MicroSegLogCache[key]
+	key := fmt.Sprintf("%d:%s:%d:%s:%d", log.Proto, log.SrcIP, log.SrcPort, log.DstIP, log.DstPort)
+	_, ok := cs.MicroSegLogCache[key]
 	if ok {
-		if (nowTime - value) < 10 {
-			if log.Action != 0 {
-				delete(cs.MicroSegLogCache, key)
-			}
-			return true
-		}
+		delete(cs.MicroSegLogCache, key)
+		return true
 	}
 	//save
 	cs.MicroSegLogCache[key] = nowTime
-
 	/*clear invalid data*/
 	if len(cs.MicroSegLogCache) > 2000 {
 		for k, v := range cs.MicroSegLogCache {
-			if (nowTime - v) > 15 {
+			if (nowTime - v) > 10 {
 				delete(cs.MicroSegLogCache, k)
 			}
 		}
@@ -283,6 +323,7 @@ func (cs *ClusterServer) FillResToMicroSegLog(microLog *model.TensorMicrosegEven
 	} else {
 		srcSvc := cs.IsServiceIp(microLog.SrcIP)
 		if srcSvc {
+			// return false
 			ns, res, kind, err := cs.GetServiceResByIp(microLog.SrcIP)
 			if err == nil {
 				microLog.SrcNamespace = ns
@@ -301,6 +342,7 @@ func (cs *ClusterServer) FillResToMicroSegLog(microLog *model.TensorMicrosegEven
 	} else {
 		dstSvc := cs.IsServiceIp(microLog.DstIP)
 		if dstSvc {
+			// return false
 			ns, res, kind, err := cs.GetServiceResByIp(microLog.DstIP)
 			if err == nil {
 				microLog.DstNamespace = ns

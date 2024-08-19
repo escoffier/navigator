@@ -2,6 +2,7 @@ package model
 
 import (
 	"fmt"
+
 	"github.com/google/uuid"
 )
 
@@ -53,10 +54,12 @@ type Clear struct {
 const (
 	WSDomainEventCenter   = "event_center"
 	WSDomainBehaviorLearn = "behavioral_learn"
+	WSDomainMicroseg      = "microseg"
 
 	WSSceneNewEventsNotify       = "new_events_notify"
 	WSSceneLearningInModelAction = "learning_in_model_action"
 	WSSceneLearningStatus        = "learning_status"
+	WSSceneBatchAddStatus        = "batch_add_status"
 
 	WSTypeData      = "data"
 	WSTypeControl   = "control"

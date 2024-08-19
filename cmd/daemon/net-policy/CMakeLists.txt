@@ -6,7 +6,9 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIE")
 # set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIE")
-
+#set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address  -fno-omit-frame-pointer")
+#set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address  -fno-omit-frame-pointer")
+#set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -fsanitize=address")
 
 find_package(fmt)
 find_package(glog 0.6.0 REQUIRED)
@@ -53,6 +55,7 @@ set(SOURCES
     http/extension/log.cc
     admin/profile.cc
     net-policy.cpp
+    rule-detail.cpp
     waf/plugin.cc
     waf/rule.cc
 )
@@ -65,26 +68,27 @@ add_subdirectory(libnetfilter_queue)
 add_executable(net-rule ${SOURCES})
 # add_definitions("-Wall -g")
 add_executable(net_rule_test
-net/utility.cc
-net/filter.cc
-net/filter_factory.cc
-cjson.c
-http/header.cc
-http/codec.cc
-http/packet.cc
-http/http_filter_factory.cc
-http/filter.cc
-http/http1/http_parser.c
-http/http1/codec.cc
-http/http2/codec.cc
-http/url.cc
-http/http_inspector.cc
-http/connection.cc
-tests/http_inspector_test.cc
-tests/codec_test.cc
-tests/connection_manager_test.cc
-tests/http2/codec_tests.cc
+    net/utility.cc
+    net/filter.cc
+    net/filter_factory.cc
+    cjson.c
+    http/header.cc
+    http/codec.cc
+    http/packet.cc
+    http/http_filter_factory.cc
+    http/filter.cc
+    http/http1/http_parser.c
+    http/http1/codec.cc
+    http/http2/codec.cc
+    http/url.cc
+    http/http_inspector.cc
+    http/connection.cc
+    tests/http_inspector_test.cc
+    tests/codec_test.cc
+    tests/connection_manager_test.cc
+    tests/http2/codec_tests.cc
 )
+
 set (PRIVATE_CXX_FLAGS
   -UNDEBUG
   -Wall
@@ -98,21 +102,22 @@ target_compile_options(${PROJECT_NAME}
 
 target_include_directories(net-rule PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/)
 target_link_libraries(net-rule 
-libnfnetlink 
-libnetfilter_queue 
-libnetfilter_conntrack 
-libnghttp2.a 
-libpcre2-8.a 
-libpcre2-posix.a 
-fmt::fmt-header-only 
-llhttp::llhttp_static 
-glog.a 
-gflags.a 
-${CMAKE_THREAD_LIBS_INIT}
-libunwind.a
-liblzma.a
-libz.a
-libtcmalloc_and_profiler.a)
+  libnfnetlink 
+  libnetfilter_queue 
+  libnetfilter_conntrack 
+  libnghttp2.a 
+  libpcre2-8.a 
+  libpcre2-posix.a 
+  fmt::fmt-header-only 
+  llhttp::llhttp_static 
+  glog.a 
+  gflags.a 
+  ${CMAKE_THREAD_LIBS_INIT}
+  libunwind.a
+  liblzma.a
+  libz.a
+  libtcmalloc_and_profiler.a
+)
 
 # target_link_libraries(net-rule 
 # libnfnetlink 

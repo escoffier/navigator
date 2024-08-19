@@ -137,7 +137,8 @@ func SetupRoutes(
 			r.Route("/containerSec", api.containerSec())
 
 			// proxy to tensor-microseg
-			r.Handle("/microseg/*", api.microSegmentation())
+			r.Route("/microseg", api.microseg)
+			// r.Handle("/microseg/*", api.microSegmentation())
 		})
 	})
 
@@ -151,5 +152,6 @@ func SetupRoutes(
 		r.Route("/platform/waf", api.waf())
 		r.Route("/waf", api.waf())
 		r.Handle("/microseg/*", api.microSegmentation())
+		r.Get("/biz", api.wsHandler())
 	})
 }

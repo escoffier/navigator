@@ -17,12 +17,12 @@ type Address struct {
 
 type NodeRule struct {
 	Priority    int                             `json:"priority,omitempty"`
-	Protocol    string                          `json:"prtocol,omitempty"`
+	Protocol    string                          `json:"protocol,omitempty"`
 	Direction   string                          `json:"direction,omitempty"`
 	Action      string                          `json:"action"`
 	Ports       []crdv1alpha1.NetworkPolicyPort `json:"ports,omitempty"`
-	ToAddresses []Address                       `json:"toAddresses,omitempty"`
-	FromAddress []Address                       `json:"fromAddress,omitempty"`
+	ToAddresses []Address                       `json:"to_addresses,omitempty"`
+	FromAddress []Address                       `json:"from_addresses,omitempty"`
 	Http        []*crdv1alpha1.Http             `json:"http,omitempty"`
 }
 
@@ -105,13 +105,21 @@ func (cli *policyClient) sendMessage(msg interface{}) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
+	// err = cli.Send(data)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	err = cli.Send(data)
+	respData, err := cli.SendAndReceiveOnce(data)
+	if err != nil {
+		return nil, err
+	}
+	var resp = &Response{}
+	err = json.Unmarshal(respData, resp)
 	if err != nil {
 		return nil, err
 	}
 
-	resp, err := cli.receiveResponse()
 	return resp, err
 }
 
@@ -121,7 +129,7 @@ func (cli *policyClient) receiveResponse() (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
-	log.Debug().Msgf("received %d bytes response", len(data))
+	log.Info().Msgf("received %d bytes response", len(data))
 	if len(data) > 0 {
 		log.Debug().Msgf("response: %s", string(data))
 		err = json.Unmarshal(data, resp)
@@ -147,9 +155,11 @@ func (cli *policyClient) AddContainer(pid int, podID uint64) error {
 	if err != nil {
 		return err
 	}
+
 	if resp.Status != 0 {
 		return fmt.Errorf("data plane err :%d", resp.Status)
 	}
+
 	return err
 }
 

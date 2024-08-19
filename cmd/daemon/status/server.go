@@ -29,9 +29,15 @@ type HeapDumpReq struct {
 	MessageType int    `json:"msg_type"`
 	Enable      string `json:"enable"`
 }
+
 type ConfigDumpReq struct {
 	UUID        string `json:"uuid"`
 	MessageType int    `json:"msg_type"`
+}
+
+type LogLevelConfig struct {
+	Level       int `json:"level"`
+	MessageType int `json:"msg_type"`
 }
 
 type ConnDumpReq struct {
@@ -61,6 +67,7 @@ func (s *Server) Run() {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/debug/agent/config", s.handleDumpAgentConfig)
+	mux.HandleFunc("/debug/agent/log", s.SetAgentLogLevel)
 	mux.HandleFunc("/debug/agent/heapdump", s.handleDumpAgentHeap)
 	mux.HandleFunc("/debug/agent/connections", s.handleDumpAgentConn)
 	mux.HandleFunc("/debug/agent/reset", s.handleReset)
@@ -77,12 +84,7 @@ func (s *Server) Run() {
 }
 
 func (s *Server) handleDumpAgentConfig(w http.ResponseWriter, r *http.Request) {
-	// config := &AgentConfig{
-	// 	UUID: uuid.NewString(),
-	// 	Pids: []string{"123", "456"},
-	// }
 	w.Header().Set("Content-Type", "application/json")
-	// data, _ := json.Marshal(config)
 	resp, err := s.dumpAgentConfig()
 	if err != nil {
 		log.Err(err).Msg("dump config")
@@ -90,7 +92,23 @@ func (s *Server) handleDumpAgentConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// data, _ := json.Marshal(resp)
+	w.Write(resp)
+}
+
+func (s *Server) SetAgentLogLevel(w http.ResponseWriter, r *http.Request) {
+	level, _ := param.QueryInt(r, "level")
+	/*print debug log*/
+	log.Info().Msgf("agent log level : %+v", level)
+
+	w.Header().Set("Content-Type", "application/json")
+
+	resp, err := s.SetAgentLogLevelReq(level)
+	if err != nil {
+		log.Err(err).Msg("dump config")
+		w.WriteHeader(500)
+		return
+	}
+
 	w.Write(resp)
 }
 
@@ -122,26 +140,48 @@ func (s *Server) dumpAgentConfig() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	err = s.cli.Send(data)
-	if err != nil {
-		return nil, err
-	}
-
-	respData, err := s.cli.Receive()
-	if err != nil {
-		return nil, err
-	}
-
-	log.Debug().Msgf("received %d bytes response", len(respData))
-
-	// resp, err := s.receiveResponse()
+	// err = s.cli.Send(data)
 	// if err != nil {
 	// 	return nil, err
 	// }
-	// if resp.Status != 0 {
-	// 	return nil, fmt.Errorf("agent err %d", resp.Status)
+
+	// respData, err := s.cli.ReceiveData()
+	// if err != nil {
+	// 	return nil, err
 	// }
+
+	respData, err := s.cli.SendAndReceive(data)
+	if err != nil {
+		return nil, err
+	}
+	//log.Debug().Msgf("received %d bytes response", len(respData))
+	return respData, nil
+}
+
+func (s *Server) SetAgentLogLevelReq(level int) ([]byte, error) {
+	req := LogLevelConfig{
+		Level:       level,
+		MessageType: 14,
+	}
+	data, err := json.Marshal(&req)
+	if err != nil {
+		return nil, err
+	}
+	// err = s.cli.Send(data)
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	// respData, err := s.cli.Receive()
+	// if err != nil {
+	// 	return nil, err
+	// }
+
+	respData, err := s.cli.SendAndReceive(data)
+	if err != nil {
+		return nil, err
+	}
+	//log.Debug().Msgf("received %d bytes response", len(respData))
 	return respData, nil
 }
 
@@ -155,13 +195,21 @@ func (s *Server) dumpAgentHeap(enable string) (*Response, error) {
 	if err != nil {
 		return nil, err
 	}
+	// err = s.cli.Send(data)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	err = s.cli.Send(data)
+	// resp, err := s.receiveResponse()
+	// if err != nil {
+	// 	return nil, err
+	// }
+	respData, err := s.cli.SendAndReceive(data)
 	if err != nil {
 		return nil, err
 	}
-
-	resp, err := s.receiveResponse()
+	var resp = &Response{}
+	err = json.Unmarshal(respData, resp)
 	if err != nil {
 		return nil, err
 	}
@@ -196,18 +244,25 @@ func (s *Server) dumpAgentConn(limit int) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	// err = s.cli.Send(data)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	err = s.cli.Send(data)
+	// respData, err := s.cli.Receive()
+	// if err != nil {
+	// 	return nil, err
+	// }
+	respData, err := s.cli.SendAndReceive(data)
 	if err != nil {
 		return nil, err
 	}
-
-	respData, err := s.cli.Receive()
+	var resp = &Response{}
+	err = json.Unmarshal(respData, resp)
 	if err != nil {
 		return nil, err
 	}
-
-	log.Debug().Msgf("received %d bytes response", len(respData))
+	//log.Debug().Msgf("received %d bytes response", len(respData))
 
 	return respData, nil
 }
@@ -221,13 +276,22 @@ func (s *Server) reset() error {
 	if err != nil {
 		return err
 	}
+	// err = s.cli.Send(data)
+	// if err != nil {
+	// 	return err
+	// }
 
-	err = s.cli.Send(data)
+	// resp, err := s.receiveResponse()
+	// if err != nil {
+	// 	return err
+	// }
+
+	respData, err := s.cli.SendAndReceive(data)
 	if err != nil {
 		return err
 	}
-
-	resp, err := s.receiveResponse()
+	var resp = &Response{}
+	err = json.Unmarshal(respData, resp)
 	if err != nil {
 		return err
 	}
@@ -237,23 +301,23 @@ func (s *Server) reset() error {
 	return nil
 }
 
-func (s *Server) receiveResponse() (*Response, error) {
-	data, err := s.cli.Receive()
-	if err != nil {
-		return nil, err
-	}
+// func (s *Server) receiveResponse() (*Response, error) {
+// 	data, err := s.cli.Receive()
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	log.Debug().Msgf("received %d bytes response", len(data))
-	var resp = &Response{}
-	if len(data) > 0 {
-		log.Debug().Msgf("response: %s", string(data))
-		err = json.Unmarshal(data, resp)
-		if err != nil {
-			return nil, err
-		}
-	}
-	return resp, nil
-}
+// 	log.Debug().Msgf("received %d bytes response", len(data))
+// 	var resp = &Response{}
+// 	if len(data) > 0 {
+// 		log.Debug().Msgf("response: %s", string(data))
+// 		err = json.Unmarshal(data, resp)
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 	}
+// 	return resp, nil
+// }
 
 func (s *Server) handleReset(w http.ResponseWriter, r *http.Request) {
 	err := s.reset()

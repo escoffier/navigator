@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"strings"
 	"time"
 
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -56,7 +57,7 @@ func (p *EventProcessor) Run() {
 	var buf []byte
 
 	for {
-		logging.Get().Info().Msg("begine to read event data")
+		logging.Get().Debug().Msg("begine to read event data")
 		var readPos int
 		var data = make([]byte, 4096)
 		nBytes, err := p.cli.GetConn().Read(data)
@@ -70,14 +71,10 @@ func (p *EventProcessor) Run() {
 		}
 		var message []byte
 		if len(buf) > 0 {
-			// message = append(buf, data...)
 			message = append(message, buf...)
 			message = append(message, data...)
 			buf = buf[:0]
-			// message = slices.Concat(buf, data)
 		} else {
-			// copy(message, data)
-			// message = data
 			message = append(message, data...)
 		}
 		logging.Get().Info().Str(moduleKey, moduleName).Msgf("received agent event: %v, length: %d", string(message[readPos:readPos+7]), nBytes)
@@ -108,11 +105,6 @@ func (p *EventProcessor) Run() {
 						}
 
 						l := binary.LittleEndian.Uint32(message[readPos+7 : readPos+11])
-						// l, err := strconv.ParseInt(string(message[readPos+7:readPos+11]), 10, 32)
-						// if err != nil {
-						// 	logging.Get().Err(err).Msg("parse message length")
-						// 	return
-						// }
 						msgLen = int32(l)
 						logging.Get().Info().Msgf("msg len: %d", msgLen)
 						if nBytes < int(msgLen) {
@@ -152,50 +144,7 @@ func (p *EventProcessor) Run() {
 						break
 					}
 				}
-
-				// searchString := "}{"
-				// start := 0
-				// index := bytes.Index(data[:nBytes], []byte(searchString))
-				// if index < 0 {
-				// 	index = nBytes - 1
-				// }
-				// count := bytes.Count(data[:nBytes], []byte(searchString))
-
-				// for i := 0; i <= count; i++ {
-				// 	value := data[start : index+1]
-				// 	event := make(map[string]interface{})
-				// 	// event := AttackLogDetail{}
-				// 	err = json.Unmarshal(value[:index+1-start], &event)
-				// 	if err != nil {
-				// 		logging.Get().Error().Msgf("unmarshal event, len : %+v, value : %+v, error : %+v", len(value), value, err)
-				// 		return
-				// 	}
-				// 	evtType := event["type"].(string)
-				// 	err = p.handlers[evtType].Handle(ctx, event)
-				// 	if err != nil {
-				// 		logging.Get().Err(err).Msg("post agent event err")
-				// 	}
-
-				// 	start = index + 1
-				// 	if start >= nBytes {
-				// 		break
-				// 	}
-
-				// 	index = bytes.Index(data[start:nBytes], []byte(searchString))
-
-				// 	if index < 0 {
-				// 		index = nBytes - 1
-				// 	} else {
-				// 		index = index + start
-				// 	}
-
-				// 	if start > index {
-				// 		break
-				// 	}
-				// }
-
 			}()
-
 		}
 	}
 }
@@ -214,7 +163,7 @@ func (p *EventProcessor) readHeader() (EventHeader, error) {
 func (p *EventProcessor) handlerError(err error) {
 	logging.Get().Err(err).Msg("read evevnt data err")
 	time.Sleep(time.Millisecond * 500)
-	if errors.Is(err, io.EOF) {
+	if errors.Is(err, io.EOF) || strings.Contains(err.Error(), "use of closed network connection") {
 		err = p.cli.ReConnect()
 		if err != nil {
 			logging.Get().Err(err).Msg("reconnect to uds server")
@@ -224,13 +173,13 @@ func (p *EventProcessor) handlerError(err error) {
 
 func (p *EventProcessor) Run1() {
 	for {
-		logging.Get().Info().Msg("begine to read event data")
+		logging.Get().Debug().Msg("begine to read event data")
 		header, err := p.readHeader()
 		if err != nil {
 			p.handlerError(err)
 			continue
 		}
-		logging.Get().Info().Msgf("header: %+v", header)
+		logging.Get().Debug().Msgf("header: %+v", header)
 
 		paylaod := p.getReadBuf(header.Length)
 
@@ -247,7 +196,7 @@ func (p *EventProcessor) Run1() {
 			return
 		}
 		evtType := event["type"].(string)
-		logging.Get().Info().Msgf("log event type: %s", evtType)
+		//logging.Get().Info().Msgf("log event type: %s", evtType)
 		err = p.handlers[evtType].Handle(context.TODO(), event)
 		if err != nil {
 			logging.Get().Err(err).Msg("post agent event err")

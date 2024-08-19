@@ -3,6 +3,7 @@ package ws
 import (
 	"context"
 	"errors"
+
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/security-rd/go-pkg/logging"
 )
@@ -22,6 +23,7 @@ type Handler interface {
 var handlers = map[string]Handler{
 	//model.WSDomainEventCenter:   NewEventCenterHandler(),
 	model.WSDomainBehaviorLearn: NewBehaviorLearnHandler(),
+	model.WSDomainMicroseg:      NewMicrosegHanlder(),
 }
 
 func Init(ctx context.Context) {
@@ -41,6 +43,7 @@ func Dispatch(ctx context.Context, wsm model.WSMessage, dataC chan model.WSMessa
 	if !ok {
 		return errors.New("invalid domain")
 	}
+	logging.Get().Info().Msgf("ws domain : %s", wsm.Domain)
 	return handler.Dispatch(ctx, wsm, dataC, quitC)
 }
 

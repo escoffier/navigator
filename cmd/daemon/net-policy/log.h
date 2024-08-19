@@ -36,6 +36,11 @@ extern std::string TimeToString();
     return ret;\
 }
 
+#define RETURN_INFO(ret, fmt, ...) {\
+    fprintf(stderr, "[INFO] [%s] [line:%d] [%s] [policy] " fmt "\n", TimeToString().c_str(), __LINE__, __FUNCTION__, ##__VA_ARGS__);\
+    return ret;\
+}
+
 #define RETURN_WARN(ret, fmt, ...) {\
     fprintf(stderr, "[WARN] [%s] [line:%d] [%s] [policy] " fmt "\n", TimeToString().c_str(), __LINE__, __FUNCTION__, ##__VA_ARGS__);\
     return ret;\

@@ -427,12 +427,12 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 	}
 
 	if pathExists {
-		agentClient, err = heavyagent.NewClient("/var/run/heavy-agent/zero-trust.sock")
+		agentClient, err = heavyagent.NewClient("127.0.0.1:9999")
 		if err != nil {
 			return err
 		}
 
-		agentEventClient, err = heavyagent.NewClient("/var/run/heavy-agent/zero-trust-post.sock")
+		agentEventClient, err = heavyagent.NewClient("127.0.0.1:8888")
 		if err != nil {
 			return err
 		}
@@ -450,7 +450,7 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 		externalversions.WithTweakListOptions(func(lo *v1.ListOptions) {
 			lo.LabelSelector = fmt.Sprintf("kubernetes.io/node-name=%s", hostName)
 		}))
-	ruleController := microseg.NewRuleGroupController(clientset.TensorClientset, tensorFactory, policyClient, hostName, mqWriter)
+	ruleController := microseg.NewRuleGroupController(clientset.TensorClientset, tensorFactory, policyClient, hostName, mqWriter, agentClient)
 
 	go ruleController.Run(stopChan)
 

@@ -13,6 +13,7 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	corev1 "k8s.io/api/core/v1"
+	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -2562,5 +2563,57 @@ func TestNetworkPolicyController_caculatePolicyAllNodeRules(t *testing.T) {
 				t.Errorf("NetworkPolicyController.caculatePolicyAllNodeRules() = %v, want %v", got, tt.want)
 			}
 		})
+	}
+}
+
+func TestDeepEqual(t *testing.T) {
+	rule1 := crdv1alpha1.NodeRule{
+		Priority: 1,
+		Protocol: "TCP",
+		ToAddresses: []crdv1alpha1.Address{
+			{
+				IP: "11.2.3.4",
+				PodReference: &crdv1alpha1.EntityReference{
+					Cluster:   "cluster-2",
+					Namespace: "default",
+				},
+			},
+			{
+				IP: "1.2.3.4",
+				PodReference: &crdv1alpha1.EntityReference{
+					Cluster:   "cluster-1",
+					Namespace: "default",
+				},
+			},
+		},
+	}
+	rule2 := crdv1alpha1.NodeRule{
+		Priority: 1,
+		Protocol: "TCP",
+
+		ToAddresses: []crdv1alpha1.Address{
+			{
+				IP: "1.2.3.4",
+				PodReference: &crdv1alpha1.EntityReference{
+					Cluster:   "cluster-1",
+					Namespace: "default",
+				},
+			},
+			{
+				IP: "11.2.3.4",
+				PodReference: &crdv1alpha1.EntityReference{
+					Cluster:   "cluster-2",
+					Namespace: "default",
+				},
+			},
+		},
+	}
+	slices.SortStableFunc(rule1.ToAddresses, func(a, b crdv1alpha1.Address) bool {
+		return a.IP < b.IP
+	})
+
+	eq := apiequality.Semantic.DeepEqual(rule1, rule2)
+	if eq {
+		t.Errorf("DeepEqual= %v, want: %v", eq, true)
 	}
 }
