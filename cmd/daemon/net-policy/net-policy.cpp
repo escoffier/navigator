@@ -30,29 +30,13 @@
 #include <string>
 #include <sys/time.h>
 #include <gflags/gflags.h>
-#include "cjson.h"
-#include "glog/logging.h"
-#include "http/packet.hh"
-#include "log.h"
-#include "http/codec.h"
-#include "http/connection.h"
-#include "http/extension/log.h"
-#include "http/filter.h"
-#include "http/http_filter_factory.h"
 #include "net-policy.h"
-#include "net/connection_manager.h"
-#include "net/ip.h"
-#include "net/utility.h"
-#include "waf/plugin.h"
-#include "policy/engine.h"
-#include "admin/profile.h"
 
 using namespace std;
 
 
 int gzLogLevel   = 0;
 bool gbWafEnable = false;
-bool OldMicroSegEnable = true;
 const char *PREFIX = "#%% pre";
 
 struct u32_mask
@@ -61,24 +45,19 @@ struct u32_mask
     uint32_t mask;
 };
 
-typedef struct nf_conntrack NF_CONNTRACK;
+
 /*static value*/
 static int szLocalNetNsFd = 0;
-static int gClientFd = 0;
-static int gPostLinkFd = 0;
-static char cDataBuf[102400];
-static std::set<int> MaskCidr;
-static std::set<int> Priority;
-static std::unordered_map<uint64_t, NFQ_RES_INFO *> NfqueResData;
+static int gPostLinkFd    = 0;
+static int gClientFd      = 0;
+static PolicyRule MicroRule;
+
 static std::unordered_map<uint32_t, uint8_t> NodesIp;
-static std::unordered_map<std::string, RULE_DETAIL> NetInputPolicyRule;
-static std::unordered_map<std::string, RULE_DETAIL> NetOutputPolicyRule;
-static std::unordered_map<std::string, std::unordered_map<std::string, FLOW_DIR>*> NetPolicyKey;
-static std::unordered_map<std::string, std::vector<HTTP_RULE_INFO>*> NetInputHttpPolicy;
-static std::unordered_map<std::string, std::vector<HTTP_RULE_INFO>*> NetOutputHttpPolicy;
 static std::map<TCP_FOUR_TUPLE_V4, http::ConnectionPtr> TcpCtInput;
 static std::map<TCP_FOUR_TUPLE_V4, http::ConnectionPtr> TcpCtOutput;
-static net::ConnectionManager connectionManager;
+static std::unordered_map<std::string, std::vector<HTTP_RULE_INFO>*> NetInputHttpPolicy;
+static std::unordered_map<std::string, std::vector<HTTP_RULE_INFO>*> NetOutputHttpPolicy;
+net::ConnectionManager connectionManager;
 static int zIptVer = 0;
 
 int NetProtoConvert(std::string proto)
@@ -242,7 +221,7 @@ uint16_t TcpCsum(char *packet)
     return csum((uint16_t *)buffer, ntohs(pseudo->length) + sizeof(PSEUDO_HEADER)); // sizeof(PSEUDO_HEADER) + sizeof(UDP_HEADER));
 }
 
-void PrintPolicyData(RULE_DETAIL &r, RULE_PORT &stPort)
+void PrintPolicyData(RuleDetail &r, RULE_PORT &stPort)
 {
     if(gzLogLevel > 0) {
         fprintf(stderr, "[policy] name : %s, dir : %d, action : %d, priority : %d, proto : %d, ip : %s <--> %s port : %d ~ %d\n",
@@ -300,154 +279,11 @@ std::string ipv6Convert(char *ipv6)
     return sRet;
 }
 
-void ipv4CidrToIp(std::string cidr, std::string &ip, int &mask)
-{
-    struct in_addr addr;
-    uint32_t uzIpaddr, uzMask;
-    size_t index;
-    string sip, smask;
-    smask = "32";
-    sip = cidr;
-    index = cidr.find("/");
-    if(index != string::npos)
-    {
-        sip = cidr.substr(0, index);
-        smask = cidr.substr(index + 1);
-    }
-    uzIpaddr = ntohl(inet_addr(sip.c_str()));
-    uzMask   = atoi(smask.c_str());
-    mask     = uzMask;
-    uzMask   = ~0 << (32 - uzMask);
-    /*count network address*/
-    uzIpaddr &= uzMask;
-    addr.s_addr = htonl(uzIpaddr);
-    ip = inet_ntoa(addr);
-}
-
-std::string ipv4CidrToIp(std::string ip, int mask)
-{
-    struct in_addr addr;
-    uint32_t uzIpaddr, uzMask;
-    uzIpaddr = ntohl(inet_addr(ip.c_str()));
-    uzMask   = ~0 << (32 - mask);
-    /*count network address*/
-    uzIpaddr &= uzMask;
-    addr.s_addr = htonl(uzIpaddr);
-    return inet_ntoa(addr);
-}
-
 uint32_t ipv4StringToInt(std::string ip)
 {
     struct in_addr addr;
     if (inet_pton(AF_INET, ip.c_str(), &addr) == 1) {
         return addr.s_addr;
-    }
-    return 0;
-}
-
-static std::string CreatePolicyRuleKey(RULE_DETAIL &info)
-{
-    int mask;
-    string key, ip;
-    char buff[128] = {0};
-    switch (info.direction)
-    {
-        case DIR_INGRESS:
-            ipv4CidrToIp(info.srcIp, ip, mask);
-            /*create key*/
-            sprintf(buff, "%d-%d-%s-%s", info.priority, info.proto, ip.c_str(), info.dstIp.c_str());
-            break;
-        case DIR_EGRESS:
-            ipv4CidrToIp(info.dstIp, ip, mask);
-            /*create key*/
-            sprintf(buff, "%d-%d-%s-%s", info.priority, info.proto, info.srcIp.c_str(), ip.c_str());
-            break;
-        default:
-            return key;
-    }
-    /*save cidr*/
-    if((mask > 0) && (mask <= 32)) MaskCidr.insert(mask);
-    /*save priority*/
-    Priority.insert(info.priority);
-    /*print debug log*/
-    LOG_D("create policy rule key : [%s], priority : %d, priority size : %d", buff, info.priority, (int)Priority.size());
-    key = buff;
-    /*return*/
-    return key;
-}
-
-static int CreatePolicyRuleKey(FIVE_TUPLE &tuple, FLOW_DIR dir, vector<string> &value)
-{
-    char buff[128] = {0};
-    vector<string> srcaddr, dstaddr;
-    /*init*/
-    value.clear();
-    /*create key*/
-    for(auto it = Priority.begin(); it != Priority.end(); ++it)
-    {
-        for(auto iter = MaskCidr.begin(); iter != MaskCidr.end(); ++iter)
-        {
-            /*clear data*/
-            dstaddr.clear();
-            srcaddr.clear();
-            switch (dir)
-            {
-                case DIR_INGRESS:
-                    srcaddr.push_back("0.0.0.0");
-                    srcaddr.push_back(ipv4CidrToIp(tuple.srcAddr, *iter));
-                    dstaddr.push_back(tuple.dstAddr);
-                    break;
-                case DIR_EGRESS:
-                    srcaddr.push_back(tuple.srcAddr);
-                    dstaddr.push_back("0.0.0.0");
-                    dstaddr.push_back(ipv4CidrToIp(tuple.dstAddr, *iter));
-                    break;
-                default:
-                    return -1;
-            }
-            //list priority
-            for(size_t i = 0; i < srcaddr.size(); i++)
-            {
-                for(size_t j = 0; j < dstaddr.size(); j++)
-                {
-                    memset(buff, 0, sizeof(buff));
-                    sprintf(buff, "%d-%d-%s-%s", *it, tuple.proto, srcaddr.at(i).c_str(), dstaddr.at(j).c_str());
-                    /*save key*/
-                    value.push_back(buff);
-                    //all protocol
-                    memset(buff, 0, sizeof(buff));
-                    sprintf(buff, "%d-0-%s-%s", *it, srcaddr.at(i).c_str(), dstaddr.at(j).c_str());
-                    /*save key*/
-                    value.push_back(buff);
-                }
-            }
-#if !OldMicroSegEnable
-            /*clear data*/
-            dstaddr.clear();
-            srcaddr.clear();
-            /*ingress flow*/
-            if(dir != DIR_INGRESS) continue;
-            srcaddr.push_back("0.0.0.0");
-            srcaddr.push_back(ipv4CidrToIp(tuple.dstAddr, *iter));
-            dstaddr.push_back(tuple.srcAddr);
-             //list priority
-            for(size_t i = 0; i < srcaddr.size(); i++)
-            {
-                for(size_t j = 0; j < dstaddr.size(); j++)
-                {
-                    memset(buff, 0, sizeof(buff));
-                    sprintf(buff, "%d-%d-%s-%s", *it, tuple.proto, srcaddr.at(i).c_str(), dstaddr.at(j).c_str());
-                    /*save key*/
-                    value.push_back(buff);
-                    //all protocol
-                    memset(buff, 0, sizeof(buff));
-                    sprintf(buff, "%d-0-%s-%s", *it, srcaddr.at(i).c_str(), dstaddr.at(j).c_str());
-                    /*save key*/
-                    value.push_back(buff);
-                }
-            }
-#endif
-        }
     }
     return 0;
 }
@@ -480,13 +316,12 @@ err:
 }
 
 /*post match message*/
-static int PostMatchMsg(FIVE_TUPLE &tuple, NET_POLICY_RULE action, FLOW_DIR dir, string &sRuleKey)
+static int PostMatchMsg(FiveTuple &tuple, NET_POLICY_RULE action, FLOW_DIR dir, string &sRuleKey)
 {
     int ret, len;
     char *str = NULL;
     cJSON *root = NULL;
     char buf[11] = {"#%% pre"};
-
     if(gPostLinkFd <= 0) return 0;
     //create json object
     root = cJSON_CreateObject();
@@ -507,18 +342,14 @@ static int PostMatchMsg(FIVE_TUPLE &tuple, NET_POLICY_RULE action, FLOW_DIR dir,
     /*data len*/
     len = (int)strlen(str);
     /*send data*/
-    
     buf[7] = len & 0xff;
     buf[8] = (len >> 8) & 0xff;
     buf[9] = (len >> 16) & 0xff;
     buf[10] = (len >> 24) & 0xff;
     ret = write(gPostLinkFd, buf, 11);
-    if (ret <= 0) {
-       GOTO_ERROR(err, "post match msg to server failed, %s.", strerror(errno));
-    }
-
+    if (ret <= 0) GOTO_ERROR(err, "post match msg to server failed, %s.", strerror(errno));
+    /*post data*/
     ret = write(gPostLinkFd, str, len);
-
     if(ret <= 0) GOTO_ERROR(err, "post match msg to server failed, %s.", strerror(errno));
     /*free*/
     cJSON_Delete(root);
@@ -552,83 +383,28 @@ static NET_POLICY_RULE MatchHttpPolicyRule(std::vector<HTTP_RULE_INFO> *httpRule
 }
 
 /*math net policy rule*/
-static NET_POLICY_RULE MatchNetPolicyRule(FIVE_TUPLE &tuple, FLOW_DIR dir, string &sRuleKey)
+static NET_POLICY_RULE MatchNetPolicyRule(FiveTuple &tuple, FLOW_DIR dir, string &sRuleKey)
 {
-    int p;
-    bool bIsMatch;
-    std::string key;
-    char protocol = tuple.proto;
+    RuleDetail detail;
     std::vector<std::string> ruleKeys;
-    std::unordered_map<std::string, RULE_DETAIL> *ruleQue;
-    std::unordered_map<std::string, RULE_DETAIL>::iterator it;
     /*is node ip*/
     auto nodeIt = NodesIp.find(tuple.uzSrcAddr);
     if(nodeIt != NodesIp.end()) return NET_DEFAULT;
-    /*match*/
-    ruleQue = (dir == DIR_INGRESS) ? &NetInputPolicyRule : &NetOutputPolicyRule;
-    if(ruleQue->size() == 0) return NET_DEFAULT;
+    /*get rule map*/
+    auto rules = MicroRule.GetPolicyTree(dir);
+    if(rules->RuleSize() == 0) return NET_DEFAULT;
     /*get rule key*/
-    CreatePolicyRuleKey(tuple, dir, ruleKeys);
-    //print debug log
-    //LOG_D("create rule key num : %lu.", ruleKeys.size());
+    MicroRule.CreateRuleKeyByTuple(tuple, dir, ruleKeys);
+    /*遍历规则进行匹配*/
     for(int i = 0; i < (int)ruleKeys.size(); i++)
     {
-        //print debug log
-        LOG_T("%s, find rule, key : %s, dst port : %d.", (dir == DIR_INGRESS) ? "ingress" : "egress", ruleKeys[i].c_str(), tuple.dstPort);
-        //find rule
-        it = ruleQue->find(ruleKeys.at(i).c_str());
-        if(it == ruleQue->end()) continue;
-        //print debug log
-        if(!((tuple.proto == IPPROTO_UDP) && (tuple.dstPort == 53 || tuple.srcPort == 53))) {
-            LOG_D("i : %d, match %s rule key, key : %s, tuple proto : %d, dst port : %d, vPorts size : %d, %s.", 
-                i, (dir == DIR_INGRESS) ? "ingress" : "egress", ruleKeys.at(i).c_str(), tuple.proto, tuple.dstPort, (int)it->second.vPorts.size(), PrintPortsData(it->second.vPorts).c_str());
-        }
-        /*match protocol*/
-        if(protocol == IPPROTO_ICMP) protocol = it->second.proto;
-        if(!((it->second.proto == 0) || (protocol == it->second.proto))) break;
-        /*set match false*/
-        bIsMatch = false;
-        /*port*/
-        auto rulePorts = it->second.vPorts;
-        if((rulePorts.size() == 0) || (tuple.proto == IPPROTO_ICMP)) bIsMatch = true;
-        /*match port*/
-        for(p = 0; p < (int)rulePorts.size(); p++)
-        {
-            if(rulePorts.at(p).endPort == 0) {
-                bIsMatch = true;
-                break;
-            }
-            do
-            {
-                if(dir != DIR_INGRESS) break;
-                /*check port rang*/
-                if(tuple.srcPort > rulePorts.at(p).endPort) break;
-                /*check min port*/
-                if(tuple.srcPort < rulePorts.at(p).port) break;
-                /*set match true*/
-                bIsMatch = true;
-            } while(0);
-            /*is match port*/
-            if(bIsMatch) break;
-            /*check port rang*/
-            if(tuple.dstPort > rulePorts.at(p).endPort) continue;
-            /*check min port*/
-            if(tuple.dstPort < rulePorts.at(p).port) continue;
-            /*set match true*/
-            bIsMatch = true;
-            /*break*/
-            break;
-        }
-        /*break*/
-        if(!bIsMatch) continue;
-        //print debug log
-        LOG_D("match %s name : %s, dir : %d, action : %d, priority : %d, proto : %d, ip : %s <--> %s port : %d ~ %d\n",
-            (dir == DIR_INGRESS) ? "ingress" : "egress", it->second.policyKey.c_str(), it->second.direction, 
-            it->second.action, it->second.priority, it->second.proto, it->second.srcIp.c_str(), it->second.dstIp.c_str(), rulePorts.at(p).port, rulePorts.at(p).endPort);
-        //rule policy key
-        sRuleKey = it->second.policyKey;
-        //reverse selection
-        return it->second.action;
+        /*匹配规则*/
+        auto ret = rules->MatchRuleGroup(ruleKeys.at(i), tuple, detail);
+        if(!ret) continue;
+        /*rule policy key*/
+        sRuleKey = detail.policyKey;
+        /*reverse selection*/
+        return detail.action;
     }
 
     return NET_DEFAULT;
@@ -672,7 +448,7 @@ static int UpdateNetSession(NFC_MSG_TYPE type, NF_CONNTRACK *ct, void *data)
 }
 
 /*set mark to accept*/
-static int SetAcceptMark(NFQ_RES_INFO *nfqres, FIVE_TUPLE &tuple, NFC_MSG_TYPE msgtype, int markValue)
+static int SetAcceptMark(NFQ_RES_INFO *nfqres, FiveTuple &tuple, NFC_MSG_TYPE msgtype, int markValue)
 {
     int ret, family = AF_INET;
     NF_CONNTRACK *ct = NULL;
@@ -706,7 +482,7 @@ static int SetAcceptMark(NFQ_RES_INFO *nfqres, FIVE_TUPLE &tuple, NFC_MSG_TYPE m
 }
 
 /*parse package*/
-static int parse_package(unsigned char *pkg, FIVE_TUPLE &tuple, struct tcphdr *tcphdr, int &offset)
+static int parse_package(unsigned char *pkg, FiveTuple &tuple, struct tcphdr *tcphdr, int &offset)
 {
     uint16_t srcPort, dstPort;
     struct iphdr  *iph;
@@ -796,7 +572,7 @@ static int input_nfq_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct 
     int id = 0, ret, offset;
     uint32_t mark;
     string sRuleKey;
-    FIVE_TUPLE tuple;
+    FiveTuple tuple;
     struct tcphdr tcphdr;
     TCP_FOUR_TUPLE_V4 ctKey;
     NET_POLICY_RULE ruleRet;
@@ -964,7 +740,7 @@ static int output_nfq_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct
     int id = 0, ret, offset;
     uint32_t mark;
     std::string sRuleKey;
-    FIVE_TUPLE tuple;
+    FiveTuple tuple;
     struct tcphdr tcphdr;
     TCP_FOUR_TUPLE_V4 ctKey;
     struct nfqnl_msg_packet_hdr *ph;
@@ -1125,57 +901,9 @@ static int output_nfq_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct
     return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW_RSP, dataLen, pkg);
 }
 
-/*destroy nfqueue resource*/
-void DestroyNfqueResource(int efd, NFQ_RES_INFO *nfqres, bool isErase)
-{
-    struct epoll_event ev;
-    struct nfq_q_handle *qh = NULL;
-    if(!nfqres) return;
-    /*close input fd*/
-    if(nfqres->inputFd > 0)
-    {
-        ev.data.fd = nfqres->inputFd;
-        epoll_ctl(efd, EPOLL_CTL_DEL, nfqres->inputFd, &ev);
-        close(nfqres->inputFd);
-    }
-    /*close output fd*/
-    if(nfqres->outputFd > 0)
-    {
-        ev.data.fd = nfqres->outputFd;
-        epoll_ctl(efd, EPOLL_CTL_DEL, nfqres->outputFd, &ev);
-        close(nfqres->outputFd);
-    }
-    /*destroy input queue*/
-    if(nfqres->inputQue)
-    {
-        qh = (struct nfq_q_handle *)nfqres->inputQue;
-        nfq_close(qh->h);
-        nfq_destroy_queue(qh);
-    }
-    /*destroy output queue*/
-    if(nfqres->outputQue)
-    {
-        qh = (struct nfq_q_handle *)nfqres->outputQue;
-        nfq_close(qh->h);
-        nfq_destroy_queue(qh);
-    }
-    if(nfqres->inputCb) delete (RCV_EPOLL_CB *)nfqres->inputCb;
-    if(nfqres->outputcb) delete (RCV_EPOLL_CB *)nfqres->outputcb;
-    if(nfqres->nfct) nfct_destroy((NF_CONNTRACK *)nfqres->nfct);
-    if(nfqres->nfctCb) nfct_destroy((NF_CONNTRACK *)nfqres->nfctCb);
-    if(nfqres->nfctHd) nfct_close((struct nfct_handle *)nfqres->nfctHd);
-    if(nfqres->nfctCbHd) nfct_close((struct nfct_handle *)nfqres->nfctCbHd);
-    /*delete pid*/
-    if(isErase) NfqueResData.erase(nfqres->podId);
-    //delete memory
-    delete nfqres;
-    /*print debug log*/
-    LOG_D("free nfqueue resource!");
-}
-
 int OpenConntrack(NFQ_RES_INFO *nfqres)
 {
-    FIVE_TUPLE tuple = {};
+    FiveTuple tuple = {};
     //nf conntrack
     nfqres->nfct = nfct_new();
     if(!nfqres->nfct) GOTO_ERROR(err, "new nf conntrack failed");
@@ -1249,7 +977,7 @@ int NfqueueRcvData(int32_t zRcvEvFd, int32_t fd, void *ptr)
     struct nfq_q_handle *qh;
     RCV_EPOLL_CB *nfqEvent = (RCV_EPOLL_CB *)ptr;
     if(!ptr) RETURN_ERROR(0, "the argument pointer is nil.");
-    nfqRes = &nfqEvent->nfqres;
+    nfqRes = nfqEvent->nfqres;
     /*read data*/
     ret = read(fd, buf, sizeof(buf));
     if(ret <= 0)
@@ -1273,49 +1001,59 @@ int AddEpollEvent(int zEvfd, NFQ_RES_INFO *nfqres)
 {
     int ret;
     struct epoll_event ev;
-    RCV_EPOLL_CB *nfqInput = new RCV_EPOLL_CB;
-    RCV_EPOLL_CB *nfqOutput = new RCV_EPOLL_CB;
-    if(!nfqInput || !nfqOutput) RETURN_ERROR(-1, "new nfqueue resource info memory failed, %s.", strerror(errno));
+    RCV_EPOLL_CB *nfqInput = nullptr, *nfqOutput = nullptr;
+
+    nfqInput  = new RCV_EPOLL_CB;
+    nfqOutput = new RCV_EPOLL_CB;
+    if(!nfqInput || !nfqOutput) GOTO_ERROR(err, "new nfqueue resource info memory failed, %s.", strerror(errno));
     /*copy data*/
-    memcpy(&nfqInput->nfqres, nfqres, sizeof(NFQ_RES_INFO));
-    memcpy(&nfqOutput->nfqres, nfqres, sizeof(NFQ_RES_INFO));
+    nfqInput->nfqres  = nfqres;
+    nfqOutput->nfqres = nfqres;
     /*set nonblock*/
     fcntl(nfqres->inputFd, F_SETFL, fcntl(nfqres->inputFd, F_GETFL) | O_NONBLOCK);
     fcntl(nfqres->outputFd, F_SETFL, fcntl(nfqres->outputFd, F_GETFL) | O_NONBLOCK);
     /*input queue event*/
-    nfqInput->fd = nfqres->inputFd;
+    nfqInput->fd          = nfqres->inputFd;
     nfqInput->epollinfunc = NfqueueRcvData;
     //register epoll event
     ev.data.ptr = nfqInput;
-    ev.events = EPOLLIN;
+    ev.events   = EPOLLIN;
     ret = epoll_ctl(zEvfd, EPOLL_CTL_ADD, nfqres->inputFd, &ev);
-    if(ret < 0) RETURN_ERROR(-2, "add nfqueue handle to epoll failed, pid : %d, %s.", nfqres->inputFd, strerror(errno));
+    if(ret < 0) GOTO_ERROR(err, "add nfqueue handle to epoll failed, pid : %d, %s.", nfqres->inputFd, strerror(errno));
     /*output queue event*/
-    nfqOutput->fd = nfqres->outputFd;
+    nfqOutput->fd          = nfqres->outputFd;
     nfqOutput->epollinfunc = NfqueueRcvData;
     //register epoll event
     ev.data.ptr = nfqOutput;
-    ev.events = EPOLLIN;
+    ev.events   = EPOLLIN;
     ret = epoll_ctl(zEvfd, EPOLL_CTL_ADD, nfqres->outputFd, &ev);
-    if(ret < 0) RETURN_ERROR(-2, "add nfqueue handle to epoll failed, pid : %d, %s.", nfqres->outputFd, strerror(errno));
+    if(ret < 0) GOTO_ERROR(err, "add nfqueue handle to epoll failed, pid : %d, %s.", nfqres->outputFd, strerror(errno));
     /*print debug log*/
-    LOG_D("pid : %d, inputfd : %d, outputfd : %d.", nfqres->pid, nfqres->inputFd, nfqres->outputFd);
-    nfqres->inputCb = nfqInput;
+    LOG_I("pid : %d, inputfd : %d, outputfd : %d.", nfqres->pid, nfqres->inputFd, nfqres->outputFd);
+    nfqres->inputCb  = nfqInput;
     nfqres->outputcb = nfqOutput;
     /*return*/
     return 0;
+
+err:
+    if(nfqInput) delete nfqInput;
+    if(nfqOutput) delete nfqOutput;
+    return 9;
 }
 
 int InitNfqueue(int zRcvEvFd, NET_CTRL_INFO &ctrl)
 {
     int ret;
-    NFQ_RES_INFO *nfqres = NULL;
+    NFQ_RES_INFO *nfqres = nullptr;
     //check resource
-    auto it = NfqueResData.find(ctrl.podId);
-    if(it != NfqueResData.end()) RETURN_WARN(0, "repeate pod resource, pid : %d.", ctrl.pid);
+    // duplicated resource is not error 
+    nfqres = MicroRule.GetNfqRes(ctrl.podId);
+    if(nfqres != nullptr) RETURN_WARN(0, "duplicated pod resource, pid : %d.", ctrl.pid);
     //new memory
     nfqres = new NFQ_RES_INFO;
     if(!nfqres) RETURN_ERROR(-3, "new nfq resource info failed, %s.", strerror(errno));
+    /*memory init*/
+    nfqres->Init();
     /*save pid*/
     nfqres->pid    = ctrl.pid;
     nfqres->podId  = ctrl.podId;
@@ -1331,46 +1069,28 @@ int InitNfqueue(int zRcvEvFd, NET_CTRL_INFO &ctrl)
     if(ret != 0) GOTO_ERROR(err, "init conntrack resource failed, pid : %d.", ctrl.pid);
     /*add epoll event*/
     ret = AddEpollEvent(zRcvEvFd, nfqres);
-    if(ret < 0) GOTO_ERROR(err, "add %d epoll event failed.", ctrl.pid);
-    /*save nfqueue resource*/
-    NfqueResData.insert(make_pair(ctrl.podId, nfqres));
+    if(ret != 0) GOTO_ERROR(err, "add %d epoll event failed.", ctrl.pid);
+    /*insert nfqueue*/
+    ret = MicroRule.NewNfQueRes(ctrl.podId, nfqres);
+    if(ret != 0) GOTO_ERROR(err, "insert nfqueue resource failed, pid : %d.", ctrl.pid);
     /*return*/
     return 0;
 
 err:
-    DestroyNfqueResource(zRcvEvFd, nfqres, true);
+    nfqres->FreeResource(zRcvEvFd);
+    /*free*/
+    delete nfqres;
     /*return*/
-    return -1;
-}
-
-/*nfqueue release*/
-int ReleaseNfqueResource(int efd, int podId)
-{
-    /*find nfqueue resource infor*/
-    auto it = NfqueResData.find(podId);
-    if(it == NfqueResData.end()) return 0;
-    /*release resource*/
-    DestroyNfqueResource(efd, it->second, true);
-    /*return*/
-    return 0;
-}
-
-int ClearSetData()
-{
-    MaskCidr.clear();
-    Priority.clear();
-    MaskCidr.insert(32);
-    return 0;
+    return -6;
 }
 
 /*delete policy*/
-int DeletePolicy(NET_CTRL_INFO &ctrl)
+int DeletePolicy(std::string &name)
 {
-    string key;
-    std::unordered_map<string, FLOW_DIR>* subPolicy;
-    std::unordered_map<string, std::unordered_map<string, FLOW_DIR>*>::iterator keyIt;
+    if(name.empty()) RETURN_ERROR(0, "the policy name is empty.");
+    
     /*clear input http policy*/
-    auto it = NetInputHttpPolicy.find(ctrl.policyKey);
+    auto it = NetInputHttpPolicy.find(name);
     if(it != NetInputHttpPolicy.end())
     {
         auto sit = it->second;
@@ -1378,55 +1098,17 @@ int DeletePolicy(NET_CTRL_INFO &ctrl)
         NetInputHttpPolicy.erase(it);
     }
     /*clear output http policy*/
-    it = NetOutputHttpPolicy.find(ctrl.policyKey);
+    it = NetOutputHttpPolicy.find(name);
     if(it != NetOutputHttpPolicy.end())
     {
         auto sit = it->second;
         delete sit;
         NetOutputHttpPolicy.erase(it);
     }
-    //clear
-    if(NetPolicyKey.size() == 0) return ClearSetData();
-    //find
-    keyIt = NetPolicyKey.find(ctrl.policyKey);
-    if(keyIt == NetPolicyKey.end()) return 0;
-    //get value
-    subPolicy = keyIt->second;
-    NetPolicyKey.erase(keyIt);
-    //print debug log
-    LOG_D("sub policy numbers : %lu.", subPolicy->size());
-    //clear
-    if(NetPolicyKey.size() == 0) ClearSetData();
-    //
-    for(auto it = subPolicy->begin(); it != subPolicy->end(); it++)
-    {
-        key = it->first;
-#if OldMicroSegEnable
-        auto value = it->second;
-        //print debug log
-        LOG_V("flow dir : %s, key : %s.", (value == DIR_INGRESS) ? "ingress" : "egress", key.c_str());
-        //
-        switch (value)
-        {
-            case DIR_INGRESS:
-                NetInputPolicyRule.erase(key);
-                break;
-            case DIR_EGRESS:
-                NetOutputPolicyRule.erase(key);
-                break;
-            default:
-                break;
-        }
-#else
-        NetInputPolicyRule.erase(key);
-        NetOutputPolicyRule.erase(key);
-#endif
-    }
-    /*clear net policy*/
-    subPolicy->clear();
-    delete subPolicy;
-    /*print debug log*/
-    LOG_D("delete net policy rule, key : %s", ctrl.policyKey.c_str());
+    /*clear*/
+    MicroRule.DeletePolicy(DIR_INGRESS, name);
+    /*clear*/
+    MicroRule.DeletePolicy(DIR_EGRESS, name);
     /*return*/
     return 0;
 }
@@ -1453,118 +1135,28 @@ int AddNewHttpPolicy(FLOW_DIR dir, std::string &key, HTTP_RULE_INFO &httpRule)
 }
 
 /*add policy*/
-int AddNewPolicy(RULE_DETAIL &policy, RULE_PORT &stPort)
+int AddNewPolicy(RuleDetail &policy, RULE_PORT &stPort)
 {
-    string key;
-    std::unordered_map<string, FLOW_DIR>* subPolicy;
-    std::unordered_map<string, FLOW_DIR>::iterator it;
-    std::unordered_map<string, RULE_DETAIL> *ruleQue;
-    std::unordered_map<string, RULE_DETAIL>::iterator ruleIt;
-    std::unordered_map<string, std::unordered_map<string, FLOW_DIR>*>::iterator keyIt;
     //check
     if((policy.priority <= 0) || (policy.priority >= 129)) RETURN_ERROR(-1, "priority is error, need 0 < priority < 129, priority : %d", policy.priority);
-    //print debug log
-    PrintPolicyData(policy, stPort);
-    //find
-    keyIt = NetPolicyKey.find(policy.policyKey);
-    if(keyIt == NetPolicyKey.end())
-    {
-        subPolicy = new std::unordered_map<string, FLOW_DIR>;
-        NetPolicyKey.insert(make_pair(policy.policyKey, subPolicy));
-        //print debug log
-        LOG_D("create new policy : %s", policy.policyKey.c_str());
-    }
-    else
-    {
-        subPolicy = keyIt->second;
-    }
-    /*clear ports*/
-    policy.vPorts.clear();
-#if OldMicroSegEnable
-    //create policy rule key
-    key = CreatePolicyRuleKey(policy);
-    ruleQue = (policy.direction == DIR_INGRESS) ? &NetInputPolicyRule : &NetOutputPolicyRule;
-    /*check key*/
-    ruleIt = ruleQue->find(key);
-    if(ruleIt == ruleQue->end())
-    {
-        policy.vPorts.push_back(stPort);
-        ruleQue->insert(make_pair(key, policy));
-    }
-    else
-    {
-        auto value = ruleIt->second;
-        value.vPorts.push_back(stPort);
-        /*delete source key*/
-        ruleQue->erase(ruleIt);
-        /*insert key*/
-        ruleQue->insert(make_pair(key, value));
-        /*print debug log*/
-        LOG_D("key : %s, mutil port : %d ~ %d, num : %d", key.c_str(), stPort.port, stPort.endPort, (int)value.vPorts.size());
-    }
-#else
-    policy.direction = DIR_INGRESS;
-    key = CreatePolicyRuleKey(policy);
-    ruleQue = &NetInputPolicyRule;
-    /*check key*/
-    ruleIt = ruleQue->find(key);
-    if(ruleIt == ruleQue->end())
-    {
-        policy.vPorts.push_back(stPort);
-        ruleQue->insert(make_pair(key, policy));
-    }
-    else
-    {
-        auto value = ruleIt->second;
-        value.vPorts.push_back(stPort);
-        /*delete source key*/
-        ruleQue->erase(ruleIt);
-        /*insert key*/
-        ruleQue->insert(make_pair(key, value));
-        /*print debug log*/
-        LOG_D("key : %s, mutil port : %d ~ %d, num : %d", key.c_str(), stPort.port, stPort.endPort, (int)value.vPorts.size());
-    }
-    subPolicy->insert(make_pair(key, DIR_INGRESS));
-
-    policy.direction = DIR_EGRESS;
-    key = CreatePolicyRuleKey(policy);
-    ruleQue = &NetOutputPolicyRule;
-    /*check key*/
-    ruleIt = ruleQue->find(key);
-    if(ruleIt == ruleQue->end())
-    {
-        policy.vPorts.push_back(stPort);
-        ruleQue->insert(make_pair(key, policy));
-    }
-    else
-    {
-        auto value = ruleIt->second;
-        value.vPorts.push_back(stPort);
-        /*delete source key*/
-        ruleQue->erase(ruleIt);
-        /*insert key*/
-        ruleQue->insert(make_pair(key, value));
-        /*print debug log*/
-        LOG_D("key : %s, mutil port : %d ~ %d, num : %d", key.c_str(), stPort.port, stPort.endPort, (int)value.vPorts.size());
-    }
-#endif
-    /*insert key*/
-    subPolicy->insert(make_pair(key, DIR_EGRESS));
-    //return
-    return 0;
+    /*print debug log*/
+    //PrintPolicyData(policy, stPort);
+    /*处理下发的规则*/
+    return MicroRule.AddPolicyToTree(policy, stPort);
 }
 
 /*update iptable rule*/
 void UpdateMark(std::unordered_map<uint64_t, string> &cgRes)
 {
     int mark = NET_DENY;
-    FIVE_TUPLE tuple = {};
+    FiveTuple tuple = {};
+
     for(auto it = cgRes.begin(); it != cgRes.end(); it++)
     {
-        auto item = NfqueResData.find(it->first);
-        if(item == NfqueResData.end()) CONTINUE_ERROR("can not find pod resource, pod id : %lu.", it->first);
+        auto res = MicroRule.GetNfqRes(it->first);
+        if(res == nullptr) CONTINUE_ERROR("can not find pod resource, pod id : %lu.", it->first);
         //set mark
-        SetAcceptMark(item->second, tuple, NFCT_T_ALL, mark);
+        SetAcceptMark(res, tuple, NFCT_T_ALL, mark);
         //
         LOG_D("update mark, mark : %d, address : %s.", mark, it->second.c_str());
     }
@@ -1737,7 +1329,7 @@ int ParseNetPolicy(char *buf)
     std::vector<RULE_PORT> rulePorts = {};
     std::vector<std::string> srcip = {}, dstip = {};
     RULE_PORT rulePort = {};
-    RULE_DETAIL rule   = {};
+    RuleDetail rule    = {};
     NET_CTRL_INFO ctrl = {};
     HTTP_RULE_INFO http;
     std::unordered_map<uint64_t, string> cgRes = {};
@@ -1754,7 +1346,7 @@ int ParseNetPolicy(char *buf)
     rule.policyKey = item->valuestring;
     ctrl.policyKey = rule.policyKey;
     //clear old policy
-    DeletePolicy(ctrl);
+    DeletePolicy(rule.policyKey);
     //create new policy
     rules = cJSON_GetObjectItem(root, "rules");
     if(!rules) GOTO_ERROR(err, "get rules information failed.");
@@ -1771,12 +1363,17 @@ int ParseNetPolicy(char *buf)
         rule.ActionDsc = action;
         rule.action = ConvertRuleAction(rule.ActionDsc);
         //direction
-#if OldMicroSegEnable
         item = cJSON_GetObjectItem(array, "direction");
         if(!item) BREAK_ERROR("get rule's direction failed");
         dir = item->valuestring;
         rule.direction = (dir.compare("ingress") == 0) ? DIR_INGRESS : DIR_EGRESS;
-#endif
+
+        item = cJSON_GetObjectItem(array, "protocol");
+        if(item)
+        {
+            value = item->valuestring;
+            rule.proto = NetProtoConvert(value);
+        }
         //list http rule
         httparr = cJSON_GetObjectItem(array, "http");
         if(httparr)
@@ -1801,11 +1398,12 @@ int ParseNetPolicy(char *buf)
             }
         }
         //source address
-        ipaddr = cJSON_GetObjectItem(array, "fromAddress");
-        if(!ipaddr) BREAK_ERROR("get rule's fromAddress failed");
+        ipaddr = cJSON_GetObjectItem(array, "from_addresses");
+        if(!ipaddr) BREAK_ERROR("get rule's from_addresses failed");
         num = cJSON_GetArraySize(ipaddr);
         for(int j = 0; j < num; j++)
         {
+            //get ip address
             item = cJSON_GetArrayItem(ipaddr, j);
             if(!item) BREAK_ERROR("get source address info failed.");
             /*get ip string*/
@@ -1814,15 +1412,11 @@ int ParseNetPolicy(char *buf)
             value = cJSON_GetStringValue(param);
             //save source ip address
             ParseIpString(value, srcip);
-            //
-#if OldMicroSegEnable
+            //direction
             if(rule.direction != DIR_EGRESS) continue;
+            //
             param = cJSON_GetObjectItem(item, "pod_id");
             if(!param) CONTINUE_ERROR("get pod id failed.");
-#else
-            param = cJSON_GetObjectItem(item, "pod_id");
-            if(!param) continue;
-#endif
             podId = (uint64_t)param->valuedouble;
             cgRes.insert(make_pair(podId, value));
         }
@@ -1845,10 +1439,7 @@ int ParseNetPolicy(char *buf)
                 item = cJSON_GetObjectItem(param, "port");
                 if(item) rulePort.port = item->valueint;
                 //
-                item = cJSON_GetObjectItem(param, "protocol");
-                if(item) value = item->valuestring;
-                //
-                rulePort.proto = NetProtoConvert(value);
+                rulePort.proto = rule.proto;
                 //
                 rulePort.endPort = (rulePort.endPort == 0) ? rulePort.port : rulePort.endPort;
                 //push
@@ -1860,28 +1451,24 @@ int ParseNetPolicy(char *buf)
         if(!item) BREAK_ERROR("get rule's priority failed");
         rule.priority = item->valueint;
         //destination address
-        ipaddr = cJSON_GetObjectItem(array, "toAddresses");
-        if(!ipaddr) BREAK_ERROR("get rule's toAddresses failed");
+        ipaddr = cJSON_GetObjectItem(array, "to_addresses");
+        if(!ipaddr) BREAK_ERROR("get rule's to_addresses failed");
         num = cJSON_GetArraySize(ipaddr);
         for(int j = 0; j < num; j++)
         {
             item = cJSON_GetArrayItem(ipaddr, j);
             if(!item) BREAK_ERROR("get destination ip address failed.");
-
+            //
             param = cJSON_GetObjectItem(item, "ip");
             if(!param) BREAK_ERROR("get source ip address failed.");
             value = cJSON_GetStringValue(param);
             //save source ip address
             ParseIpString(value, dstip);
-            //
-#if OldMicroSegEnable
+            //direction
             if(rule.direction != DIR_INGRESS) continue;
+            //
             param = cJSON_GetObjectItem(item, "pod_id");
             if(!param) CONTINUE_ERROR("get pod id failed.");
-#else
-            param = cJSON_GetObjectItem(item, "pod_id");
-            if(!param) continue;
-#endif
             podId = (uint64_t)param->valuedouble;
             cgRes.insert(make_pair(podId, value));
         }
@@ -1895,8 +1482,6 @@ int ParseNetPolicy(char *buf)
                 if(rulePorts.size() == 0)
                 {
                     RULE_PORT rPort = {};
-                    /*protocol*/
-                    rule.proto = rPort.proto;
                     //add new policy
                     ret = AddNewPolicy(rule, rPort);
                     if(ret != 0) LOG_E("create new policy failed.");
@@ -1905,8 +1490,6 @@ int ParseNetPolicy(char *buf)
                 {
                     for(int p = 0; p < (int)rulePorts.size(); p++)
                     {
-                        /*protocol*/
-                        rule.proto = rulePorts.at(p).proto;
                         //add new policy
                         ret = AddNewPolicy(rule, rulePorts.at(p));
                         if(ret != 0) LOG_E("create new policy failed.");
@@ -1954,6 +1537,9 @@ int ParseRcvJson(char *buf, NET_CTRL_INFO *ctrl)
     //get uuid
     item = cJSON_GetObjectItem(root, "uuid");
     if(item) ctrl->uuid = item->valuestring;
+    //get log level
+    item = cJSON_GetObjectItem(root, "level");
+    if(item) ctrl->level = item->valueint;
     //free resource
     cJSON_Delete(root);
     //check data
@@ -1978,150 +1564,103 @@ err:
     return -1;
 }
 
-cJSON* dumpConfig() {
-    cJSON * config = cJSON_CreateObject();
-    // cJSON* policies = cJSON_CreateArray();
-    // for_each(NetInputHttpPolicy.begin(), NetInputHttpPolicy.end() , [policies](std::vector<HTTP_RULE_INFO>* ruleVec) {
-    //     cJSON* rules = cJSON_CreateArray();
-    //     for_each(ruleVec->begin(), ruleVec->end(), [rules](HTTP_RULE_INFO rule) {
-    //         r := cJSON_CreateObject();
-            
+cJSON* dumpConnectons(std::string_view req)
+{
+    cJSON* root = cJSON_Parse(req.data());
+    auto limitItem = cJSON_GetObjectItem(root, "limit");
+    int limit = (int)limitItem->valuedouble;
 
-    //     });
-    //     cJSON_AddItemToArray(policies, cJSON *item)
-    // } );
-    cJSON* inbound_rules = cJSON_CreateArray();
-    for(auto it = NetInputPolicyRule.begin(); it != NetInputPolicyRule.end(); it++) {
-        auto rule = it->second;
-        auto r = cJSON_CreateObject();
-        cJSON* proto = cJSON_CreateNumber(rule.proto);
-        cJSON_AddStringToObject(r, "policy_name", rule.policyKey.c_str());
-        cJSON_AddNumberToObject(r, "priority", rule.priority);
-        cJSON_AddNumberToObject(r, "direction", rule.direction);
-        cJSON_AddNumberToObject(r, "action", rule.action);
-        cJSON_AddItemToObject(r, "prtocol", proto);
-        cJSON_AddStringToObject(r, "fromAddess", rule.srcIp.c_str());
-        cJSON_AddStringToObject(r, "toAddess", rule.dstIp.c_str());
-        cJSON_AddItemToArray(inbound_rules, r);
+    cJSON * connections = cJSON_CreateObject();
+    cJSON_AddNumberToObject(connections, "total",connectionManager.stat().tcp_conn_);
+
+    auto items = cJSON_CreateArray();
+    auto conns = connectionManager.connections();
+    for (int i = 0; i < limit; i++) {
+        auto item = cJSON_CreateString(conns[i].c_str());
+        cJSON_AddItemToArray(items, item);
     }
-    cJSON_AddItemToObject(config, "inbound_rules", inbound_rules);
 
-    cJSON* outbound_rules = cJSON_CreateArray();
-    for (auto it = NetOutputPolicyRule.begin(); it != NetOutputPolicyRule.end(); it++) {
-        auto rule = it->second;
-        auto r = cJSON_CreateObject();
-        cJSON* proto = cJSON_CreateNumber(rule.proto);
-        cJSON_AddStringToObject(r, "policy_name", rule.policyKey.c_str());
-        cJSON_AddNumberToObject(r, "priority", rule.priority);
-        cJSON_AddNumberToObject(r, "direction", rule.direction);
-        cJSON_AddNumberToObject(r, "action", rule.action);
-        cJSON_AddItemToObject(r, "prtocol", proto);
-        cJSON_AddStringToObject(r, "fromAddess", rule.srcIp.c_str());
-        cJSON_AddStringToObject(r, "toAddess", rule.dstIp.c_str());
-        cJSON_AddItemToArray(outbound_rules, r);
-    }
-    cJSON_AddItemToObject(config, "outbound_rules", outbound_rules);
-
-    cJSON* containers = cJSON_CreateArray();
-    for (auto it = NfqueResData.begin(); it != NfqueResData.end(); it++) {
-        auto con = it->second;
-        auto item = cJSON_CreateObject();
-        cJSON_AddNumberToObject(item, "pid", con->pid);
-        cJSON_AddNumberToObject(item, "pod_id", con->podId);
-        cJSON_AddItemToArray(containers,  item);
-    }
-    cJSON_AddItemToObject(config, "containers",containers);
-
-    auto tcp = cJSON_CreateObject();
-    auto stat = connectionManager.stat();
-    cJSON_AddNumberToObject(tcp, "tcp_connection", stat.tcp_conn_);
-    cJSON_AddItemToObject(config, "tcp",tcp);
-
-    return config;
+    cJSON_AddItemToObject(connections, "items", items);
+    return connections;
 }
 
-cJSON* dumpConnectons(std::string_view req) {
-  cJSON* root = cJSON_Parse(req.data());
-  auto limitItem = cJSON_GetObjectItem(root, "limit");
-  int limit = (int)limitItem->valuedouble;
-
-  cJSON * connections = cJSON_CreateObject();
-  cJSON_AddNumberToObject(connections, "total",connectionManager.stat().tcp_conn_);
-  auto items = cJSON_CreateArray();
-  auto conns = connectionManager.connections();
-  for (int i = 0; i < limit; i++) {
-    auto item = cJSON_CreateString(conns[i].c_str());
-    cJSON_AddItemToArray(items, item);
-  }
-  
-  cJSON_AddItemToObject(connections, "items", items);
-  return connections;
-}
-
-int ClearConfig(int efd)
-{   
-    int ret;
-    /*list nfqueue resource*/
-    for (auto it = NfqueResData.begin(); it != NfqueResData.end(); it++)
+char *ReadData(int fd)
+{
+    int zDataLen = 0, offset = 0;
+    char *pos = nullptr;
+    char *pcBuffer = nullptr;
+    char cDataBuf[1024] = {0};
+    int totalRead, remainingBytes;
+    /*read data*/
+    int ret = read(fd, cDataBuf, sizeof(cDataBuf));
+    if(ret <= 0)
     {
-        /*print debug log*/
-        LOG_V("reset nfqueue, pid : %d.", it->second->pid);
-        /*set network namespace*/
-        ret = SetNs(it->second->pid, (char *)BasePath);
-        if (ret != 0) continue;
-        /*print debug log*/
-        LOG_V("destroy nfqueue, pid : %d.", it->second->pid);
-        /*clear iptables rule*/
-        ClearIptabelsRule();
-        /*destroy nfqueue resource*/
-        DestroyNfqueResource(efd, it->second, false);
+        if((errno == EAGAIN) || (errno == EINTR)) RETURN_WARN(nullptr, "read data failed, fd : %d, %s.", fd, strerror(errno));
+        close(fd);
+        RETURN_ERROR(nullptr, "read net policy data failed, fd : %d, %s.", fd, strerror(errno));
     }
-    /*list policy key*/
-    for(auto it = NetPolicyKey.begin(); it != NetPolicyKey.end(); it++)
+    totalRead = ret;
+    if(ret <= ((int)strlen(PREFIX) + (int)sizeof(int))) RETURN_ERROR(nullptr, "data length error, data len : %d.", ret);
+
+    pos = strstr(cDataBuf, PREFIX);
+    if(pos == nullptr) RETURN_ERROR(nullptr, "can find message header.");
+
+    pos += strlen(PREFIX);
+    zDataLen = *(int *)pos;
+    if(zDataLen <= 0) RETURN_ERROR(nullptr, "message length error, message len : %d.", zDataLen);
+    /*print debug log*/
+    LOG_D("message data length : %d", zDataLen);
+
+    zDataLen += 1;
+    pcBuffer = (char *)malloc(zDataLen);
+    if(pcBuffer == nullptr) RETURN_WARN(nullptr, "malloc memory failed, fd : %d, %s.", fd, strerror(errno));
+    memset(pcBuffer, 0, zDataLen);
+    pos += sizeof(int);
+
+    offset = pos - cDataBuf;
+    // Copy initial data
+    int initialDataLen = totalRead - offset;
+    if(initialDataLen > 0) memcpy(pcBuffer, pos, initialDataLen);
+
+    // Read remaining data if necessary
+    remainingBytes = zDataLen - 1 - initialDataLen; // -1 to exclude null terminator
+    while(remainingBytes > 0)
     {
-        it->second->clear();
+        ret = read(fd, pcBuffer + totalRead - offset, remainingBytes);
+        if(ret <= 0)
+        {
+            if((errno == EAGAIN) || (errno == EINTR)) continue;
+            free(pcBuffer);
+            close(fd);
+            RETURN_ERROR(nullptr, "read remaining data failed, fd : %d, %s.", fd, strerror(errno));
+        }
+        remainingBytes -= ret;
+        totalRead += ret;
     }
-    /*clear policy key*/
-    NetPolicyKey.clear();
-    /*clear pid*/
-    NfqueResData.clear();
-    /*clear rule config*/
-    ClearSetData();
-    /*clear policy rule*/
-    NetInputPolicyRule.clear();
-    NetOutputPolicyRule.clear();
-    /*return*/
-    return 0;
+
+    return pcBuffer;
 }
 
 int ParseRcvData(int32_t zRcvEvFd, int32_t fd, void *ptr)
 {
     bool bRet;
-    int ret = 0;
-    char *result;
+    int ret = 400, length, offset = 0;
+    char *result = nullptr;
+    admin::Status status;
+    char *pcDataBuf = nullptr;
+    cJSON* respBody = nullptr;
+    char buf[11] = {"#%% pre"};
     NET_CTRL_INFO ctrl = {};
-    RULE_DETAIL net = {};
     if((fd <= 0) || (!ptr)) RETURN_ERROR(-2, "[net] parse failed by argumnet is error!");
     /*read data*/
-    ret = read(fd, cDataBuf, sizeof(cDataBuf));
-    if(ret <= 0)
-    {
-        if((errno == EAGAIN) || (errno == EINTR)) RETURN_WARN(0, "read data failed, fd : %d, %s.", fd, strerror(errno));
-        close(fd);
-        RETURN_ERROR(-1, "read net policy data failed, fd : %d, %s.", fd, strerror(errno));
-    }
-    //
-    cDataBuf[ret] = 0;
-    if(cDataBuf[ret - 1] == '\n') cDataBuf[--ret] = 0;
-    //print debug log
-    LOG_V("receive msg, time : %s, data : %s", TimeToString().c_str(), cDataBuf);
-
-    cJSON* respBody = nullptr;
-    //parse json
-    ret = ParseRcvJson(cDataBuf, &ctrl);
+    pcDataBuf = ReadData(fd);
+    if(pcDataBuf == nullptr) GOTO_ERROR(rsp, "read data faile.");
+    /*print debug log*/
+    LOG_V("receive msg, time : %s, data : %s", TimeToString().c_str(), pcDataBuf);
+    /*parse json*/
+    ret = ParseRcvJson(pcDataBuf, &ctrl);
     if(ret < 0) GOTO_ERROR(rsp, "[net] parse receive json failed!");
-    //condition
-    admin::Status status;
+    /*condition*/
     switch (ctrl.msgType)
     {
          case POD_PID:
@@ -2131,56 +1670,61 @@ int ParseRcvData(int32_t zRcvEvFd, int32_t fd, void *ptr)
             //init nfqueue
             ret = InitNfqueue(zRcvEvFd, ctrl);
             /*print error info*/
-            if(ret < 0) GOTO_ERROR(rsp, "init %d nfqueue failed.", ctrl.pid);
+            if(ret != 0) GOTO_ERROR(rsp, "init %d nfqueue failed, ret : %d.", ctrl.pid, ret);
             //write iptables rule
             WriteIptableRule(1, 1);
             /*goto*/
             goto rsp;
 
         case POD_DIE:
-            ret = ReleaseNfqueResource(zRcvEvFd, ctrl.podId);
+            ret = MicroRule.DeleteNfQueRes(zRcvEvFd, ctrl.podId);
             goto rsp;
             
         case ADD_RULE:
-            ret = ParseNetPolicy(cDataBuf); 
-            //print rule size
-            LOG_D("NetInputPolicyRule : %d, NetOutputPolicyRule : %d", (int)NetInputPolicyRule.size(), (int)NetOutputPolicyRule.size());
+            ret = ParseNetPolicy(pcDataBuf); 
+            /*print rule size*/
+            MicroRule.PrintPolicyLog();
             goto rsp;
 
         case DEL_RULE:
-            ret = DeletePolicy(ctrl);
+            ret = DeletePolicy(ctrl.policyKey);
             goto rsp;
 
         case ADD_WAF_RULE:
-            bRet = http::extension::RootContext.ParseConfiguration(cDataBuf);
+            bRet = http::extension::RootContext.ParseConfiguration(pcDataBuf);
             ret = (bRet == true) ? 0 : 1;
             goto rsp;
             
         case DEL_WAF_RULE:
             //delete waf config
-            bRet = http::extension::RootContext.RemoveWafRule(cDataBuf);
+            bRet = http::extension::RootContext.RemoveWafRule(pcDataBuf);
             ret = (bRet == true) ? 0 : 1;
             goto rsp;
 
         case HEAP_DUMP:
-            status = admin::Heap::handleHeapProfile(std::string_view{cDataBuf, strlen(cDataBuf)});
+            status = admin::Heap::handleHeapProfile(std::string_view{pcDataBuf, strlen(pcDataBuf)});
             ret = (status == admin::Status::OK) ? 0 : 1;
             goto rsp;
 
         case CONF_DUMP:
-            respBody = dumpConfig();
+            respBody = MicroRule.GetAllConfig();
             goto rsp;
 
         case CONN_DUMP:
-            respBody = dumpConnectons(std::string_view{cDataBuf, strlen(cDataBuf)});
+            respBody = dumpConnectons(std::string_view{pcDataBuf, strlen(pcDataBuf)});
             goto rsp;
 
         case RESET:
-            ret = ClearConfig(zRcvEvFd);
+            ret = MicroRule.ClearCfg();;
             goto rsp;
 
         case NODE_CFG:
-            ret = ParseNodeCfg(cDataBuf);
+            ret = ParseNodeCfg(pcDataBuf);
+            goto rsp;
+
+        case LOG_LEVEL:
+            gzLogLevel = ctrl.level;
+            LOG_I("set log level : %d", gzLogLevel);
             goto rsp;
 
         default:
@@ -2189,39 +1733,64 @@ int ParseRcvData(int32_t zRcvEvFd, int32_t fd, void *ptr)
     }
 
 rsp:
-    //
+    /*释放内存*/
+    if(pcDataBuf != nullptr) free(pcDataBuf);
+    /*切换network namespace*/
     SetLocalNetNs(szLocalNetNsFd);
     /*response data*/
     cJSON* response = cJSON_CreateObject();
+    if(response == nullptr)
+    {
+        if(respBody) cJSON_Delete(respBody);
+        RETURN_ERROR(0, "Create json object failed, error msg : %s", strerror(errno));
+    }
+    
     cJSON_AddNumberToObject(response, "status", ret);
     cJSON_AddNumberToObject(response, "msg_type", RSP_ACK);
     cJSON_AddStringToObject(response, "uuid", ctrl.uuid.c_str());
-    if (respBody != nullptr) {
-        cJSON_AddItemToObject(response, "body", respBody);
-    }
+    if (respBody != nullptr) cJSON_AddItemToObject(response, "body", respBody);
     /*format reponse data*/
-    if(ctrl.msgType == CONF_DUMP) {
-        result = cJSON_Print(response);
-    } else {
-        result = cJSON_PrintUnformatted(response);
-    }
-    /*print response data*/
-    LOG_V("rsp msg, time : %s, data : %s.", TimeToString().c_str(), result);
-    //send response data
-    int length = strlen(result);
-    ret = write(fd, result, length);
-
-    cJSON_Delete(response);
-    if(result != NULL) free(result);
-
-    //judge response result
-    if(ret != length)
+    if(ctrl.msgType == CONF_DUMP)
     {
-        LOG_E("send result failed! %s.", strerror(errno));
-        if(ret <= 0) close(fd);
-        return 0;
+        result = cJSON_Print(response);
+        /*data len*/
+        length = (int)strlen(result);
+        /*print response data*/
+        LOG_V("rsp dump msg, time : %s, all data length : %d.", TimeToString().c_str(), length);
+        /*send data*/
+        buf[7] = length & 0xff;
+        buf[8] = (length >> 8) & 0xff;
+        buf[9] = (length >> 16) & 0xff;
+        buf[10] = (length >> 24) & 0xff;
+        /*send message header*/
+        auto n = write(fd, buf, 11);
+        LOG_V("write message header %ld bytes", n);
     }
+    else
+    {
+        result = cJSON_PrintUnformatted(response);
+        /*print response data*/
+        LOG_V("rsp msg, time : %s, data : %s.", TimeToString().c_str(), result);
+    }
+    //send response data
+    length = strlen(result);
+    do
+    {
+        ret = write(fd, result + offset, length);
+        /*print debug log*/
+        if(ctrl.msgType == CONF_DUMP) LOG_D("send rsp msg, time : %s, ret: %d, data len %d, offset : %d.", TimeToString().c_str(), ret, length, offset);
+        if (ret < 0) LOG_E("write data err : %s", strerror(errno));
+        if((ret <= 0) || (ret == length)) break;
+        /*repeat write data*/
+        length -= ret;
+        offset += ret;
+    } while(1);
 
+    /*free json memory*/
+    cJSON_Delete(response);
+    /*free memory*/
+    if(result != nullptr) free(result);
+    /*return*/
     return 0;
 }
 
@@ -2230,11 +1799,11 @@ int ProcAcceptEvent(int32_t zRcvEvFd, int32_t fd, void *ptr)
     int ret, zClientFd;
     socklen_t cliAddrLen;
     struct epoll_event ev;
-    static RCV_EPOLL_CB daemonEvent;
-    struct sockaddr_un cltAddr;
+    struct sockaddr_in address;
+    static RCV_EPOLL_CB DaeEvent;
     //client address length
     cliAddrLen = sizeof(struct sockaddr_in);
-    zClientFd = accept(fd, (struct sockaddr *)&cltAddr, &cliAddrLen);
+    zClientFd = accept(fd, (struct sockaddr *)&address, &cliAddrLen);
     if(zClientFd <= 0) RETURN_ERROR(0, "accept a new client failed, %s.", strerror(errno));
     /*close old fd*/
     if(gClientFd > 0)
@@ -2249,11 +1818,11 @@ int ProcAcceptEvent(int32_t zRcvEvFd, int32_t fd, void *ptr)
     //noblock
     fcntl(zClientFd, F_SETFL, fcntl(zClientFd, F_GETFL) | O_NONBLOCK);
     /*callback*/
-    daemonEvent.fd = gClientFd;
-    daemonEvent.epollinfunc = ParseRcvData;
+    DaeEvent.fd          = gClientFd;
+    DaeEvent.epollinfunc = ParseRcvData;
     //epoll event
-    ev.data.ptr = &daemonEvent;
-    ev.events = EPOLLIN;
+    ev.data.ptr = &DaeEvent;
+    ev.events   = EPOLLIN;
     ret = epoll_ctl(zRcvEvFd, EPOLL_CTL_ADD, zClientFd, &ev);
     if(ret < 0)
     {
@@ -2267,10 +1836,10 @@ int ProcAcceptPostLinkEvent(int32_t zRcvEvFd, int32_t fd, void *ptr)
 {
     int zClientFd;
     socklen_t cliAddrLen;
-    struct sockaddr_un cltAddr;
+    struct sockaddr_in address;
     //client address length
     cliAddrLen = sizeof(struct sockaddr_in);
-    zClientFd = accept(fd, (struct sockaddr *)&cltAddr, &cliAddrLen);
+    zClientFd = accept(fd, (struct sockaddr *)&address, &cliAddrLen);
     if(zClientFd <= 0) RETURN_ERROR(0, "accept a new client failed, %s.", strerror(errno));
     /*close old fd*/
     if(gPostLinkFd > 0)
@@ -2290,26 +1859,29 @@ int ProcAcceptPostLinkEvent(int32_t zRcvEvFd, int32_t fd, void *ptr)
 
 int CreatePostServer(int efd, RCV_EPOLL_CB *pstPostEv)
 {
-    int fd = 0, ret;
+    int fd = 0, ret, opt = 1;
     struct epoll_event ev;
-    struct sockaddr_un svrAddr;
+    struct sockaddr_in address;
     //check argument
     if((efd <= 0) || !pstPostEv) RETURN_ERROR(-5, "the argument pointer is nil");
     //create socket
-    fd = socket(PF_UNIX, SOCK_STREAM, 0);
+    fd = socket(AF_INET, SOCK_STREAM, 0);
     if(fd <= 0) RETURN_ERROR(-2, "create unix socket failed! %s.", strerror(errno));
     //noblock
     fcntl(fd, F_SETFL, fcntl(fd, F_GETFL) | O_NONBLOCK);
     //socket address
-    svrAddr.sun_family = AF_UNIX;
-    strcpy(svrAddr.sun_path, POST_NET_UNIX);
-    unlink(POST_NET_UNIX);
+    ret = setsockopt(fd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt));
+    if(ret != 0) GOTO_ERROR(err, "set socket opt failed, %s", strerror(errno));
+    // 设置服务器地址和端口
+    address.sin_family      = AF_INET;
+    address.sin_port        = htons(POST_NET_PORT);
+    address.sin_addr.s_addr = inet_addr(NET_POLICY_ADDR);
     //bind socket address
-    ret = bind(fd, (struct sockaddr *)&svrAddr, sizeof(svrAddr));
-    if(ret < 0) GOTO_ERROR(err, "bind server unix socket failed, %s!", strerror(errno));
+    ret = bind(fd, (struct sockaddr *)&address, sizeof(address));
+    if(ret != 0) GOTO_ERROR(err, "bind server tcp server socket failed, err : %s", strerror(errno));
     //listen sockfd
     ret = listen(fd, 1);
-    if(ret < 0) GOTO_ERROR(err, "listen the client connect request! err : %s.", strerror(errno));
+    if(ret != 0) GOTO_ERROR(err, "listen the client connect request! err : %s", strerror(errno));
     //
     pstPostEv->fd = fd;
     pstPostEv->epollinfunc = ProcAcceptPostLinkEvent;
@@ -2387,10 +1959,10 @@ int main(int argc, char *argv[])
     });
 
     char *pcLogLevel = NULL;
-    struct sockaddr_un svrAddr;
     struct epoll_event ev, events[20];
     int zListenFd = 0, epfd = 0, zLinkFd;
-    int ret, nfds, i;
+    int ret, nfds, i, opt = 1;
+    struct sockaddr_in address;
     RCV_EPOLL_CB unixEvent, postEvent, *pstCbEv;
     //print start log
     LOG_I("policy process start......");
@@ -2406,29 +1978,32 @@ int main(int argc, char *argv[])
     GetIptablesVersion();
     /*print debug log*/
     LOG_I("choose iptables version : %d", zIptVer);
-    /*init cidr*/
-    MaskCidr.insert(32);
     //epoll fd
-    epfd = epoll_create(256);
+    epfd = epoll_create(32000);
     if(epfd <= 0) GOTO_ERROR(err, "create epoll fd failed, %s.", strerror(errno));
     //create post socket server
     ret = CreatePostServer(epfd, &postEvent);
     if(ret != 0) GOTO_ERROR(err, "create post server failed.");
     //create socket
-    zListenFd = socket(PF_UNIX, SOCK_STREAM, 0);
+    zListenFd = socket(AF_INET, SOCK_STREAM, 0);
     if(zListenFd <= 0) GOTO_ERROR(err, "create unix socket failed! %s.", strerror(errno));
     //noblock
     fcntl(zListenFd, F_SETFL, fcntl(zListenFd, F_GETFL) | O_NONBLOCK);
     //socket address
-    svrAddr.sun_family = AF_UNIX;
-    strcpy(svrAddr.sun_path, NET_POLICY_UNIX);
-    unlink(NET_POLICY_UNIX);
+    ret = setsockopt(zListenFd, SOL_SOCKET, SO_REUSEADDR | SO_REUSEPORT, &opt, sizeof(opt));
+    if(ret != 0) GOTO_ERROR(err, "set socket opt failed, %s", strerror(errno));
+    // 设置服务器地址和端口
+    address.sin_family      = AF_INET;
+    address.sin_port        = htons(NET_POLICY_PORT);
+    address.sin_addr.s_addr = inet_addr(NET_POLICY_ADDR);
     //bind socket address
-    ret = bind(zListenFd, (struct sockaddr *)&svrAddr, sizeof(svrAddr));
+    ret = bind(zListenFd, (struct sockaddr *)&address, sizeof(address));
     if(ret < 0) GOTO_ERROR(err, "bind server unix socket failed, %s!", strerror(errno));
     //listen sockfd
-    ret = listen(zListenFd, 1);
+    ret = listen(zListenFd, 10);
     if(ret < 0) GOTO_ERROR(err, "listen the client connect request! err : %s.", strerror(errno));
+    //
+    MicroRule.efd = epfd;
     //
     unixEvent.fd = zListenFd;
     unixEvent.epollinfunc = ProcAcceptEvent;

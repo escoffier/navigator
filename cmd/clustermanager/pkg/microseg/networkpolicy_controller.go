@@ -73,6 +73,8 @@ type NetworkPolicyController struct {
 	NodesIpAddr         map[string]struct{}
 	mqWriter            mq.Writer
 	mqTopic             string
+	firstSync           bool
+	ruleGroupMap        map[string]sets.String
 }
 
 func podLabelIndexFunc(obj interface{}) ([]string, error) {
@@ -919,6 +921,8 @@ func NewNetworkPolicyController(clientset *versioned.Clientset, factory informer
 		NodesIpAddr:          make(map[string]struct{}, 100),
 		mqWriter:             writer,
 		mqTopic:              topic,
+		firstSync:            true,
+		ruleGroupMap:         make(map[string]sets.String),
 	}
 
 	policyInfomer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
@@ -1077,31 +1081,49 @@ func (npc *NetworkPolicyController) nodeWorker() {
 }
 
 func (npc *NetworkPolicyController) syncPolicyRules(policy string, rules map[string]*crdv1alpha1.NetworkPolicyRuleGroup) error {
-	err := npc.clietset.MicrosegmentationV1alpha1().NetworkPolicyRuleGroups().DeleteCollection(context.Background(), v1.DeleteOptions{}, v1.ListOptions{
-		LabelSelector: fmt.Sprintf("kubernetes.io/networkpolicy-name=%s", policy),
-	})
-	if err != nil {
-		log.Err(err).Msgf("delete rules of policy %s", policy)
+	// err := npc.clietset.MicrosegmentationV1alpha1().NetworkPolicyRuleGroups().DeleteCollection(context.Background(), v1.DeleteOptions{}, v1.ListOptions{
+	// 	LabelSelector: fmt.Sprintf("kubernetes.io/networkpolicy-name=%s", policy),
+	// })
+	// if err != nil {
+	// 	log.Err(err).Msgf("delete rules of policy %s", policy)
+	// }
+
+	ruleGroupNames := sets.NewString()
+	for name := range rules {
+		ruleGroupNames.Insert(policy + name)
 	}
+
+	deletingRuleGroups := npc.ruleGroupMap[policy].Difference(ruleGroupNames)
+	for name := range deletingRuleGroups {
+		err := npc.clietset.MicrosegmentationV1alpha1().NetworkPolicyRuleGroups().Delete(context.Background(), name, v1.DeleteOptions{})
+		if err != nil {
+			logging.Get().Error().Err(err).Msgf("delete rule group %s", name)
+		}
+	}
+
 	for _, r := range rules {
 		curRule, err := npc.ruleGroupLister.Get(r.Name)
 		if err != nil {
 			if errors.IsNotFound(err) {
 				_, err = npc.clietset.MicrosegmentationV1alpha1().NetworkPolicyRuleGroups().Create(context.TODO(), r, v1.CreateOptions{})
+				npc.updatePolicyRuleStatus(err, r.Spec.Rules)
 				if err != nil {
 					return err
 				}
 				continue
 			}
+			npc.updatePolicyRuleStatus(err, r.Spec.Rules)
 			return err
 		}
 		newRule := curRule.DeepCopy()
 		newRule.Spec = r.Spec
 		_, err = npc.clietset.MicrosegmentationV1alpha1().NetworkPolicyRuleGroups().Update(context.TODO(), newRule, v1.UpdateOptions{})
+		// npc.updatePolicyRuleStatus(err, r.Spec.Rules)
 		if err != nil {
-			return err
+			logging.Get().Error().Err(err).Msgf("update rule group %s", r.Name)
 		}
 	}
+	npc.ruleGroupMap[policy] = ruleGroupNames
 	return nil
 }
 
@@ -1126,7 +1148,9 @@ func (npc *NetworkPolicyController) generateRules(policy *crdv1alpha1.ClusterNet
 	// var ruleGroupMap map[string]*crdv1alpha1.NetworkPolicyRuleGroup
 	ruleGroupMap := make(map[string]*crdv1alpha1.NetworkPolicyRuleGroup, 0)
 	for _, r := range policy.Spec.Rules {
-		// var adddress []crdv1alpha1.Address
+		if !r.Enable {
+			continue
+		}
 		var fromAddressMap map[string][]crdv1alpha1.Address = make(map[string][]crdv1alpha1.Address, 0)
 		var toAddressesMap map[string][]crdv1alpha1.Address = make(map[string][]crdv1alpha1.Address, 0)
 		var fromIPBlock []crdv1alpha1.IPBlock
@@ -1201,6 +1225,7 @@ func (npc *NetworkPolicyController) generateRules(policy *crdv1alpha1.ClusterNet
 		for node, addr := range fromAddressMap {
 			log.Info().Msg(node)
 			nodeRules := crdv1alpha1.NodeRule{
+				Name:      r.Name,
 				Action:    string(*r.Action),
 				Protocol:  r.Protocol,
 				Ports:     r.Ports,
@@ -1216,6 +1241,7 @@ func (npc *NetworkPolicyController) generateRules(policy *crdv1alpha1.ClusterNet
 			serviceRules := []crdv1alpha1.NodeRule{}
 			for _, endpoint := range endpoints {
 				nodeRule := crdv1alpha1.NodeRule{
+					Name:      r.Name,
 					Action:    string(*r.Action),
 					Protocol:  r.Protocol,
 					Ports:     endpoint.Ports,
@@ -1260,19 +1286,20 @@ func (npc *NetworkPolicyController) generateRules(policy *crdv1alpha1.ClusterNet
 
 		for node, addr := range toAddressesMap {
 			nodeRules := crdv1alpha1.NodeRule{
+				Name:      r.Name,
 				Action:    string(*r.Action),
 				Protocol:  r.Protocol,
 				Ports:     r.Ports,
 				Priority:  policy.Spec.Priority,
 				Direction: "ingress",
 			}
-			for node1, fromAddr := range fromAddressMap {
-				if reflect.DeepEqual(fromAddr, addr) {
-					continue
-				}
-				if node1 == node {
-					continue
-				}
+			for _, fromAddr := range fromAddressMap {
+				// if reflect.DeepEqual(fromAddr, addr) {
+				// 	continue
+				// }
+				// if node1 == node {
+				// 	continue
+				// }
 				nodeRules.FromAddress = append(nodeRules.FromAddress, fromAddr...)
 			}
 			nodeRules.FromIPBlock = append(nodeRules.FromIPBlock, fromIPBlock...)
@@ -1324,6 +1351,9 @@ func (npc *NetworkPolicyController) syncPolicy(key string) error {
 		return err
 	}
 	if namespace == "" {
+		if _, ok := npc.ruleGroupMap[name]; !ok {
+			npc.ruleGroupMap[name] = sets.NewString()
+		}
 		cnp, err := npc.policyLister.Get(name)
 		if err != nil {
 			if !errors.IsNotFound(err) {
@@ -1345,21 +1375,32 @@ func (npc *NetworkPolicyController) syncPolicy(key string) error {
 			return npc.deleteRuleGroup(cnp.Name)
 		}
 		log.Info().Msgf("sync policy %s", cnp.Name)
-		rules, err := npc.generateRules(cnp)
+		ruleGroups, err := npc.generateRules(cnp)
 		if err != nil {
 			log.Err(err).Msgf("generate rules for policy %s", cnp.Name)
 			return err
 		}
-		if len(rules) == 0 {
-			npc.updatePolicyStatus(nil, cnp.Name)
+		if npc.firstSync {
+			for name := range ruleGroups {
+				if _, ok := npc.ruleGroupMap[name]; !ok {
+					npc.ruleGroupMap[name] = sets.NewString()
+				}
+				npc.ruleGroupMap[name].Insert(name)
+			}
+			npc.firstSync = false
 		}
-		data, _ := json.Marshal(rules)
+
+		if len(ruleGroups) == 0 {
+			// npc.updatePolicyStatus(nil, cnp.Name)
+		}
+		data, _ := json.Marshal(ruleGroups)
 		log.Info().Msgf("generated policy group: %v", string(data))
-		err = npc.syncPolicyRules(cnp.Name, rules)
+		err = npc.syncPolicyRules(cnp.Name, ruleGroups)
 		if err != nil {
 			logging.Get().Err(err).Msgf("failed to sync node rules")
 			return err
 		}
+		// npc.updatePolicyStatus(nil, cnp.Name)
 	}
 
 	return nil
@@ -1377,11 +1418,18 @@ func (npc *NetworkPolicyController) processNextItem() bool {
 	return true
 }
 
+func (npc *NetworkPolicyController) updatePolicyRuleStatus(err error, rules []crdv1alpha1.NodeRule) {
+	for _, r := range rules {
+		logging.Get().Info().Msgf("update rule %s status %v", r.Name, err)
+		npc.updatePolicyStatus(err, r.Name)
+	}
+}
+
 func (npc *NetworkPolicyController) updatePolicyStatus(err error, policy string) {
 	var intStatus int
 	var detail string
 	if err != nil {
-		intStatus = 3
+		intStatus = int(model.PrepareFailed)
 		detail = err.Error()
 	}
 	status := &model.PolicyStatus{
@@ -1759,6 +1807,9 @@ func getServicePort(pod *corev1.Pod, svc *corev1.Service, policyPorts []crdv1alp
 	ports := []crdv1alpha1.NetworkPolicyPort{}
 
 	isPortIn := func(targetPort int, policyPort *crdv1alpha1.NetworkPolicyPort) bool {
+		if int(policyPort.Port.IntVal) == 0 {
+			return true
+		}
 		if policyPort.EndPort != nil {
 			if targetPort >= int(policyPort.Port.IntVal) && targetPort <= int(*policyPort.EndPort) {
 				return true

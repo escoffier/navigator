@@ -508,7 +508,7 @@ func (ec *EngineStreamHandler) StartToHandle(ctx context.Context) error {
 
 func (ec *EngineStreamHandler) handle(ctx context.Context, e eventItem) error {
 	if isEventItemWhitelisted(e.data, ec.containerInfo) {
-		logging.Get().Info().Msgf("Filter out container creation post events. data: %v.", e.data)
+		logging.Get().Debug().Msgf("Filter out container creation post events. data: %v.", e.data)
 		return nil
 	}
 

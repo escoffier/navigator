@@ -22,8 +22,10 @@ ENV LC_ALL=zh_CN.UTF-8
 # ENV HEAP_PROFILE_TIME_INTERVAL=1000
 
 COPY heavy_agent/net-rule /
-COPY run_agent.sh /
+# COPY ./configs/heavy-agent/libasan.so.8 /lib/x86_64-linux-gnu/
+COPY ./configs/heavy-agent/run_agent.sh /
 RUN chmod +x /run_agent.sh
+# RUN echo '/tmp/core.%e.%p' | tee /proc/sys/kernel/core_pattern
 
-ENTRYPOINT [ "./net-rule" ] 
-# ENTRYPOINT [ "./run_agent.sh" ] 
+# ENTRYPOINT [ "./net-rule" ] 
+ENTRYPOINT [ "./run_agent.sh" ] 

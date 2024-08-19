@@ -136,7 +136,7 @@ func (n *Controller) syncPod(key string) error {
 		logging.Get().Info().Msgf("sync pod : %s", fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
 		err = n.policyCli.AddContainer(pid, podID2(pod))
 		if err != nil {
-			logging.Get().Err(err).Msgf("sync pod %s/%s", ns, name)
+			logging.Get().Error().Str("module", "heavy-agent").Msgf("sync pod (pid : %+v, %s/%s) failed, err : %+v", pid, ns, name, err)
 			return err
 		}
 	}
@@ -186,10 +186,11 @@ func (n *Controller) ResynAllPods() error {
 			logging.Get().Err(err).Msg("resync pods, get container")
 			return err
 		}
+
 		for _, pid := range pids {
-			err := n.policyCli.AddContainer(pid, podID2(pod))
+			err = n.policyCli.AddContainer(pid, podID2(pod))
 			if err != nil {
-				logging.Get().Warn().Str("module", "heavy-agent").Msgf("container (pid: %d) to agent err: %v", pid, err)
+				logging.Get().Warn().Str("module", "heavy-agent").Msgf("container (pid: %d, %+v/%+v) to agent, err: %v", pid, pod.Namespace, pod.Name, err)
 				return err
 			}
 		}

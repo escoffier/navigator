@@ -5,9 +5,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/avast/retry-go"
 	"net/http"
 
-	"github.com/avast/retry-go"
 	heavyagent "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/heavy-agent"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -21,7 +21,7 @@ type MicrosegHandler struct {
 
 // handle implements heavyagent.Handler.
 func (mh *MicrosegHandler) Handle(ctx context.Context, obj interface{}) error {
-	log.Info().Msg("process microseg event")
+	//log.Info().Msg("process microseg event")
 	event, err := json.Marshal(obj)
 	if err != nil {
 		return err

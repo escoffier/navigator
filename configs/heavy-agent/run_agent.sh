@@ -8,4 +8,5 @@
 # env LD_PRELOAD=/lib/x86_64-linux-gnu/libtcmalloc.so.4
 # HEAPPROFILE=agent.prof ./net-rule
 # env LD_PRELOAD=/lib/x86_64-linux-gnu/libtcmalloc.so.4 HEAPPROFILE=agent HEAP_PROFILE_TIME_INTERVAL=60 ./net-rule
+echo '/host/tmp/core.%e.%p' | tee /proc/sys/kernel/core_pattern
 ./net-rule

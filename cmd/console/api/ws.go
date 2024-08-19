@@ -45,11 +45,14 @@ func (api *api) wsHandler() http.HandlerFunc {
 		}
 		c, err := upGrader.Upgrade(w, r, nil)
 		if err != nil {
+			logging.Get().Error().Err(err).Msg("ws Upgrade err")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
+		logging.Get().Debug().Msg("ws Upgrade: " + time.Now().Format(time.RFC3339))
 
 		username := request.GetUsernameFromContext(ctx)
+		logging.Get().Debug().Msg("ws username: " + username + time.Now().Format(time.RFC3339))
 
 		// 心跳控制
 		heartbeatLastTime := time.Now().UnixMilli()
@@ -99,13 +102,14 @@ func (api *api) wsHandler() http.HandlerFunc {
 					}
 				// 发送数据给client
 				case data, ok := <-cdata.ch:
+					logging.Get().Debug().Interface("data", data).Msg("ws send data")
 					if !ok {
 						logging.Get().Info().Msg("ws client ch closed")
 						return
 					}
 					bd, err := json.Marshal(data)
 					if err != nil {
-						logging.Get().Error().Err(err).Interface("data", data).Msg("marshal fails")
+						logging.Get().Error().Err(err).Interface("data", data).Msg("ws marshal fails")
 						continue
 					}
 					err = c.WriteMessage(websocket.TextMessage, bd)
@@ -119,11 +123,13 @@ func (api *api) wsHandler() http.HandlerFunc {
 
 		for {
 			// 其他协程关闭conn，会导致这里产生err，并退出for循环
+			logging.Get().Debug().Msg("ws read data waiting")
 			mt, message, err := c.ReadMessage()
 			if err != nil {
 				logging.Get().Info().Err(err).Msg("ws read fails")
 				break
 			}
+			logging.Get().Debug().Int("type", mt).Str("msg", string(message)).Msg("ws read data")
 
 			wsm := model.WSMessage{}
 			err = json.Unmarshal(message, &wsm)
@@ -144,6 +150,7 @@ func (api *api) wsHandler() http.HandlerFunc {
 				logging.Get().Error().Err(err).Str("msg", string(message)).Msg("ws dispatch fails")
 				break
 			}
+			logging.Get().Debug().Int("type", mt).Interface("msg", wsm).Msg("ws dispatch")
 		}
 
 		logging.Get().Debug().Err(err).Msg("ws quit")
