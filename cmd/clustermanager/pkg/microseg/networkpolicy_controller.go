@@ -1178,11 +1178,11 @@ func (npc *NetworkPolicyController) generateRules(policy *crdv1alpha1.ClusterNet
 				emptyWorkload = true
 			}
 			for node, addr := range addressMap {
-				fromAddressMap[node] = addr
+				fromAddressMap[node] = append(fromAddressMap[node], addr...)
 			}
 		}
 
-		log.Info().Msgf("fromAddressMap %v", fromAddressMap)
+		log.Info().Msgf("fromAddressMap %+v", fromAddressMap)
 		var toIPBlock []crdv1alpha1.IPBlock
 		var endpoints []endPoint
 		for _, peer := range r.To {
@@ -1200,7 +1200,7 @@ func (npc *NetworkPolicyController) generateRules(policy *crdv1alpha1.ClusterNet
 				emptyWorkload = true
 			}
 			for node, addr := range addressesMap {
-				toAddressesMap[node] = addr
+				toAddressesMap[node] = append(toAddressesMap[node], addr...)
 			}
 			if peer.IPBlock != nil {
 				toIPBlock = append(toIPBlock, *peer.IPBlock)
