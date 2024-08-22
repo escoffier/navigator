@@ -88,8 +88,8 @@ const char *GetProtoString(int proto)
 
 int ParseIpString(std::string input, std::vector<std::string> &ret)
 {
-    struct in_addr addr;
-    uint32_t uzIpaddr, uzMask, uzBroadcast;
+    //struct in_addr addr;
+    //uint32_t uzIpaddr, uzMask, uzBroadcast;
     std::stringstream ss(input);
     std::string segment, value;
     /*parse string*/
@@ -117,6 +117,7 @@ int ParseIpString(std::string input, std::vector<std::string> &ret)
             }
 			continue;
         }
+        /*
         pos = segment.find('/');
 		if (pos != std::string::npos) {
 
@@ -125,9 +126,9 @@ int ParseIpString(std::string input, std::vector<std::string> &ret)
 			int subnetMask = std::stoi(segment.substr(pos + 1));
 			uzIpaddr = ntohl(inet_addr(baseIP.c_str()));
 			uzMask   = ~0 << (32 - subnetMask);
-			/*count network address*/
+			//count network address
 			uzIpaddr &= uzMask;
-			/*count network broadcast*/
+			//count network broadcast
 			uzBroadcast = uzIpaddr | (~uzMask);
 			// Generate all IP addresses in the subnet
 			for (uint32_t i = uzIpaddr; i <= uzBroadcast; ++i)
@@ -137,7 +138,7 @@ int ParseIpString(std::string input, std::vector<std::string> &ret)
 				ret.push_back(value);
 			}
 			continue;
-		}	
+		}*/
 		// If not a range or CIDR, directly push the single IP address
 		ret.push_back(segment);
     }
@@ -1707,7 +1708,7 @@ int ParseRcvData(int32_t zRcvEvFd, int32_t fd, void *ptr)
             goto rsp;
 
         case CONF_DUMP:
-            respBody = MicroRule.GetAllConfig();
+            respBody = MicroRule.GetAllConfig(ctrl.policyKey);
             goto rsp;
 
         case CONN_DUMP:

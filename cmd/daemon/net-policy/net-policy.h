@@ -386,7 +386,7 @@ public:
     /*获取策略map*/
     PolicyTree *GetPolicyTree(FLOW_DIR dir);
     /*获取所有规则配置*/
-    cJSON *GetAllConfig();
+    cJSON *GetAllConfig(std::string name);
     /*打印日志*/
     void PrintPolicyLog();
 };

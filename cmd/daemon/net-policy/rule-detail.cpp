@@ -594,7 +594,7 @@ int PolicyRule::DeletePolicy(FLOW_DIR dir, std::string name)
 }
 
 /*获取所有规则配置*/
-cJSON *PolicyRule::GetAllConfig()
+cJSON *PolicyRule::GetAllConfig(std::string name)
 {
     NFQ_RES_INFO *res;
     cJSON *containers = nullptr, *tcp = nullptr, *r, *item;
@@ -615,6 +615,8 @@ cJSON *PolicyRule::GetAllConfig()
 
         for(auto rd = rule->Rules.begin(); rd != rule->Rules.end(); rd++)
         {
+            if(!name.empty() && name != rd->second->policyKey) continue;
+
             r = cJSON_CreateObject();
             if(!r) GOTO_ERROR(err, "create json object failed.");
 
@@ -638,6 +640,8 @@ cJSON *PolicyRule::GetAllConfig()
 
         for(auto rd = rule->Rules.begin(); rd != rule->Rules.end(); rd++)
         {
+            if(!name.empty() && name != rd->second->policyKey) continue;
+            
             r = cJSON_CreateObject();
             if(!r) GOTO_ERROR(err, "create json object failed.");
 

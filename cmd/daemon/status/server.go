@@ -33,6 +33,7 @@ type HeapDumpReq struct {
 type ConfigDumpReq struct {
 	UUID        string `json:"uuid"`
 	MessageType int    `json:"msg_type"`
+	PolicyName  string `json:"policy_name"`
 }
 
 type LogLevelConfig struct {
@@ -84,8 +85,10 @@ func (s *Server) Run() {
 }
 
 func (s *Server) handleDumpAgentConfig(w http.ResponseWriter, r *http.Request) {
+	name, _ := param.QueryString(r, "name")
+
 	w.Header().Set("Content-Type", "application/json")
-	resp, err := s.dumpAgentConfig()
+	resp, err := s.dumpAgentConfig(name)
 	if err != nil {
 		log.Err(err).Msg("dump config")
 		w.WriteHeader(500)
@@ -131,9 +134,10 @@ func (s *Server) handleDumpAgentHeap(w http.ResponseWriter, r *http.Request) {
 	w.Write(data)
 }
 
-func (s *Server) dumpAgentConfig() ([]byte, error) {
+func (s *Server) dumpAgentConfig(name string) ([]byte, error) {
 	req := ConfigDumpReq{
 		UUID:        uuid.NewString(),
+		PolicyName:  name,
 		MessageType: 10,
 	}
 	data, err := json.Marshal(&req)
