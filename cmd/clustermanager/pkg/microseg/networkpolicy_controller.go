@@ -73,7 +73,7 @@ type NetworkPolicyController struct {
 	NodesIpAddr         map[string]struct{}
 	mqWriter            mq.Writer
 	mqTopic             string
-	firstSync           bool
+	firstSynced         map[string]bool
 	ruleGroupMap        map[string]sets.String
 }
 
@@ -921,7 +921,7 @@ func NewNetworkPolicyController(clientset *versioned.Clientset, factory informer
 		NodesIpAddr:          make(map[string]struct{}, 100),
 		mqWriter:             writer,
 		mqTopic:              topic,
-		firstSync:            true,
+		firstSynced:          make(map[string]bool),
 		ruleGroupMap:         make(map[string]sets.String),
 	}
 
@@ -1088,12 +1088,31 @@ func (npc *NetworkPolicyController) syncPolicyRules(policy string, rules map[str
 	// 	log.Err(err).Msgf("delete rules of policy %s", policy)
 	// }
 
-	ruleGroupNames := sets.NewString()
-	for name := range rules {
-		ruleGroupNames.Insert(policy + name)
+	// ruleGroupNames := sets.NewString()
+	// for name := range rules {
+	// 	ruleGroupNames.Insert(policy + name)
+	// }
+
+	ruleGroupList, err := npc.ruleGroupLister.List(labels.SelectorFromValidatedSet(map[string]string{"kubernetes.io/networkpolicy-name": policy}))
+	if err != nil {
+		return err
+	}
+	curRuleGroupNames := sets.NewString()
+	for _, ruleGroup := range ruleGroupList {
+		curRuleGroupNames.Insert(ruleGroup.Name)
 	}
 
-	deletingRuleGroups := npc.ruleGroupMap[policy].Difference(ruleGroupNames)
+	logging.Get().Info().Msgf("curRuleGroupNames: %v", curRuleGroupNames.List())
+
+	desiredRuleGroupNames := sets.NewString()
+	for _, r := range rules {
+		desiredRuleGroupNames.Insert(r.Name)
+	}
+
+	logging.Get().Info().Msgf("desiredRuleGroupNames: %v", desiredRuleGroupNames.List())
+
+	deletingRuleGroups := curRuleGroupNames.Difference(desiredRuleGroupNames)
+	logging.Get().Info().Msgf("deletingRuleGroups %v", deletingRuleGroups.List())
 	for name := range deletingRuleGroups {
 		err := npc.clietset.MicrosegmentationV1alpha1().NetworkPolicyRuleGroups().Delete(context.Background(), name, v1.DeleteOptions{})
 		if err != nil {
@@ -1123,7 +1142,7 @@ func (npc *NetworkPolicyController) syncPolicyRules(policy string, rules map[str
 			logging.Get().Error().Err(err).Msgf("update rule group %s", r.Name)
 		}
 	}
-	npc.ruleGroupMap[policy] = ruleGroupNames
+	// npc.ruleGroupMap[policy] = ruleGroupNames
 	return nil
 }
 
@@ -1155,6 +1174,9 @@ func (npc *NetworkPolicyController) generateRules(policy *crdv1alpha1.ClusterNet
 		var toAddressesMap map[string][]crdv1alpha1.Address = make(map[string][]crdv1alpha1.Address, 0)
 		var fromIPBlock []crdv1alpha1.IPBlock
 		var emptyWorkload bool
+		if len(r.From) == 0 || len(r.To) == 0 {
+			continue
+		}
 		for _, peer := range r.From {
 			if peer.IPBlock != nil {
 				fromIPBlock = append(fromIPBlock, *peer.IPBlock)
@@ -1380,14 +1402,14 @@ func (npc *NetworkPolicyController) syncPolicy(key string) error {
 			log.Err(err).Msgf("generate rules for policy %s", cnp.Name)
 			return err
 		}
-		if npc.firstSync {
+		if !npc.firstSynced[cnp.Name] {
 			for name := range ruleGroups {
 				if _, ok := npc.ruleGroupMap[name]; !ok {
 					npc.ruleGroupMap[name] = sets.NewString()
 				}
 				npc.ruleGroupMap[name].Insert(name)
 			}
-			npc.firstSync = false
+			npc.firstSynced[cnp.Name] = true
 		}
 
 		if len(ruleGroups) == 0 {
