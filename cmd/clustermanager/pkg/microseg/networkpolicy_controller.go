@@ -1862,12 +1862,18 @@ func getServicePort(pod *corev1.Pod, svc *corev1.Service, policyPorts []crdv1alp
 			})
 		}
 		for _, pp := range policyPorts {
-			protocol := corev1.ProtocolTCP
-			if pp.Protocol != nil {
-				// protocol = *pp.Protocol
+			var protocolMatch bool
+			if pp.Protocol == nil {
+				protocolMatch = true
+			} else {
+				if *pp.Protocol == "ANY" {
+					protocolMatch = true
+				} else if string(svcProtocol) == string(*pp.Protocol) {
+					protocolMatch = true
+				}
 			}
 			// if policy port unset, match all ports.
-			if (isPortIn(targetPort, &pp)) && svcProtocol == protocol {
+			if (isPortIn(targetPort, &pp)) && protocolMatch {
 				port := intstr.FromInt(int(svcPort.Port))
 				ports = append(ports, crdv1alpha1.NetworkPolicyPort{
 					// Protocol: &protocol,
