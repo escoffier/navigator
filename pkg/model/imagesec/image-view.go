@@ -1471,6 +1471,7 @@ func (iws *ImageWithCorrelateData2) ToImageBaseResponse() ImageBaseResponse {
 		PullCount:     image.PullCount,
 		InWhite:       iws.DeployInWhite,
 		BuildAt:       image.BuildAt,
+		NodeIps:       make([]string, 0),
 		White:         util.ExistBit1(image.Flag, FlagImageDeployWhite),
 		CreatedAt:     image.CreatedAt,
 	}
@@ -1519,6 +1520,7 @@ func (iws *ImageWithCorrelateData2) ToImageBaseResponse() ImageBaseResponse {
 	// 把容器名加上
 	for i := range iws.Container {
 		baseResponse.ContainerName = append(baseResponse.ContainerName, iws.Container[i].TensorRawContainer.Name)
+		baseResponse.NodeIps = append(baseResponse.NodeIps, iws.Container[i].TensorRawContainer.NodeIP)
 	}
 
 	if strings.HasPrefix(baseResponse.FullRepoName, "/") {
@@ -1689,6 +1691,7 @@ type ImageBaseResponse struct {
 	ContainerName     []string             `json:"containerName"` // 容器列表
 	White             bool                 `json:"white"`         // 部署上线是否是白名单通过
 	InWhite           bool                 `json:"inWhite"`       // 部署上线是否已在白名单中
+	NodeIps           []string             `json:"nodeIps"`
 	CreatedAt         int64                `json:"createdAt"`
 }
 

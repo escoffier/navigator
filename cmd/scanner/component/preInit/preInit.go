@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"gitlab.com/security-rd/go-pkg/databases"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd/global"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	imagesecStore "gitlab.com/piccolo_su/vegeta/cmd/scanner/store/imagesec"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
@@ -63,6 +65,7 @@ func (s *InitScanner) Init(ctx context.Context) error {
 	// scanner 启动时清理镜像扫描过程中的临时文件
 	_ = s.removeImagescanDir(ctx)
 	_ = s.createSensitiveDBVersion(ctx)
+	_ = s.createCIVulnDB(ctx)
 	return nil
 }
 
@@ -404,6 +407,35 @@ func (s *InitScanner) createDetectPolicySnapshot(ctx context.Context) error {
 				continue
 			}
 		}
+	}
+	return nil
+}
+
+type CiVulnDbPath struct {
+	Src    string
+	CiName string
+}
+
+func (s *InitScanner) createCIVulnDB(ctx context.Context) error {
+	dir := filepath.Join(global.ScannerOpts.PvcPath, "/tidb/assets")
+	prePath := filepath.Join(global.ScannerOpts.PvcPath, "/vuln/db")
+	stat, err := os.Stat(dir)
+	if err != nil || !stat.IsDir() {
+		_ = os.MkdirAll(dir, os.ModePerm)
+	}
+	files := make([]CiVulnDbPath, 0)
+	files = append(files, CiVulnDbPath{Src: "trivy.db", CiName: "init_trivy.db"})
+	files = append(files, CiVulnDbPath{Src: "version", CiName: "trivy_init_version"})
+
+	for _, fi := range files {
+		// 先删除当前使用的db
+		_ = os.Remove(filepath.Join(dir, fi.CiName))
+		// 再复制需要的文件
+		if err := scannerUtils.CopyFile(filepath.Join(prePath, fi.Src), filepath.Join(dir, fi.CiName)); err != nil {
+			s.Log.Err(err).Str("boltdb", fi.CiName).Msg("copy vuln db")
+			return fmt.Errorf("copy vuln db :%s", fi)
+		}
+		s.Log.Info().Str("boltdb", fi.CiName).Msg("copyCIBoltDB")
 	}
 	return nil
 }
