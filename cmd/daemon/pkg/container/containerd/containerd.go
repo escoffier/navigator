@@ -438,14 +438,16 @@ func (c *containerdDriver) SaveImage(namespace, imageID, fullPath string) (strin
 	tmpFilePath := filepath.Join("/tmp/", md5Str)
 	logging.Get().Debug().Str("tmpFilePath", tmpFilePath).Str("imageID", imageID).Msg("save image")
 	file, err := os.OpenFile(tmpFilePath, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0644)
-
 	if err != nil {
-		return "", fmt.Errorf("open file failed ,path:%s ,err:%v", tmpFilePath, err)
+		return "", fmt.Errorf("create file failed ,path:%s ,err:%v", tmpFilePath, err)
 	}
 	err = c.containerdCli.Export(nsCtx, file, archive.WithImage(c.containerdCli.ImageService(), imageID), archive.WithPlatform(platforms.DefaultStrict()))
 	if err != nil {
 		logging.Get().Err(err).Msg("failed to export image")
 		return "", fmt.Errorf("export containerd image failed,err:%v", err)
+	}
+	if err = file.Sync(); err != nil { // ref: https://www.reddit.com/r/golang/comments/6gsjlf/dont_defer_close_on_writable_files/
+		logging.Get().Err(err).Msg("failed to sync tmpFile,path:" + tmpFilePath)
 	}
 	if err = file.Close(); err != nil {
 		logging.Get().Err(err).Msg("failed to close tmpFile,path:" + tmpFilePath)
