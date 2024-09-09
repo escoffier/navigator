@@ -115,6 +115,8 @@ func RequestLogger(store Store, queue *util.Queue) func(next http.Handler) http.
 						data["status"] = status
 						detail, _ = generateDetail(detail, objName)
 						detailEN, _ = generateDetail(detailEN, objName)
+						data["detail"] = detail
+
 						if status == "false" {
 							data["err"] = getObjectErrInfo(respBody)
 						}
@@ -131,8 +133,15 @@ func RequestLogger(store Store, queue *util.Queue) func(next http.Handler) http.
 
 							}
 						}
+						description := getDescription(respBody)
+						if description != "" {
+							data["detail"] = description
+						}
 
-						data["detail"] = detail
+						descriptionEn := getDescriptionEN(respBody)
+						if descriptionEn != "" {
+							detailEN = descriptionEn
+						}
 					}
 				} else {
 					target := ww.Header().Get("targetref")
@@ -420,6 +429,24 @@ func getObjectName(body []byte) string {
 	return resp.Target.Name
 }
 
+func getDescription(body []byte) string {
+	resp := &targetResponse{}
+	err := json.Unmarshal(body, resp)
+	if err != nil {
+		return ""
+	}
+	return resp.Target.Description
+}
+
+func getDescriptionEN(body []byte) string {
+	resp := &targetResponse{}
+	err := json.Unmarshal(body, resp)
+	if err != nil {
+		return ""
+	}
+	return resp.Target.DescriptionEN
+}
+
 func getObjectActive(body []byte) string {
 	resp := &targetResponse{}
 	err := json.Unmarshal(body, resp)
@@ -688,27 +715,15 @@ func init() {
 	})
 
 	// 微隔离
-	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/resourceTag/infras", func(p Params) map[string]map[string]interface{} {
+	routeAction.PUT("/api/v2/microseg/settings", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   editAction,
-				"detail": "编辑资源配置",
+				"detail": "配置基础设施",
 			},
 			"en": {
 				"verb":   editActionEN,
-				"detail": "Edit configuration of resources",
-			},
-		}
-	})
-	routeAction.PUT("/api/v2/microseg/clusters/:clusterKey/resourceTag/gateways", func(p Params) map[string]map[string]interface{} {
-		return map[string]map[string]interface{}{
-			"zh": {
-				"verb":   editAction,
-				"detail": "编辑资源配置",
-			},
-			"en": {
-				"verb":   editActionEN,
-				"detail": "Edit configuration of resources",
+				"detail": "Edit infastructure",
 			},
 		}
 	})
@@ -911,11 +926,11 @@ func init() {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   createAction,
-				"detail": "新增策略{{.}}",
+				"detail": "{{.}}",
 			},
 			"en": {
 				"verb":   createActionEN,
-				"detail": "Create new policy {{.}}",
+				"detail": "{{.}}",
 			},
 		}
 	})
@@ -924,11 +939,11 @@ func init() {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   deleteAction,
-				"detail": "删除策略{{.}}",
+				"detail": "删除微隔离策略{{.}}",
 			},
 			"en": {
 				"verb":   deleteActionEN,
-				"detail": "Delete policy {{.}}",
+				"detail": "Delete microseg policy {{.}}",
 			},
 		}
 	})
@@ -937,11 +952,11 @@ func init() {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   editAction,
-				"detail": "编辑策略{{.}}",
+				"detail": "{{.}}",
 			},
 			"en": {
 				"verb":   editActionEN,
-				"detail": "Edit policy {{.}}",
+				"detail": "{{.}}",
 			},
 		}
 	})
@@ -950,23 +965,23 @@ func init() {
 		return map[string]map[string]interface{}{
 			"zh": {
 				"verb":   createAction,
-				"detail": "新增批量策略{{.}}",
+				"detail": "批量新增微隔离策略{{.}}",
 			},
 			"en": {
 				"verb":   createActionEN,
-				"detail": "Create batch new policy {{.}}",
+				"detail": "Create batch new policies {{.}}",
 			},
 		}
 	})
 	routeAction.PUT("/api/v2/microseg/policies/enable", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {
-				"verb":   eAnddActionEN,
-				"detail": "启用/停用策略{{.}}",
+				"verb":   eAnddAction,
+				"detail": "{{.}}",
 			},
 			"en": {
 				"verb":   createActionEN,
-				"detail": "Enable/Disable policy {{.}}",
+				"detail": "{{.}}",
 			},
 		}
 	})
@@ -1126,6 +1141,18 @@ func init() {
 			"en": {
 				"verb":   editActionEN,
 				"detail": "Edit namespace group {{.}}",
+			},
+		}
+	})
+	routeAction.PUT("/api/v2/microseg/segments/innertrust", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "{{.}}",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "{{.}}",
 			},
 		}
 	})
@@ -2063,6 +2090,18 @@ func init() {
 			},
 		}
 	})
+	routeAction.POST("/api/v2/platform/sherlock/palace/event/notify/config", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑事件声音提醒配置",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit configuration of event sound notify",
+			},
+		}
+	})
 
 	// 集群管理
 	routeAction.PUT("/api/v2/platform/assets/cluster", func(p Params) map[string]map[string]interface{} {
@@ -2687,6 +2726,19 @@ func init() {
 			"en": {
 				"detail": "Edit Immune Defense global config",
 				"verb":   editActionEN,
+			},
+		}
+	})
+
+	routeAction.POST("/api/v2/platform/event/config", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   editAction,
+				"detail": "编辑事件通知配置",
+			},
+			"en": {
+				"verb":   editActionEN,
+				"detail": "Edit configuration of event notify",
 			},
 		}
 	})

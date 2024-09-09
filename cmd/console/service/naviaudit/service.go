@@ -5,10 +5,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"sync"
+
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/pb"
 	"gitlab.com/security-rd/go-pkg/syslog"
-	"sync"
 
 	"github.com/olivere/elastic/v7"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
@@ -122,7 +123,10 @@ func (s *Service) GetAuditLog(ctx context.Context, opt *QueryNaviAuditLogOpt) ([
 				queries = append(queries, elastic.NewTermQuery(k, v))
 				continue
 			}
-			queries = append(queries, elastic.NewWildcardQuery(k, fmt.Sprintf("*%s*", v)))
+			logging.Get().Info().Msgf("query filter: %s-%s", k, v)
+			// queries = append(queries, elastic.NewWildcardQuery(k, fmt.Sprintf("*%s*", v)))
+			queries = append(queries, elastic.NewWildcardQuery(k+".keyword", fmt.Sprintf("*%s*", v)))
+			// queries = append(queries, elastic.NewMatchQuery(k, v))
 		}
 	}
 

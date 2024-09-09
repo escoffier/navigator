@@ -4,12 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/configs"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/iac"
-	"gitlab.com/piccolo_su/vegeta/cmd/console/service/monitor"
-	"gitlab.com/piccolo_su/vegeta/pkg/heartbeat"
-	"gitlab.com/piccolo_su/vegeta/pkg/ws"
-	"gitlab.com/security-rd/go-pkg/translate"
 	"net/http"
 	"os"
 	"runtime/debug"
@@ -17,6 +11,15 @@ import (
 	"sync"
 	"time"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/configs"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/event"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/iac"
+	"gitlab.com/piccolo_su/vegeta/cmd/console/service/monitor"
+	"gitlab.com/piccolo_su/vegeta/pkg/heartbeat"
+	"gitlab.com/piccolo_su/vegeta/pkg/ws"
+	"gitlab.com/security-rd/go-pkg/translate"
+
+	elasticv7 "github.com/olivere/elastic/v7"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/apiscan"
 	assetsSvc "gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/attck"
@@ -133,7 +136,7 @@ func NewConsole(
 	//	logging.Get().Error().Msg(fmt.Sprintf("ERROR: harbor client init error :%s ", err))
 	// }
 
-	es := elastic.NewESClientWithEnv(context.Background())
+	es := elastic.NewESClientWithEnv(context.Background(), elasticv7.SetTraceLog(&logging.Get().Logger))
 
 	if err = immune.Init(rdb); err != nil {
 		logging.Get().Err(err).Msg("Init immune error")
@@ -400,6 +403,11 @@ func NewConsole(
 	err = naviaudit.InitService(es, rdb)
 	if err != nil {
 		logging.Get().Err(err).Msg("ERROR: navi-audit service init error")
+	}
+
+	err = event.InitService(rdb)
+	if err != nil {
+		logging.Get().Err(err).Msg("ERROR: event config service init error")
 	}
 
 	exportContainers := os.Getenv("EXPORT_CONTAINERS")

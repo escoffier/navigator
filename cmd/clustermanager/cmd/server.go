@@ -237,6 +237,9 @@ func NewServer() (*server, error) {
 				return nil, err
 			}
 		}
+		if mqReader == nil {
+			logging.Get().Error().Msg("init mq reader failed")
+		}
 
 		w, err := assets.Watcher(rdb, redisClient, searchClient, scannerURL, mqReader, kafkaTopic, kafkaGroupID)
 		if err != nil {

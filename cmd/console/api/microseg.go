@@ -48,6 +48,7 @@ func (api *api) microseg(r chi.Router) {
 
 	r.HandleFunc("/*", func(w http.ResponseWriter, r *http.Request) {
 		r.Host = remote.Host
+		r.Header.Set("X-User", request.GetAccountFromContext(r.Context()))
 		reverseProxy.ServeHTTP(w, r)
 	})
 }
@@ -63,6 +64,7 @@ func (api *api) batchCreatePolicies(w http.ResponseWriter, r *http.Request) {
 	reverseProxy := httputil.NewSingleHostReverseProxy(remote)
 
 	r.Header.Set("X-Username", request.GetUsernameFromContext(r.Context()))
+	r.Header.Set("X-User", request.GetAccountFromContext(r.Context()))
 
 	if api.checkBatchCreatingTask(r) {
 		reverseProxy.ServeHTTP(w, r)

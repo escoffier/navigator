@@ -61,6 +61,7 @@ type User struct {
 	Status                 int      `gorm:"column:status" json:"status"`
 	MustChangePwd          bool     `gorm:"column:must_change_pwd" json:"mustChangePwd"`      // 该用户是否必须修改密码
 	LastChangePwdAt        int64    `gorm:"column:last_change_pwd_at" json:"lastChangePwdAt"` // 上次修改密码的时间
+	Mobile                 string   `gorm:"column:mobile" json:"mobile"`
 
 	// 添加字段：MFA密钥 和 MFA绑定状态
 	MfaSecret            string `gorm:"column:mfa_secret" json:"-"`

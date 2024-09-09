@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/monitor"
 	"os"
 	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/monitor"
 
 	rsearch "github.com/March-deng/godisearch/redisearch"
 	"github.com/go-redis/redis/v8"
@@ -59,48 +60,47 @@ func Watcher(rdb *databases.RDBInstance,
 		return nil, errors.New("illegal argument")
 	}
 	initOnce.Do(func() {
-		if searchClient == nil {
-			return
-		}
-		wg := sync.WaitGroup{}
-		startSync := time.Now()
-		for _, index := range AssetIndices {
-			wg.Add(1)
-			go func(indexS redisearch.RedisIndexSchema) {
-				defer wg.Done()
-				logging.Get().Info().Msgf("checking %s index from redis", indexS.Name)
-				ctx := context.Background()
-				needSync := false
-				_, err := searchClient.Info(ctx, indexS.Name)
-				if err != nil && err != redisearch.ErrIndexNotFound {
-					initErr = err
-					return
-				}
-
-				if err == redisearch.ErrIndexNotFound {
-					needSync = true
-				}
-
-				err = searchClient.CreateIndex(ctx, &indexS)
-				if err != nil {
-					logging.Get().Info().Msgf("CreateIndex err")
-					initErr = err
-					return
-				}
-				if needSync && redisSynchronizationFunc[indexS.Name] != nil {
-					logging.Get().Info().Msgf("%s need to sync to redis", indexS.Name)
-					if syncErr := redisSynchronizationFunc[indexS.Name](rdb, searchClient, 1000); syncErr != nil {
-						initErr = syncErr
+		if searchClient != nil {
+			wg := sync.WaitGroup{}
+			startSync := time.Now()
+			for _, index := range AssetIndices {
+				wg.Add(1)
+				go func(indexS redisearch.RedisIndexSchema) {
+					defer wg.Done()
+					logging.Get().Info().Msgf("checking %s index from redis", indexS.Name)
+					ctx := context.Background()
+					needSync := false
+					_, err := searchClient.Info(ctx, indexS.Name)
+					if err != nil && err != redisearch.ErrIndexNotFound {
+						initErr = err
 						return
 					}
-				}
-			}(*index)
-		}
-		wg.Wait()
-		logging.Get().Info().Msgf("sync assets to redis costs: %d ms", time.Now().Sub(startSync).Milliseconds())
-		if initErr != nil {
-			logging.Get().Err(initErr).Msgf("sync assets to redis failed.")
-			return
+
+					if err == redisearch.ErrIndexNotFound {
+						needSync = true
+					}
+
+					err = searchClient.CreateIndex(ctx, &indexS)
+					if err != nil {
+						logging.Get().Info().Msgf("CreateIndex err")
+						initErr = err
+						return
+					}
+					if needSync && redisSynchronizationFunc[indexS.Name] != nil {
+						logging.Get().Info().Msgf("%s need to sync to redis", indexS.Name)
+						if syncErr := redisSynchronizationFunc[indexS.Name](rdb, searchClient, 1000); syncErr != nil {
+							initErr = syncErr
+							return
+						}
+					}
+				}(*index)
+			}
+			wg.Wait()
+			logging.Get().Info().Msgf("sync assets to redis costs: %d ms", time.Now().Sub(startSync).Milliseconds())
+			if initErr != nil {
+				logging.Get().Err(initErr).Msgf("sync assets to redis failed.")
+				return
+			}
 		}
 
 		logging.Get().Info().Msgf("Init assets.Watcher: stack = %s", debug.Stack())

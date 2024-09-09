@@ -46,11 +46,13 @@ type HTTPData struct {
 }
 
 type TargetRef struct {
-	Name   string
-	ID     string
-	Link   string
-	Active string
-	Status string
+	Name          string
+	ID            string
+	Link          string
+	Active        string
+	Status        string
+	Description   string
+	DescriptionEN string
 }
 
 type HTTPSubError struct {

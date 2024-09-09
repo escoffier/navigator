@@ -55,6 +55,7 @@ var accessUrlMap = map[string][]string{
 		"/api/v2/containerSec/export/task/download",
 		"/ws/v1/biz",
 		"/api/v2/usercenter/openapi/token",
+		"/api/v2/platform/event/noauth/config",
 	},
 	moduleAudit: {
 		"/api/v2/platform/assets",
@@ -126,6 +127,8 @@ var accessUrlMap = map[string][]string{
 		"/api/v2/platform/configs",
 		"/api/v2/containerSec/scanner/config/scan/sensitive/rule",
 		"/api/v2/platform/monitor", // 组件监控
+		"/api/v2/platform/event/config",
+		"/api/v2/platform/event/eventTypes",
 	},
 }
 
