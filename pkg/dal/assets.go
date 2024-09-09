@@ -302,7 +302,7 @@ func CountNamespaces(ctx context.Context, rdb *gorm.DB, clusterKey, nameQuery st
 	return nsCount, nil
 }
 
-func UpdateNamespace(ctx context.Context, rdb *gorm.DB, clusterKey, name, alias string, managers model.Managers, authority string) error {
+func UpdateNamespace(ctx context.Context, rdb *gorm.DB, namespaces []uint32, alias string, managers model.Managers, authority string) error {
 	pgCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 
@@ -319,8 +319,11 @@ func UpdateNamespace(ctx context.Context, rdb *gorm.DB, clusterKey, name, alias 
 			"managers":  mgs,
 			"authority": authority,
 		}
+
+		// return rdb.WithContext(oneCtx).Model(&model.TensorNamespace{}).
+		// 	Where("cluster_key = ? and name = ?", clusterKey, name).Updates(data).Error
 		return rdb.WithContext(oneCtx).Model(&model.TensorNamespace{}).
-			Where("cluster_key = ? and name = ?", clusterKey, name).Updates(data).Error
+			Where("id in ?", namespaces).Updates(data).Error
 	})
 	return err
 }
@@ -1278,7 +1281,7 @@ func deleteResourceImageByRawContainer(ctx context.Context, redisClient *redisea
 	return err
 }
 
-func UpdateResourceUserData(ctx context.Context, rdb *gorm.DB, resource *model.TensorResource) error {
+func UpdateResourceUserData(ctx context.Context, rdb *gorm.DB, resources []uint32, resource *model.TensorResource) error {
 	oneCtx, oneCancel := context.WithTimeout(ctx, 750*time.Millisecond)
 	defer oneCancel()
 
@@ -1292,7 +1295,7 @@ func UpdateResourceUserData(ctx context.Context, rdb *gorm.DB, resource *model.T
 		"authority": resource.Authority,
 	}
 	return rdb.WithContext(oneCtx).Model(&model.TensorResource{}).
-		Where("cluster_key = ? and namespace = ? and kind = ? and name = ?", resource.ClusterKey, resource.Namespace, resource.Kind, resource.Name).
+		Where("id in ?", resources).
 		Updates(data).Error
 }
 

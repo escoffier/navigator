@@ -100,7 +100,7 @@ func SetupRoutes(
 			r.Route("/platform", api.platformOpenapi()) // platform
 			r.Route("/containerSec", api.OpenApiContainerSec())
 			// proxy to tensor-microseg
-			r.Handle("/microseg/*", api.microSegmentation())
+			r.Route("/microseg", api.microseg)
 		})
 	})
 

@@ -25,6 +25,7 @@ func (api *api) platform() func(chi.Router) {
 		r.Route("/waf", api.waf())
 		r.Route("/configs", api.configs())
 		r.Route("/memshell", api.memshell())
+		r.Route("/event", api.event())
 	}
 }
 

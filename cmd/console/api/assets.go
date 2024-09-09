@@ -3,8 +3,6 @@ package api
 import (
 	"context"
 	"fmt"
-	"github.com/google/go-containerregistry/pkg/name"
-	"github.com/jinzhu/copier"
 	"io"
 	"net/http"
 	"os"
@@ -12,6 +10,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/google/go-containerregistry/pkg/name"
+	"github.com/jinzhu/copier"
 
 	"github.com/go-chi/chi"
 	json "github.com/json-iterator/go"
@@ -739,19 +740,25 @@ func (api *api) getNamespaces() http.HandlerFunc {
 }
 
 func (api *api) updateNamespace() http.HandlerFunc {
-	type Ns struct {
-		ClusterKey string   `json:"cluster_key"`
-		Name       string   `json:"name"`
-		Alias      string   `json:"alias"`
-		Managers   []string `json:"managers"`
-		Authority  string   `json:"authority"`
+	type NS struct {
+		ClusterKey string `json:"cluster_key"`
+		Name       string `json:"name"`
+	}
+
+	type NsInfo struct {
+		// ClusterKey string   `json:"cluster_key"`
+		// Name       string   `json:"name"`
+		Alias     string   `json:"alias"`
+		Managers  []string `json:"managers"`
+		Authority string   `json:"authority"`
+		NSList    []NS     `json:"ns_list"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
 		defer cancel()
 
-		var tensorNs Ns
+		var tensorNs NsInfo
 		err := util.DecodeJSONBody(w, r, &tensorNs)
 		if err != nil {
 			RespAndLog(w, ctx,
@@ -765,25 +772,21 @@ func (api *api) updateNamespace() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("service instance get error")))
 			return
 		}
-		err = resSvc.UpdateNamespaces(ctx, tensorNs.ClusterKey, tensorNs.Name, tensorNs.Alias, tensorNs.Managers, tensorNs.Authority)
+
+		var Namespaces []uint32
+		for _, ns := range tensorNs.NSList {
+			Namespaces = append(Namespaces, util.GenerateUUID(ns.ClusterKey, ns.Name))
+		}
+		err = resSvc.UpdateNamespaces(ctx, Namespaces, tensorNs.Alias, tensorNs.Managers, tensorNs.Authority)
 		if err != nil {
 			logging.Get().Err(err).Msg("update Namespaces error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
 
-		link := fmt.Sprintf("/api/v2/platform/assets/namespaces?cluster_key=%s&name=%s",
-			tensorNs.ClusterKey, tensorNs.Name)
-
-		var clusterName string
-		clusterManger, ok := k8s.GetClusterManager()
-		if ok {
-			clusterName, _ = clusterManger.GetClusterName(tensorNs.ClusterKey)
-		}
 		response.Ok(w, response.WithTarget(&response.TargetRef{
-			Name: fmt.Sprintf("%s/%s", clusterName, tensorNs.Name),
+			Name: strings.Join(util.Uint32sToStrings(Namespaces), ","),
 			ID:   "",
-			Link: link,
 		}))
 	}
 }
@@ -1169,14 +1172,18 @@ func (api *api) getResourcesFuzzy() http.HandlerFunc {
 }
 
 func (api *api) updateResourceUserData() http.HandlerFunc {
+	type ResourceData struct {
+		ClusterKey string `json:"cluster_key"`
+		Namespace  string `json:"namespace"`
+		Kind       string `json:"kind"`
+		Name       string `json:"name"`
+	}
+
 	type UserData struct {
-		ClusterKey string   `json:"cluster_key"`
-		Namespace  string   `json:"namespace"`
-		Kind       string   `json:"kind"`
-		Name       string   `json:"name"`
-		Alias      string   `json:"alias"`
-		Managers   []string `json:"managers"`
-		Authority  string   `json:"authority"`
+		Alias        string         `json:"alias"`
+		Managers     []string       `json:"managers"`
+		Authority    string         `json:"authority"`
+		ResourceList []ResourceData `json:"resource_list"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -1198,16 +1205,18 @@ func (api *api) updateResourceUserData() http.HandlerFunc {
 			return
 		}
 
-		res := &model.TensorResource{
-			Name:       userData.Name,
-			Namespace:  userData.Namespace,
-			ClusterKey: userData.ClusterKey,
-			Kind:       userData.Kind,
-			Alias:      userData.Alias,
-			Managers:   userData.Managers,
-			Authority:  userData.Authority,
+		var resources []uint32
+		for _, res := range userData.ResourceList {
+			resources = append(resources, util.GenerateUUID(res.ClusterKey, res.Namespace, res.Kind, res.Name))
 		}
-		err = resSvc.UpdateResourceUserData(ctx, res)
+
+		res := &model.TensorResource{
+			Alias:     userData.Alias,
+			Managers:  userData.Managers,
+			Authority: userData.Authority,
+		}
+
+		err = resSvc.UpdateResourceUserData(ctx, resources, res)
 		if err != nil {
 			logging.Get().Err(err).Msg("update resource user data error")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))

@@ -612,7 +612,7 @@ require (
 replace (
 	github.com/containernetworking/cni => github.com/containernetworking/cni v0.8.1
 	github.com/containers/podman/v3 => scm.tensorsecurity.cn/tensorsecurity-rd/podman/v3 v3.4.6-20220425170000
-	gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.3.1-test1
+	gitlab.com/security-rd/go-pkg => scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.3.0
 	go.opentelemetry.io/otel/metric => go.opentelemetry.io/otel/metric v0.35.0
 	helm.sh/helm/v3 => helm.sh/helm/v3 v3.11.1
 	k8s.io/api => k8s.io/kubernetes/staging/src/k8s.io/api v0.0.0-20220503133649-4ce5a8954017

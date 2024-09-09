@@ -5,13 +5,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	pkgassets "gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"io"
 	"net/http"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	pkgassets "gitlab.com/piccolo_su/vegeta/pkg/assets"
 
 	param "github.com/oceanicdev/chi-param"
 	"gorm.io/gorm"
@@ -262,8 +263,8 @@ func (rl *TensorResourcesService) CountResourceWithRedis(ctx context.Context, qu
 	return resCnt, nil
 }
 
-func (rl *TensorResourcesService) UpdateResourceUserData(ctx context.Context, res *model.TensorResource) error {
-	return dal.UpdateResourceUserData(ctx, rl.rdb.Get(), res)
+func (rl *TensorResourcesService) UpdateResourceUserData(ctx context.Context, resources []uint32, res *model.TensorResource) error {
+	return dal.UpdateResourceUserData(ctx, rl.rdb.Get(), resources, res)
 }
 
 func (rl *TensorResourcesService) GetNamespaces(ctx context.Context, clusterKey, nameQuery string, offset, limit int) ([]*model.TensorNamespace, int64, error) {
@@ -338,8 +339,8 @@ func (rl *TensorResourcesService) GetNamespacesWithOption(ctx context.Context, q
 	return view, cnt, nil
 }
 
-func (rl *TensorResourcesService) UpdateNamespaces(ctx context.Context, clusterKey, name, alias string, manager []string, authority string) error {
-	err := dal.UpdateNamespace(ctx, rl.rdb.Get(), clusterKey, name, alias, manager, authority)
+func (rl *TensorResourcesService) UpdateNamespaces(ctx context.Context, namespaces []uint32, alias string, manager []string, authority string) error {
+	err := dal.UpdateNamespace(ctx, rl.rdb.Get(), namespaces, alias, manager, authority)
 	return err
 }
 

@@ -8,7 +8,7 @@ RUN sed -i "s!archive.ubuntu.com/!${MIRROR_SOURCE}/!g" /etc/apt/sources.list \
     && apt-get install -y wget vim \
     && apt-get install -y libclamav-dev libgpgme-dev libdevmapper1.02.1 zip unzip musl \
     && apt-get install -y apt-transport-https ca-certificates curl gnupg-agent software-properties-common iptables \
-    && curl -fsSL https://mirrors.ustc.edu.cn/docker-ce/linux/ubuntu/gpg | apt-key add - \
+    && curl -fsSL https://mirrors.aliyun.com/docker-ce/linux/ubuntu/gpg | apt-key add - \
     && add-apt-repository "deb [arch=$(dpkg --print-architecture)] https://mirrors.aliyun.com/docker-ce/linux/ubuntu $(lsb_release -cs) stable" \
     && apt-get install -y  docker-ce-cli \
     && apt-get full-upgrade -y \

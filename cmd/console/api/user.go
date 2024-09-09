@@ -592,6 +592,7 @@ func (api *api) userList() http.HandlerFunc {
 		Status          int             `json:"status"`
 		MustChangePwd   bool            `json:"mustChangePwd"`   // 该用户是否必须修改密码
 		LastChangePwdAt int64           `json:"lastChangePwdAt"` // 上次修改密码的时间
+		Mobile          string          `json:"mobile"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -643,6 +644,7 @@ func (api *api) userList() http.HandlerFunc {
 			items[i].Status = v.Status
 			items[i].MustChangePwd = v.MustChangePwd
 			items[i].LastChangePwdAt = v.LastChangePwdAt
+			items[i].Mobile = v.Mobile
 
 			if v.ModuleID == "" {
 				items[i].ModuleId = json.RawMessage("[]")
@@ -713,6 +715,7 @@ func (api *api) addUser() http.HandlerFunc {
 		Account  string         `json:"account" binding:"required,dive,max=32"`
 		Role     model.RoleType `json:"role" binding:"required,dive,oneof=admin normal"`
 		ModuleID []string       `json:"moduleID"`
+		Mobile   string         `json:"mobile"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -734,6 +737,7 @@ func (api *api) addUser() http.HandlerFunc {
 			return
 		}
 
+		// TODO: temp
 		req.Account = strings.TrimSpace(req.Account)
 
 		if len(req.Account) > 50 {
@@ -784,7 +788,7 @@ func (api *api) addUser() http.HandlerFunc {
 		}
 
 		err = api.rdb.Get().Transaction(func(tx *gorm.DB) error {
-			newu, innerErr := dal.InsertInactiveUser(ctx, tx, req.Account, req.Role, req.ModuleID, loginConf.FirstLoginChangePwd, userInfo.Username)
+			newu, innerErr := dal.InsertInactiveUser(ctx, tx, req.Account, req.Role, req.ModuleID, loginConf.FirstLoginChangePwd, userInfo.Username, req.Mobile)
 			if innerErr != nil {
 				if util.IsPostgresDuplicateError(innerErr) {
 					return ErrUserAlreadyExists
@@ -838,6 +842,7 @@ func (api *api) editUser() http.HandlerFunc {
 		UserName string   `json:"userName" binding:"required,dive,max=32"`
 		Account  string   `json:"account"`
 		ModuleID []string `json:"moduleID"`
+		Mobile   string   `json:"mobile"`
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -882,7 +887,7 @@ func (api *api) editUser() http.HandlerFunc {
 			return
 		}
 
-		err = dal.UpdateUser(ctx, api.rdb.Get(), req.UserName, req.Account, req.ModuleID)
+		err = dal.UpdateUser(ctx, api.rdb.Get(), req.UserName, req.Account, req.Mobile, req.ModuleID)
 		if err != nil {
 			RespAndLog(w, ctx,
 				RDBError(http.StatusInternalServerError, fmt.Errorf("database error: %w", err)))

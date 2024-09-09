@@ -293,7 +293,7 @@ func SelectUserByAccount(ctx context.Context, rdb *gorm.DB, account string) (boo
 	return true, &queryUser, nil
 }
 
-func InsertInactiveUser(ctx context.Context, rdb *gorm.DB, account string, role model.RoleType, moduleID []string, mustChangePwd bool, creator string) (*model.User, error) {
+func InsertInactiveUser(ctx context.Context, rdb *gorm.DB, account string, role model.RoleType, moduleID []string, mustChangePwd bool, creator string, mobile string) (*model.User, error) {
 	data, err := json.Marshal(moduleID)
 	if err != nil {
 		return nil, err
@@ -309,13 +309,14 @@ func InsertInactiveUser(ctx context.Context, rdb *gorm.DB, account string, role 
 		Creator:       creator,
 		Status:        model.UserStatusInactive,
 		MustChangePwd: mustChangePwd,
+		Mobile:        mobile,
 	}
 
 	err = rdb.WithContext(ctx).Create(&user).Error
 	return &user, err
 }
 
-func UpdateUser(ctx context.Context, rdb *gorm.DB, userName, account string, moduleID []string) (err error) {
+func UpdateUser(ctx context.Context, rdb *gorm.DB, userName, account, mobile string, moduleID []string) (err error) {
 	data, _ := json.Marshal(moduleID)
 
 	return rdb.WithContext(ctx).Model(&model.User{}).
@@ -323,6 +324,7 @@ func UpdateUser(ctx context.Context, rdb *gorm.DB, userName, account string, mod
 		UpdateColumns(map[string]interface{}{
 			"account":   account,
 			"module_id": data,
+			"mobile":    mobile,
 		}).Error
 }
 
