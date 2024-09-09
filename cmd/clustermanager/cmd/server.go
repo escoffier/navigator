@@ -120,7 +120,21 @@ func NewServer() (*server, error) {
 	factory := informers.NewSharedInformerFactory(agent.GetHostClient(), resyncInterval)
 	tensorFactory := externalversions.NewSharedInformerFactory(agent.GetHostClient().TensorClientset, resyncInterval)
 
-	httpserver, err := clusterserver.NewHTTPServer(factory, agent, s.config, &s.Palace, filterSvc)
+	_, serverResources, err := agent.GetHostClient().DiscoveryClient.ServerGroupsAndResources()
+	if err != nil {
+		return nil, err
+	}
+
+	var endpointsV1 bool
+	for _, apiResourceList := range serverResources {
+		if apiResourceList.GroupVersion == "discovery.k8s.io/v1" {
+			endpointsV1 = true
+		}
+	}
+
+	logging.Get().Info().Msgf("serverResources %+v", serverResources)
+
+	httpserver, err := clusterserver.NewHTTPServer(factory, agent, s.config, &s.Palace, filterSvc, endpointsV1)
 	if err != nil {
 		logging.Get().Err(err).Msg("cluster server err")
 		return nil, err
@@ -157,6 +171,8 @@ func NewServer() (*server, error) {
 		if s.config.DBLogDebug {
 			rdb.SetDebugMode()
 		}
+
+		s.httpserver.SetDbBases(rdb)
 
 		ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 		defer cancel()

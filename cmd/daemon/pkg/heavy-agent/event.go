@@ -196,7 +196,9 @@ func (p *EventProcessor) Run1() {
 			return
 		}
 		evtType := event["type"].(string)
-		//logging.Get().Info().Msgf("log event type: %s", evtType)
+		/*print debug log*/
+		logging.Get().Info().Msgf("log event type: %+v", event)
+
 		err = p.handlers[evtType].Handle(context.TODO(), event)
 		if err != nil {
 			logging.Get().Err(err).Msg("post agent event err")
