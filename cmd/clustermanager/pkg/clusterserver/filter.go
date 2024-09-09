@@ -15,6 +15,7 @@ import (
 	"gorm.io/gorm"
 	corev1 "k8s.io/api/core/v1"
 	discoveryv1 "k8s.io/api/discovery/v1"
+	discoveryv1beta1 "k8s.io/api/discovery/v1beta1"
 	"k8s.io/apimachinery/pkg/labels"
 )
 
@@ -26,10 +27,13 @@ type MicroSegLogFilter struct {
 func (p *MicroSegLogFilter) QueryResourceType(dataType MicroType, data string) string {
 	switch dataType {
 	case Resource:
+		if p.db == nil {
+			return data
+		}
 		var res []model.TensorMicrosegResource
-		err := p.db.Get().Model(model.TensorMicrosegResource{}).Scan(res).Error
+		err := p.db.Get().Model(&model.TensorMicrosegResource{}).Where("name=?", data).Find(&res).Error
 		if err != nil && err != gorm.ErrRecordNotFound {
-			logging.Get().Error().Msgf("scan resource information failed, %+v", err)
+			logging.Get().Error().Msgf("microseglog scan resource information failed, %+v", err)
 			return data
 		}
 
@@ -46,11 +50,14 @@ func (p *MicroSegLogFilter) QueryResourceType(dataType MicroType, data string) s
 
 		return data
 	case IPBlock:
-		var ips []IPGroup
-		err := p.db.Get().Model(IPGroup{}).Scan(ips).Error
+		if p.db == nil {
+			return "Unknown"
+		}
+		var ips []model.IPGroup
+		err := p.db.Get().Model(&model.IPGroup{}).Scan(&ips).Error
 		if err != nil {
-			logging.Get().Error().Msgf("scan ip group information failed, %+v", err)
-			return "unknown"
+			logging.Get().Error().Msgf("microseglog scan ip group information failed, %+v", err)
+			return "Unknown"
 		}
 
 		ipValue := net.ParseIP(data)
@@ -68,7 +75,7 @@ func (p *MicroSegLogFilter) QueryResourceType(dataType MicroType, data string) s
 			}
 		}
 	}
-	return "unknown"
+	return "Unknown"
 }
 
 func (p *MicroSegLogFilter) FindRuleDto(dataType int, id uint32) (string, error) {
@@ -90,7 +97,7 @@ func (p *MicroSegLogFilter) FindRuleDto(dataType int, id uint32) (string, error)
 		}
 		ObjName = seg.Name
 	case IPBlock:
-		ig := &IPGroup{}
+		ig := &model.IPGroup{}
 		err := p.db.Get().First(ig, "id = ?", id).Error
 		if err != nil {
 			return "", fmt.Errorf("get tenant by id %d faile, %+v", id, err)
@@ -168,14 +175,72 @@ func (cs *ClusterServer) GetServiceResByIp(ip string) (string, string, string, e
 
 	service := objs[0].(*corev1.Service)
 	logging.Get().Info().Msgf("service traffic: %s, name: %s", ip, service.Name)
+
+	var workLoadName, kind string
+	if cs.EndpointsV1 {
+		workLoadName, kind, err = cs.getNameAndKindV1(service)
+		if err != nil {
+			return "nil", "", "", err
+		}
+	} else {
+		workLoadName, kind, err = cs.getNameAndKindV1Beta1(service)
+		if err != nil {
+			return "nil", "", "", err
+		}
+	}
+	// epslices, err := cs.Factory.Discovery().V1().EndpointSlices().Lister().List(labels.SelectorFromValidatedSet(map[string]string{
+	// 	"kubernetes.io/service-name":             service.Name,
+	// 	"endpointslice.kubernetes.io/managed-by": "endpointslice-controller.k8s.io",
+	// }))
+	// if err != nil {
+	// 	logging.Get().Err(err).Msg("get ep owner service")
+	// 	return "", "", "", err
+	// }
+	// cs.Factory.Discovery().V1beta1().EndpointSlices().Lister()
+
+	// logging.Get().Info().Msgf("epslice: %+v", epslices)
+
+	// var epslice *discoveryv1.EndpointSlice
+	// for _, slice := range epslices {
+	// 	if slice.Namespace == service.Namespace {
+	// 		epslice = slice
+	// 	}
+	// }
+	// var workLoadName, kind string
+	// logging.Get().Info().Msgf("epslices len: %+v", len(epslices))
+	// if epslice != nil {
+	// 	logging.Get().Info().Msgf("endpoints: %+v", epslice.Endpoints)
+	// 	if len(epslice.Endpoints) > 0 {
+	// 		ep := epslice.Endpoints[0]
+	// 		logging.Get().Info().Msgf("endpoint: %+v", ep)
+	// 		if ep.TargetRef.Kind == "Pod" {
+	// 			pod, exist, err := cs.Factory.Core().V1().Pods().Informer().GetIndexer().GetByKey(fmt.Sprintf("%s/%s", ep.TargetRef.Namespace, ep.TargetRef.Name))
+	// 			if err != nil {
+	// 				return "", "", "", err
+	// 			}
+	// 			if !exist {
+	// 				return "", "", "", fmt.Errorf("not found pod for service")
+	// 			}
+	// 			workLoadName, kind = util.GetOwnerOfPod(pod.(*corev1.Pod))
+	// 		} else {
+	// 			return "", "", "", fmt.Errorf("no pod for service")
+	// 		}
+	// 	}
+	// }
+
+	return service.GetNamespace(), workLoadName, kind, nil
+}
+
+func (cs *ClusterServer) getNameAndKindV1(service *corev1.Service) (string, string, error) {
 	epslices, err := cs.Factory.Discovery().V1().EndpointSlices().Lister().List(labels.SelectorFromValidatedSet(map[string]string{
 		"kubernetes.io/service-name":             service.Name,
 		"endpointslice.kubernetes.io/managed-by": "endpointslice-controller.k8s.io",
 	}))
 	if err != nil {
 		logging.Get().Err(err).Msg("get ep owner service")
-		return "", "", "", err
+		return "", "", err
 	}
+	cs.Factory.Discovery().V1beta1().EndpointSlices().Lister()
 
 	logging.Get().Info().Msgf("epslice: %+v", epslices)
 
@@ -195,19 +260,61 @@ func (cs *ClusterServer) GetServiceResByIp(ip string) (string, string, string, e
 			if ep.TargetRef.Kind == "Pod" {
 				pod, exist, err := cs.Factory.Core().V1().Pods().Informer().GetIndexer().GetByKey(fmt.Sprintf("%s/%s", ep.TargetRef.Namespace, ep.TargetRef.Name))
 				if err != nil {
-					return "", "", "", err
+					return "", "", err
 				}
 				if !exist {
-					return "", "", "", fmt.Errorf("not found pod for service")
+					return "", "", fmt.Errorf("not found pod for service")
 				}
 				workLoadName, kind = util.GetOwnerOfPod(pod.(*corev1.Pod))
 			} else {
-				return "", "", "", fmt.Errorf("no pod for service")
+				return "", "", fmt.Errorf("no pod for service")
 			}
 		}
 	}
+	return workLoadName, kind, err
+}
 
-	return service.GetNamespace(), workLoadName, kind, nil
+func (cs *ClusterServer) getNameAndKindV1Beta1(service *corev1.Service) (string, string, error) {
+	epslices, err := cs.Factory.Discovery().V1beta1().EndpointSlices().Lister().List(labels.SelectorFromValidatedSet(map[string]string{
+		"kubernetes.io/service-name":             service.Name,
+		"endpointslice.kubernetes.io/managed-by": "endpointslice-controller.k8s.io",
+	}))
+	if err != nil {
+		logging.Get().Err(err).Msg("get ep owner service")
+		return "", "", err
+	}
+	cs.Factory.Discovery().V1beta1().EndpointSlices().Lister()
+
+	logging.Get().Info().Msgf("epslice: %+v", epslices)
+
+	var epslice *discoveryv1beta1.EndpointSlice
+	for _, slice := range epslices {
+		if slice.Namespace == service.Namespace {
+			epslice = slice
+		}
+	}
+	var workLoadName, kind string
+	logging.Get().Info().Msgf("epslices len: %+v", len(epslices))
+	if epslice != nil {
+		logging.Get().Info().Msgf("endpoints: %+v", epslice.Endpoints)
+		if len(epslice.Endpoints) > 0 {
+			ep := epslice.Endpoints[0]
+			logging.Get().Info().Msgf("endpoint: %+v", ep)
+			if ep.TargetRef.Kind == "Pod" {
+				pod, exist, err := cs.Factory.Core().V1().Pods().Informer().GetIndexer().GetByKey(fmt.Sprintf("%s/%s", ep.TargetRef.Namespace, ep.TargetRef.Name))
+				if err != nil {
+					return "", "", err
+				}
+				if !exist {
+					return "", "", fmt.Errorf("not found pod for service")
+				}
+				workLoadName, kind = util.GetOwnerOfPod(pod.(*corev1.Pod))
+			} else {
+				return "", "", fmt.Errorf("no pod for service")
+			}
+		}
+	}
+	return workLoadName, kind, err
 }
 
 func (cs *ClusterServer) IsServiceIp(ip string) bool {
@@ -216,104 +323,58 @@ func (cs *ClusterServer) IsServiceIp(ip string) bool {
 }
 
 func (cs *ClusterServer) FilterMicroSegLog(log *model.TensorMicrosegEvent) bool {
-	if log.Action == 0 {
-		return false
-	}
-
-	nowTime := time.Now().Unix()
-	key := fmt.Sprintf("%d:%s:%d:%s:%d", log.Proto, log.SrcIP, log.SrcPort, log.DstIP, log.DstPort)
+	key := fmt.Sprintf("%+v:%+v:%+v:%+v:%+v", log.Proto, log.SrcIP, log.SrcPort, log.DstIP, log.DstPort)
 	_, ok := cs.MicroSegLogCache[key]
 	if ok {
 		delete(cs.MicroSegLogCache, key)
 		return true
 	}
+	//now time
+	nowTime := time.Now().Unix()
 	//save
 	cs.MicroSegLogCache[key] = nowTime
+
 	/*clear invalid data*/
-	if len(cs.MicroSegLogCache) > 2000 {
-		for k, v := range cs.MicroSegLogCache {
-			if (nowTime - v) > 10 {
-				delete(cs.MicroSegLogCache, k)
-			}
+	if len(cs.MicroSegLogCache) < 2000 {
+		return false
+	}
+
+	for k, v := range cs.MicroSegLogCache {
+		if (nowTime - v) < 10 {
+			continue
 		}
+		delete(cs.MicroSegLogCache, k)
 	}
 
 	return false
 }
 
-func (cs *ClusterServer) FillResToMicroSegLogDetails(log *model.TensorMicrosegEvent) bool {
+func (cs *ClusterServer) FillResByPolicyId(id int, log *model.TensorMicrosegEvent) {
+	srcObj, dstObj, err := cs.logFilter.GetPolicy(id)
+	if err != nil {
+		logging.Get().Warn().Msgf("get policy name failed, %+v", err)
+		return
+	}
+
 	src, err := cs.GetPodByIp(log.SrcIP)
 	if err == nil {
 		log.SrcNamespace = src.Namespace
-		log.SrcResName = src.Resource
 		log.SrcResKind = src.KindName
-	} else {
-		srcSvc := cs.IsServiceIp(log.SrcIP)
-		if srcSvc {
-			ns, res, kind, err := cs.GetServiceResByIp(log.SrcIP)
-			if err == nil {
-				log.SrcNamespace = ns
-				log.SrcResName = res
-				log.SrcResKind = kind
-			}
-		}
+		log.SrcPodName = src.PodName
 	}
 
 	dst, err := cs.GetPodByIp(log.DstIP)
 	if err == nil {
 		log.DstNamespace = dst.Namespace
-		log.DstResName = dst.Resource
 		log.DstResKind = dst.KindName
-	} else {
-		dstSvc := cs.IsServiceIp(log.DstIP)
-		if dstSvc {
-			ns, res, kind, err := cs.GetServiceResByIp(log.DstIP)
-			if err == nil {
-				log.DstNamespace = ns
-				log.DstResName = res
-				log.DstResKind = kind
-			}
-		}
+		log.DstPodName = dst.PodName
 	}
 
-	if log.Action != 0 {
-		id, err := strconv.Atoi(log.PolicyName)
-		if err != nil {
-			logging.Get().Warn().Msgf("string(%+v) convert int failed, %+v", log.PolicyName, err)
-		} else {
-			srcObj, dstObj, err := cs.logFilter.GetPolicy(id)
-			if err != nil {
-				logging.Get().Warn().Msgf("get policy name failed, %+v", err)
-			} else {
-				log.SrcPodName = srcObj
-				log.DstPodName = dstObj
-			}
-		}
-	} else {
-		if len(log.SrcResName) != 0 {
-			log.SrcPodName = cs.logFilter.QueryResourceType(Resource, log.SrcResName)
-		} else {
-			log.SrcPodName = cs.logFilter.QueryResourceType(IPBlock, log.SrcIP)
-		}
-
-		if len(log.DstResName) != 0 {
-			log.DstPodName = cs.logFilter.QueryResourceType(Resource, log.DstResName)
-		} else {
-			log.DstPodName = cs.logFilter.QueryResourceType(IPBlock, log.DstIP)
-		}
-	}
-
-	if log.SrcPodName == "" && log.DstPodName == "" {
-		logging.Get().Warn().Msgf("")
-		return false
-	}
-
-	log.CreatedAt = time.Now().UnixMilli()
-
-	return true
+	log.SrcResName = srcObj
+	log.DstResName = dstObj
 }
 
-func (cs *ClusterServer) FillResToMicroSegLog(microLog *model.TensorMicrosegEvent) bool {
+func (cs *ClusterServer) FillResByPolicyName(microLog *model.TensorMicrosegEvent) {
 	src, err := cs.GetPodByIp(microLog.SrcIP)
 	if err == nil {
 		microLog.SrcNamespace = src.Namespace
@@ -352,8 +413,37 @@ func (cs *ClusterServer) FillResToMicroSegLog(microLog *model.TensorMicrosegEven
 		}
 	}
 
+	if len(microLog.SrcResName) != 0 {
+		microLog.SrcResName = cs.logFilter.QueryResourceType(Resource, microLog.SrcResName)
+	} else {
+		microLog.SrcResKind = "Internal"
+		microLog.SrcResName = cs.logFilter.QueryResourceType(IPBlock, microLog.SrcIP)
+		if microLog.SrcResName == "Unknown" {
+			microLog.SrcResKind = "Unknown"
+		}
+	}
+
+	if len(microLog.DstResName) != 0 {
+		microLog.DstResName = cs.logFilter.QueryResourceType(Resource, microLog.DstResName)
+	} else {
+		microLog.DstResKind = "Internal"
+		microLog.DstResName = cs.logFilter.QueryResourceType(IPBlock, microLog.DstIP)
+		if microLog.DstResName == "Unknown" {
+			microLog.DstResKind = "Unknown"
+		}
+	}
+}
+
+func (cs *ClusterServer) FillResToMicroSegLog(microLog *model.TensorMicrosegEvent) bool {
+	id, err := strconv.Atoi(microLog.PolicyName)
+	if err != nil {
+		cs.FillResByPolicyName(microLog)
+	} else {
+		cs.FillResByPolicyId(id, microLog)
+	}
+
 	if microLog.SrcResName == "" && microLog.DstResName == "" {
-		logging.Get().Warn().Msgf("")
+		logging.Get().Warn().Msgf("microseglog get resource kind failed")
 		return false
 	}
 

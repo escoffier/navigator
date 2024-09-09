@@ -36,6 +36,7 @@ const (
 	disableAction   = "停用"
 	eAnddAction     = "启用/停用"
 	exportAction    = "导出"
+	importAction    = "导入"
 	uploadAction    = "上传"
 	processAction   = "发起处置"
 	learnAction     = "学习"
@@ -715,6 +716,19 @@ func init() {
 	})
 
 	// 微隔离
+	routeAction.POST("/api/v2/microseg/policyimporting", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   importAction,
+				"detail": "微隔离策略导入",
+			},
+			"en": {
+				"verb":   importActionEN,
+				"detail": "Import microseg results",
+			},
+		}
+	})
+
 	routeAction.PUT("/api/v2/microseg/settings", func(p Params) map[string]map[string]interface{} {
 		return map[string]map[string]interface{}{
 			"zh": {

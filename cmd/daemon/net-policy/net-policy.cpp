@@ -320,28 +320,19 @@ err:
 static int PostMatchMsg(FiveTuple &tuple, NET_POLICY_RULE action, FLOW_DIR dir, string &sRuleKey)
 {
     int ret, len;
-    char *str = NULL;
-    cJSON *root = NULL;
     char buf[11] = {"#%% pre"};
+    char data[1024];
+    /*post socket fd*/
     if(gPostLinkFd <= 0) return 0;
-    //create json object
-    root = cJSON_CreateObject();
-    if(!root) RETURN_ERROR(-1, "create json object failed.");
-    cJSON_AddStringToObject(root, "type", "microseg");
-    cJSON_AddNumberToObject(root, "proto", tuple.proto);
-    cJSON_AddNumberToObject(root, "action", action);
-    cJSON_AddNumberToObject(root, "direction", dir);
-    cJSON_AddNumberToObject(root, "src_port", tuple.srcPort);
-    cJSON_AddNumberToObject(root, "dst_port", tuple.dstPort);
-    cJSON_AddStringToObject(root, "src_ip", tuple.srcAddr.c_str());
-    cJSON_AddStringToObject(root, "dst_ip", tuple.dstAddr.c_str());
-    cJSON_AddStringToObject(root, "policy_name", sRuleKey.c_str());
-    str = cJSON_PrintUnformatted(root);
-    if(!str) GOTO_ERROR(err, "json format failed.");
+    /*init memory*/
+    memset(data, 0, sizeof(data));
+    /*json data*/
+    sprintf(data, "{\"type\":\"microseg\",\"proto\":%d,\"action\":%d,\"direction\":%d,\"src_port\":%d,\"dst_port\":%d,\"src_ip\":\"%s\",\"dst_ip\":\"%s\",\"policy_name\":\"%s\"}", 
+        tuple.proto, action, dir, tuple.srcPort, tuple.dstPort, tuple.srcAddr.c_str(), tuple.dstAddr.c_str(), sRuleKey.c_str());
     /*print debug log*/
-    if(!((tuple.proto == IPPROTO_UDP) && (tuple.dstPort == 53))) LOG_D("[post] post micro seg data : %s", str);
+    if(!((tuple.proto == IPPROTO_UDP) && (tuple.dstPort == 53))) LOG_D("[post] post micro seg data : %s", data);
     /*data len*/
-    len = (int)strlen(str);
+    len = (int)strlen(data);
     /*send data*/
     buf[7] = len & 0xff;
     buf[8] = (len >> 8) & 0xff;
@@ -350,15 +341,11 @@ static int PostMatchMsg(FiveTuple &tuple, NET_POLICY_RULE action, FLOW_DIR dir, 
     ret = write(gPostLinkFd, buf, 11);
     if (ret <= 0) GOTO_ERROR(err, "post match msg to server failed, %s.", strerror(errno));
     /*post data*/
-    ret = write(gPostLinkFd, str, len);
+    ret = write(gPostLinkFd, data, len);
     if(ret <= 0) GOTO_ERROR(err, "post match msg to server failed, %s.", strerror(errno));
-    /*free*/
-    cJSON_Delete(root);
-    free(str);
+    /*return*/
     return 0;
 err:
-    if(root) cJSON_Delete(root);
-    if(str) free(str);
     return -1;
 }
 

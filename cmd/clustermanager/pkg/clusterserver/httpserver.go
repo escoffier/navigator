@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"gitlab.com/security-rd/go-pkg/databases"
+
 	"k8s.io/client-go/informers"
 
 	model1 "gitlab.com/security-rd/go-pkg/model"
@@ -42,6 +44,11 @@ type ClusterServer struct {
 	attackCacheService *attack.CacheService
 	agent              *clusterAgent.ClusterAgent
 	Factory            informers.SharedInformerFactory
+	EndpointsV1        bool
+}
+
+func (cs *ClusterServer) SetDbBases(db *databases.RDBInstance) {
+	cs.logFilter.db = db
 }
 
 func (cs *ClusterServer) SetClusterManager(cm *k8s.ClusterManager) {
@@ -203,28 +210,29 @@ func (cs *ClusterServer) handleMicrosegEvents(c *gin.Context) {
 
 	ret := cs.FilterMicroSegLog(&microsSegEvent)
 	if ret {
-		logging.Get().Debug().Msgf("drop micro seg event log : %+v", microsSegEvent)
+		logging.Get().Debug().Msgf("drop microseglog event log : %+v", microsSegEvent)
 		return
 	}
 
 	//get resource data
 	ret = cs.FillResToMicroSegLog(&microsSegEvent)
 	if !ret {
+		logging.Get().Debug().Msgf("get resource microseglog failed, %+v", microsSegEvent)
 		return
 	}
 	/*print debug log*/
-	logging.Get().Info().Msgf("save micro seg event: %+v", microsSegEvent)
+	logging.Get().Info().Msgf("save microseglog event: %+v", microsSegEvent)
 
 	err = cs.Palace.SendMicrosegEvent(microsSegEvent)
 	if err != nil {
-		logging.Get().Err(err).Msg("send microseg event")
-		c.String(http.StatusInternalServerError, "send microseg event err: %v", err)
+		logging.Get().Err(err).Msg("send microseglog event")
+		c.String(http.StatusInternalServerError, "send microseglog event err: %v", err)
 		return
 	}
 	c.String(http.StatusOK, "ok")
 }
 
-func NewHTTPServer(factory informers.SharedInformerFactory, agent *clusterAgent.ClusterAgent, config *config.Config, Palace *palace.Palace, filterSvc bool) (*ClusterServer, error) {
+func NewHTTPServer(factory informers.SharedInformerFactory, agent *clusterAgent.ClusterAgent, config *config.Config, Palace *palace.Palace, filterSvc bool, endpointsV1 bool) (*ClusterServer, error) {
 	tlsConfig := &tls.Config{}
 	if config.TLSServer {
 		tlsKeyPair, err := tls.LoadX509KeyPair(config.CertFile, config.KeyFile)
@@ -247,6 +255,7 @@ func NewHTTPServer(factory informers.SharedInformerFactory, agent *clusterAgent.
 		attackCacheService: attack.NewCacheService(config.MasterAddr, agent),
 		agent:              agent,
 		Factory:            factory,
+		EndpointsV1:        endpointsV1,
 	}
 
 	r := gin.Default()
