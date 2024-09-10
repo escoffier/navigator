@@ -1,6 +1,7 @@
 package clusterserver
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"strconv"
@@ -22,6 +23,45 @@ import (
 type MicroSegLogFilter struct {
 	IsFilterService bool
 	db              *databases.RDBInstance
+}
+
+func IpInRange(ipStr string, ranges []string) bool {
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return false
+	}
+
+	bytesCompare := func(a, b net.IP) int {
+		return bytes.Compare(a.To4(), b.To4())
+	}
+
+	for _, r := range ranges {
+		if strings.Contains(r, "-") { // 处理 IP 范围
+			bounds := strings.Split(r, "-")
+
+			startIP := net.ParseIP(bounds[0])
+			endParts := strings.Split(bounds[0], ".")
+
+			endIP := net.ParseIP(strings.Join(endParts[:len(endParts)-1], ".") + "." + bounds[1])
+			if startIP == nil || endIP == nil {
+				continue
+			}
+			if bytesCompare(ip, startIP) >= 0 && bytesCompare(ip, endIP) <= 0 {
+				return true
+			}
+		} else if _, netCIDR, err := net.ParseCIDR(r); err == nil { // 处理 CIDR 表达式
+			if netCIDR.Contains(ip) {
+				return true
+			}
+		} else { // 处理单个 IP 地址
+			compareIP := net.ParseIP(r)
+			if compareIP != nil && ip.Equal(compareIP) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func (p *MicroSegLogFilter) QueryResourceType(dataType MicroType, data string) string {
@@ -60,18 +100,11 @@ func (p *MicroSegLogFilter) QueryResourceType(dataType MicroType, data string) s
 			return "Unknown"
 		}
 
-		ipValue := net.ParseIP(data)
 		for i := 0; i < len(ips); i++ {
 			ipStr := strings.Split(ips[i].IpSet, ",")
-			for _, ipAddr := range ipStr {
-				cidr := strings.Split(ipAddr, "/")
-				if len(cidr) == 1 {
-					ipAddr = ipAddr + "/32"
-				}
-				_, ipNet, _ := net.ParseCIDR(ipAddr)
-				if ipNet.Contains(ipValue) {
-					return ips[i].Name
-				}
+			ok := IpInRange(data, ipStr)
+			if ok {
+				return ips[i].Name
 			}
 		}
 	}
@@ -349,32 +382,7 @@ func (cs *ClusterServer) FilterMicroSegLog(log *model.TensorMicrosegEvent) bool 
 	return false
 }
 
-func (cs *ClusterServer) FillResByPolicyId(id int, log *model.TensorMicrosegEvent) {
-	srcObj, dstObj, err := cs.logFilter.GetPolicy(id)
-	if err != nil {
-		logging.Get().Warn().Msgf("get policy name failed, %+v", err)
-		return
-	}
-
-	src, err := cs.GetPodByIp(log.SrcIP)
-	if err == nil {
-		log.SrcNamespace = src.Namespace
-		log.SrcResKind = src.KindName
-		log.SrcPodName = src.PodName
-	}
-
-	dst, err := cs.GetPodByIp(log.DstIP)
-	if err == nil {
-		log.DstNamespace = dst.Namespace
-		log.DstResKind = dst.KindName
-		log.DstPodName = dst.PodName
-	}
-
-	log.SrcResName = srcObj
-	log.DstResName = dstObj
-}
-
-func (cs *ClusterServer) FillResByPolicyName(microLog *model.TensorMicrosegEvent) {
+func (cs *ClusterServer) GetResource(microLog *model.TensorMicrosegEvent) {
 	src, err := cs.GetPodByIp(microLog.SrcIP)
 	if err == nil {
 		microLog.SrcNamespace = src.Namespace
@@ -412,10 +420,33 @@ func (cs *ClusterServer) FillResByPolicyName(microLog *model.TensorMicrosegEvent
 			}
 		}
 	}
+}
 
-	if len(microLog.SrcResName) != 0 {
-		microLog.SrcResName = cs.logFilter.QueryResourceType(Resource, microLog.SrcResName)
-	} else {
+func (cs *ClusterServer) FillResByPolicyId(id int, log *model.TensorMicrosegEvent) {
+	cs.GetResource(log)
+	if len(log.SrcResName) != 0 && len(log.DstResName) != 0 {
+		return
+	}
+
+	srcObj, dstObj, err := cs.logFilter.GetPolicy(id)
+	if err != nil {
+		logging.Get().Warn().Msgf("get policy name failed, %+v", err)
+		return
+	}
+
+	if len(log.SrcResName) == 0 {
+		log.SrcResName = srcObj
+	}
+
+	if len(log.DstResName) == 0 {
+		log.DstResName = dstObj
+	}
+}
+
+func (cs *ClusterServer) FillResByPolicyName(microLog *model.TensorMicrosegEvent) {
+	cs.GetResource(microLog)
+
+	if len(microLog.SrcResName) == 0 {
 		microLog.SrcResKind = "Internal"
 		microLog.SrcResName = cs.logFilter.QueryResourceType(IPBlock, microLog.SrcIP)
 		if microLog.SrcResName == "Unknown" {
@@ -423,9 +454,7 @@ func (cs *ClusterServer) FillResByPolicyName(microLog *model.TensorMicrosegEvent
 		}
 	}
 
-	if len(microLog.DstResName) != 0 {
-		microLog.DstResName = cs.logFilter.QueryResourceType(Resource, microLog.DstResName)
-	} else {
+	if len(microLog.DstResName) == 0 {
 		microLog.DstResKind = "Internal"
 		microLog.DstResName = cs.logFilter.QueryResourceType(IPBlock, microLog.DstIP)
 		if microLog.DstResName == "Unknown" {
