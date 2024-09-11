@@ -712,6 +712,15 @@ func (api *api) getNamespaces() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
 			return
 		}
+		for i, ns := range namespaces {
+			resQuery := dal.ResourcesQuery()
+			if clusterKey != "" {
+				resQuery.WithCluster(clusterKey)
+			}
+			resQuery.WithNamespace(ns.Name)
+			cnt, _ := resSvc.CountResource(ctx, resQuery)
+			namespaces[i].HasResource = cnt != 0
+		}
 		hideTags, _ := param.QueryBool(r, "hideTags")
 		var objIdList []string
 		if !hideTags {

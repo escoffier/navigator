@@ -289,8 +289,9 @@ func (rl *TensorResourcesService) CountNamespaces(ctx context.Context, clusterKe
 
 type NamespaceView struct {
 	*model.TensorNamespace
-	Managers []*dal.UserNameAccount
-	Tags     []string
+	Managers    []*dal.UserNameAccount
+	Tags        []string
+	HasResource bool `json:"hasResource"`
 }
 
 func (rl *TensorResourcesService) GetNamespacesWithOption(ctx context.Context, query *dal.NamespacesQueryOption, offset, limit int) ([]*NamespaceView, int64, error) {
