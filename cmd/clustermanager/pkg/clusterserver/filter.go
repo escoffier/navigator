@@ -25,6 +25,13 @@ type MicroSegLogFilter struct {
 	db              *databases.RDBInstance
 }
 
+type ResKind struct {
+	SrcName string
+	SrcKind string
+	DstName string
+	DstKind string
+}
+
 func IpInRange(ipStr string, ranges []string) bool {
 	ip := net.ParseIP(ipStr)
 	if ip == nil {
@@ -115,13 +122,6 @@ func (p *MicroSegLogFilter) FindRuleDto(dataType int, id uint32) (string, error)
 	var ObjName string
 	// case model.Ingress:
 	switch dataType {
-	case Resource:
-		res := &model.TensorMicrosegResource{}
-		err := p.db.Get().First(res, "id = ?", id).Error
-		if err != nil {
-			return "", fmt.Errorf("get workload by id %d faile, %+v", id, err)
-		}
-		ObjName = res.SegmentName
 	case Segment:
 		seg := &TensorMicrosegSegment{}
 		err := p.db.Get().First(seg, "id = ?", id).Error
@@ -136,13 +136,6 @@ func (p *MicroSegLogFilter) FindRuleDto(dataType int, id uint32) (string, error)
 			return "", fmt.Errorf("get tenant by id %d faile, %+v", id, err)
 		}
 		ObjName = ig.Name
-	case Nsgrp:
-		nsgrp := &TensorMicrosegNsgrp{}
-		err := p.db.Get().First(nsgrp, "id = ?", id).Error
-		if err != nil {
-			return "", fmt.Errorf("get namespace group by id %d faile, %+v", id, err)
-		}
-		ObjName = nsgrp.Name
 	}
 
 	if len(ObjName) == 0 {
@@ -152,25 +145,32 @@ func (p *MicroSegLogFilter) FindRuleDto(dataType int, id uint32) (string, error)
 	return ObjName, nil
 }
 
-func (cs *MicroSegLogFilter) GetPolicy(id int) (string, string, error) {
+func (cs *MicroSegLogFilter) GetPolicy(id int) (*ResKind, error) {
+	var res ResKind
 	var modelRule TensorMicrosegRule
 
 	err := cs.db.Get().Model(&TensorMicrosegRule{}).Where("id = ?", id).First(&modelRule).Error
 	if err != nil {
-		return "", "", err
+		return nil, err
 	}
 
-	srcObj, err := cs.FindRuleDto(modelRule.SrcType, modelRule.SrcID)
+	if modelRule.SrcType == IPBlock {
+		res.SrcKind = "Internal"
+	}
+	res.SrcName, err = cs.FindRuleDto(modelRule.SrcType, modelRule.SrcID)
 	if err != nil {
-		return "", "", fmt.Errorf("get policy source object name failed, %+v", err)
+		return nil, fmt.Errorf("get policy source object name failed, %+v", err)
 	}
 
-	dstObj, err := cs.FindRuleDto(modelRule.DstType, modelRule.DstID)
+	if modelRule.DstType == IPBlock {
+		res.DstKind = "Internal"
+	}
+	res.DstName, err = cs.FindRuleDto(modelRule.DstType, modelRule.DstID)
 	if err != nil {
-		return "", "", fmt.Errorf("get policy dest object name failed, %+v", err)
+		return nil, fmt.Errorf("get policy dest object name failed, %+v", err)
 	}
 
-	return srcObj, dstObj, nil
+	return &res, nil
 }
 
 func (cs *ClusterServer) GetPodByIp(ip string) (*PodResData, error) {
@@ -428,18 +428,20 @@ func (cs *ClusterServer) FillResByPolicyId(id int, log *model.TensorMicrosegEven
 		return
 	}
 
-	srcObj, dstObj, err := cs.logFilter.GetPolicy(id)
+	res, err := cs.logFilter.GetPolicy(id)
 	if err != nil {
 		logging.Get().Warn().Msgf("get policy name failed, %+v", err)
 		return
 	}
 
 	if len(log.SrcResName) == 0 {
-		log.SrcResName = srcObj
+		log.SrcResName = res.SrcName
+		log.SrcResKind = res.SrcKind
 	}
 
 	if len(log.DstResName) == 0 {
-		log.DstResName = dstObj
+		log.DstResName = res.DstName
+		log.DstResKind = res.DstKind
 	}
 }
 
