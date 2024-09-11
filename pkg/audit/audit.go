@@ -41,6 +41,7 @@ const (
 	processAction   = "发起处置"
 	learnAction     = "学习"
 	stopLearnAction = "停止学习"
+	degradation     = "服务降级"
 
 	editActionEN      = "Edit"
 	createActionEN    = "Create"
@@ -53,6 +54,7 @@ const (
 	processActionEN   = "Process"
 	learnActionEN     = "Learn"
 	stopLearnActionEN = "StopLearn"
+	degradationEN     = "Degradation"
 )
 
 var routeAction *Router
@@ -1166,6 +1168,18 @@ func init() {
 			},
 			"en": {
 				"verb":   editActionEN,
+				"detail": "{{.}}",
+			},
+		}
+	})
+	routeAction.POST("/api/v2/microseg/reset", func(p Params) map[string]map[string]interface{} {
+		return map[string]map[string]interface{}{
+			"zh": {
+				"verb":   degradation,
+				"detail": "{{.}}",
+			},
+			"en": {
+				"verb":   degradationEN,
 				"detail": "{{.}}",
 			},
 		}
