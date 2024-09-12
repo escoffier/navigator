@@ -1006,7 +1006,7 @@ func (npc *NetworkPolicyController) Run(stopChan chan struct{}) {
 		return
 	}
 	go wait.Until(npc.worker, time.Second, stopChan)
-	go wait.Until(npc.nodeWorker, time.Second, stopChan)
+	// go wait.Until(npc.nodeWorker, time.Second, stopChan)
 }
 
 func (npc *NetworkPolicyController) worker() {
