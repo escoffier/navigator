@@ -8,6 +8,7 @@ import (
 	"hash"
 	"hash/fnv"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -649,51 +650,58 @@ func (rg *RuleGroupController) checkSync() error {
 			rg.handlePolicyStatus(fmt.Errorf("heavy-agent in node %s lost policy %s", rg.nodeName, k), k)
 		}
 	}
-
-	// for _, r := range ruleList {
-	// 	rules := splitPolicyRules(r)
-	// 	if agentRules, ok := ruleMap[r.Spec.Policy]; ok {
-	// 		if !apiequality.Semantic.DeepEqual(rules, agentRules) {
-	// 			ruleData, _ := json.Marshal(rules)
-	// 			agentRuleData, _ := json.Marshal(agentRules)
-	// 			logging.Get().Warn().Msgf("policy: %s on daemon is in conflict with heavy-agent in node %s, rules: %s , agent rules: %s", r.Spec.Policy, rg.nodeName, ruleData, agentRuleData)
-	// 			rg.handlePolicyStatus(fmt.Errorf("policy: %s on daemon is in conflict with heavy-agent in node %s", r.Spec.Policy, rg.nodeName), r.Name)
-	// 		} else {
-	// 			rg.handlePolicyStatus(nil, r)
-	// 		}
-	// 	} else {
-	// 		logging.Get().Warn().Msgf("heavy-agent lost policy %s", r.Spec.Policy)
-	// 		rg.handlePolicyStatus(fmt.Errorf("heavy-agent in node %s lost policy %s", rg.nodeName, r.Spec.Policy), r)
-	// 	}
-	// }
 	return nil
+}
+
+func getAddresses(ipblock string) []string {
+	var addressSlice []string
+	strs := strings.SplitN(ipblock, "-", 2)
+	if len(strs) == 2 {
+		parts := strings.SplitAfter(strs[0], ".")
+		var start, end int
+		var err error
+		if len(parts) == 4 {
+			start, err = strconv.Atoi(parts[4])
+			if err != nil {
+				logging.Get().Err(err).Msgf("parse ipblock end part %s", parts[4])
+				return nil
+			}
+		} else {
+			logging.Get().Error().Msgf("malformed ip %s", strs[0])
+			return nil
+		}
+		end, err = strconv.Atoi(strs[1])
+		if err != nil {
+			logging.Get().Err(err).Msgf("parse ipblock end part %s", strs[1])
+			return nil
+		}
+		prefix := fmt.Sprintf("%s%s%s", parts[0], parts[1], parts[2])
+		for i := start; i <= end; i++ {
+			addressSlice = append(addressSlice, fmt.Sprintf("%s%d", prefix, i))
+		}
+		return addressSlice
+	}
+	return addressSlice
 }
 
 // spit rules in policy into a set of single rules
 func splitPolicyRules(ruleGroups []*crdv1alpha1.NetworkPolicyRuleGroup) map[string][]microseg.SingleRule {
-	// var rules []microseg.SingleRule
 	ruleMap := make(map[string][]microseg.SingleRule, 3)
 
 	for _, ruleGroup := range ruleGroups {
 		for _, r := range ruleGroup.Spec.Rules {
 			for _, fromAddr := range r.FromAddress {
 				for _, toAddr := range r.ToAddresses {
-					if _, ok := ruleMap[r.Name]; !ok {
-						ruleMap[r.Name] = []microseg.SingleRule{}
-					}
-
 					newRule := microseg.SingleRule{
-						PolicyName: r.Name,
-						Action:     r.Action,
-						Direction:  r.Direction,
-						Priority:   r.Priority,
-						Protocol:   r.Protocol,
-						// Ports:     r.Ports,
+						PolicyName:  r.Name,
+						Action:      r.Action,
+						Direction:   r.Direction,
+						Priority:    r.Priority,
+						Protocol:    r.Protocol,
 						FromAddress: fromAddr.IP,
 						ToAddress:   toAddr.IP,
 					}
 					ruleMap[r.Name] = append(ruleMap[r.Name], newRule)
-					// rules = append(rules, newRule)
 				}
 			}
 
@@ -701,21 +709,24 @@ func splitPolicyRules(ruleGroups []*crdv1alpha1.NetworkPolicyRuleGroup) map[stri
 				for _, toAddr := range r.ToIPBlock {
 					toAddresses := strings.Split(toAddr.CIDR, ",")
 					for _, toAddr1 := range toAddresses {
-						if _, ok := ruleMap[r.Name]; !ok {
-							ruleMap[r.Name] = []microseg.SingleRule{}
+						var addressSlice []string
+						// 30.29.2.2-10
+						if strings.Contains(toAddr1, "-") {
+							addressSlice = getAddresses(toAddr1)
+						} else {
+							addressSlice = append(addressSlice, toAddr1)
 						}
-						newRule := microseg.SingleRule{
-							PolicyName: r.Name,
-							Action:     r.Action,
-							Direction:  r.Direction,
-							Priority:   r.Priority,
-							Protocol:   r.Protocol,
-							// Ports:     r.Ports,
-							FromAddress: fromAddr.IP,
-							ToAddress:   toAddr1,
+						for _, toAddr2 := range addressSlice {
+							ruleMap[r.Name] = append(ruleMap[r.Name], microseg.SingleRule{
+								PolicyName:  r.Name,
+								Action:      r.Action,
+								Direction:   r.Direction,
+								Priority:    r.Priority,
+								Protocol:    r.Protocol,
+								FromAddress: fromAddr.IP,
+								ToAddress:   toAddr2,
+							})
 						}
-						ruleMap[r.Name] = append(ruleMap[r.Name], newRule)
-						// rules = append(rules, newRule)
 					}
 				}
 			}
@@ -723,25 +734,33 @@ func splitPolicyRules(ruleGroups []*crdv1alpha1.NetworkPolicyRuleGroup) map[stri
 			for _, fromAddr := range r.FromIPBlock {
 				fromAddresses := strings.Split(fromAddr.CIDR, ",")
 				for _, fromAddr1 := range fromAddresses {
-					for _, toAddr := range r.ToAddresses {
-						if _, ok := ruleMap[r.Name]; !ok {
-							ruleMap[r.Name] = []microseg.SingleRule{}
+					var addressSlice []string
+					if strings.Contains(fromAddr1, "-") {
+						addressSlice = getAddresses(fromAddr1)
+					} else {
+						addressSlice = append(addressSlice, fromAddr1)
+					}
+
+					for _, fromAddr2 := range addressSlice {
+						for _, toAddr := range r.ToAddresses {
+							if _, ok := ruleMap[r.Name]; !ok {
+								ruleMap[r.Name] = []microseg.SingleRule{}
+							}
+							ruleMap[r.Name] = append(ruleMap[r.Name], microseg.SingleRule{
+								PolicyName:  r.Name,
+								Action:      r.Action,
+								Direction:   r.Direction,
+								Priority:    r.Priority,
+								Protocol:    r.Protocol,
+								FromAddress: fromAddr2,
+								ToAddress:   toAddr.IP,
+							})
 						}
-						newRule := microseg.SingleRule{
-							PolicyName:  r.Name,
-							Action:      r.Action,
-							Direction:   r.Direction,
-							Priority:    r.Priority,
-							Protocol:    r.Protocol,
-							FromAddress: fromAddr1,
-							ToAddress:   toAddr.IP,
-						}
-						ruleMap[r.Name] = append(ruleMap[r.Name], newRule)
-						// rules = append(rules, newRule)
 					}
 				}
 			}
 
+			// should not be here
 			for _, fromAddr := range r.FromIPBlock {
 				fromAddresses := strings.Split(fromAddr.CIDR, ",")
 				for _, fromAddr1 := range fromAddresses {
@@ -761,7 +780,6 @@ func splitPolicyRules(ruleGroups []*crdv1alpha1.NetworkPolicyRuleGroup) map[stri
 								ToAddress:   toAddr1,
 							}
 							ruleMap[r.Name] = append(ruleMap[r.Name], newRule)
-							// rules = append(rules, newRule)
 						}
 					}
 				}
@@ -769,11 +787,9 @@ func splitPolicyRules(ruleGroups []*crdv1alpha1.NetworkPolicyRuleGroup) map[stri
 		}
 	}
 
-	for k, _ := range ruleMap {
+	for k := range ruleMap {
 		slices.SortStableFunc(ruleMap[k], ruleSorer)
 	}
-	// slices.SortStableFunc(rules, ruleSorer)
-	// return rules
 	return ruleMap
 }
 
