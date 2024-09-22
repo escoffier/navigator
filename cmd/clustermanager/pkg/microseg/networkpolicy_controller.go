@@ -530,6 +530,26 @@ func getClusterGroupPolicyRelationShips(policyLister v1alpha1.ClusterNetworkPoli
 	return set, nil
 }
 
+func sortPolicy(polices []string) []string {
+	var ps []string
+	var denyPolicy bool
+	if idex := slices.Index(polices, "policy"); idex != -1 {
+		ps = append(ps, "policy")
+		polices = slices.Delete(polices, idex, idex+1)
+	}
+
+	if idex := slices.Index(polices, "deny-all"); idex != -1 {
+		denyPolicy = true
+		polices = slices.Delete(polices, idex, idex+1)
+	}
+
+	ps = append(ps, polices...)
+	if denyPolicy {
+		ps = append(ps, "deny-all")
+	}
+	return ps
+}
+
 func (npc *NetworkPolicyController) addPod(obj interface{}) {
 	pod := obj.(*corev1.Pod)
 	if pod.Status.PodIP == "" || pod.Spec.HostNetwork {
@@ -541,8 +561,10 @@ func (npc *NetworkPolicyController) addPod(obj interface{}) {
 		log.Err(err).Msgf("process add pod event err")
 		return
 	}
-	log.Info().Msgf("policies: %v", policies)
-	for key := range policies {
+
+	policySice := sortPolicy(policies.UnsortedList())
+	log.Info().Msgf("policies: %v", policySice)
+	for _, key := range policySice {
 		npc.queue.Add(key)
 	}
 }
@@ -559,8 +581,10 @@ func (npc *NetworkPolicyController) updatePod(oldObj, newObject interface{}) {
 		log.Err(err).Msgf("process add pod event err")
 		return
 	}
-	log.Info().Msgf("policies: %s", policies)
-	for key := range policies {
+
+	policySice := sortPolicy(policies.UnsortedList())
+	log.Info().Msgf("policies: %s", policySice)
+	for _, key := range policySice {
 		npc.queue.Add(key)
 	}
 }
@@ -634,8 +658,9 @@ func (npc *NetworkPolicyController) addClusterGroup(obj interface{}) {
 	if err != nil {
 		return
 	}
-	logging.Get().Info().Msgf("cluster group for polices %v", policies)
-	for key := range policies {
+	policySice := sortPolicy(policies.UnsortedList())
+	logging.Get().Info().Msgf("cluster group for polices %v", policySice)
+	for _, key := range policySice {
 		npc.queue.Add(key)
 	}
 }
@@ -653,7 +678,9 @@ func (npc *NetworkPolicyController) updateClusterGroup(oldObj, newObj interface{
 	if err != nil {
 		return
 	}
-	for key := range policies {
+	policySice := sortPolicy(policies.UnsortedList())
+	logging.Get().Info().Msgf("cluster group for polices %v", policySice)
+	for _, key := range policySice {
 		npc.queue.Add(key)
 	}
 }
@@ -672,7 +699,9 @@ func (npc *NetworkPolicyController) addNamespace(obj interface{}) {
 	if err != nil {
 		return
 	}
-	for key := range policies {
+
+	policySice := sortPolicy(policies.UnsortedList())
+	for _, key := range policySice {
 		npc.queue.Add(key)
 	}
 }
@@ -694,7 +723,8 @@ func (npc *NetworkPolicyController) updateNamespace(oldObj, newObj interface{}) 
 	if err != nil {
 		return
 	}
-	for key := range policies {
+	policySice := sortPolicy(policies.UnsortedList())
+	for _, key := range policySice {
 		npc.queue.Add(key)
 	}
 }
@@ -1209,10 +1239,11 @@ func (npc *NetworkPolicyController) generateRules(policy *crdv1alpha1.ClusterNet
 		var endpoints []endPoint
 		for _, peer := range r.To {
 			var err error
-			endpoints, err = npc.getRelatedServiceAddr(peer.PodSelector, peer.NamespaceSelector, peer.Group, r.Ports)
+			eps, err := npc.getRelatedServiceAddr(peer.PodSelector, peer.NamespaceSelector, peer.Group, r.Ports)
 			if err != nil {
 				return nil, err
 			}
+			endpoints = append(endpoints, eps...)
 
 			addressesMap, err := npc.caculateAddressMap(peer.PodSelector, peer.NamespaceSelector, peer.Group)
 			if err != nil {
