@@ -692,9 +692,22 @@ func UpdateResourceScannerStatus(ctx context.Context, rdb *gorm.DB, originData m
 }
 
 func InsertImageWhitelist(ctx context.Context, rdb *gorm.DB, imageWhitelist []model.DriftImageWhitelist) error {
+	if len(imageWhitelist) == 0 {
+		return nil
+	}
 	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
+
+	// check if image whitelist exist
+	digest := imageWhitelist[0].RepoDigest
 	db := rdb.Model(&model.DriftImageWhitelist{}).WithContext(ctx)
+	db = db.Where("repo_digest = ?", digest).Limit(1)
+	var len int64
+	db.Count(&len)
+	if len > 0 {
+		logging.Get().Warn().Str("digest", digest).Msg("image whitelist already exist")
+		return nil
+	}
 
 	err := db.Create(&imageWhitelist).Error
 	if err != nil {
@@ -772,25 +785,23 @@ func GetDefaultWhitelistByImageDigest(ctx context.Context, rdb *gorm.DB, offset,
 
 	db := rdb.Model(&res).WithContext(ctx)
 
-	var orConditions []string
-	var args []interface{}
 	digestsMap := make(map[string]struct{})
-
+	digestsArgs := []string{}
 	for _, digest := range digests {
 		if _, ok := digestsMap[digest]; ok {
 			continue
 		}
-		orConditions = append(orConditions, "repo_digest LIKE ?")
-		args = append(args, "%"+digest+"%")
+		digestsArgs = append(digestsArgs, "'"+digest+"'")
 		digestsMap[digest] = struct{}{}
 	}
-	query := strings.Join(orConditions, " OR ")
+	digestsQStr := strings.Join(digestsArgs, ",")
+	query := fmt.Sprintf("repo_digest IN (%s)", digestsQStr)
+
 	if searchStr != "" {
 		// db = db.Where("path LIKE ?", "%"+searchStr+"%")
 		query = fmt.Sprintf("(%s) AND path LIKE ?", query)
-		args = append(args, "%"+searchStr+"%")
 	}
-	db = db.Where(query, args...)
+	db = db.Where(query)
 	var count int64
 	err := db.Count(&count).Error
 	if err != nil {
