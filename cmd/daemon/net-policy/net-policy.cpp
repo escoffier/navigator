@@ -1393,6 +1393,9 @@ int ParseNetPolicy(char *buf)
         dir = item->valuestring;
         rule.direction = (dir.compare("ingress") == 0) ? DIR_INGRESS : DIR_EGRESS;
 
+        //default protocol
+        rule.proto = 0;
+        //get protocol
         item = cJSON_GetObjectItem(array, "protocol");
         if(item)
         {
