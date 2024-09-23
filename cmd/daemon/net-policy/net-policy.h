@@ -145,6 +145,7 @@ public:
     FiveTuple();
     ~FiveTuple();
     void InitTuple();
+    void ReverseTuple(FiveTuple &tuple);
     void PrintData(std::string, int level = 0);
 };
 
