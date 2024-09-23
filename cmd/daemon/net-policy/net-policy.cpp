@@ -86,6 +86,19 @@ const char *GetProtoString(int proto)
     return "UNKNOWN";
 }
 
+static bool isNumber(const std::string& str)
+{
+    if (str.empty()) return false;
+
+    for(int i = 0; i < (int)str.size(); i++)
+    {
+        int data = (int)str.at(i);
+        if((data < 48) || (data > 57)) return false;
+    }
+
+    return true;
+}
+
 int ParseIpString(std::string input, std::vector<std::string> &ret)
 {
     //struct in_addr addr;
@@ -398,6 +411,28 @@ static NET_POLICY_RULE MatchNetPolicyRule(FiveTuple &tuple, FLOW_DIR dir, string
     return NET_DEFAULT;
 }
 
+/*match micro policy rule*/
+static NET_POLICY_RULE MatchMicroPolicyRule(FiveTuple &tuple, FLOW_DIR &dir, std::string &sRuleKey)
+{
+    FiveTuple data;
+    FLOW_DIR fdir;
+    std::string RuleKey = "";
+    /*策略匹配*/
+    auto ret  = MatchNetPolicyRule(tuple, dir, sRuleKey);
+    auto bRet = isNumber(sRuleKey);
+    if((ret != NET_DEFAULT) && bRet) return ret;
+    /*交换地址信息*/
+    tuple.ReverseTuple(data);
+    fdir = (dir == DIR_INGRESS) ? DIR_EGRESS : DIR_INGRESS;
+    auto result = MatchNetPolicyRule(data, fdir, RuleKey);
+    if(result == NET_DEFAULT || !isNumber(RuleKey)) return ret;
+    /*更新地址信息*/
+    tuple    = data;
+    dir      = fdir;
+    sRuleKey = RuleKey;
+    return result;
+}
+
 /*update session callback*/
 static int UpdateNetSession(NFC_MSG_TYPE type, NF_CONNTRACK *ct, void *data)
 {
@@ -559,7 +594,8 @@ static int input_nfq_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct 
     bool bRet = false;
     int id = 0, ret, offset;
     uint32_t mark;
-    string sRuleKey;
+    FLOW_DIR dir = DIR_INGRESS;
+    std::string sRuleKey;
     FiveTuple tuple;
     struct tcphdr tcphdr;
     TCP_FOUR_TUPLE_V4 ctKey;
@@ -642,7 +678,7 @@ static int input_nfq_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct 
     if(!bRet)
     {
         /*match rule*/
-        ruleRet = MatchNetPolicyRule(tuple, DIR_INGRESS, sRuleKey);
+        ruleRet = MatchMicroPolicyRule(tuple, dir, sRuleKey);
         if(ruleRet == NET_DEFAULT) return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW, 0, NULL);
         /*query http rule*/
         auto httpRule = NetInputHttpPolicy.find(sRuleKey);
@@ -650,7 +686,7 @@ static int input_nfq_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct 
         if((httpRule == NetInputHttpPolicy.end()) || (tuple.proto == IPPROTO_UDP) || (tuple.proto == IPPROTO_ICMP) || (httpRule->second->size() == 0))
         {
             /*post match message*/
-            PostMatchMsg(tuple, ruleRet, DIR_INGRESS, sRuleKey);
+            PostMatchMsg(tuple, ruleRet, dir, sRuleKey);
             //deny
             if(ruleRet == NET_DENY)
             {
@@ -727,6 +763,7 @@ static int output_nfq_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct
     bool bRet = false;
     int id = 0, ret, offset;
     uint32_t mark;
+    FLOW_DIR dir = DIR_EGRESS;
     std::string sRuleKey;
     FiveTuple tuple;
     struct tcphdr tcphdr;
@@ -811,7 +848,7 @@ static int output_nfq_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct
     if(!bRet)
     {
         /*match rule*/
-        ruleRet = MatchNetPolicyRule(tuple, DIR_EGRESS, sRuleKey);
+        ruleRet = MatchMicroPolicyRule(tuple, dir, sRuleKey);
         if(ruleRet == NET_DEFAULT) return nfq_set_verdict2(qh, id, NF_ACCEPT, NET_ALLOW, 0, NULL);
         /*query http rule*/
         auto httpRule = NetOutputHttpPolicy.find(sRuleKey);
@@ -819,7 +856,7 @@ static int output_nfq_cb(struct nfq_q_handle *qh, struct nfgenmsg *nfmsg, struct
         if((httpRule == NetOutputHttpPolicy.end()) || (tuple.proto == IPPROTO_UDP) || (tuple.proto == IPPROTO_ICMP) || (httpRule->second->size() == 0))
         {
             /*post match message*/
-            PostMatchMsg(tuple, ruleRet, DIR_EGRESS, sRuleKey);
+            PostMatchMsg(tuple, ruleRet, dir, sRuleKey);
             //deny
             if(ruleRet == NET_DENY)
             {

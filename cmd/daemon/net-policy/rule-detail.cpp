@@ -83,12 +83,36 @@ void FiveTuple::InitTuple()
     this->srcAddr   = "";
     this->dstAddr   = "";
 }
+
 void FiveTuple::PrintData(std::string key, int level)
 {
     if(level < gzLogLevel) return;
     if(this->srcPort == 53 || this->dstPort == 53) return;
     if(this->srcAddr == "127.0.0.1" || this->dstAddr == "127.0.0.1") return;
     LOG_D("key : %s, five tuple -> proto : %d, %s:%d --> %s:%d", key.c_str(), this->proto, this->srcAddr.c_str(), this->srcPort, this->dstAddr.c_str(), this->dstPort);
+}
+
+void FiveTuple::ReverseTuple(FiveTuple &tuple)
+{
+    // 备份当前对象的成员变量
+    auto tempProto     = this->proto;
+    auto tempTotLen    = this->totLen;
+    auto tempSrcPort   = this->srcPort;
+    auto tempDstPort   = this->dstPort;
+    auto tempUzSrcAddr = this->uzSrcAddr;
+    auto tempUzDstAddr = this->uzDstAddr;
+    auto tempSrcAddr   = this->srcAddr;
+    auto tempDstAddr   = this->dstAddr;
+
+    // 将当前对象的值赋给传入的 tuple
+    tuple.proto     = tempProto;
+    tuple.totLen    = tempTotLen;
+    tuple.srcPort   = tempDstPort;    // 交换 srcPort 和 dstPort
+    tuple.dstPort   = tempSrcPort;
+    tuple.uzSrcAddr = tempUzDstAddr;  // 交换地址
+    tuple.uzDstAddr = tempUzSrcAddr;
+    tuple.srcAddr   = tempDstAddr; 
+    tuple.dstAddr   = tempSrcAddr; 
 }
 
 NFQ_RES_INFO::NFQ_RES_INFO() {}
@@ -216,8 +240,10 @@ bool RuleDetail::MatchRuleDetail(FiveTuple &tuple, FLOW_DIR dir)
     }
     /*判断是否匹配成功*/
     if(!bIsMatch) return false;
+    /*过滤DNS*/
+    if((tuple.srcPort == 53) || (tuple.dstPort == 53)) return true;
     /*print debug log*/
-    LOG_D("match %s name : %s, dir : %d, action : %d, priority : %d, proto : %d, ip : %s <--> %s port : %d ~ %d",
+    LOG_D("flow dir %s, match name : %s, dir : %d, action : %d, priority : %d, proto : %d, ip : %s <--> %s port : %d ~ %d",
         (dir == DIR_INGRESS) ? "ingress" : "egress", this->policyKey.c_str(), this->direction, this->action, this->priority, 
         this->proto, this->srcIp.c_str(), this->dstIp.c_str(), this->vPorts.at(p).port, this->vPorts.at(p).endPort);
     /*return*/
@@ -657,6 +683,8 @@ cJSON *PolicyRule::GetAllConfig(std::string name)
         }
     }
     cJSON_AddItemToObject(config, "outbound_rules", outrule);
+    
+    if(!name.empty()) return config;
 
     for (auto it = this->ResData.begin(); it != this->ResData.end(); it++)
     {

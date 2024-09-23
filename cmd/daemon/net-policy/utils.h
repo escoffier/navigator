@@ -3,7 +3,7 @@
 #include <string_view>
 namespace utility {
 
-constexpr std::string_view Deny = "Deny";
+constexpr std::string_view Deny  = "Deny";
 constexpr std::string_view Allow = "Allow";
 constexpr std::string_view Alert = "Alert";
 
