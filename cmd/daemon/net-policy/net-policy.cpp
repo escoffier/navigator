@@ -384,9 +384,8 @@ static NET_POLICY_RULE MatchHttpPolicyRule(std::vector<HTTP_RULE_INFO> *httpRule
 }
 
 /*math net policy rule*/
-static NET_POLICY_RULE MatchNetPolicyRule(FiveTuple &tuple, FLOW_DIR dir, string &sRuleKey)
+static NET_POLICY_RULE MatchNetPolicyRule(FiveTuple &tuple, FLOW_DIR dir, RuleDetail &detail)
 {
-    RuleDetail detail;
     std::vector<std::string> ruleKeys;
     /*is node ip*/
     auto nodeIt = NodesIp.find(tuple.uzSrcAddr);
@@ -402,8 +401,6 @@ static NET_POLICY_RULE MatchNetPolicyRule(FiveTuple &tuple, FLOW_DIR dir, string
         /*匹配规则*/
         auto ret = rules->MatchRuleGroup(ruleKeys.at(i), tuple, detail);
         if(!ret) continue;
-        /*rule policy key*/
-        sRuleKey = detail.policyKey;
         /*reverse selection*/
         return detail.action;
     }
@@ -416,20 +413,33 @@ static NET_POLICY_RULE MatchMicroPolicyRule(FiveTuple &tuple, FLOW_DIR &dir, std
 {
     FiveTuple data;
     FLOW_DIR fdir;
-    std::string RuleKey = "";
+    RuleDetail detail, revDetail;
     /*策略匹配*/
-    auto ret  = MatchNetPolicyRule(tuple, dir, sRuleKey);
-    auto bRet = isNumber(sRuleKey);
-    if((ret != NET_DEFAULT) && bRet) return ret;
+    auto ret  = MatchNetPolicyRule(tuple, dir, detail);
+    if((ret != NET_DEFAULT) && isNumber(detail.policyKey))
+    {
+        sRuleKey = detail.policyKey;
+        return ret;
+    }
     /*交换地址信息*/
     tuple.ReverseTuple(data);
     fdir = (dir == DIR_INGRESS) ? DIR_EGRESS : DIR_INGRESS;
-    auto result = MatchNetPolicyRule(data, fdir, RuleKey);
-    if(result == NET_DEFAULT || !isNumber(RuleKey)) return ret;
-    /*更新地址信息*/
+    auto result = MatchNetPolicyRule(data, fdir, revDetail);
+    if(result == NET_DEFAULT) return ret;
+    /*判断是否匹配到策略*/
+    if((ret == NET_DEFAULT) || isNumber(revDetail.policyKey))
+    {
+        tuple    = data;
+        dir      = fdir;
+        sRuleKey = revDetail.policyKey;
+        return result;
+    }
+    /*根据权重进行匹配*/
+    if(detail.priority <= revDetail.priority) return ret;
+    /*处理策略匹配结果*/
     tuple    = data;
     dir      = fdir;
-    sRuleKey = RuleKey;
+    sRuleKey = revDetail.policyKey;
     return result;
 }
 
@@ -1612,20 +1622,19 @@ cJSON* dumpConnectons(std::string_view req)
     return connections;
 }
 
-char *ReadData(int fd)
+char *ReadData(int zRcvEvFd, int fd)
 {
     int zDataLen = 0, offset = 0;
     char *pos = nullptr;
     char *pcBuffer = nullptr;
     char cDataBuf[1024] = {0};
-    int totalRead, remainingBytes;
+    int totalRead, remainingBytes, initialDataLen;
     /*read data*/
     int ret = read(fd, cDataBuf, sizeof(cDataBuf));
     if(ret <= 0)
     {
         if((errno == EAGAIN) || (errno == EINTR)) RETURN_WARN(nullptr, "read data failed, fd : %d, %s.", fd, strerror(errno));
-        close(fd);
-        RETURN_ERROR(nullptr, "read net policy data failed, fd : %d, %s.", fd, strerror(errno));
+        GOTO_ERROR(err, "read net policy data failed, fd : %d, %s.", fd, strerror(errno));
     }
     totalRead = ret;
     if(ret <= ((int)strlen(PREFIX) + (int)sizeof(int))) RETURN_ERROR(nullptr, "data length error, data len : %d.", ret);
@@ -1647,7 +1656,7 @@ char *ReadData(int fd)
 
     offset = pos - cDataBuf;
     // Copy initial data
-    int initialDataLen = totalRead - offset;
+    initialDataLen = totalRead - offset;
     if(initialDataLen > 0) memcpy(pcBuffer, pos, initialDataLen);
 
     // Read remaining data if necessary
@@ -1658,15 +1667,19 @@ char *ReadData(int fd)
         if(ret <= 0)
         {
             if((errno == EAGAIN) || (errno == EINTR)) continue;
-            free(pcBuffer);
-            close(fd);
-            RETURN_ERROR(nullptr, "read remaining data failed, fd : %d, %s.", fd, strerror(errno));
+            GOTO_ERROR(err, "read remaining data failed, fd : %d, %s.", fd, strerror(errno));
         }
         remainingBytes -= ret;
         totalRead += ret;
     }
 
     return pcBuffer;
+
+err:
+    if(pcBuffer) free(pcBuffer);
+    epoll_ctl(zRcvEvFd, EPOLL_CTL_DEL, fd, nullptr);
+    close(fd);
+    return nullptr;
 }
 
 int ParseRcvData(int32_t zRcvEvFd, int32_t fd, void *ptr)
@@ -1681,8 +1694,8 @@ int ParseRcvData(int32_t zRcvEvFd, int32_t fd, void *ptr)
     NET_CTRL_INFO ctrl = {};
     if((fd <= 0) || (!ptr)) RETURN_ERROR(-2, "[net] parse failed by argumnet is error!");
     /*read data*/
-    pcDataBuf = ReadData(fd);
-    if(pcDataBuf == nullptr) GOTO_ERROR(rsp, "read data faile.");
+    pcDataBuf = ReadData(zRcvEvFd, fd);
+    if(pcDataBuf == nullptr) RETURN_ERROR(0, "read data faile.");
     /*print debug log*/
     LOG_V("receive msg, time : %s, data : %s", TimeToString().c_str(), pcDataBuf);
     /*parse json*/
@@ -1915,7 +1928,7 @@ int CreatePostServer(int efd, RCV_EPOLL_CB *pstPostEv)
     pstPostEv->epollinfunc = ProcAcceptPostLinkEvent;
     //register epoll event
     ev.data.ptr = pstPostEv;
-    ev.events = EPOLLIN;
+    ev.events   = EPOLLIN;
     ret = epoll_ctl(efd, EPOLL_CTL_ADD, fd, &ev);
     if(ret < 0) GOTO_ERROR(err, "epoll ctl failed, %s.", strerror(errno));
     //return
