@@ -661,7 +661,7 @@ func getAddresses(ipblock string) []string {
 		var start, end int
 		var err error
 		if len(parts) == 4 {
-			start, err = strconv.Atoi(parts[4])
+			start, err = strconv.Atoi(parts[3])
 			if err != nil {
 				logging.Get().Err(err).Msgf("parse ipblock end part %s", parts[4])
 				return nil
