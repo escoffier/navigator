@@ -415,25 +415,17 @@ static NET_POLICY_RULE MatchMicroPolicyRule(FiveTuple &tuple, FLOW_DIR &dir, std
     FLOW_DIR fdir;
     RuleDetail detail, revDetail;
     /*策略匹配*/
-    auto ret  = MatchNetPolicyRule(tuple, dir, detail);
-    if((ret != NET_DEFAULT) && isNumber(detail.policyKey))
-    {
-        sRuleKey = detail.policyKey;
-        return ret;
-    }
+    auto ret = MatchNetPolicyRule(tuple, dir, detail);
+    if(ret == NET_DEFAULT) return ret;
+    /*判断匹配上的策略*/
+    sRuleKey = detail.policyKey;
+    if(ret == NET_ALLOW) return ret;
     /*交换地址信息*/
     tuple.ReverseTuple(data);
     fdir = (dir == DIR_INGRESS) ? DIR_EGRESS : DIR_INGRESS;
+    /*反向匹配策略*/
     auto result = MatchNetPolicyRule(data, fdir, revDetail);
     if(result == NET_DEFAULT) return ret;
-    /*判断是否匹配到策略*/
-    if((ret == NET_DEFAULT) || isNumber(revDetail.policyKey))
-    {
-        tuple    = data;
-        dir      = fdir;
-        sRuleKey = revDetail.policyKey;
-        return result;
-    }
     /*根据权重进行匹配*/
     if(detail.priority <= revDetail.priority) return ret;
     /*处理策略匹配结果*/
