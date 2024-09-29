@@ -86,19 +86,6 @@ const char *GetProtoString(int proto)
     return "UNKNOWN";
 }
 
-static bool isNumber(const std::string& str)
-{
-    if (str.empty()) return false;
-
-    for(int i = 0; i < (int)str.size(); i++)
-    {
-        int data = (int)str.at(i);
-        if((data < 48) || (data > 57)) return false;
-    }
-
-    return true;
-}
-
 int ParseIpString(std::string input, std::vector<std::string> &ret)
 {
     //struct in_addr addr;
