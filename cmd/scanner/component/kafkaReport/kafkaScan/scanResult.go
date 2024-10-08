@@ -545,8 +545,6 @@ func (s *ScanResultReportSrv) CreatePkgVuln(ctx context.Context, data *imagesecT
 
 	s.Log.Debug().Interface("matchVulnResult", results).Msg("matchVuln")
 
-	s.StatisticsMathRes(results)
-
 	pkgs := make([]*imagesecModel.Pkg, 0)
 	pkgToImage := make([]*imagesecModel.PkgToImage, 0)
 	vuln := make([]*imagesecModel.Vuln, 0)
@@ -709,6 +707,18 @@ func (s *ScanResultReportSrv) CreatePkgVuln(ctx context.Context, data *imagesecT
 	}
 
 	pkgs = imagesecModel.DuplicatePkg(pkgs)
+
+	for i := range vuln {
+		vuln[i].Serialize()
+	}
+	for i := range pkgs {
+		pkgs[i].Serialize()
+	}
+
+	vuln = scannerUtils.RemoveDuplicatesByField(vuln, "UniqueID").([]*imagesecModel.Vuln)
+	pkgs = scannerUtils.RemoveDuplicatesByField(pkgs, "UniqueID").([]*imagesecModel.Pkg)
+
+	s.StatisticsMathRes(results)
 
 	if err := s.scanResultDal.CreateVuln(ctx, imagesecModel.CreateVulnParam{Data: vuln}); err != nil {
 		s.Log.Err(err).Uint64("ImageUniqueID", imageUniqueID).Msg("CreateVuln")
@@ -1350,8 +1360,12 @@ func (s *ScanResultReportSrv) StatisticsMathRes(data report.Results) (int, int) 
 	for i := range data {
 		pkgCnt += len(data[i].Packages)
 		vulnCnt += len(data[i].Vulnerabilities)
+		for _, vu := range data[i].Vulnerabilities {
+			s.Log.Debug().Str("vuln", vu.VulnerabilityID).Msg("FindVuln")
+		}
 	}
 	s.Log.Info().Int("vulnCnt", vulnCnt).Int("pkgCnt", pkgCnt).Msg("mathVuln statisticsMathRes")
+
 	return vulnCnt, pkgCnt
 }
 
