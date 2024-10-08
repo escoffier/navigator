@@ -938,6 +938,7 @@ func (dal *ScanResultDao) CreateVuln(ctx context.Context, param imagesecModel.Cr
 		da := createData[i]
 		if err := dal.db.Get().WithContext(ctx).Table(tableName).Create(da).Error; err != nil {
 			if strings.Contains(err.Error(), consts.DuplicateKey) {
+				logging.Get().Info().Str("vulnName", da.Name).Uint64("vulnId", da.UniqueID).Msg("CreateVuln DuplicateKey")
 				continue
 			} else {
 				return err

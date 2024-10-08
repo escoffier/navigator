@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"time"
@@ -405,4 +406,27 @@ func InStrSlice(va string, li []string) bool {
 		}
 	}
 	return false
+}
+
+// 谨慎使用
+// slice 必须是[]*struct 的方式，fieldName 必须是该结构体存在的
+func RemoveDuplicatesByField(slice interface{}, fieldName string) interface{} {
+	sliceValue := reflect.ValueOf(slice)
+	if sliceValue.Kind() != reflect.Slice {
+		return nil
+	}
+
+	encountered := map[interface{}]struct{}{}
+	resultSlice := reflect.MakeSlice(sliceValue.Type(), 0, 0)
+
+	for i := 0; i < sliceValue.Len(); i++ {
+		item := sliceValue.Index(i)
+		fieldValue := item.Elem().FieldByName(fieldName).Interface()
+		if _, ok := encountered[fieldValue]; !ok {
+			encountered[fieldValue] = struct{}{}
+			resultSlice = reflect.Append(resultSlice, item)
+		}
+	}
+
+	return resultSlice.Interface()
 }
