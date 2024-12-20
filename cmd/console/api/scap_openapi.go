@@ -13,7 +13,6 @@ import (
 
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
-	"gorm.io/gorm"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/models/scap"
 	scapservice "gitlab.com/piccolo_su/vegeta/cmd/console/service/scap"
@@ -61,6 +60,17 @@ func (api *api) createScapScanTaskOpenApi() http.HandlerFunc {
 			return
 		}
 
+		// 使用默认基线
+		if req.PolicyID == 0 {
+			if req.CheckType == "kube" {
+				req.PolicyID = 1
+			} else if req.CheckType == "docker" {
+				req.PolicyID = 2
+			} else if req.CheckType == "host" {
+				req.PolicyID = 3
+			}
+		}
+
 		job := scap.Job{ClusterInfos: req.ClusterInfos, PolicyID: req.PolicyID}
 
 		if err := job.VerifyJob(); err != nil {
@@ -93,23 +103,8 @@ func (api *api) createScapScanTaskOpenApi() http.HandlerFunc {
 func (api *api) getLatestScanRecordOpenApi() http.HandlerFunc {
 	type result struct {
 		// 检测任务UUID
-		CheckId string `json:"checkId" query:"checkId" form:"checkId"`
-		// 等保对齐
-		Classified string `json:"classified" query:"classified" form:"classified"`
-		// 具体要求
-		Description string `json:"description" query:"description" form:"description"`
-		// 合规条目
-		Section string `json:"section" query:"section" form:"section"`
-		// 不合规数
-		NumFailed int64 `json:"numFailed" query:"numFailed" form:"numFailed"`
-		// 警告数
-		NumWarn int64 `json:"numWarn" query:"numWarn" form:"numWarn"`
-		// 合规数
-		NumSuccessful int64 `json:"numSuccessful" query:"numSuccessful" form:"numSuccessful"`
-		// 合规ID
-		PolicyNumber string `json:"policyNumber" query:"policyNumber" form:"policyNumber"`
-		PolicyID     int64  `json:"policyId" query:"policyId" form:"policyId"`
-		CheckType    string `json:"checkType"`
+		TaskID    string
+		CheckType string
 	}
 
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -123,71 +118,44 @@ func (api *api) getLatestScanRecordOpenApi() http.HandlerFunc {
 		}
 
 		// 如果没有传就是空，就会取默认值，所以这里不处理错误
-		checkID, _ := param.QueryString(r, "checkId")
-
-		complianceType, err := param.QueryString(r, "checkType")
-		if err != nil || !model.ComplianceCheckType(complianceType).IsValid() {
-			apperror.RespAndLog(w, ctx, apperror.NewFieldError(http.StatusBadRequest, errors.New("invaild check type parameter")))
+		taskID, _ := param.QueryString(r, "taskId")
+		checkType, _ := param.QueryString(r, "checkType")
+		if !model.ComplianceCheckType(checkType).IsValid() {
+			apperror.RespAndLog(w, ctx, apperror.NewFieldError(http.StatusBadRequest, fmt.Errorf("invalid checkType param value (allowed: kube/docker/host)")))
 			return
 		}
-		// 如果没有传就赋默认值，所以这里忽略错误
-		limit, _ := param.QueryInt(r, "limit")
-		if limit == 0 {
-			limit = 10
+
+		var scanHistory model.ScanHistory
+		err = api.rdb.GetReadDB().WithContext(ctx).Select("task_id", `state`, "finished_at").
+			Where("check_type = ? AND task_id = ? AND state = ?", checkType, taskID, model.ScanStateCompleted).
+			First(&scanHistory).Error
+		if err != nil {
+			logging.Get().Warn().Err(err).Msg("gets scan result fail by taskId")
+
+			response.Ok(w, response.WithItems([]string{}),
+				response.WithTotalItems(0),
+				response.WithCustomField("taskID", taskID),
+				response.WithCustomField("state", model.ScanStateUnknown),
+				response.WithCustomField("taskFinishedAt", 0),
+			)
+			return
 		}
 
-		if limit > 10000 {
-			limit = 10000
-		}
-
-		offset, _ := param.QueryInt(r, "offset")
-		if offset < 0 {
-			offset = 0
-		}
-
-		svc, _ := scapper.GetService(ctx)
-		if checkID == "" {
-			checkID, _, err = svc.GetLatestHistory(ctx, clusterKey, model.ComplianceCheckType(complianceType))
+		list := make([]*model.CheckBreakdown, 0)
+		if scanHistory.State == model.ScanStateCompleted {
+			svc, _ := scapper.GetService(ctx)
+			list, err = svc.FindBreakdownEntries(ctx, taskID, model.ComplianceCheckType(checkType), "", "", "", "")
 			if err != nil {
-				if err != gorm.ErrRecordNotFound {
-					apperror.RespAndLog(w, ctx, err)
-					return
-				}
-
-				response.Ok(w, response.WithItems([]string{}), response.WithTotalItems(0))
+				apperror.RespAndLog(w, ctx, err)
 				return
 			}
 		}
 
-		list, err := svc.FindBreakdownEntries(ctx, checkID, model.ComplianceCheckType(complianceType), "", "", "", "")
-		if err != nil {
-			apperror.RespAndLog(w, ctx, err)
-			return
-		}
-
-		var results = make([]*result, 0, len(list))
-		for _, v := range list {
-			results = append(results, &result{
-				CheckId:       checkID,
-				Classified:    v.UDBCP,
-				Description:   v.Description,
-				Section:       v.Section,
-				NumFailed:     int64(v.Fail),
-				NumWarn:       int64(v.Warn),
-				NumSuccessful: int64(v.Pass),
-				PolicyNumber:  v.PolicyNumber,
-				CheckType:     complianceType,
-			})
-		}
-
-		resultsOffset := int(math.Min(float64(offset), float64(len(results))))
-		resultsLimit := int(math.Min(float64(offset+limit), float64(len(results))))
-
-		response.Ok(w,
-			response.WithItems(results[resultsOffset:resultsLimit]),
-			response.WithItemsPerPage(int64(limit)),
-			response.WithStartIndex(int64(offset)),
-			response.WithTotalItems(int64(len(results))))
+		response.Ok(w, response.WithItems(list),
+			response.WithTotalItems(int64(len(list))),
+			response.WithCustomField("taskID", taskID),
+			response.WithCustomField("state", scanHistory.State),
+			response.WithCustomField("taskFinishedAt", scanHistory.FinishedAt))
 	}
 }
 
