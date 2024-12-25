@@ -102,20 +102,20 @@ func (vi *ImageDetectSubTask) LogStr() string {
 }
 
 type ImageScanTask struct {
-	ID                 int64               `gorm:"primaryKey" json:"id"`
-	ImageFromType      string              `gorm:"column:image_from_type" json:"imageFromType"` // 用做列表筛选
-	Priority           int64               `gorm:"column:priority" json:"priority"`             // 优先级
-	ScanType           string              `gorm:"column:scan_type" json:"scanType"`
-	Status             int64               `gorm:"column:status" json:"status"`        // 任务状态
-	StatusStr          string              `gorm:"column:status_str" json:"statusStr"` // 任务状态
-	Updater            string              `gorm:"column:updater" json:"updater"`      // 最近一次更新人
-	Creator            string              `gorm:"column:creator" json:"creator"`      // 创建人
-	StartedAt          int64               `gorm:"column:started_at" json:"startedAt"`
-	FinishedAt         int64               `gorm:"column:finished_at" json:"finishedAt"`
-	ImageListParamJson string              `gorm:"column:image_list_param" json:"-"`
-	ImageListParam     ImageSearchApiParam `gorm:"-" json:"imageListParam"`
-	CreatedAt          int64               `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
-	UpdatedAt          int64               `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
+	ID                 int64                `gorm:"primaryKey" json:"id"`
+	ImageFromType      string               `gorm:"column:image_from_type" json:"imageFromType"` // 用做列表筛选
+	Priority           int64                `gorm:"column:priority" json:"priority"`             // 优先级
+	ScanType           string               `gorm:"column:scan_type" json:"scanType"`
+	Status             int64                `gorm:"column:status" json:"status"`        // 任务状态
+	StatusStr          string               `gorm:"column:status_str" json:"statusStr"` // 任务状态
+	Updater            string               `gorm:"column:updater" json:"updater"`      // 最近一次更新人
+	Creator            string               `gorm:"column:creator" json:"creator"`      // 创建人
+	StartedAt          int64                `gorm:"column:started_at" json:"startedAt"`
+	FinishedAt         int64                `gorm:"column:finished_at" json:"finishedAt"`
+	ImageListParamJson string               `gorm:"column:image_list_param" json:"-"`
+	ImageListParam     *ImageSearchApiParam `gorm:"-" json:"imageListParam,omitempty"`
+	CreatedAt          int64                `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
+	UpdatedAt          int64                `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
 
 	TaskStatusGroup TaskStatusGroupView `gorm:"-" json:"taskStatusGroup"`
 }
@@ -182,8 +182,8 @@ func (vi *ImageScanTask) Check() error {
 
 func (vi *ImageScanTask) Deserialize() {
 	if vi.ImageListParamJson != "" {
-		is := ImageSearchApiParam{}
-		if err := json.Unmarshal([]byte(vi.ImageListParamJson), &is); err == nil {
+		is := &ImageSearchApiParam{}
+		if err := json.Unmarshal([]byte(vi.ImageListParamJson), is); err == nil {
 			vi.ImageListParam = is
 		}
 	}
@@ -194,6 +194,7 @@ func (vi *ImageScanTask) ToApiView() {
 		vi.StatusStr = TaskStatusInprogressStr
 	}
 	vi.ChangeTaskCreator()
+	vi.ImageListParam = nil
 }
 
 // 新需求:空

@@ -17,7 +17,7 @@ import (
 )
 
 type ScanTaskService interface {
-	CreateImageScanTask(ctx context.Context, imageSearchParam imagesecModel.ImageSearchApiParam, taskInfo imagesecModel.ImageScanTask) error
+	CreateImageScanTask(ctx context.Context, imageSearchParam *imagesecModel.ImageSearchApiParam, taskInfo *imagesecModel.ImageScanTask) error
 	UpdateScanTaskStatus(ctx context.Context, taskID int64, status string) error
 	SearchScanTask(ctx context.Context, param imagesecModel.SearchTaskParam) ([]*imagesecModel.ImageScanTask, int64, error)
 	SearchScanSubtask(ctx context.Context, param imagesecModel.SearchTaskParam) ([]*imagesecModel.ImageScanSubTask, int64, error)
@@ -87,8 +87,8 @@ func NewScanTaskSrv(
 	return scanTaskSing
 }
 
-func (s *ScanTaskSrv) CreateImageScanTask(ctx context.Context, imageSearchParam imagesecModel.ImageSearchApiParam,
-	taskInfo imagesecModel.ImageScanTask) error {
+func (s *ScanTaskSrv) CreateImageScanTask(ctx context.Context, imageSearchParam *imagesecModel.ImageSearchApiParam,
+	taskInfo *imagesecModel.ImageScanTask) error {
 
 	if err := imageSearchParam.Check(); err != nil {
 		return err
@@ -103,7 +103,7 @@ func (s *ScanTaskSrv) CreateImageScanTask(ctx context.Context, imageSearchParam 
 	taskInfo.Status = imagesecModel.TaskStatusNotReady
 	taskInfo.StatusStr = imagesecModel.ScanStatusToStr(imagesecModel.TaskStatusNotReady)
 
-	_, cnt, err := s.imageSrv.ListImageWithScanInfo(ctx, imageSearchParam)
+	_, cnt, err := s.imageSrv.ListImageWithScanInfo(ctx, *imageSearchParam)
 	if err != nil {
 		s.Log.Err(err).Msg("CreateScanImageTask find image error")
 		return scani18.SearchImage(err)
@@ -112,7 +112,7 @@ func (s *ScanTaskSrv) CreateImageScanTask(ctx context.Context, imageSearchParam 
 		return scani18.NotGetImage()
 	}
 
-	if err := s.taskDal.CreateScanTask(ctx, &taskInfo); err != nil {
+	if err := s.taskDal.CreateScanTask(ctx, taskInfo); err != nil {
 		s.Log.Err(err).Msg("CreateScanTask")
 		return scani18.CreateScanTask(err)
 	}
@@ -306,7 +306,7 @@ func (s *ScanTaskSrv) RescheduleScanSubtask(ctx context.Context, subtaskID int64
 }
 
 // 新建子任务
-func (s *ScanTaskSrv) CreateSubtask(ctx context.Context, taskID int64, imageSearchParam imagesecModel.ImageSearchApiParam) error {
+func (s *ScanTaskSrv) CreateSubtask(ctx context.Context, taskID int64, imageSearchParam *imagesecModel.ImageSearchApiParam) error {
 
 	var startID int64
 	imageSearchParam.Filter = imagesecModel.EmptyFilter().SetLimit(consts.DefaultMaxLimit).SetSortAsc().SetSortFiledByID()
@@ -320,7 +320,7 @@ func (s *ScanTaskSrv) CreateSubtask(ctx context.Context, taskID int64, imageSear
 		imageSearchParam.StartID = startID
 		subtasks := make([]*imagesecModel.ImageScanSubTask, 0)
 
-		images, _, err := s.imageSrv.ListImageWithScanInfo(ctx, imageSearchParam)
+		images, _, err := s.imageSrv.ListImageWithScanInfo(ctx, *imageSearchParam)
 		if err != nil {
 			s.Log.Err(err).Msg("CreateScanImageTask find image")
 			return err

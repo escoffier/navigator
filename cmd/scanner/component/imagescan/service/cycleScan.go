@@ -37,11 +37,11 @@ func (s *ScanTaskSrv) CreateCycleScanTaskByConfig(ctx context.Context) error {
 				ImageFromType: imagesecModel.ImageFromNode,
 				ClusterKey:    config.ImageScanConfig.ScanCycle.ClusterKey,
 			}
-			taskInfo := imagesecModel.ImageScanTask{
+			taskInfo := &imagesecModel.ImageScanTask{
 				ImageFromType: imagesecModel.ImageFromNode,
 				ScanType:      imagesecModel.CycleTrigger,
 			}
-			if err := s.CreateImageScanTask(ctx, param, taskInfo); err != nil {
+			if err := s.CreateImageScanTask(ctx, &param, taskInfo); err != nil {
 				s.Log.Err(err).Msg("CreateCycleScanTaskByConfig CreateImageScanTask")
 				continue
 			}
@@ -77,11 +77,11 @@ func (s *ScanTaskSrv) CreateCycleScanTaskByConfig(ctx context.Context) error {
 				ImageFromType: imagesecModel.ImageFromRegistry,
 				RegIds:        config.ImageScanConfig.ScanCycle.RegIds,
 			}
-			taskInfo := imagesecModel.ImageScanTask{
+			taskInfo := &imagesecModel.ImageScanTask{
 				ImageFromType: imagesecModel.ImageFromRegistry,
 				ScanType:      imagesecModel.CycleTrigger,
 			}
-			if err := s.CreateImageScanTask(ctx, param, taskInfo); err != nil {
+			if err := s.CreateImageScanTask(ctx, &param, taskInfo); err != nil {
 				s.Log.Err(err).Msg("CreateCycleScanTaskByConfig CreateImageScanTask")
 				continue
 			}

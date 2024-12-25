@@ -35,20 +35,21 @@ func (s *ScanTaskAPI) CreateImageScanTask(ctx *gin.Context) {
 		body.ImageFromType = util.GetKeywordFromQuery(ctx, "imageFromType")
 	}
 
-	taskInfo := imagesecModel.ImageScanTask{
+	taskInfo := &imagesecModel.ImageScanTask{
 		ImageFromType: body.ImageFromType,
 		ScanType:      imagesecModel.ManualTrigger,
 		Updater:       body.Creator,
 		Creator:       body.Creator,
 		Status:        imagesecModel.TaskStatusPending,
 	}
+	taskInfo.ImageListParam = nil
 
-	if err := s.scanTaskSrv.CreateImageScanTask(ctx, body, taskInfo); err != nil {
+	if err := s.scanTaskSrv.CreateImageScanTask(ctx, &body, taskInfo); err != nil {
 		response.JSONError(ctx, i18.CreateErr(err))
 		return
 	}
 
-	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{Name: "CreateImageScanTask"}))
+	response.JSONOK(ctx, response.WithItem(taskInfo), response.WithTarget(&response.TargetRef{Name: "CreateImageScanTask"}))
 }
 
 func (s *ScanTaskAPI) UpdateScanTaskStatus(ctx *gin.Context) {
