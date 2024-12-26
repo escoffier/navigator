@@ -1,6 +1,6 @@
 module gitlab.com/piccolo_su/vegeta
 
-go 1.21
+go 1.22
 
 require (
 	github.com/PuerkitoBio/goquery v1.8.0
@@ -76,7 +76,7 @@ require (
 	k8s.io/apiserver v0.27.2
 	k8s.io/client-go v0.27.2
 	scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.2.64
-	scm.tensorsecurity.cn/tensorsecurity-rd/trivy v1.0.7
+	scm.tensorsecurity.cn/tensorsecurity-rd/trivy v1.0.8
 )
 
 require (
@@ -127,6 +127,7 @@ require (
 	layeh.com/radius v0.0.0-20210819152912-ad72663a72ab
 	moul.io/http2curl v1.0.0
 	scm.tensorsecurity.cn/tensorsecurity-rd/api v0.2.5-0.20240801072704-fb66778c2462
+	scm.tensorsecurity.cn/tensorsecurity-rd/fanal v1.1.6
 	scm.tensorsecurity.cn/tensorsecurity-rd/trivy-db v0.0.5
 )
 
@@ -604,7 +605,6 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/kube-openapi v0.0.0-20230501164219-8b0f38b5fd1f // indirect
 	k8s.io/utils v0.0.0-20230505201702-9f6742963106
-	scm.tensorsecurity.cn/tensorsecurity-rd/fanal v1.1.6-0.20241223030712-fb52c417e833
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
 	sigs.k8s.io/yaml v1.3.0
 )
