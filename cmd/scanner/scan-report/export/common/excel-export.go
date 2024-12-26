@@ -203,6 +203,7 @@ func (s *ExcelExportSrv) GetExcelData(ctx context.Context, image imagesecModel.I
 		AppImageEnable:  true,
 		TrustedEnable:   true,
 		ImageInReg:      true,
+		LicenseEnable:   true,
 		NodeInfoEnable:  true,
 	})
 	if err != nil {
@@ -227,6 +228,7 @@ func (s *ExcelExportSrv) GetExcelData(ctx context.Context, image imagesecModel.I
 	res[GenImageWebshellInfoMeta(task.Lang).SheetName] = GenWebShellChan(baseImage, data.WebshellView)
 	res[GenImageEnvInfoMeta(task.Lang).SheetName] = GenEnvChan(baseImage, data.Env)
 	res[GenImageResourcesInfoMeta(task.Lang).SheetName] = GenImageResourceChan(baseImage, data.Container)
+	res[GenImageLicenceInfoMeta(task.Lang).SheetName] = GenImageLicenseChan(baseImage, data.License)
 
 	if model.ExistFlag(baseImage.Flag, imagesecModel.FlagBaseImage) {
 		res[GenImageTypeInfoMeta(task.Lang).SheetName] = GenAppOrBaseImageChan(data.AppImages)
