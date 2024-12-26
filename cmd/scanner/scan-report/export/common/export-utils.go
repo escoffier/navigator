@@ -147,7 +147,7 @@ func GenImageResourceChan(baseImage imagesecModel.ImageBaseResponse, files []*im
 
 		for i := range files {
 			file := files[i]
-			info := GenResponseInfo(baseImage, *file)
+			info := GenContainerResourceInfo(baseImage, *file)
 			out <- info
 		}
 	}()
@@ -233,11 +233,31 @@ func GenSensitiveFileInfo(image imagesecModel.ImageBaseResponse, file imagesecMo
 	return info
 }
 
+func GenImageLicenseChan(baseImage imagesecModel.ImageBaseResponse, license []*imagesecModel.License) chan []string {
+	out := make(chan []string, 1)
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Str("panicStack", string(debug.Stack())).Msg("GenImageResourceChan")
+			}
+		}()
+
+		defer close(out)
+
+		for i := range license {
+			file := license[i]
+			info := GenLicenceInfo(baseImage, *file)
+			out <- info
+		}
+	}()
+	return out
+}
+
 func getImageName(image imagesecModel.ImageBaseResponse) string {
 	return fmt.Sprintf("%s:%s", image.FullRepoName, image.Tag)
 }
 
-func GenResponseInfo(image imagesecModel.ImageBaseResponse, file imagesecModel.RawContainer) []string {
+func GenContainerResourceInfo(image imagesecModel.ImageBaseResponse, file imagesecModel.RawContainer) []string {
 	info := []string{getImageName(image), image.RegistryUrl, file.TensorRawContainer.Name,
 		file.TensorRawContainer.ResourceName, file.TensorRawContainer.Namespace, file.ClusterName}
 	return info
@@ -245,6 +265,11 @@ func GenResponseInfo(image imagesecModel.ImageBaseResponse, file imagesecModel.R
 
 func GenMalwareInfo(image imagesecModel.ImageBaseResponse, file imagesecModel.Malware) []string {
 	info := []string{getImageName(image), image.RegistryUrl, file.Name, file.Filename, file.Filepath}
+	return info
+}
+
+func GenLicenceInfo(image imagesecModel.ImageBaseResponse, file imagesecModel.License) []string {
+	info := []string{getImageName(image), image.RegistryUrl, file.Name, file.Filepath, file.Filename}
 	return info
 }
 
@@ -414,7 +439,7 @@ func GenImageBaseInfoMeta(lang string) types.ExcelMeta {
 
 func GetImageSheetInfo(task imagesecModel.ExportTensorTask) []types.ExcelMeta {
 
-	sheets := make([]types.ExcelMeta, 8)
+	sheets := make([]types.ExcelMeta, 9)
 	sheets[0] = GenImageBaseInfoMeta(task.Lang)
 	sheets[1] = GenImageVulnInfoMeta(task.Lang)
 	sheets[2] = GenImageSensitiveFileInfoMeta(task.Lang)
@@ -423,6 +448,7 @@ func GetImageSheetInfo(task imagesecModel.ExportTensorTask) []types.ExcelMeta {
 	sheets[5] = GenImageEnvInfoMeta(task.Lang)
 	sheets[6] = GenImageResourcesInfoMeta(task.Lang)
 	sheets[7] = GenImageTypeInfoMeta(task.Lang)
+	sheets[8] = GenImageLicenceInfoMeta(task.Lang)
 
 	return sheets
 }
@@ -618,6 +644,29 @@ func GenImageResourcesInfoMeta(lang string) types.ExcelMeta {
 
 		Header: []string{
 			"Image Name", "Source Repository", "Pod Name", "Associated Resources", "Namespace", "Cluster",
+		},
+	}
+	if lang == imagesecModel.LangEn {
+		return dataEN
+	}
+
+	return dataZH
+}
+
+func GenImageLicenceInfoMeta(lang string) types.ExcelMeta {
+	dataZH := types.ExcelMeta{
+		SheetName: "许可文件",
+
+		Header: []string{
+			"镜像名称", "来源仓库", "许可文件类型", "文件路径", "文件名",
+		},
+	}
+
+	dataEN := types.ExcelMeta{
+		SheetName: "Associated Resources",
+
+		Header: []string{
+			"Image Name", "Source Repository", "Licence Name", "Filepath", "Filename",
 		},
 	}
 	if lang == imagesecModel.LangEn {
