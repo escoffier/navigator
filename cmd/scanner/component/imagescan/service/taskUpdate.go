@@ -572,12 +572,12 @@ func (s *ScanTaskSrv) TrigCreateScanTask(ctx context.Context, trigType string) e
 		nodeParam := imagesecModel.ImageSearchApiParam{
 			ImageFromType: imagesecModel.ImageFromNode,
 		}
-		nodeTaskInfo := imagesecModel.ImageScanTask{
+		nodeTaskInfo := &imagesecModel.ImageScanTask{
 			ImageFromType: imagesecModel.ImageFromNode,
 			ScanType:      trigType,
 			Status:        imagesecModel.TaskStatusPending,
 		}
-		if err := s.CreateImageScanTask(ctx, nodeParam, nodeTaskInfo); err != nil {
+		if err := s.CreateImageScanTask(ctx, &nodeParam, nodeTaskInfo); err != nil {
 			s.Log.Err(err).Msg("TrigCreateScanTask CreateImageScanTask")
 			return err
 		}
@@ -604,11 +604,11 @@ func (s *ScanTaskSrv) TrigCreateScanTask(ctx context.Context, trigType string) e
 			ImageFromType: imagesecModel.ImageFromRegistry,
 			RegIds:        nodeConfig.ImageScanConfig.ScanCycle.RegIds,
 		}
-		regTaskInfo := imagesecModel.ImageScanTask{
+		regTaskInfo := &imagesecModel.ImageScanTask{
 			ImageFromType: imagesecModel.ImageFromRegistry,
 			ScanType:      trigType,
 		}
-		if err := s.CreateImageScanTask(ctx, repParam, regTaskInfo); err != nil {
+		if err := s.CreateImageScanTask(ctx, &repParam, regTaskInfo); err != nil {
 			s.Log.Err(err).Msg("TrigCreateScanTask CreateImageScanTask")
 			return err
 		}

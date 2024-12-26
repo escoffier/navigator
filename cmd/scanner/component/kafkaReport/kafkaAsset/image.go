@@ -381,13 +381,13 @@ func (s *ImageReport) AddScanTask(ctx context.Context) {
 				continue
 			}
 			ims := s.RegImageQ.GetImages()
-			taskInfo := imagesecModel.ImageScanTask{
+			taskInfo := &imagesecModel.ImageScanTask{
 				ImageFromType: imagesecModel.ImageFromRegistry,
 				ScanType:      imagesecModel.ImageSyncTrigger,
 			}
 
 			param := imagesecModel.ImageSearchApiParam{ImageUniqueIds: ims, ImageFromType: imagesecModel.ImageFromRegistry}
-			if err := s.scanTaskSrv.CreateImageScanTask(ctx, param, taskInfo); err != nil {
+			if err := s.scanTaskSrv.CreateImageScanTask(ctx, &param, taskInfo); err != nil {
 				s.Log.Err(err).Interface("taskInfo", taskInfo).Msg("CreateScanTask")
 				continue
 			}
@@ -410,14 +410,14 @@ func (s *ImageReport) AddScanTask(ctx context.Context) {
 				continue
 			}
 			ims := s.NodeImageQ.GetImages()
-			taskInfo := imagesecModel.ImageScanTask{
+			taskInfo := &imagesecModel.ImageScanTask{
 				ImageFromType: imagesecModel.ImageFromNode,
 				ScanType:      imagesecModel.ImageSyncTrigger,
 				Status:        imagesecModel.TaskStatusPending,
 			}
 
 			param := imagesecModel.ImageSearchApiParam{ImageUniqueIds: ims, ImageFromType: imagesecModel.ImageFromNode}
-			if err := s.scanTaskSrv.CreateImageScanTask(ctx, param, taskInfo); err != nil {
+			if err := s.scanTaskSrv.CreateImageScanTask(ctx, &param, taskInfo); err != nil {
 				s.Log.Err(err).Interface("taskInfo", taskInfo).Msg("CreateScanTask")
 				continue
 			}

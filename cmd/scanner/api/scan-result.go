@@ -930,12 +930,16 @@ func GetSearchVulnParamFromCtx(ctx *gin.Context) imagesecModel.ApiSearchVulnPara
 		ClassType:        util.GetStringSliceFromQuery(ctx, "class"),
 		AttackPath:       util.GetStringSliceFromQuery(ctx, "attackPath"),
 		OnlineImageVuln:  util.GetKeywordFromQuery(ctx, "online"),
+		StartID:          util.GetInt64FromQuery(ctx, "startID"),
 		Filter:           imagesecModel.GetFilter(ctx).SetDefault().SetMaxLimit(consts.DefaultPerPage),
 	}
 	keyword := util.GetKeywordFromQuery(ctx, "keyword")
 	if keyword != "" {
 		param.VulnKeyword = keyword
 	}
-
+	vu := util.GetUint64FromQuery(ctx, "vulnUniqueID")
+	if vu > 0 {
+		param.VulnUniqueID = vu
+	}
 	return param
 }

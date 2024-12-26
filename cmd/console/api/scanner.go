@@ -21,7 +21,6 @@ import (
 func (api *api) scanner() func(chi.Router) {
 	return func(r chi.Router) {
 		r.Get("/harbor/scanConfig", api.harborScanConfig())
-		// r.Get("/harbor/scanOneStatus", api.RedirectToScanner(true))
 		r.Post("/harbor/abortScanAll", api.harborAbortScanAll())
 		r.Get("/images/{imgDigest}/layers", api.RedirectToScanner())
 
@@ -295,11 +294,13 @@ func (api *api) scannerOpenApi() func(router chi.Router) {
 	}
 
 	return func(r chi.Router) {
+
 		// r.Get("/*", api.ForwardScannerOpenApi())
 		// r.Post("/*", api.ForwardScannerOpenApi())
 		// r.Put("/*", api.ForwardScannerOpenApi())
 		// r.Delete("/*", api.ForwardScannerOpenApi())
 
+		// 已适配的接口
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/images/assets/image", api.ForwardScannerOpenApi())
 
@@ -310,73 +311,80 @@ func (api *api) scannerOpenApi() func(router chi.Router) {
 			Post("/images/list", api.ForwardScannerOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Get("/images/registryProject", api.ForwardScannerOpenApi())
+			Get("/images/detail/vulns/vuln", api.ForwardScannerOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Post("/images/scan/scantask", api.ForwardScannerOpenApi())
+			Get("/images/detail/vulns/pkg", api.ForwardScannerOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Post("/images/scan/scantask/v2", api.ForwardScannerOpenApi()) // Deprecated
+			Get("/images/detail/vulns/language", api.ForwardScannerOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Get("/statistic/images", api.ForwardScannerOpenApi())
+			Get("/images/detail/vulns/gobinary", api.ForwardScannerOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Get("/images/detail", api.ForwardScannerOpenApi())
+			Get("/images/detail/vulns/frame", api.ForwardScannerOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Get("/images/layers", api.ForwardScannerOpenApi())
+			Get("/images/detail/webshell", api.ForwardScannerOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Get("/scanConfig/strategies", api.ForwardScannerOpenApi())
+			Get("/images/detail/env", api.ForwardScannerOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Post("/scanConfig/strategies", api.ForwardScannerOpenApi())
+			Get("/images/detail/virus", api.ForwardScannerOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Get("/scanConfig/strategies/{strategyName}", api.ForwardScannerOpenApi())
+			Get("/images/detail/sensitiveFile", api.ForwardScannerOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Put("/scanConfig/strategies/{strategyName}", api.ForwardScannerOpenApi())
+			Get("/images/detail/software", api.ForwardScannerOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Delete("/scanConfig/strategies/{strategyName}", api.ForwardScannerOpenApi())
+			Get("/images/detail/base", api.ForwardScannerOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Get("/statistic/vulns", api.ForwardScannerOpenApi())
+			Get("/images/detail/issueStatistic", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/images/detail/issueOverview", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/images/vulns/vuln/detail", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/images/webshell/detail", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/images/webshell/content", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/images/sensitive/detail", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/images/webshell/file", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/images/sensitive/file", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/images/malware/file", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/images/license/file", api.ForwardScannerOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/vulns/list", api.ForwardScannerOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Get("/vulns/detail", api.ForwardScannerOpenApi())
+			Post("/scanTask/image/scan/task", api.ForwardScannerOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Get("/vulns/topNImage", api.ForwardScannerOpenApi())
+			Get("/scanTask/image/scan/task/list", api.ForwardScannerOpenApi())
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Get("/ci/policies", api.ForwardScannerOpenApi())
-		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Get("/ci/policy/{name}", api.ForwardScannerOpenApi())
-		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Post("/ci/result", api.ForwardScannerOpenApi())
-		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Get("/ci/tidb/version", api.ForwardScannerOpenApi())
-		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Get("/ci/tidb/assets/{name}", api.ForwardScannerOpenApi())
-		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Post("/ci/sign", api.ForwardScannerOpenApi())
+			Get("/scanTask/image/scan/subtask/list", api.ForwardScannerOpenApi())
 
-		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Post("/syncImage/startSync", api.ForwardScannerOpenApi())
-		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Post("/register/registry", api.ForwardScannerOpenApi())
-		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Put("/register/registry", api.ForwardScannerOpenApi())
-		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Delete("/register/registry", api.ForwardScannerOpenApi())
-		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Get("/register/registries", api.ForwardScannerOpenApi())
 	}
 }
 
