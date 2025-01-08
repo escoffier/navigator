@@ -6,13 +6,11 @@ import (
 	"os"
 	"path"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/boltdb/bolt"
 	"github.com/go-redis/redis/v8"
-	"github.com/google/go-containerregistry/pkg/name"
 	ftypes "scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/trivy"
 	trivylog "scm.tensorsecurity.cn/tensorsecurity-rd/trivy/pkg/log"
@@ -183,15 +181,17 @@ func (s *TrivySrv) ImageScan(ctx context.Context, prep *imagesecTypes.PrepareSca
 	vulnJobRes.Scanned = true
 	osJobRes.Scanned = true
 
-	imageName := prep.Subtask.RegImageMeta.ImageName()
-	imageName, err := s.changCacheUrl(imageName)
+	// imageName := prep.Subtask.RegImageMeta.ImageName()
+	im := prep.Subtask.RegImageMeta
+	// imageName, err := s.changCacheUrl(imageName)
+	imageName := s.ImageCacheURL + im.Repo + ":" + im.Tag
 
-	if err != nil {
-		s.Log.Err(err).Str("subtask", prep.Subtask.LogStr()).Msg("changCacheUrl")
-		vulnJobRes.Errors = append(vulnJobRes.Errors, err)
-		result = append(result, vulnJobRes)
-		return result
-	}
+	// if err != nil {
+	// 	s.Log.Err(err).Str("subtask", prep.Subtask.LogStr()).Msg("changCacheUrl")
+	// 	vulnJobRes.Errors = append(vulnJobRes.Errors, err)
+	// 	result = append(result, vulnJobRes)
+	// 	return result
+	// }
 
 	opt := NewTrivyScanOptions(imageName)
 	trivyRes, err := s.TrivyScanner.Scan(ctx, imageName, opt)
@@ -397,22 +397,4 @@ func NewTrivySrv(opts ...Option) (*TrivySrv, error) {
 	singleMeta.TrivySrv = s
 	s.Log.Info().Interface("WorkingVersion", s.WorkingVersion).Msg("get vuln db version")
 	return singleMeta.TrivySrv, nil
-}
-
-func (s *TrivySrv) changCacheUrl(im string) (string, error) {
-	im = strings.ReplaceAll(im, "https://", "")
-	im = strings.ReplaceAll(im, "http://", "")
-
-	var nameOpts []name.Option
-	nameOpts = append(nameOpts, name.Insecure)
-	ref, err := name.ParseReference(im, nameOpts...)
-	if err != nil {
-		s.Log.Err(err).Msg("parse image failed")
-		return "", err
-	}
-
-	tag := ref.Identifier()
-	repositoryName := ref.Context().RepositoryStr()
-	newImage := s.ImageCacheURL + repositoryName + ":" + tag
-	return newImage, nil
 }

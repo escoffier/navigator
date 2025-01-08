@@ -14,6 +14,7 @@ import (
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse/support/hw-swr"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse/support/hw-swr-en"
 	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse/support/jfrog"
+	_ "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse/support/nexus"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/store/adaptStore"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/dispatch"

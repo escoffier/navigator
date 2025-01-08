@@ -84,6 +84,7 @@ const (
 
 const (
 	ModuleImageMeta     = "imageMeta"
+	ModuleImageRegistry = "registry"
 	ModuleImagesecSrv   = "imagesec"
 	ModulePreInit       = "preInit"
 	ModuleImageScan     = "scanImage"

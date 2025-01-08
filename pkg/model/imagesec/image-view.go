@@ -1527,6 +1527,20 @@ func (iws *ImageWithCorrelateData2) ToImageBaseResponse() ImageBaseResponse {
 		baseResponse.FullRepoName = strings.Replace(baseResponse.FullRepoName, "/", "", 1)
 	}
 
+	// 对nexus进行兼容
+	if iws.Registry != nil && iws.Registry.RegType == Nexus {
+		// 一般来说 仓库的 host 就是一域名地址，比如：nexus.tensorsecurity.cn
+		// 如果是 nexus,他的域名地址需要加上repository名，所以 host是：nexus.tensorsecurity.cn/repository/liuqianli
+		// 对于 nexus 来说，使用 docker images 时的镜像名是：https://nexus-web.tensorsecurity.com/repository/liuqianli/ubuntu:2022
+		// 但是在使用接口请求数据时需要使用的镜像名是：nexus-web.tensorsecurity.com/repository/liuqianli/repository/liuqianli/ubuntu
+		// 也就是对对于 nuxus 的镜像仓库来说host是：nexus.tensorsecurity.cn/repository/liuqianli,repo是：repository/liuqianli/ubuntu
+		// 在返回时做兼容是为了前端展示和 docker images 一致，数据库中原样存储是为了适配接口
+		split := strings.Split(baseResponse.FullRepoName, "/")
+		if len(split) > 2 {
+			baseResponse.FullRepoName = strings.Join(split[2:], "/")
+		}
+	}
+
 	baseResponse.FullNull()
 
 	return baseResponse

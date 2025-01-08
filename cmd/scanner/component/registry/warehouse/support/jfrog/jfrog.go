@@ -30,22 +30,6 @@ type Jfrog struct {
 	JfrogClient    *http.Client // client for jfrog
 }
 
-func (c *Jfrog) CheckProject(projectName string) error {
-	panic("implement me")
-}
-
-func (c *Jfrog) CreateProject(projectName string, public bool) error {
-	panic("implement me")
-}
-
-func (c *Jfrog) GetImage(projectName, fullRepoName, tag string) (*warehouse.Image, error) {
-	panic("implement me")
-}
-
-func (c *Jfrog) DeleteImages(projectName, repoName, digest string) error {
-	panic("implement me")
-}
-
 func (c *Jfrog) Ping() error {
 	if err := c.RegistryClient.Ping(); err != nil {
 		return warehouse.ErrNotConnectOrWrongUsernameOrPasswd
@@ -93,7 +77,7 @@ func (c *Jfrog) ListRepos(packageType string) ([]Repository, error) {
 }
 
 func (c *Jfrog) ListImagesWithAuditLog(ctx context.Context, extender warehouse.Extender, req warehouse.ListImagesAuditLog) (*warehouse.ListImagesRes, error) {
-	return nil, nil
+	return nil, fmt.Errorf("not support")
 }
 
 func (c *Jfrog) ListRepoImages(repo string) ([]string, error) {
