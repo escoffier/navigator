@@ -4,9 +4,9 @@ import (
 	"strings"
 	"time"
 
+	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/fanal/types"
 
-	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	imagesecTypes "gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
 )
@@ -25,7 +25,10 @@ func GetRegImageInfo(data imagesecTypes.NodeReport) ([]*imagesecModel.Image,
 			BuildAt:       GetBuildAt(image.Created),
 			PullCount:     image.PullCount,
 			User:          image.User,
+			Repo:          image.Repo,
+			Tag:           image.Tag,
 			RegID:         data.RegInfo.RegID,
+			Host:          data.RegInfo.Url,
 			Heartbeat:     time.Now().UnixMilli(),
 		}
 		split := strings.Split(image.Os, ":")
@@ -33,31 +36,12 @@ func GetRegImageInfo(data imagesecTypes.NodeReport) ([]*imagesecModel.Image,
 			im.OS = types.OS{Family: split[0], Name: split[1], Eosl: false} // Eosl 表示不再维护
 		}
 
-		// 对于重复构建的相同名的镜像，前一次的镜像只有ID，没有repoTags,但是可以通过这个ID运行起容器
-		if len(image.RepoTags) == 0 {
-			im.Serialize()
-			images = append(images, im)
-			envs[im.UniqueID] = append(envs[im.UniqueID], ParseImageEnv(im.UniqueID, image.ENVS)...)
-		}
-
-		for _, repoTag := range image.RepoTags {
-			host, repo, tag := scannerUtils.ParseImageName(repoTag)
-			im.Host, im.Repo, im.Tag, im.Project = host, repo, tag, GetProject(repo)
-
-			// 本地镜像没有推送到仓库，是没有digest的
-			if len(image.Digests) == 0 {
-				im2 := im.DeepCopy()
-				im2.Serialize()
-				images = append(images, im2)
-				envs[im2.UniqueID] = append(envs[im2.UniqueID], ParseImageEnv(im2.UniqueID, image.ENVS)...)
-			}
-			for _, digest := range image.Digests {
-				im.Digest = scannerUtils.GetSha256Digest(digest)
-				im2 := im.DeepCopy()
-				im2.Serialize()
-				images = append(images, im2)
-				envs[im2.UniqueID] = append(envs[im2.UniqueID], ParseImageEnv(im2.UniqueID, image.ENVS)...)
-			}
+		for _, digest := range image.Digests {
+			im.Digest = scannerUtils.GetSha256Digest(digest)
+			im2 := im.DeepCopy()
+			im2.Serialize()
+			images = append(images, im2)
+			envs[im2.UniqueID] = append(envs[im2.UniqueID], ParseImageEnv(im2.UniqueID, image.ENVS)...)
 		}
 	}
 

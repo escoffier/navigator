@@ -101,6 +101,7 @@ func GetRegType() map[string]LabelValue {
 		regTypeNameKey[HaiWeiSwrVersion] = LabelValue{Value: HaiWeiSwrVersion, Label: "华为云 SWR 个人版 (公有云)"}
 		regTypeNameKey[HaiWeiSwrENVersion] = LabelValue{Value: HaiWeiSwrENVersion, Label: "华为云 SWR 企业版 (公有云)"}
 		regTypeNameKey[JfrogVersion] = LabelValue{Value: JfrogVersion, Label: "JFrog Artifactory"}
+		regTypeNameKey[Nexus] = LabelValue{Value: Nexus, Label: "Nexus Repository"}
 	}
 	return regTypeNameKey
 }

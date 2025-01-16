@@ -3,7 +3,6 @@ package sync
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
@@ -24,7 +23,8 @@ func (s *RegSyncSrv) createImageExtender(ctx context.Context, image warehouse.Im
 
 	imageMeta := &imagesecTypes.ImageMeta{
 		Digests:   []string{image.ImageDigest},
-		RepoTags:  []string{fmt.Sprintf("%s/%s:%s", image.RegistryUrl, image.Repository, image.Tag)},
+		Repo:      image.Repository,
+		Tag:       image.Tag,
 		Os:        configFile.OS,
 		Size:      int64(image.Size),
 		Layers:    layers,

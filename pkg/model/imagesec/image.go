@@ -185,7 +185,24 @@ func (vi *Image) Serialize() {
 	vi.UniqueID = vi.GenUniqueID()
 	vi.ImageUUID = vi.GenUUID()
 	vi.LayerStr = vi.GenLayerStr()
+	if vi.Project == "" {
+		vi.Project = vi.GetProject()
+	}
 	vi.CheckSum = vi.GenCheckSum()
+}
+
+func (vi *Image) GetProject() string {
+	n1 := strings.Count(vi.Host, "/")
+	split := strings.Split(vi.Repo, "/")
+	if n1 <= 2 && len(split) >= 1 {
+		return split[0]
+	}
+	// 对 nexus进 行兼容
+	// 原因见对FullRepoName做兼容的解释,这里不重复解释
+	if n1 > 2 && len(split) >= 3 {
+		return split[2]
+	}
+	return ""
 }
 
 func (vi *Image) DeepCopy() *Image {

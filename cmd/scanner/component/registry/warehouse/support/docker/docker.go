@@ -386,7 +386,7 @@ func (r *RegistryV2) PullImageManifestV1(repo, digest string) (*schema1.SignedMa
 }
 
 func (r *RegistryV2) ListImagesWithAuditLog(ctx context.Context, extender warehouse.Extender, req warehouse.ListImagesAuditLog) (*warehouse.ListImagesRes, error) {
-	return nil, nil
+	return nil, fmt.Errorf("not implement")
 }
 func (r *RegistryV2) PullConfigBlob(repo string, configDigest digest.Digest) (string, error) {
 	reader, err := r.RegistryClient.DownloadBlob(repo, configDigest)

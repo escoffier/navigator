@@ -14,7 +14,9 @@ type ImageMeta struct {
 	UniqueID  uint64   `json:"uniqueID"`
 	ImageId   string   `json:"imageId"`   // 镜像id。docker 为镜像生成的id，非digest。
 	Digests   []string `json:"digests"`   // 镜像digest,如果镜像为本地构建，可能为空.e.g.nginx@sha256:xxx
-	RepoTags  []string `json:"repoTags"`  // 镜像repo，如 library/dev。数组.若一个镜像多次本地构建，则历史镜像的repoTags信息为空
+	RepoTags  []string `json:"repoTags"`  // 节点镜像上传数据：镜像repo，如 library/dev。数组.若一个镜像多次本地构建，则历史镜像的repoTags信息为空
+	Repo      string   `json:"repo"`      // 仓库镜像Repo
+	Tag       string   `json:"tag"`       // 仓库镜像Tag
 	Os        string   `json:"os"`        // 镜像操作系统信息，如：ubuntu:20.04
 	Namespace string   `json:"namespace"` // 镜像所在的 namespace
 	Size      int64    `json:"size"`      // 镜像大小,byte

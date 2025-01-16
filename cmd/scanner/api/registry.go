@@ -54,7 +54,6 @@ func (s *RegistrySrv) UpdateRegistry(ctx *gin.Context) {
 }
 
 func (s *RegistrySrv) CreateRegistry(ctx *gin.Context) {
-	// 做一下兼容
 	reg := &imagesec.Registry{}
 	if err := ctx.BindJSON(reg); err != nil {
 		response.JSONError(ctx, err)
