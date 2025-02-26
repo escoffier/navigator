@@ -59,3 +59,20 @@ func (s *Service) RuleDetail(ctx context.Context, scapType string, id int) (*mod
 
 	return &data, nil
 }
+
+func (s *Service) RuleDetailByPolicyId(ctx context.Context, scapType string, policyId string) (*model.PolicyDetailInfo, error) {
+	db := s.rdb.Get().WithContext(ctx).
+		Model(&model.PolicyDetailInfo{}).
+		Where("check_type = ?", scapType).
+		Where("policy_id = ?", policyId)
+
+	var data model.PolicyDetailInfo
+
+	err := db.First(&data).Error
+	if err != nil {
+		logging.GetLogger().Err(err).Msg("get rules detail error")
+		return nil, err
+	}
+
+	return &data, nil
+}
