@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
+	"gorm.io/gorm"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/console/models/scap"
 	scapservice "gitlab.com/piccolo_su/vegeta/cmd/console/service/scap"
@@ -393,7 +394,10 @@ func (api *api) getScapCheckStatus() http.HandlerFunc {
 func (api *api) getKubeScapCheckDetail() http.HandlerFunc {
 
 	type Rule struct {
-		PolicyId      int      `json:"policyId"`      // 合规的数据库ID
+		PolicyId      string   `json:"policyId"`      // 合规策略ID
+		Title         string   `json:"title"`         // 规则标题
+		Detail        string   `json:"detail"`        // 规则描述
+		Classified    string   `json:"classified"`    // 分类
 		DefaultValue  string   `json:"defaultValue"`  // 默认值
 		Description   string   `json:"description"`   // 规则描述
 		Rationale     string   `json:"rationale"`     // 解释
@@ -408,17 +412,26 @@ func (api *api) getKubeScapCheckDetail() http.HandlerFunc {
 		ctx, cancel := context.WithTimeout(r.Context(), time.Second*60)
 		defer cancel()
 
-		policyId, _ := param.QueryInt(r, "policyId")
-		if policyId <= 0 {
+		checkType := chi.URLParam(r, "checkType")
+		if checkType == "" {
+			apperror.RespAndLog(w, ctx, apperror.NewMongoError(http.StatusInternalServerError, errors.New("checkType id can't be empty")))
+			return
+		}
+
+		policyId, _ := param.QueryString(r, "policyId")
+		if policyId == "" {
 			apperror.RespAndLog(w, ctx, apperror.NewMongoError(http.StatusInternalServerError, errors.New("policyId id can't be empty")))
 			return
 		}
 		scapApiV2 := scapservice.NewService(api.rdb, api.redisClient)
 
-		rule, err := scapApiV2.RuleDetail(ctx, "kube", policyId)
-
+		rule, err := scapApiV2.RuleDetailByPolicyId(ctx, checkType, policyId)
 		if err != nil {
-			apperror.RespAndLog(w, ctx, apperror.NewMongoError(http.StatusInternalServerError, errors.New("get check status error")))
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				apperror.RespAndLog(w, ctx, apperror.NewMongoError(http.StatusBadRequest, errors.New("policy not found")))
+			} else {
+				apperror.RespAndLog(w, ctx, apperror.NewMongoError(http.StatusInternalServerError, errors.New("get check status error")))
+			}
 			return
 		}
 		if rule.PolicyDetailInfoExtraDetail == nil {
@@ -428,6 +441,9 @@ func (api *api) getKubeScapCheckDetail() http.HandlerFunc {
 
 		resp := Rule{
 			PolicyId:      policyId,
+			Title:         rule.TitleZh,
+			Detail:        rule.DetailZh,
+			Classified:    rule.ClassifiedZh,
 			DefaultValue:  rule.PolicyDetailInfoExtraDetail.DefaultValue,
 			Description:   rule.PolicyDetailInfoExtraDetail.Description,
 			Rationale:     rule.PolicyDetailInfoExtraDetail.Rationale,
@@ -522,7 +538,7 @@ func (api *api) scapOpenApi() func(chi.Router) {
 			Get("/scan/record/status", api.getScapCheckStatus()) // 合规检测状态
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
-			Get("/scan/record/kube/detail", api.getKubeScapCheckDetail()) // kube合规检测详情
+			Get("/scan/{checkType}/detail", api.getKubeScapCheckDetail()) // kube合规检测详情
 
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/scan/policies", api.getScapScanPolicy()) // 合规策略列表
