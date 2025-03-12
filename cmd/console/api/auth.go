@@ -957,7 +957,18 @@ func (api *api) issueJWTToken(ctx context.Context, u *model.User, userAgent stri
 		Eigenvalue: util.MD5Hex(userAgent),
 	}
 
-	tokenString, err := api.tokenManager.IssueTo(tokenPayload, time.Hour*24)
+	// 读取环境变量，获取最大token有效期的长度（单位为小时）
+	maxTokenExpiryHoursStr := os.Getenv("MAX_TOKEN_EXPIRY_HOURS")
+	maxTokenExpiryHours := 24 // 默认值为24小时
+
+	if maxTokenExpiryHoursStr != "" {
+		hours, err := strconv.Atoi(maxTokenExpiryHoursStr)
+		if err == nil && hours > 0 {
+			maxTokenExpiryHours = hours
+		}
+	}
+
+	tokenString, err := api.tokenManager.IssueTo(tokenPayload, time.Hour*time.Duration(maxTokenExpiryHours))
 	if err != nil {
 		logging.Get().Info().Err(err).Msg("")
 		return "", err
