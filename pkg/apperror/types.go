@@ -798,7 +798,7 @@ func UserNotExistError(httpCode int, err error, suberrors ...Suberror) error {
 		detailedError{
 			err:       err,
 			English:   "User not exist",
-			Chinese:   "用户不存在",
+			Chinese:   "用户信息不存在，请联系管理员",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,
 		},
