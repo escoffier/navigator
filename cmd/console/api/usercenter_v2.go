@@ -12,7 +12,7 @@ func (api *api) userCenter() func(chi.Router) {
 		r.Get("/login/secret", api.getLoginSecret())
 		r.Get("/login/getVerifyAppURL", api.getVerifyAppURL())
 		r.Group(func(r chi.Router) {
-			r.Use(middleware.LicenseVerify)
+			// r.Use(middleware.LicenseVerify)
 			if !api.httpAuditDisabled {
 				ecCli, err := api.esCli.Get()
 				if err == nil {
@@ -25,6 +25,7 @@ func (api *api) userCenter() func(chi.Router) {
 			r.Get("/idp/login/url", api.getIdpLoginUrl())
 			r.Post("/idp/login", api.idpLogin())
 			r.Get("/idp/dxhost", api.geDxHost())
+			r.Post("/tenant/userSync", api.userSync()) // 同步用户
 		})
 		r.Post("/radiusResponseChallenge", api.RadiusResponseChallenge())
 		r.Post("/createCaptcha", api.createCaptcha())

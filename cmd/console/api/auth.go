@@ -19,14 +19,11 @@ import (
 	"time"
 
 	"github.com/pquerna/otp/totp"
+	"gitlab.com/security-rd/go-pkg/httputil"
 	"golang.org/x/time/rate"
 	"gopkg.in/gomail.v2"
 
 	param "github.com/oceanicdev/chi-param"
-	"gitlab.com/piccolo_su/vegeta/pkg/request"
-	"gitlab.com/piccolo_su/vegeta/pkg/token"
-	"gorm.io/gorm"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/captcha"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/idp"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/license"
@@ -36,10 +33,13 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/env"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
+	"gitlab.com/piccolo_su/vegeta/pkg/request"
 	"gitlab.com/piccolo_su/vegeta/pkg/response"
+	"gitlab.com/piccolo_su/vegeta/pkg/token"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gitlab.com/security-rd/go-pkg/logging"
+	"gorm.io/gorm"
 )
 
 type getLoginSecretResp struct {
@@ -492,6 +492,11 @@ func (api *api) idpLogin() http.HandlerFunc {
 			return
 		}
 
+		if req.Platform == "cmcctenant" {
+			api.tenantLogin(ctx, w, r, req.Payload)
+			return
+		}
+
 		p, err := idp.GetProvider(req.Platform)
 		if err != nil {
 			RespAndLog(w, ctx,
@@ -601,6 +606,250 @@ func (api *api) geDxHost() http.HandlerFunc {
 		}
 
 		response.Ok(w, response.WithItem(map[string]string{"host": host}))
+	}
+}
+
+type tenantLoginReq struct {
+	LoginName string `json:"loginName"`
+	Token     string `json:"token"`
+	AppCode   string `json:"appCode"`
+}
+
+type tenantLoginHttpResp struct {
+	Code    int    `json:"code"`
+	Message string `json:"message"`
+	Data    struct {
+		LoginName   string `json:"loginName"`
+		Token       string `json:"token"`
+		AppCode     string `json:"appCode"`
+		PhoneNumber string `json:"phoneNumber"`
+		Sex         string `json:"sex"`
+		Email       string `json:"email"`
+		LoginTime   int64  `json:"loginTime"`
+		ExpireTime  int64  `json:"expireTime"`
+	} `json:"data"`
+}
+
+func (api *api) tenantLogin(ctx context.Context, w http.ResponseWriter, r *http.Request, raw json.RawMessage) {
+	req := tenantLoginReq{}
+	err := json.Unmarshal(raw, &req)
+	if err != nil {
+		RespAndLog(w, r.Context(),
+			NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("failed to decode json: %w", err)))
+		return
+	}
+
+	if req.LoginName == "" || req.Token == "" {
+		RespAndLog(w, r.Context(),
+			NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("loginName or token is empty")))
+		return
+	}
+
+	// 查询用户
+	user := &model.User{}
+	err = api.rdb.GetReadDB().Where("username = ?", req.LoginName).First(user).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			RespAndLog(w, r.Context(),
+				UserNotExistError(http.StatusBadRequest, fmt.Errorf("user not found")))
+		} else {
+			RespAndLog(w, r.Context(),
+				NewAnError(http.StatusInternalServerError, fmt.Errorf("db query error: %w", err)))
+		}
+		return
+	}
+
+	// 判定账号是否被停用
+	if err = checkUserStatus(user.UserName, user.Status); err != nil {
+		RespAndLog(w, r.Context(), err)
+		return
+	}
+
+	appCode := os.Getenv("TENANT_APP_CODE")
+	if appCode == "" {
+		appCode = "CT_CONTAINER_IDSS_TZ_947101"
+	}
+	req.AppCode = appCode
+	jsonReqData, err := json.Marshal(req)
+	if err != nil {
+		RespAndLog(w, r.Context(),
+			NewAnError(http.StatusInternalServerError, fmt.Errorf("marshal json failed: %w", err)))
+		return
+	}
+
+	// /uap/loginCheck
+	// 调用tenant接口验证token
+	tenantLoginUrl := os.Getenv("TENANT_LOGIN_URL")
+	if tenantLoginUrl == "" {
+		tenantLoginUrl = "http://42.236.74.152:8150/cmcc-tenant"
+	}
+
+	logging.Get().Debug().Msgf("tenant login check req: %s  url: %s", string(jsonReqData), tenantLoginUrl)
+
+	httpReq, err := http.NewRequestWithContext(ctx, http.MethodPost, tenantLoginUrl+"/uap/loginCheck", bytes.NewBuffer(jsonReqData))
+	if err != nil {
+		RespAndLog(w, r.Context(),
+			NewAnError(http.StatusInternalServerError, fmt.Errorf("create request failed: %w", err)))
+		return
+	}
+
+	httpReq.Header.Add("Content-Type", "application/json")
+	httpResp, err := httputil.DefaultClient.Do(httpReq)
+	if err != nil {
+		RespAndLog(w, r.Context(),
+			NewAnError(http.StatusInternalServerError, fmt.Errorf("request failed: %w", err)))
+		return
+	}
+	defer util.CloseBodyWithLog(httpResp.Body)
+
+	body, err := io.ReadAll(httpResp.Body)
+	if err != nil {
+		RespAndLog(w, r.Context(),
+			NewAnError(http.StatusInternalServerError, fmt.Errorf("read body failed: %w", err)))
+		return
+	}
+
+	logging.Get().Info().Msgf("tenant login check resp: %s", string(body))
+	tenantLoginHttpResp := tenantLoginHttpResp{}
+	if err = json.Unmarshal(body, &tenantLoginHttpResp); err != nil {
+		RespAndLog(w, r.Context(),
+			NewAnError(http.StatusInternalServerError, fmt.Errorf("unmarshal json failed: %w", err)))
+		return
+	}
+
+	// 如果返回码不为0，则表示登录失败
+	if tenantLoginHttpResp.Code != 200 || tenantLoginHttpResp.Data.ExpireTime == 0 {
+		RespAndLog(w, r.Context(),
+			NewAnError(http.StatusInternalServerError, fmt.Errorf("tenant login check failed: %s", tenantLoginHttpResp.Message)))
+		return
+	}
+
+	// issue JWT Token
+	tokenString, err := api.issueJWTToken(ctx, user, r.UserAgent(), false)
+	if err != nil {
+		RespAndLog(w, r.Context(),
+			LoginError(http.StatusInternalServerError,
+				fmt.Errorf("issue jwt token failed %w", err)))
+		return
+	}
+
+	if user.ModuleID == "" {
+		user.ModuleID = "[]"
+	}
+	response.Ok(w, response.WithItem(LoginResponse{
+		Username:      user.UserName,
+		Account:       user.Account,
+		Status:        "ok",
+		Type:          AccountTypeNormal,
+		Token:         tokenString,
+		Role:          user.Role,
+		Platform:      user.Platform,
+		LicenseStatus: license.ValidateLicense(false),
+		ModuleID:      json.RawMessage(user.ModuleID),
+	}), response.WithTarget(&response.TargetRef{
+		Name: user.UserName,
+		ID:   "",
+		Link: "",
+	}))
+
+}
+
+// 接口入参:syncType(同步类型:add-新增/modify-更新/del-删除)、loginName(用户名)、手机号(phoneNumber)、sex(性别)、email(邮箱)
+// 接口响应:userId(外部平台系统用户Id)
+func (api *api) userSync() http.HandlerFunc {
+	type reqUserSync struct {
+		SyncType    string `json:"syncType"`
+		LoginName   string `json:"loginName"`
+		PhoneNumber string `json:"phoneNumber"`
+		Sex         string `json:"sex"`
+		Email       string `json:"email"`
+		NickName    string `json:"nickName"`
+	}
+	return func(w http.ResponseWriter, r *http.Request) {
+		req := reqUserSync{}
+		err := json.NewDecoder(r.Body).Decode(&req)
+		if err != nil {
+			RespAndLog(w, r.Context(),
+				NewMalformedRequestError(http.StatusBadRequest, fmt.Errorf("failed to decode json: %w", err)))
+			return
+		}
+
+		if req.SyncType == "add" {
+			moduleIDs := make([]string, 0)
+			// 获取默认权限
+			conf, err := dal.GetConfig(r.Context(), api.rdb.GetReadDB(), model.ConfIdpLogin)
+			if err != nil {
+				if err != gorm.ErrRecordNotFound {
+					RespAndLog(w, r.Context(),
+						NewAnError(http.StatusInternalServerError, fmt.Errorf("db query error: %w", err)))
+					return
+				}
+
+				moduleGroup, err := dal.GetAdminModuleGroup(r.Context(), api.rdb.GetReadDB())
+				if err != nil {
+					RespAndLog(w, r.Context(),
+						NewAnError(http.StatusInternalServerError, fmt.Errorf("db query error: %w", err)))
+					return
+				}
+				for _, module := range moduleGroup {
+					moduleIDs = append(moduleIDs, strconv.Itoa(module.Id))
+				}
+			} else {
+				idpConf := idp.LoginConfig{}
+				if err = json.Unmarshal(conf.Config, &idpConf); err != nil {
+					RespAndLog(w, r.Context(),
+						NewAnError(http.StatusInternalServerError, fmt.Errorf("json unmarshal error: %w", err)))
+					return
+				}
+				for _, auth := range idpConf.DefaultAuth {
+					moduleIDs = append(moduleIDs, strconv.Itoa(auth.Id))
+				}
+			}
+			moduleID, _ := json.Marshal(moduleIDs)
+
+			// 新增用户
+			user := model.User{
+				UserName:  req.LoginName,
+				Account:   req.LoginName,
+				Nickname:  req.NickName,
+				Role:      model.RoleTypeAdmin,
+				Mobile:    req.PhoneNumber,
+				ModuleID:  string(moduleID),
+				Platform:  "cmcc_tenant",
+				Status:    model.UserStatusNormal,
+				CreatedAt: time.Now().Unix(),
+				Creator:   "system",
+			}
+			err = api.rdb.Get().WithContext(r.Context()).Create(&user).Error
+			if err != nil {
+				RespAndLog(w, r.Context(),
+					NewAnError(http.StatusInternalServerError, fmt.Errorf("create user failed: %w", err)))
+				return
+			}
+		} else if req.SyncType == "modify" {
+			// 更新用户
+			err = api.rdb.Get().WithContext(r.Context()).Model(&model.User{}).
+				Where("username = ?", req.LoginName).Updates(map[string]interface{}{
+				"nickname": req.NickName,
+				"mobile":   req.PhoneNumber,
+			}).Error
+			if err != nil {
+				RespAndLog(w, r.Context(),
+					NewAnError(http.StatusInternalServerError, fmt.Errorf("update user failed: %w", err)))
+				return
+			}
+		} else if req.SyncType == "del" {
+			// 删除用户
+			err = api.rdb.Get().WithContext(r.Context()).Model(&model.User{}).
+				Where("username = ?", req.LoginName).Delete(&model.User{}).Error
+			if err != nil {
+				RespAndLog(w, r.Context(),
+					NewAnError(http.StatusInternalServerError, fmt.Errorf("delete user failed: %w", err)))
+				return
+			}
+		}
+
+		w.Write([]byte(req.LoginName))
 	}
 }
 
