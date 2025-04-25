@@ -113,7 +113,7 @@ var rootCmd = &cobra.Command{
 		run := func(ctx context.Context) {
 			console, err := service.NewConsole(httpOpts, rdbOpts, scannerOpts, exporterOpts, scapOpts, elasticOpts, rdbOptions)
 			if err != nil {
-				logging.Get().Err(err)
+				logging.Get().Err(err).Msg("failed to create console")
 				return
 			}
 
