@@ -460,6 +460,7 @@ func checkScopeCmdlineSimilar(event Event) bool {
 		return false
 	}
 	hash := scope + "$" + cmdline
+	hash += "$" + event.Name // 加一下。 可能有重复的cmdline
 	// 检查缓存
 	if cacheEvent, ok := RequestScopeCmdlineCache.get(hash); ok {
 		if event.Time.Sub(cacheEvent.time) < time.Millisecond*500 {
