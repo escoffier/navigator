@@ -236,6 +236,14 @@ heavy-agent:
 	cmake --build heavy_agent
 	docker build -t $(REPOPREFIX)/heavy-agent:$(IMAGE_TAG) -f ./build/heavy-agent/Dockerfile .
 
+
+.PHONY: portal-backend
+portal-backend:
+	@echo "build portal"
+	CGO_ENABLED=1 go build -v -o dist/portal cmd/portal/main.go
+	docker build -t $(REPOPREFIX)/portal-backend:$(IMAGE_TAG) -f ./build/portal/Dockerfile .
+
+
 ## Build all images
 .PHONY: all
 all: drift-prevention-client scanner scarecrow console data holmes daemon  \
@@ -263,6 +271,7 @@ pushimages:
 	docker push $(REPOPREFIX)/node-image:$(IMAGE_TAG)
 	docker push $(REPOPREFIX)/heavy-agent:$(IMAGE_TAG)
 	docker push $(REPOPREFIX)/monitor:$(IMAGE_TAG)
+	docker push $(REPOPREFIX)/portal-backend:$(IMAGE_TAG)
 
 .PHONY: rm-local-images
 rm-local-images:
@@ -284,3 +293,4 @@ rm-local-images:
 	docker rmi $(REPOPREFIX)/node-image:$(IMAGE_TAG)
 	docker rmi $(REPOPREFIX)/heavy-agent:$(IMAGE_TAG)
 	docker rmi $(REPOPREFIX)/monitor:$(IMAGE_TAG)
+	docker rmi $(REPOPREFIX)/portal-backend:$(IMAGE_TAG)

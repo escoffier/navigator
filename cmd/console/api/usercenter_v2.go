@@ -20,6 +20,7 @@ func (api *api) userCenter() func(chi.Router) {
 				}
 			}
 			r.Post("/login", api.login())
+			r.Get("/loginByAuthcode", api.loginByAuthcode())
 			r.Post("/ldapLogin", api.LdapLogin())
 			r.Post("/radiusLogin", api.RadiusLogin())
 			r.Get("/idp/login/url", api.getIdpLoginUrl())

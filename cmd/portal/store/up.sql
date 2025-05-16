@@ -1,0 +1,46 @@
+
+create table if not exists portal_user (
+  `id` int unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) NOT NULL DEFAULT '',
+  `pwd` text NOT NULL,
+  `role` varchar(50) NOT NULL DEFAULT '',
+  `mobile` varchar(100) NOT NULL DEFAULT '',
+  `email` text,
+  `comment` longtext NOT NULL,
+  `status` varchar(30) NOT NULL DEFAULT '',
+  `source_check_token` text NOT NULL,
+  `source_check_pwd` varchar(200) NOT NULL DEFAULT '',
+  `source_check_email` varchar(200) NOT NULL DEFAULT '',
+  `codesec_sk` text NOT NULL,
+  `codesec_ak` text NOT NULL,
+  `codesec_email` text NOT NULL,
+  `codesec_pwd` varchar(100) NOT NULL DEFAULT '',
+  `token` text NOT NULL,
+  `token_exp_at` bigint NOT NULL DEFAULT '0',
+  `created_at` bigint NOT NULL DEFAULT '0',
+  `updated_at` bigint NOT NULL DEFAULT '0',
+  `portal_email` varchar(100) NOT NULL DEFAULT '',
+  `tensor_email` varchar(100) NOT NULL DEFAULT '',
+  `tensor_pwd` varchar(200) NOT NULL DEFAULT '',
+  `delete_at` bigint NOT NULL DEFAULT '0',
+  `deleted_at` bigint NOT NULL DEFAULT '0',
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `idx_account2` (`name`,`deleted_at`),
+  UNIQUE KEY `idx_account3` (`portal_email`,`deleted_at`)
+) ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+create table if not exists portal_project (
+    id int unsigned auto_increment primary key,
+    name varchar(100) not null default '',
+    user_id int unsigned not null default 0,
+    url varchar(200) not null default '',
+    description longtext not null,
+    git_type varchar(100) not null default '',
+    token text not null,
+    branch varchar(100) not null default '',
+    codesec_uuid varchar(200) not null default '',
+    source_check_uuid varchar(200) not null default '',
+    created_at bigint not null default 0,
+    updated_at bigint not null default 0,
+    unique index idx_project_name (name,user_id)
+)ENGINE=InnoDB  DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;

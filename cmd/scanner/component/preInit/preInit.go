@@ -2,11 +2,14 @@ package preinit
 
 import (
 	"context"
+	"encoding/csv"
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/security-rd/go-pkg/databases"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/cmd/global"
@@ -27,6 +30,7 @@ type InitScanner struct {
 	dataMigrateDal   imagesecStore.DataMigrateDal
 	scanResultDal    imagesecStore.ScanResultDal
 	dbMetaDal        imagesecStore.ScanDbMetaDal
+	resourceDal      imagesecStore.ResourceDal
 	Log              *scannerUtils.LogEvent
 }
 
@@ -66,6 +70,20 @@ func (s *InitScanner) Init(ctx context.Context) error {
 	_ = s.removeImagescanDir(ctx)
 	_ = s.createSensitiveDBVersion(ctx)
 	_ = s.createCIVulnDB(ctx)
+	need := strings.TrimSpace(os.Getenv("NeedStaticResource"))
+	if need == consts.TrueString {
+		go func() {
+			if r := recover(); r != nil {
+				s.Log.Error().Str("stack", string(debug.Stack())).Msg("recover panic")
+			}
+			// copy file from pod to local node
+			// kubectl -n anquan cp anquan-scanner-7599648467-67858:/root/alldb/resource_static/cluster.csv  /tmp/cluster.csv
+			// kubectl -n anquan cp anquan-scanner-7599648467-67858:/root/alldb/resource_static/data.csv  /tmp/data.csv
+			// kubectl -n anquan cp anquan-scanner-7599648467-67858:/root/alldb/resource_static/success.csv  /tmp/success.csv
+			_ = s.StatisticCluster2(ctx)
+		}()
+	}
+
 	return nil
 }
 
@@ -440,6 +458,89 @@ func (s *InitScanner) createCIVulnDB(ctx context.Context) error {
 	return nil
 }
 
+func (s *InitScanner) StatisticCluster(ctx context.Context) error {
+	staticFilename := filepath.Join(global.ScannerOpts.PvcPath, "resource_static.csv")
+	_ = os.Remove(staticFilename)
+
+	file, err := os.Create(staticFilename)
+	if err != nil {
+		s.Log.Err(err).Str("filename", staticFilename).Msg("StatisticCluster can not create file")
+		return err
+	}
+
+	defer func() { _ = file.Close() }()
+
+	// 创建 CSV Writer
+	writer := csv.NewWriter(file)
+	defer writer.Flush()
+	header := []string{"ClusterName", "ClusterKey", "NodeName", "ResourceKind", "Count"}
+	if err := writer.Write(header); err != nil {
+		s.Log.Err(err).Str("filename", staticFilename).Msg("StatisticCluster can not writer header")
+		return err
+	}
+
+	clusterName, err := s.resourceDal.SearchClusterName(ctx, nil)
+	if err != nil {
+		s.Log.Err(err).Msg("StatisticCluster can notSearchClusterName")
+		return err
+	}
+	nodeCnt := 0
+	for clusterKey := range clusterName {
+		nodes, err := s.resourceDal.SearchTensorNode(ctx, clusterKey)
+		if err != nil {
+			s.Log.Err(err).Msg("StatisticCluster can not SearchTensorNode")
+			return err
+		}
+		nodeCnt += len(nodes)
+		for i := range nodes {
+			no := nodes[i]
+			data, err := s.resourceDal.StatisticsResource(ctx, imagesecModel.StatisticsResourceParam{
+				ClusterKey:   no.ClusterKey,
+				NodeName:     no.HostName,
+				ResourceKind: "Deployment",
+				Status:       assets.Running,
+			})
+			if err != nil {
+				s.Log.Err(err).Str("clusterKey", no.ClusterKey).Str("nodeName", no.HostName).
+					Msg("StatisticCluster can not StatisticsResource")
+				continue
+			}
+			data.ClusterName = clusterName[data.ClusterKey]
+
+			if data.ClusterName == "" {
+				s.Log.Err(err).Str("clusterKey", no.ClusterKey).Str("nodeName", no.HostName).
+					Msg("StatisticCluster can not find cluster name")
+				continue
+			}
+			record := []string{data.ClusterName, data.ClusterKey, data.NodeName, data.ResourceKind, fmt.Sprintf("%d", data.Count)}
+			_ = writer.Write(record)
+
+			s.Log.Err(err).Str("filename", staticFilename).Str("cluster", clusterName[clusterKey]).
+				Str("nodeName", no.HostName).Msg("StatisticCluster finished the node")
+		}
+	}
+	s.Log.Err(err).Str("filename", staticFilename).Int("clusterCnt", len(clusterName)).
+		Int("nodeCnt", nodeCnt).Msg("StatisticCluster finished all")
+	return nil
+}
+
+func (s *InitScanner) StatisticCluster2(ctx context.Context) error {
+	filename := filepath.Join(global.ScannerOpts.PvcPath, "resource_static")
+	_ = os.MkdirAll(filename, os.ModePerm)
+
+	pm := NewPodManager(s.resourceDal)
+	ns := os.Getenv("TensorNamespace")
+	if ns == "" {
+		ns = "anquan" // for 中移
+	}
+	if err := pm.ExportPodsToCSV(ctx, ns, filename); err != nil {
+		s.Log.Err(err).Str("filename", filename).Msg("StatisticCluster can not ExportPodsToCSV")
+		return err
+	}
+	s.Log.Info().Str("filepath", filename).Msg("StatisticCluster finished all")
+	return nil
+}
+
 // FIXME 2.21版本进行优化，使用临时目录进行管理
 func (s *InitScanner) removeImagescanDir(ctx context.Context) error {
 	_, err := os.Stat("/Imagescan")
@@ -460,6 +561,7 @@ func NewInitScanner(db *databases.RDBInstance) *InitScanner {
 	dataMigrateDal := imagesecStore.NewDataMigrateDao(db)
 	scanResultDal := imagesecStore.NewScanResultDao(db)
 	dbMetaDal := imagesecStore.NewScanDbMetaDao(db)
+	resourceDal := imagesecStore.NewResourceDao(db)
 
 	return &InitScanner{
 		imageConfigDal:   imageConfigDal,
@@ -468,6 +570,7 @@ func NewInitScanner(db *databases.RDBInstance) *InitScanner {
 		dataMigrateDal:   dataMigrateDal,
 		scanResultDal:    scanResultDal,
 		dbMetaDal:        dbMetaDal,
+		resourceDal:      resourceDal,
 		Log: scannerUtils.NewLogEvent(
 			scannerUtils.WithModule(consts.ModulePreInit)),
 	}

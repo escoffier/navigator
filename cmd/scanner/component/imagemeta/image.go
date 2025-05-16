@@ -397,10 +397,6 @@ func (s *ImageInfoMetaSrv) SearchRelatedImage(ctx context.Context, param imagese
 
 	res := make(map[uint32]imagesecModel.RelatedImageRes)
 
-	if err != nil {
-		s.Log.Err(err).Msg("SearchRelatedImage SearchImage")
-		return ans, 0, scani18.SearchImage(err)
-	}
 	regIds := make([]int64, 0)
 	nodeIds := make([]uint64, 0)
 	regMap := make(map[int64]*imagesecModel.Registry)

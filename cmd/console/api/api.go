@@ -3,11 +3,12 @@ package api
 import (
 	"errors"
 	"fmt"
+	"net/http"
+	"net/url"
+
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/echelper"
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
-	"net/http"
-	"net/url"
 
 	"github.com/go-chi/chi"
 	"github.com/go-redis/redis/v8"
@@ -29,6 +30,7 @@ type api struct {
 	webhookURL   *url.URL
 
 	scannerURL     string
+	PortalURL      string
 	exportURL      string
 	sherlockURL    string
 	sherlockClient *echelper.SherlockClient
@@ -50,6 +52,7 @@ func newAPI(
 	tokenManager token.Manager,
 	rdb *databases.RDBInstance,
 	scannerURL string,
+	portalURL string,
 	exportURL string,
 	sherlockURL string,
 	microsegURL string,
@@ -75,6 +78,7 @@ func newAPI(
 		scannerURL:        scannerURL,
 		exportURL:         exportURL,
 		sherlockURL:       sherlockURL,
+		PortalURL:         portalURL,
 		microsegURL:       microsegURL,
 		webhookURL:        whUrl,
 		sherlockClient:    sherlockClient,

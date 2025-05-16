@@ -9,6 +9,8 @@ const (
 	vegetaScannerHost         = "vegeta-scanner-host"
 	vegetaScannerPort         = "vegeta-scanner-port"
 	vegetaScannerRedirectPort = "vegeta-scanner-redirect-port"
+	vegetaPortalHost          = "vegeta-portal-host"
+	vegetaPortalPort          = "vegeta-portal-port"
 )
 
 // VegetaScannerOpts the vegeta scanner options
@@ -25,11 +27,25 @@ func NewDefaultVegetaScannerOpts() *VegetaScannerOpts {
 	}
 }
 
+func NewDefaultVegetaPortalOpts() *VegetaScannerOpts {
+	return &VegetaScannerOpts{
+		Host: "portal-backend",
+		Port: 10800,
+	}
+}
+
 // GetVegetaScannerOpts parses the cobra.Command and returns the EtcdOpts.
 func GetVegetaScannerOpts(cmd *cobra.Command) *VegetaScannerOpts {
 	return &VegetaScannerOpts{
 		Host: viper.GetString(vegetaScannerHost),
 		Port: viper.GetInt(vegetaScannerPort),
+	}
+}
+
+func GetVegetaPortalOpts(cmd *cobra.Command) *VegetaScannerOpts {
+	return &VegetaScannerOpts{
+		Host: viper.GetString(vegetaPortalHost),
+		Port: viper.GetInt(vegetaPortalPort),
 	}
 }
 
@@ -42,6 +58,22 @@ func AddVegetaScannerFlags(cmd *cobra.Command) {
 	for _, flag := range []string{
 		vegetaScannerHost,
 		vegetaScannerPort,
+	} {
+		err := viper.BindPFlag(flag, cmd.Flags().Lookup(flag))
+		if err != nil {
+			panic(err)
+		}
+	}
+}
+
+func AddVegetaPortalFlags(cmd *cobra.Command) {
+	defaultOps := NewDefaultVegetaPortalOpts()
+	cmd.Flags().String(vegetaPortalHost, defaultOps.Host, "vegeta portal host")
+	cmd.Flags().Int(vegetaPortalPort, defaultOps.Port, "vegeta portal port")
+
+	for _, flag := range []string{
+		vegetaPortalHost,
+		vegetaPortalPort,
 	} {
 		err := viper.BindPFlag(flag, cmd.Flags().Lookup(flag))
 		if err != nil {

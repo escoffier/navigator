@@ -40,6 +40,7 @@ const (
 	AccountTypeNormal = "account"
 	AccountTypeLdap   = "ldapAccount"
 	AccountTypeRadius = "radiusAccount"
+	AccountTypePortal = "portalAccount"
 )
 
 var (

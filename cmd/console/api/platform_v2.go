@@ -21,7 +21,6 @@ func (api *api) platform() func(chi.Router) {
 		r.Route("/report", api.platformReport())
 		r.Route("/naviAudit", api.naviAudit())
 		r.Route("/behavioral-learn", api.behavioralLearn())
-		// r.Route("/nodeImage", api.NodeImage())
 		r.Route("/waf", api.waf())
 		r.Route("/configs", api.configs())
 		r.Route("/memshell", api.memshell())
