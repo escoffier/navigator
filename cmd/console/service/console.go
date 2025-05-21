@@ -99,6 +99,7 @@ func NewConsole(
 	httpOpts *flag.HTTPOpts,
 	rdbOpts *flag.RDBOpts,
 	scannerOpts *flag.VegetaScannerOpts,
+	portalOpts *flag.VegetaScannerOpts,
 	exporterOpts *flag.ExporterOpts,
 	scapOpts *flag.ScapOpts,
 	elasticOpts *flag.ElasticOpts,
@@ -117,6 +118,7 @@ func NewConsole(
 	}
 
 	scannerURL := fmt.Sprintf("http://%s:%d", scannerOpts.Host, scannerOpts.Port)
+	portalURL := fmt.Sprintf("http://%s:%d", portalOpts.Host, portalOpts.Port)
 	exportURL := fmt.Sprintf("http://%s:%d", exporterOpts.Host, exporterOpts.Port)
 	microsegURL := os.Getenv("MICROSEG_URL")
 	sherlockURL := os.Getenv("SHERLOCK_URL")
@@ -465,6 +467,7 @@ func NewConsole(
 				rdb,
 				es,
 				scannerURL,
+				portalURL,
 				exportURL,
 				sherlockURL,
 				microsegURL,

@@ -44,6 +44,7 @@ type ScannerOpts struct {
 	SingeScanTimeout      int64 // 单文件或单目录扫描超时时间
 	MaxScanFileSize       int64 // 文件过大就不再进行扫描，表示进行文件扫描时单文件的最大值 单位：byte
 	CacheCleanPerInterval int64
+	NeedStaticResource    string // 是否在启动时统计中移的集群使用情况
 }
 
 // NewDefaultScannerOpts the new default clair options.

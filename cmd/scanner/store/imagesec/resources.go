@@ -17,6 +17,9 @@ import (
 type ResourceDal interface {
 	SearchClusterName(ctx context.Context, clusterKey []string) (map[string]string, error)
 	SearchResources(ctx context.Context, param imagesec.SearchResourceParam) ([]*imagesec.RawContainer, int64, error)
+	StatisticsResource(ctx context.Context, param imagesec.StatisticsResourceParam) (*imagesec.ResourceStatistics, error)
+	SearchTensorNode(ctx context.Context, clusterKey string) ([]*model.TensorNode, error)
+	SearchCluster(ctx context.Context) ([]*model.TensorCluster, error)
 }
 
 type ResourceDao struct {
@@ -127,12 +130,66 @@ func (dal *ResourceDao) SearchClusterName(ctx context.Context, clusterKey []stri
 	defer cancelFunc()
 	clusterName := make(map[string]string)
 	cluster := make([]model.TensorCluster, 0)
-	if err := dal.db.Get().WithContext(timeoutCtx).Model(new(model.TensorCluster)).
-		Where("id IN ?", clusterKey).Find(&cluster).Error; err != nil {
+	db := dal.db.Get().WithContext(timeoutCtx).Model(new(model.TensorCluster))
+	if len(clusterKey) > 0 {
+		db = db.Where("id IN ?", clusterKey)
+	}
+	if err := db.Find(&cluster).Error; err != nil {
 		return clusterName, err
 	}
 	for i := range cluster {
 		clusterName[cluster[i].Key] = cluster[i].Name
 	}
 	return clusterName, nil
+}
+
+func (dal *ResourceDao) SearchTensorNode(ctx context.Context, clusterKey string) ([]*model.TensorNode, error) {
+	timeoutCtx, cancelFunc := context.WithTimeout(ctx, 1*time.Minute)
+	defer cancelFunc()
+	// 找节点
+	nodes := make([]*model.TensorNode, 0)
+	err := dal.db.Get().WithContext(timeoutCtx).Model(new(model.TensorNode)).Where("cluster_key = ?", clusterKey).
+		Select("cluster_key", "host_name").Find(&nodes).Error
+	if err != nil {
+		return nil, err
+	}
+	return nodes, nil
+}
+
+func (dal *ResourceDao) StatisticsResource(ctx context.Context, param imagesec.StatisticsResourceParam) (*imagesec.ResourceStatistics, error) {
+	timeoutCtx, cancelFunc := context.WithTimeout(ctx, 1*time.Minute)
+	defer cancelFunc()
+	if param.ClusterKey == "" || param.ResourceKind == "" || param.NodeName == "" {
+		return nil, fmt.Errorf("not get param")
+	}
+	// 找节点
+	var count int64
+	db := dal.db.Get().WithContext(timeoutCtx).Model(new(model.TensorRawContainer))
+	db = db.Where("cluster_key = ?", param.ClusterKey).Where("node_name = ?", param.NodeName)
+	db = db.Where("status = ?", assets.Running)
+	if err := db.Count(&count).Error; err != nil {
+		return nil, err
+	}
+
+	res := &imagesec.ResourceStatistics{
+		ClusterName:  "",
+		ClusterKey:   param.ClusterKey,
+		NodeName:     param.NodeName,
+		ResourceKind: param.ResourceKind,
+		Status:       assets.Running,
+		Count:        count,
+	}
+	return res, nil
+}
+
+func (dal *ResourceDao) SearchCluster(ctx context.Context) ([]*model.TensorCluster, error) {
+	timeoutCtx, cancelFunc := context.WithTimeout(ctx, 10*time.Second)
+	defer cancelFunc()
+	cluster := make([]*model.TensorCluster, 0)
+	db := dal.db.Get().WithContext(timeoutCtx).Model(new(model.TensorCluster))
+
+	if err := db.Find(&cluster).Error; err != nil {
+		return cluster, err
+	}
+	return cluster, nil
 }

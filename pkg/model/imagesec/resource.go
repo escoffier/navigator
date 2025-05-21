@@ -11,6 +11,21 @@ type RawContainer struct {
 	TensorRawContainer model.TensorRawContainer `json:"tensorRawContainer"`
 }
 
+type ResourceStatistics struct {
+	ClusterName  string
+	ClusterKey   string
+	NodeName     string
+	ResourceKind string
+	Status       int
+	Count        int64
+}
+type StatisticsResourceParam struct {
+	ClusterKey   string
+	NodeName     string
+	ResourceKind string
+	Status       int
+}
+
 type RelatedImageRes struct {
 	ImageID       int64            `json:"imageID"`
 	ImageFromType string           `json:"imageFromType"`

@@ -761,7 +761,7 @@ func LoginError(httpCode int, err error, suberrors ...Suberror) error {
 	return AnError{
 		detailedError{
 			err:       err,
-			English:   "Username or password error",
+			English:   "Email or password error",
 			Chinese:   "用户名或密码错误",
 			HTTPCode:  httpCode,
 			Suberrors: suberrors,

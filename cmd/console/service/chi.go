@@ -2,6 +2,10 @@ package service
 
 import (
 	"context"
+	"net/http"
+	"strings"
+	"time"
+
 	"github.com/go-chi/chi/middleware"
 	"github.com/gorilla/websocket"
 	"gitlab.com/piccolo_su/vegeta/cmd/console/service/assets"
@@ -9,9 +13,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	"gitlab.com/security-rd/go-pkg/translate"
-	"net/http"
-	"strings"
-	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -32,6 +33,7 @@ func setupChiRouter(
 	rdb *databases.RDBInstance,
 	es *elastic.ESClient,
 	scannerURL string,
+	portalURL string,
 	exportURL string,
 	sherlockURL string,
 	microsegURL string,
@@ -63,6 +65,7 @@ func setupChiRouter(
 		tokenManager,
 		rdb,
 		scannerURL,
+		portalURL,
 		exportURL,
 		sherlockURL,
 		microsegURL,

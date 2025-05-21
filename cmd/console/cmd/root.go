@@ -77,6 +77,12 @@ var rootCmd = &cobra.Command{
 			Int("port", scannerOpts.Port).
 			Msg("Scanner options")
 
+		portalOpts := flag.GetVegetaPortalOpts(cmd)
+		logging.Get().Info().
+			Str("host", scannerOpts.Host).
+			Int("port", scannerOpts.Port).
+			Msg("portal options")
+
 		exporterOpts := flag.GetExporterOpts(cmd)
 
 		logging.Get().Info().
@@ -111,7 +117,7 @@ var rootCmd = &cobra.Command{
 			Msg("Election options")
 
 		run := func(ctx context.Context) {
-			console, err := service.NewConsole(httpOpts, rdbOpts, scannerOpts, exporterOpts, scapOpts, elasticOpts, rdbOptions)
+			console, err := service.NewConsole(httpOpts, rdbOpts, scannerOpts, portalOpts, exporterOpts, scapOpts, elasticOpts, rdbOptions)
 			if err != nil {
 				logging.Get().Err(err).Msg("failed to create console")
 				return
@@ -185,6 +191,7 @@ func init() {
 	flag.AddHTTPFlags(rootCmd)
 	flag.AddRDBFlags(rootCmd)
 	flag.AddVegetaScannerFlags(rootCmd)
+	flag.AddVegetaPortalFlags(rootCmd)
 	flag.AddExporterPort(rootCmd)
 	flag.AddScapFlags(rootCmd)
 	flag.AddRedisFlags(rootCmd)
