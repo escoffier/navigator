@@ -5,6 +5,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
 	"gitlab.com/piccolo_su/vegeta/pkg/lang"
 	iacModel "gitlab.com/piccolo_su/vegeta/pkg/model/iac"
 	goPkgIac "gitlab.com/security-rd/go-pkg/iac"
@@ -12,12 +20,6 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/translate"
 	"gorm.io/gorm"
-	"io"
-	"net/http"
-	"sort"
-	"strconv"
-	"strings"
-	"time"
 
 	"github.com/go-chi/chi"
 
@@ -32,6 +34,10 @@ func (api *api) iacOpenApi() func(chi.Router) {
 		r.Post("/dockerfile/result", api.OpenApiDockerfileResult())
 		r.Post("/dockerfile/scan", api.OpenApiDockerfileScan())
 		r.Put("/yaml/scan", api.OpenApiYamlScan())
+
+		// xuanjing custom scan
+		r.Post("/xuanjing/dockerfile/scan", api.OpenApiXJDockerfileScan())
+		r.Put("/xuanjing/yaml/scan", api.OpenApiXJYamlScan())
 	}
 }
 
@@ -402,6 +408,370 @@ func (api *api) OpenApiYamlScan() http.HandlerFunc {
 			return
 		}
 
+		rules, err := iacModel.FindYamlRules(ctx, api.rdb.GetReadDB(), map[string]interface{}{}, map[string]interface{}{})
+		if err != nil {
+			logging.Get().Err(err).Msgf("unmarshal result fails")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("FindYamlRules fails")))
+			return
+		}
+
+		rulesMap := make(map[string]string)
+		for i := range rules {
+			rulesMap[rules[i].ThirdPartyID] = rules[i].Name
+		}
+
+		sort.Slice(respResult, func(i, j int) bool {
+			return respResult[i].Location.StartLine < respResult[j].Location.StartLine
+		})
+
+		resultCount := make(map[string]int)
+		for i := range respResult {
+			respResult[i].SeqNo = i + 1
+			respResult[i].RuleName = api.translation.One(translate.DomainIacYaml, translate.KeyRuleName, rulesMap[respResult[i].RuleID], string(lang.Language(r.Context())))
+			respResult[i].RuleDescription = api.translation.One(translate.DomainIacYaml, translate.KeyRuleDescription, respResult[i].RuleDescription, string(lang.Language(r.Context())))
+			respResult[i].Description = api.translation.One(translate.DomainIacYaml, translate.KeyRuleMessage, respResult[i].Description, string(lang.Language(r.Context())))
+			respResult[i].Resolution = api.translation.One(translate.DomainIacYaml, translate.KeyRuleResolution, respResult[i].Resolution, string(lang.Language(r.Context())))
+			count, _ := resultCount[respResult[i].Severity]
+			resultCount[respResult[i].Severity] = count + 1
+			// Yaml文件整体的问题，hack成全文高亮
+			if respResult[i].Location.StartLine == 0 && respResult[i].Location.EndLine == 0 {
+				respResult[i].Location.StartLine = 1
+				respResult[i].Location.EndLine = 9999
+			}
+		}
+
+		res := resp{
+			Result:      respResult,
+			ParseError:  string(parseErr),
+			ResultCount: resultCount,
+		}
+
+		response.Ok(w, response.WithItem(res))
+	}
+}
+
+func (api *api) OpenApiXJDockerfileScan() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+
+		type request struct {
+			TemplateID  int    `json:"template_id"`
+			Dockerfile  string `json:"dockerfile"`
+			SystemNo    string `json:"system_no"`
+			ProjectName string `json:"project_name"`
+		}
+
+		data, err := io.ReadAll(r.Body)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewAnError(http.StatusInternalServerError, errors.New("err read request body")))
+			return
+		}
+
+		req := request{}
+		err = json.Unmarshal(data, &req)
+		if err != nil {
+			RespAndLog(w, ctx,
+				NewAnError(http.StatusInternalServerError, errors.New("unmarshal req data fails")))
+			return
+		}
+
+		if len(req.Dockerfile) == 0 {
+			RespAndLog(w, ctx,
+				NewAnError(http.StatusBadRequest, errors.New("invalid dockerfile content")))
+			return
+		}
+
+		dockerfileData := strings.ReplaceAll(req.Dockerfile, "\\n", "\n")
+		parseErr, result, err := goPkgIac.RunWithData([]byte(dockerfileData), goPkgIacConst.ScanTypeDockerFile, time.Second*10)
+		if err != nil {
+			logging.Get().Error().Err(err).Str("dockerfile", req.Dockerfile).Msg("RunWithData fails")
+			RespAndLog(w, ctx,
+				NewAnError(http.StatusInternalServerError, errors.New("RunWithData fails")))
+			return
+		}
+
+		type resp struct {
+			Result      []iacModel.ViewDockerfileScanResult `json:"result"`
+			ParseError  string                              `json:"parse_error"`
+			ResultCount map[string]int                      `json:"result_count"`
+		}
+
+		flattenResult := result.GetFailed().Flatten()
+		bf, err := json.Marshal(flattenResult)
+		if err != nil {
+			logging.Get().Error().Err(err).Str("dockerfile", req.Dockerfile).Msg("marshal flatten fails")
+			RespAndLog(w, ctx,
+				NewAnError(http.StatusInternalServerError, errors.New("marshal flatten fails")))
+			return
+		}
+		snapshots, err := iacModel.FindDockerfileTemplateSnapshots(ctx, api.rdb.GetReadDB(), map[string]interface{}{"template_id": req.TemplateID}, map[string]interface{}{})
+		if err != nil || len(snapshots) != 1 {
+			logging.Get().Error().Err(fmt.Errorf("FindDockerfileTemplateSnapshots err: %v, len: %d", err, len(snapshots))).Msg("FindDockerfileTemplateSnapshots fails")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("db operate fails")))
+			return
+		}
+		filterResult, _, err := iacModel.FilterDockerfileResultByTemplate(ctx, api.rdb.GetReadDB(), string(bf), snapshots[0].ID)
+		if err != nil {
+			logging.Get().Err(err).Msgf("FilterDockerfileResultByTemplate fails")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("FilterDockerfileResultByTemplate fails")))
+			return
+		}
+		respResult := make([]iacModel.ViewDockerfileScanResult, 0)
+		err = json.Unmarshal([]byte(filterResult), &respResult)
+		if err != nil {
+			logging.Get().Err(err).Msgf("unmarshal result fails")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("unmarshal result fails")))
+			return
+		}
+
+		// 保存数据库记录
+		err = api.rdb.Get().Transaction(func(tx *gorm.DB) error {
+			hackStr := req.SystemNo + "_" + req.ProjectName
+			dockerfileRecord := iacModel.DockerfileRecord{
+				UUID:            uuid.NewString(),
+				PipelineName:    "DevSecOps",
+				TemplateID:      snapshots[0].ID,
+				TemplateName:    snapshots[0].Name,
+				FilesCount:      1,
+				DockerfilePaths: []string{hackStr},
+				Status:          iacModel.DockerfileRecordStatusPass,
+				CreatedAt:       time.Now(),
+			}
+
+			dockerfileRecord, err = iacModel.CreateDockerfileRecord(ctx, tx, dockerfileRecord)
+			if err != nil {
+				logging.Get().Error().Err(fmt.Errorf("CreateDockerfileRecord err: %v", err)).Msg("CreateDockerfileRecord fails")
+				return err
+			}
+
+			dockerfileResults := make([]iacModel.DockerfileResult, 0)
+			dockerfileResults = append(dockerfileResults, iacModel.DockerfileResult{
+				RecordID:       dockerfileRecord.ID,
+				DockerfilePath: hackStr,
+				Dockerfile:     req.Dockerfile,
+				Result:         string(bf),
+				HitWhitelist:   false,
+				SuccessRate:    1,
+				Status:         iacModel.DockerfileResultStatusPass,
+				ParseError:     "",
+				Error:          "",
+				CreatedAt:      time.Now(),
+			})
+
+			err = iacModel.CreateDockerfileResultInBatch(ctx, tx, dockerfileResults)
+			if err != nil {
+				logging.Get().Error().Err(fmt.Errorf("CreateDockerfileResultInBatch err: %v", err)).Msg("CreateDockerfileResultInBatch fails")
+				return err
+			}
+			return nil
+		})
+
+		if err != nil {
+			logging.Get().Error().Err(err).Msg("transaction save docker scan fails")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+
+		// 构造响应数据
+		rules, err := iacModel.FindDockerfileRules(ctx, api.rdb.GetReadDB(), map[string]interface{}{}, map[string]interface{}{})
+		if err != nil {
+			logging.Get().Err(err).Msgf("unmarshal result fails")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("FindDockerfileRules fails")))
+			return
+		}
+		rulesMap := make(map[string]string)
+		for i := range rules {
+			rulesMap[rules[i].ThirdPartyID] = rules[i].Name
+		}
+
+		sort.Slice(respResult, func(i, j int) bool {
+			return respResult[i].Location.StartLine < respResult[j].Location.StartLine
+		})
+
+		resultCount := make(map[string]int)
+		for i := range respResult {
+			respResult[i].SeqNo = i + 1
+			respResult[i].RuleName = api.translation.One(translate.DomainIacDockerfile, translate.KeyRuleName, rulesMap[respResult[i].RuleID], string(lang.Language(r.Context())))
+			respResult[i].RuleDescription = api.translation.One(translate.DomainIacDockerfile, translate.KeyRuleDescription, respResult[i].RuleDescription, string(lang.Language(r.Context())))
+			respResult[i].Description = api.translation.One(translate.DomainIacDockerfile, translate.KeyRuleMessage, respResult[i].Description, string(lang.Language(r.Context())))
+			respResult[i].Resolution = api.translation.One(translate.DomainIacDockerfile, translate.KeyRuleResolution, respResult[i].Resolution, string(lang.Language(r.Context())))
+			count, _ := resultCount[respResult[i].Severity]
+			resultCount[respResult[i].Severity] = count + 1
+			// Dockerfile文件整体的问题，hack成全文高亮
+			if respResult[i].Location.StartLine == 0 && respResult[i].Location.EndLine == 0 {
+				respResult[i].Location.StartLine = 1
+				respResult[i].Location.EndLine = 9999
+			}
+		}
+
+		res := resp{
+			Result:      respResult,
+			ParseError:  string(parseErr),
+			ResultCount: resultCount,
+		}
+
+		response.Ok(w, response.WithItem(res))
+	}
+}
+
+func (api *api) OpenApiXJYamlScan() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
+		defer cancel()
+
+		err := r.ParseMultipartForm(100 << 20)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, fmt.Errorf("ParseMultipartForm fail, err:%w", err)))
+			return
+		}
+		sTemplateID := r.FormValue("template_id")
+		templateID, err := strconv.Atoi(sTemplateID)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, fmt.Errorf("convert template_id fail, template_id: %s, err:%w", sTemplateID, err)))
+			return
+		}
+
+		if templateID == 0 {
+			RespAndLog(w, ctx,
+				NewAnError(http.StatusBadRequest, errors.New("invalid template id")))
+			return
+		}
+
+		systemNo := r.FormValue("system_no")
+		projectName := r.FormValue("project_name")
+
+		file, _, err := r.FormFile("file")
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, fmt.Errorf("read file fail, err:%w", err)))
+			return
+		}
+
+		yamlDataBytes, err := io.ReadAll(file)
+		if err != nil {
+			RespAndLog(w, ctx, NewAnError(http.StatusBadRequest, fmt.Errorf("read file fail, err:%w", err)))
+			return
+		}
+		yamlData := string(yamlDataBytes)
+		yamlData = strings.ReplaceAll(yamlData, "\\n", "\n")
+		startTime := time.Now()
+		parseErr, result, err := goPkgIac.RunWithData([]byte(yamlData), goPkgIacConst.ScanTypeKubernetes, time.Second*10)
+		duration := time.Now().Sub(startTime)
+		if err != nil {
+			logging.Get().Error().Err(err).Str("yaml", yamlData).Msg("RunWithData fails")
+			RespAndLog(w, ctx,
+				NewAnError(http.StatusInternalServerError, errors.New("RunWithData fails")))
+			return
+		}
+
+		type resp struct {
+			Result      []iacModel.ViewYamlScanResult `json:"result"`
+			ParseError  string                        `json:"parse_error"`
+			ResultCount map[string]int                `json:"result_count"`
+		}
+
+		bf, err := json.Marshal(result.GetFailed().Flatten())
+		if err != nil {
+			logging.Get().Error().Err(err).Str("yaml", yamlData).Msg("marshal flatten fails")
+			RespAndLog(w, ctx,
+				NewAnError(http.StatusInternalServerError, errors.New("marshal flatten fails")))
+			return
+		}
+
+		snapshots, err := iacModel.FindYamlTemplateSnapshots(ctx, api.rdb.GetReadDB(), map[string]interface{}{"template_id": templateID}, map[string]interface{}{})
+		if err != nil || len(snapshots) != 1 {
+			logging.Get().Error().Err(fmt.Errorf("FindYamlTemplateSnapshots err: %v, len: %d", err, len(snapshots))).Msg("FindDockerfileTemplateSnapshots fails")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("db operate fails")))
+			return
+		}
+		filterResult, _, err := iacModel.FilterYamlResultByTemplate(ctx, api.rdb.GetReadDB(), string(bf), snapshots[0].ID)
+		if err != nil {
+			logging.Get().Err(err).Msgf("FilterYamlResultByTemplate fails")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("FilterYamlResultByTemplate fails")))
+			return
+		}
+		respResult := make([]iacModel.ViewYamlScanResult, 0)
+		err = json.Unmarshal([]byte(filterResult), &respResult)
+		if err != nil {
+			logging.Get().Err(err).Msgf("unmarshal result fails")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("unmarshal result fails")))
+			return
+		}
+
+		// 保存数据库记录
+		err = api.rdb.Get().Transaction(func(tx *gorm.DB) error {
+			hackStr := systemNo + "_" + projectName
+			yamlResult := iacModel.YamlResult{
+				ResourceClusterKey: "NA",
+				ResourceNamespace:  "NA",
+				ResourceKind:       "NA",
+				ResourceName:       hackStr,
+				ResourceGeneration: -1,
+				Duration:           int(duration.Seconds()),
+				Status:             iacModel.YamlResultStatusComplete,
+				Result:             string(bf),
+				Yaml:               yamlData,
+				CreatedAt:          time.Now(),
+				UpdatedAt:          time.Now(),
+			}
+			yamlResult, err = iacModel.CreateYamlResult(ctx, tx, yamlResult)
+			if err != nil {
+				logging.Get().Error().Err(fmt.Errorf("CreateYamlResult err: %v", err)).Msg("CreateYamlResult fails")
+				return err
+			}
+
+			yamlTask := iacModel.YamlTask{
+				ScanType:     iacModel.YamlTaskScanTypeManual,
+				TemplateID:   snapshots[0].ID,
+				TemplateName: snapshots[0].Name,
+				Total:        1,
+				Success:      1,
+				Status:       iacModel.YamlTaskStatusComplete,
+				Duration:     int(duration.Seconds()),
+				CreatedAt:    time.Now(),
+				UpdatedAt:    time.Now(),
+			}
+			yamlTask, err = iacModel.CreateYamlTask(ctx, tx, yamlTask)
+			if err != nil {
+				logging.Get().Error().Err(fmt.Errorf("CreateYamlTask err: %v", err)).Msg("CreateYamlTask fails")
+				return err
+			}
+
+			yamlRecord := iacModel.YamlRecord{
+				TaskID:             yamlTask.ID,
+				TemplateID:         snapshots[0].ID,
+				TemplateName:       snapshots[0].Name,
+				ResourceClusterKey: "NA",
+				ResourceNamespace:  "NA",
+				ResourceKind:       "NA",
+				ResourceName:       hackStr,
+				ResourceGeneration: -1,
+				Status:             iacModel.YamlRecordStatusComplete,
+				SuccessRate:        1,
+				ResultID:           yamlResult.ID,
+				FailReason:         "",
+				ResourceOnline:     false,
+				CreatedAt:          time.Now(),
+				UpdatedAt:          time.Now(),
+			}
+
+			_, err = iacModel.CreateYamlRecord(ctx, tx, yamlRecord)
+			if err != nil {
+				logging.Get().Error().Err(fmt.Errorf("CreateYamlRecord err: %v", err)).Msg("CreateYamlRecord fails")
+				return err
+			}
+
+			return nil
+		})
+
+		if err != nil {
+			logging.Get().Error().Err(err).Msg("transaction save docker scan fails")
+			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, err))
+			return
+		}
+
+		// 构造响应数据
 		rules, err := iacModel.FindYamlRules(ctx, api.rdb.GetReadDB(), map[string]interface{}{}, map[string]interface{}{})
 		if err != nil {
 			logging.Get().Err(err).Msgf("unmarshal result fails")
