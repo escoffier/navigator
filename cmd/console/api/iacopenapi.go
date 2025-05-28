@@ -707,7 +707,7 @@ func (api *api) OpenApiXJYamlScan() http.HandlerFunc {
 				ResourceNamespace:  "NA",
 				ResourceKind:       "NA",
 				ResourceName:       hackStr,
-				ResourceGeneration: -1,
+				ResourceGeneration: time.Now().UnixMilli(),
 				Duration:           int(duration.Seconds()),
 				Status:             iacModel.YamlResultStatusComplete,
 				Result:             string(bf),
@@ -729,6 +729,7 @@ func (api *api) OpenApiXJYamlScan() http.HandlerFunc {
 				Success:      1,
 				Status:       iacModel.YamlTaskStatusComplete,
 				Duration:     int(duration.Seconds()),
+				Creator:      "DevSecOps",
 				CreatedAt:    time.Now(),
 				UpdatedAt:    time.Now(),
 			}
