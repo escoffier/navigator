@@ -1,7 +1,6 @@
 package nexus
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -11,7 +10,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/docker/distribution/manifest/schema2"
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
@@ -147,16 +145,16 @@ func (r *Nexus) ListImages(ctx context.Context, extender warehouse.Extender, req
 			}
 
 			// pull config json
-			imageDigest, err := ManifestV2Digest(manifestV2)
-			if err != nil {
-				res.HasErr = true
-				r.Log.Err(err).Msgf("get manifest digest err, repo %s ,digest %s", repo, tag)
-				continue
-			}
 			manifestV2Str, err := manifestV2.MarshalJSON()
 			if err != nil {
 				res.HasErr = true
 				r.Log.Err(err).Msgf("get manifest string err, repo %s ,tag %s", repo, tag)
+				continue
+			}
+			imageDigest, err := scannerUtils.ManifestV2Digest(manifestV2)
+			if err != nil {
+				res.HasErr = true
+				r.Log.Err(err).Msgf("get manifest digest err, repo %s ,digest %s", repo, tag)
 				continue
 			}
 
@@ -202,26 +200,8 @@ func (r *Nexus) Ping() error {
 	return nil
 }
 
-func ManifestV2Digest(m *schema2.DeserializedManifest) (string, error) {
-	// caculate image digest
-	data, err := m.MarshalJSON()
-	if err != nil {
-		return "", err
-	}
-	dig, _, err := warehouse.SHA256(bytes.NewReader(data))
-	if err != nil {
-		return "", err
-	}
-	return dig.String(), err
-}
-
-func (r *Nexus) PullImageManifestV2(repo, digest string) (*schema2.DeserializedManifest, error) {
-	manifest, err := r.RegistryClient.ManifestV2(repo, digest)
-	if err != nil {
-		return nil, err
-	}
-
-	return manifest, nil
+func (r *Nexus) PullImageManifestV2(repo, digest string) (*scannerUtils.DeserializedManifest, error) {
+	return scannerUtils.PullImageManifestV2(r.RegistryClient, repo, digest)
 }
 
 func (r *Nexus) ListImagesWithAuditLog(ctx context.Context, extender warehouse.Extender, req warehouse.ListImagesAuditLog) (*warehouse.ListImagesRes, error) {

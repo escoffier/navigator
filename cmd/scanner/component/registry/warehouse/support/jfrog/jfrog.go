@@ -1,7 +1,6 @@
 package jfrog
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -12,9 +11,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/distribution/manifest/schema2"
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -143,21 +142,8 @@ func (c *Jfrog) ListImagTags(repo, imaName string) ([]string, error) {
 	return reps.Tags, nil
 }
 
-func ManifestV2Digest(m *schema2.DeserializedManifest) (string, error) {
-	// caculate image digest
-	data, err := m.MarshalJSON()
-	if err != nil {
-		return "", err
-	}
-	dig, _, err := warehouse.SHA256(bytes.NewReader(data))
-	if err != nil {
-		return "", err
-	}
-	return dig.String(), err
-}
-
-func (c *Jfrog) PullImageManifest(repo, imaName, tag string) (*schema2.DeserializedManifest, error) {
-	return c.RegistryClient.ManifestV2(repo+"/"+imaName, tag)
+func (c *Jfrog) PullImageManifest(repo, imaName, tag string) (*scannerUtils.DeserializedManifest, error) {
+	return scannerUtils.PullImageManifestV2(c.RegistryClient, repo+"/"+imaName, tag)
 }
 
 func (c *Jfrog) PullConfigBlob(repo string, configDigest digest.Digest) (string, error) {
@@ -221,7 +207,7 @@ func (c *Jfrog) ListImages(ctx context.Context, extender warehouse.Extender, req
 				}
 
 				// 解析imageDigest
-				imageDigest, err := ManifestV2Digest(manifest)
+				imageDigest, err := scannerUtils.ManifestV2Digest(manifest)
 				if err != nil {
 					res.HasErr = true
 					logging.GetLogger().Err(err).Msgf("jfrog ManifestV2Digest:%s/%s:%s", repo.Key, imgNames[i], tags[j])

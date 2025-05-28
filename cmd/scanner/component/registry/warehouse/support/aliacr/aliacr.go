@@ -1,7 +1,6 @@
 package aliacr
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,9 +11,9 @@ import (
 
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
 	"github.com/aliyun/alibaba-cloud-sdk-go/services/cr"
-	"github.com/docker/distribution/manifest/schema2"
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
@@ -95,16 +94,16 @@ func (aa *AliAcr) ListImages(ctx context.Context, extender warehouse.Extender, r
 					continue
 				}
 				// pull config json
-				imageDigest, err := ManifestV2Digest(manifestV2)
-				if err != nil {
-					res.HasErr = true
-					logging.Get().Err(err).Str("module", "RegistryImage").Msgf("get manifest digest err, repo %s ,digest %s", fullRepoName, tag)
-					continue
-				}
 				manifestV2Str, err := manifestV2.MarshalJSON()
 				if err != nil {
 					res.HasErr = true
 					logging.Get().Err(err).Str("module", "RegistryImage").Msgf("get manifest string err, repo %s ,tag %s", fullRepoName, tag)
+					continue
+				}
+				imageDigest, err := scannerUtils.ManifestV2Digest(manifestV2)
+				if err != nil {
+					res.HasErr = true
+					logging.Get().Err(err).Str("module", "RegistryImage").Msgf("get manifest digest err, repo %s ,digest %s", fullRepoName, tag)
 					continue
 				}
 
@@ -290,26 +289,8 @@ func init() {
 	logging.Get().Info().Str("module", "RegistryImage").Msg("ali acr dirver register success")
 }
 
-func (aa *AliAcr) PullImageManifestV2(repo, digest string) (*schema2.DeserializedManifest, error) {
-	manifest, err := aa.RegistryClient.ManifestV2(repo, digest)
-	if err != nil {
-		return nil, err
-	}
-
-	return manifest, nil
-}
-
-func ManifestV2Digest(m *schema2.DeserializedManifest) (string, error) {
-	// caculate image digest
-	data, err := m.MarshalJSON()
-	if err != nil {
-		return "", err
-	}
-	dig, _, err := warehouse.SHA256(bytes.NewReader(data))
-	if err != nil {
-		return "", err
-	}
-	return dig.String(), nil
+func (aa *AliAcr) PullImageManifestV2(repo, digest string) (*scannerUtils.DeserializedManifest, error) {
+	return scannerUtils.PullImageManifestV2(aa.RegistryClient, repo, digest)
 }
 
 func (aa *AliAcr) PullConfigBlob(repo string, configDigest digest.Digest) (string, error) {

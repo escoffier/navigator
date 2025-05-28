@@ -11,10 +11,8 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/docker/distribution/manifest/schema2"
 	dockerarchive "github.com/docker/docker/pkg/archive"
 	"github.com/docker/docker/pkg/pools"
-
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	imageCache "gitlab.com/piccolo_su/vegeta/cmd/scanner/service/register/image-cache"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
@@ -244,7 +242,7 @@ func (s *RegImagePrepare) getManifest(ctx context.Context, subtask imagesecTypes
 	image := subtask.RegImageMeta
 
 	manifestStr, err := client.GetManifest(reg.Username, reg.Password, reg.Url, image.Repo, image.Tag, true)
-	manifestV2 := schema2.DeserializedManifest{}
+	manifestV2 := scannerUtils.DeserializedManifest{}
 
 	if err := manifestV2.UnmarshalJSON([]byte(manifestStr)); err != nil {
 		s.Log.Err(err).Interface("image", image).Msg("get manifestV2")
@@ -274,7 +272,10 @@ func (s *RegImagePrepare) getManifest(ctx context.Context, subtask imagesecTypes
 		return v1v2, fmt.Errorf("not get manifest v2")
 	}
 	// 对于 V1只能使用 docker pull ，暂时先不考虑
-	v1v2.ImageDigest = scannerUtils.ManifestV2Digest(v1v2.V2)
+	v1v2.ImageDigest, err = scannerUtils.ManifestV2Digest(v1v2.V2)
+	if err != nil {
+		return v1v2, err
+	}
 
 	return v1v2, nil
 }

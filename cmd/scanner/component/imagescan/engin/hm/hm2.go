@@ -280,8 +280,8 @@ func (s *ScanHM) getPasswdAndGroupFromFile(ctx context.Context, prep *imagesecTy
 		return nil
 	})
 
-	passwd, _ = scannerUtils.ParseEtcPasswd(pass)
-	gp, _ = scannerUtils.ParseEtcGroup(group)
+	passwd, _ = ParseEtcPasswd2(pass)
+	gp, _ = ParseEtcGroup2(group)
 
 	return passwd, gp, nil
 }
@@ -386,4 +386,76 @@ func (s *ScanHM) logScanEnd(start int64, pre *imagesecTypes.PrepareScan) {
 
 func (s *ScanHM) logScanStart(pre *imagesecTypes.PrepareScan) {
 	s.Log.Info().Str(consts.SubtaskLogName, pre.Subtask.LogStr()).Msg("scan job start")
+}
+
+func ParseEtcPasswd2(filePath string) (map[int64]imagesecModel.EtcPasswdUser, error) {
+	ans := make(map[int64]imagesecModel.EtcPasswdUser)
+	if filePath == "" {
+		return ans, nil
+	}
+	file, err := os.Open(filePath)
+	if err != nil {
+		return ans, err
+	}
+	defer func() { _ = file.Close() }()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		fields := strings.Split(line, ":")
+		if len(fields) < 7 {
+			continue
+		}
+		user := imagesecModel.EtcPasswdUser{
+			Username: fields[0],
+			Password: fields[1],
+			// UID:      fields[2], // 暂时用不到
+			GID:     fields[3],
+			Comment: fields[4],
+			HomeDir: fields[5],
+			Shell:   fields[6],
+		}
+
+		uid, err := strconv.ParseInt(fields[2], 10, 64)
+		if err != nil {
+			continue
+		}
+		user.UID = uid
+		ans[uid] = user
+	}
+	return ans, nil
+}
+
+func ParseEtcGroup2(filePath string) (map[int64]imagesecModel.EtcGroupUser, error) {
+	ans := make(map[int64]imagesecModel.EtcGroupUser)
+	if filePath == "" {
+		return ans, nil
+	}
+	file, err := os.Open(filePath)
+	if err != nil {
+		return ans, err
+	}
+	defer func() { _ = file.Close() }()
+
+	scanner := bufio.NewScanner(file)
+	for scanner.Scan() {
+		line := scanner.Text()
+		fields := strings.Split(line, ":")
+		if len(fields) < 4 {
+			continue
+		}
+		// 解析字段
+		group := imagesecModel.EtcGroupUser{
+			Name:     fields[0],
+			Password: fields[1],
+			Members:  strings.Split(fields[3], ","),
+		}
+		gid, err := strconv.ParseInt(fields[2], 10, 64)
+		if err != nil {
+			continue
+		}
+		group.GID = gid
+		ans[gid] = group
+	}
+	return ans, nil
 }
