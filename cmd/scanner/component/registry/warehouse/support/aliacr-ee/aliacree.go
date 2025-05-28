@@ -14,9 +14,9 @@ import (
 
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk"
 	"github.com/aliyun/alibaba-cloud-sdk-go/sdk/requests"
-	"github.com/docker/distribution/manifest/schema2"
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
@@ -352,12 +352,8 @@ func init() {
 	logging.Get().Info().Str("module", "RegistryImage").Str("driver", imagesec.AliAcrEEVersion).Msg("register success")
 }
 
-func (aa *AliAcrEE) PullImageManifestV2(repo, digest string) (*schema2.DeserializedManifest, error) {
-	manifest, err := aa.RegistryClient.ManifestV2(repo, digest)
-	if err != nil {
-		return nil, err
-	}
-	return manifest, nil
+func (aa *AliAcrEE) PullImageManifestV2(repo, digest string) (*scannerUtils.DeserializedManifest, error) {
+	return scannerUtils.PullImageManifestV2(aa.RegistryClient, repo, digest)
 }
 
 func (aa *AliAcrEE) PullConfigBlob(repo string, configDigest digest.Digest) (string, error) {

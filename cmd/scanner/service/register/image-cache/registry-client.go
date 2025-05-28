@@ -10,6 +10,7 @@ import (
 
 	"github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/security-rd/go-pkg/logging"
 )
 
@@ -76,10 +77,14 @@ func (rc *RegistryClient) readManifest(ctx context.Context, version, repository,
 		return res, nil
 	}
 	if version == "v2" {
-		manifest, err := rc.registryClient.ManifestV2(repository, digest)
+		manifest, err := scannerUtils.PullImageManifestV2(rc.registryClient, repository, digest)
 		if err != nil {
 			return nil, fmt.Errorf("Could not read docker V2 manifest: %w", err)
 		}
+		// manifest, err := rc.registryClient.ManifestV2(repository, digest)
+		// if err != nil {
+		// 	return nil, fmt.Errorf("Could not read docker V2 manifest: %w", err)
+		// }
 		res, err := manifest.MarshalJSON()
 		if err != nil {
 			return nil, fmt.Errorf("Can't Marshal V2 manifest: %w", err)

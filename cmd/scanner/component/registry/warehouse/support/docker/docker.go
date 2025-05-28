@@ -1,7 +1,6 @@
 package docker
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -12,9 +11,9 @@ import (
 	"strings"
 
 	"github.com/docker/distribution/manifest/schema1"
-	"github.com/docker/distribution/manifest/schema2"
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts/preConsts"
@@ -143,7 +142,7 @@ func (r *RegistryV2) ListImages(ctx context.Context, extender warehouse.Extender
 		}
 		for _, tag := range tags {
 			var (
-				manifestV2    *schema2.DeserializedManifest
+				manifestV2    *scannerUtils.DeserializedManifest
 				manifestV2Str []byte
 				manifestV1    *schema1.SignedManifest
 				manifestV1Str []byte
@@ -154,7 +153,13 @@ func (r *RegistryV2) ListImages(ctx context.Context, extender warehouse.Extender
 			manifestV2, err := r.PullImageManifestV2(repo, tag)
 			if err == nil {
 				// pull config json
-				imageDigest, err = ManifestV2Digest(manifestV2)
+				manifestV2Str, err = manifestV2.MarshalJSON()
+				if err != nil {
+					res.HasErr = true
+					logging.GetLogger().Err(err).Msgf("get manifest string err, repo %s ,tag %s", repo, tag)
+					continue
+				}
+				imageDigest, err = scannerUtils.ManifestV2Digest(manifestV2)
 				if err != nil {
 					res.HasErr = true
 					logging.GetLogger().Err(err).Msgf("get manifest digest err, repo %s ,digest %s", repo, tag)
@@ -259,7 +264,7 @@ func (r *RegistryV2) GetImage(projectName, repoName, tag string) (*warehouse.Ima
 	}
 
 	var (
-		manifestV2    *schema2.DeserializedManifest
+		manifestV2    *scannerUtils.DeserializedManifest
 		manifestV2Str []byte
 		manifestV1    *schema1.SignedManifest
 		manifestV1Str []byte
@@ -271,14 +276,14 @@ func (r *RegistryV2) GetImage(projectName, repoName, tag string) (*warehouse.Ima
 
 	if err == nil {
 		// pull config json
-		imageDigest, err = ManifestV2Digest(manifestV2)
-		if err != nil {
-			logging.GetLogger().Err(err).Msgf("get manifest digest err, repo %s ,tag %s", repoName, tag)
-			return nil, err
-		}
 		manifestV2Str, err = manifestV2.MarshalJSON()
 		if err != nil {
 			logging.GetLogger().Err(err).Msgf("get manifest string err, repo %s ,tag %s", repoName, tag)
+			return nil, err
+		}
+		imageDigest, err = scannerUtils.ManifestV2Digest(manifestV2)
+		if err != nil {
+			logging.GetLogger().Err(err).Msgf("get manifest digest err, repo %s ,tag %s", repoName, tag)
 			return nil, err
 		}
 
@@ -354,26 +359,8 @@ func (r *RegistryV2) CreateProject(projectName string, public bool) error {
 	return errors.New("not implement")
 }
 
-func ManifestV2Digest(m *schema2.DeserializedManifest) (string, error) {
-	// caculate image digest
-	data, err := m.MarshalJSON()
-	if err != nil {
-		return "", err
-	}
-	dig, _, err := warehouse.SHA256(bytes.NewReader(data))
-	if err != nil {
-		return "", err
-	}
-	return dig.String(), err
-}
-
-func (r *RegistryV2) PullImageManifestV2(repo, digest string) (*schema2.DeserializedManifest, error) {
-	manifest, err := r.RegistryClient.ManifestV2(repo, digest)
-	if err != nil {
-		return nil, err
-	}
-
-	return manifest, nil
+func (r *RegistryV2) PullImageManifestV2(repo, digest string) (*scannerUtils.DeserializedManifest, error) {
+	return scannerUtils.PullImageManifestV2(r.RegistryClient, repo, digest)
 }
 
 func (r *RegistryV2) PullImageManifestV1(repo, digest string) (*schema1.SignedManifest, error) {

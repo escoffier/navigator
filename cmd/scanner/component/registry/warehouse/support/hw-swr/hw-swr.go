@@ -10,13 +10,13 @@ import (
 	"strings"
 	"time"
 
-	"github.com/docker/distribution/manifest/schema2"
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/core/auth/basic"
 	swr "github.com/huaweicloud/huaweicloud-sdk-go-v3/services/swr/v2"
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/services/swr/v2/model"
 	"github.com/huaweicloud/huaweicloud-sdk-go-v3/services/swr/v2/region"
 	"github.com/opencontainers/go-digest"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -124,7 +124,7 @@ func (h *HwSwr) ListImages(ctx context.Context, extender warehouse.Extender, req
 
 			for _, tag := range *tags.Body {
 				// hw swr will return manifest
-				manifestV2 := &schema2.DeserializedManifest{}
+				manifestV2 := &scannerUtils.DeserializedManifest{}
 				if err := manifestV2.UnmarshalJSON([]byte(tag.Manifest)); err != nil {
 					res.HasErr = true
 					logging.GetLogger().Err(err).Msgf("unmarshal manifest err: %s", tag.Manifest)

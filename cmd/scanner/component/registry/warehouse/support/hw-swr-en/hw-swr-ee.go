@@ -1,7 +1,6 @@
 package hwswree
 
 import (
-	"bytes"
 	"context"
 	"crypto/tls"
 	"encoding/json"
@@ -10,9 +9,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/docker/distribution/manifest/schema2"
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 	"gitlab.com/security-rd/go-pkg/logging"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
@@ -57,16 +56,15 @@ func (h *HwSwrEE) ListImages(ctx context.Context, extender warehouse.Extender, r
 				logging.Get().Err(err).Str("module", "RegistryImage").Str("image", fmt.Sprintf("%s:%s", imageName, tag)).Msg("huawei-swr-en pullImageManifest")
 				continue
 			}
-			imageDigest, err := ManifestV2Digest(manifest)
-			if err != nil {
-				logging.Get().Err(err).Str("module", "RegistryImage").Str("image", fmt.Sprintf("%s:%s", imageName, tag)).Msg("huawei-swr-en ManifestV2Digest")
-				continue
-			}
-
 			manifestByte, err := manifest.MarshalJSON()
 			if err != nil {
 				res.HasErr = true
 				logging.Get().Err(err).Str("module", "RegistryImage").Str("image", fmt.Sprintf("%s:%s", imageName, tag)).Msg("huawei-swr-en MarshalJSON")
+				continue
+			}
+			imageDigest, err := scannerUtils.ManifestV2Digest(manifest)
+			if err != nil {
+				logging.Get().Err(err).Str("module", "RegistryImage").Str("image", fmt.Sprintf("%s:%s", imageName, tag)).Msg("huawei-swr-en ManifestV2Digest")
 				continue
 			}
 
@@ -232,8 +230,8 @@ func (h *HwSwrEE) reqHarbor(ctx context.Context, url string) ([]byte, error) {
 	return bys, nil
 }
 
-func (h *HwSwrEE) pullImageManifest(fullRepo, tag string) (*schema2.DeserializedManifest, error) {
-	return h.RegistryClient.ManifestV2(fullRepo, tag)
+func (h *HwSwrEE) pullImageManifest(fullRepo, tag string) (*scannerUtils.DeserializedManifest, error) {
+	return scannerUtils.PullImageManifestV2(h.RegistryClient, fullRepo, tag)
 }
 
 func (h *HwSwrEE) pullConfigBlob(repo string, configDigest digest.Digest) (string, error) {
@@ -248,17 +246,4 @@ func (h *HwSwrEE) pullConfigBlob(repo string, configDigest digest.Digest) (strin
 	}
 
 	return configBlob.String(), nil
-}
-
-func ManifestV2Digest(m *schema2.DeserializedManifest) (string, error) {
-	// caculate image digest
-	data, err := m.MarshalJSON()
-	if err != nil {
-		return "", err
-	}
-	dig, _, err := warehouse.SHA256(bytes.NewReader(data))
-	if err != nil {
-		return "", err
-	}
-	return dig.String(), err
 }

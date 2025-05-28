@@ -13,6 +13,7 @@ import (
 
 	registry2 "github.com/heroku/docker-registry-client/registry"
 	"github.com/opencontainers/go-digest"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
 	"gitlab.com/piccolo_su/vegeta/pkg/logging"
@@ -539,7 +540,7 @@ func (h *HarborV2) makeImage(rep Repository, a Artifact, t Tag, manifestV1, mani
 }
 
 func (h *HarborV2) pullImageManifestV2(repo, digest string) (string, digest.Digest, error) {
-	manifest, err := h.registryClient.ManifestV2(repo, digest)
+	manifest, err := scannerUtils.PullImageManifestV2(h.registryClient, repo, digest)
 	if err != nil {
 		return "", "", err
 	}

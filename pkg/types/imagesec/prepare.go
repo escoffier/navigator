@@ -4,7 +4,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/docker/distribution/manifest/schema2"
+	"gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 )
@@ -60,7 +60,7 @@ func (vi *PrepareScan) ReplaceLayer(ly *ImageLayer) {
 }
 
 type ManifestV2AndV1 struct {
-	V2          *schema2.DeserializedManifest
+	V2          *scannerUtils.DeserializedManifest
 	V1          *model.ManifestV1
 	ImageDigest string
 }

@@ -36,7 +36,6 @@ type ImageUpdateSrv struct {
 	preImageDal     adaptStore.ImageDal
 	onlineImageDal  imagesecStore.OnlineImageDal
 	TrustedDigest   map[string]struct{} // 可信镜像的 digest
-	OnlineUUID      map[uint32]struct{} // 在线镜像 UUID
 	Log             *scannerUtils.LogEvent
 }
 
@@ -74,7 +73,6 @@ func NewImageUpdateSrv(
 		preImageDal:     preImageDal,
 		onlineImageDal:  onlineImageDal,
 		TrustedDigest:   make(map[string]struct{}),
-		OnlineUUID:      make(map[uint32]struct{}),
 		Log: scannerUtils.NewLogEvent(
 			scannerUtils.WithSubModule("ImageUpdate"),
 			scannerUtils.WithModule(consts.ModuleImageMeta),
@@ -105,6 +103,7 @@ func (s *ImageUpdateSrv) ContinueUpdate(ctx context.Context) error {
 			_ = s.cleanAfterDeleteRegistry(ctx)
 			_ = s.cleanDeletedDetectPolicy(ctx)
 			_ = s.updateSafeFlag(ctx)
+			ticker.Reset(time.Minute * 5)
 			<-ticker.C
 		}
 	}()
@@ -367,93 +366,107 @@ func (s *ImageUpdateSrv) deleteOverdueImage(ctx context.Context) error {
 func (s *ImageUpdateSrv) updateOnlineImage(ctx context.Context) error {
 	updateVuln := metaGlobal.GetVulnUpdate()
 
-	assertUuids, err := s.onlineImageDal.GetOnlineImageUUID(ctx)
+	currentOnlineImages := make([]*imagesecModel.Image, 0)
+
+	// 定义批量查询的大小
+	const batchSize = 1000
+	var startID int64 = 0
+	var preOnlineCnt int = 0
+
+	for {
+		// 分批查询在线镜像
+		batch, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{
+			Fields:     []string{"id", "flag", "image_uuid", "unique_id", "image_name"},
+			OnlineFlag: util.SetBit1(0, imagesecModel.FlagImageOnline),
+			StartID:    startID,
+			Filter:     imagesecModel.EmptyFilter().SetLimit(batchSize).SetSortAsc().SetSortFiledByID(),
+		})
+		if err != nil {
+			s.Log.Err(err).Msg("updateOnlineImage SearchImage for online images")
+			return err
+		}
+
+		// 如果没有更多数据，退出循环
+		if len(batch) == 0 {
+			break
+		}
+
+		// 更新下一批的起始ID
+		startID = batch[len(batch)-1].ID
+
+		// 添加到结果集
+		currentOnlineImages = append(currentOnlineImages, batch...)
+		preOnlineCnt += len(batch)
+	}
+
+	s.Log.Info().Int("preOnlineCnt", preOnlineCnt).Msg("updateOnlineImage get pre online images")
+
+	// 2. 获取所有在线容器的image_uuid (status=0的容器)
+	// 3. 查询这些image_uuid对应的镜像，记录成集合B
+	// 使用onlineImageDal获取在线容器的image_uuid (status=0的容器)
+	curContainerImageUuids, err := s.onlineImageDal.GetOnlineImageUUID(ctx)
 	if err != nil {
-		s.Log.Err(err).Msg("updateOnlineImage")
+		s.Log.Err(err).Msg("updateOnlineImage GetOnlineImageUUID for containers")
 		return err
 	}
 
-	s.Log.Info().Int("assertUuid", len(assertUuids)).Msg("updateOnlineImage get resource uuid")
+	// 把原来在线的更新成离线
+	for i := range currentOnlineImages {
+		image := currentOnlineImages[i]
+		// 只有当前是在线状态的镜像才需要更新
+		flag := util.SetBit1(util.SetBit0(image.Flag, imagesecModel.FlagImageOnline), imagesecModel.FlagImageNotOnline)
 
-	// 程序开始时做一次全量检测
-	add, sub, nw := onlineUUID(s.OnlineUUID, assertUuids)
-	if len(add) == 0 && len(sub) == 0 {
-		s.Log.Info().Int("add", len(add)).Int("sub", len(sub)).Int("nowImage", len(nw)).Msg("updateOnlineImage")
-		return nil
+		go func(im *imagesecModel.Image) { updateVuln.SubImage <- im }(image)
+
+		updater := map[string]interface{}{"flag": flag}
+		if err := s.imageDal.UpdateImage(ctx,
+			imagesecModel.UpdateImageParam{
+				ID:      image.ID,
+				Updater: updater,
+			}); err != nil {
+			s.Log.Err(err).Int64("imageID", image.ID).Msg("updateOnlineImage UpdateImage to offline")
+			continue
+		}
 	}
 
-	s.Log.Info().Int("add", len(add)).Int("sub", len(sub)).Int("nowImage", len(nw)).Msg("updateOnlineImage")
-
-	// NotOnline ---> online
-	for j := range add {
+	// 6. 把集合B中的镜像更新成在线
+	nowOnlineCnt := 0
+	for i := range curContainerImageUuids {
+		uid := curContainerImageUuids[i]
+		// 分批查询在线镜像
 		images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{
-			UUIDs:  []uint32{add[j]},
 			Fields: []string{"id", "flag", "image_uuid", "unique_id", "image_name"},
+			UUIDs:  []uint32{uid},
 		})
 		if err != nil {
-			s.Log.Err(err).Msg("updateOnlineImage SearchImage")
-			return err
+			s.Log.Err(err).Msg("updateOnlineImage SearchImage for online images")
+			continue
 		}
+		nowOnlineCnt += len(images)
+		// 处理当前批次的镜像
+		for j := range images {
+			flag := util.SetBit0(util.SetBit1(images[j].Flag, imagesecModel.FlagImageOnline), imagesecModel.FlagImageNotOnline)
 
-		s.Log.Debug().Uint32("uuid", add[j]).Int("imageCnt", len(images)).Msg("updateOnlineImage search online image")
-		for i := range images {
-			flag := util.SetBit0(util.SetBit1(images[i].Flag, imagesecModel.FlagImageOnline), imagesecModel.FlagImageNotOnline)
-			if images[i].Flag == flag {
-				continue
-			}
+			// 将镜像加入到AddImage通道
+			go func(im *imagesecModel.Image) { updateVuln.AddImage <- im }(images[j])
+
 			updater := map[string]interface{}{"flag": flag}
-			if util.ExistBit1(images[i].Flag, imagesecModel.FlagImageOnline) {
-				go func(im *imagesecModel.Image) { updateVuln.AddImage <- im }(images[i])
-			}
-
 			if err := s.imageDal.UpdateImage(ctx,
 				imagesecModel.UpdateImageParam{
-					ID:      images[i].ID,
+					ID:      images[j].ID,
 					Updater: updater,
 				}); err != nil {
-				s.Log.Err(err).Int64("imageID", images[i].ID).
-					Msg("updateOnlineImage UpdateImage")
-				return err
+				s.Log.Err(err).Int64("imageID", images[j].ID).Msg("updateOnlineImage UpdateImage to online")
+				continue
 			}
 		}
 	}
 
-	// online->not online
-	for j := range sub {
-		images, _, err := s.imageDal.SearchImage(ctx, imagesecModel.ImageDalParam{
-			UUIDs:  []uint32{sub[j]},
-			Fields: []string{"id", "flag", "image_uuid", "unique_id", "image_name"},
-		})
-		if err != nil {
-			s.Log.Err(err).Msg("updateOnlineImage SearchImage")
-			return err
-		}
-
-		s.Log.Debug().Uint32("uuid", sub[j]).
-			Int("images", len(images)).Msg("updateOnlineImage search online image")
-		for i := range images {
-			flag := util.SetBit1(util.SetBit0(images[i].Flag, imagesecModel.FlagImageOnline), imagesecModel.FlagImageNotOnline)
-			if images[i].Flag == flag {
-				continue
-			}
-			if !util.ExistBit1(images[i].Flag, imagesecModel.FlagImageOnline) {
-				go func(im *imagesecModel.Image) { updateVuln.SubImage <- im }(images[i])
-			}
-
-			updater := map[string]interface{}{"flag": flag}
-
-			if err := s.imageDal.UpdateImage(ctx,
-				imagesecModel.UpdateImageParam{
-					ID:      images[i].ID,
-					Updater: updater,
-				}); err != nil {
-				s.Log.Err(err).Int64("imageID", images[i].ID).Msg("updateOnlineImage UpdateImage")
-				return err
-			}
-		}
-	}
-	s.OnlineUUID = nw
-	s.Log.Info().Int("onlineImageUUID", len(s.OnlineUUID)).Msg("updateOnlineImage succeed")
+	// 记录详细的镜像状态变化统计
+	s.Log.Info().
+		Int("nowOnlineCnt", nowOnlineCnt).
+		Int("previousOnlineImages", preOnlineCnt).
+		Msg("updateOnlineImage completed with image status changes")
 	return nil
 }
 
@@ -812,27 +825,6 @@ func trustedChanged(pre map[string]struct{}, now []string) (bool, map[string]str
 		}
 	}
 	return false, nw
-}
-
-func onlineUUID(pre map[uint32]struct{}, now []uint32) ([]uint32, []uint32, map[uint32]struct{}) {
-	add, sub, nw := make([]uint32, 0), make([]uint32, 0), make(map[uint32]struct{})
-	for i := range now {
-		nw[now[i]] = struct{}{}
-	}
-	for k := range pre {
-		if _, ok := nw[k]; !ok {
-			sub = append(sub, k)
-		}
-	}
-
-	for k := range nw {
-		if _, ok := pre[k]; !ok {
-			add = append(add, k)
-		}
-	}
-
-	// 每次都全量更新在线 uuid
-	return now, sub, nw
 }
 
 func (s *ImageUpdateSrv) updatePolicyAfterDeleteReg(ctx context.Context, regID int64) error {

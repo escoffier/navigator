@@ -1,15 +1,10 @@
 package warehouse
 
 import (
-	"crypto/sha256"
 	"crypto/x509"
-	"encoding/hex"
 	"errors"
-	"fmt"
-	"io"
 
 	registry2 "github.com/heroku/docker-registry-client/registry"
-
 	"gitlab.com/security-rd/go-pkg/logging"
 
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
@@ -38,30 +33,6 @@ func NewDockerRegistryClient(url, userName, password string, skipTLSVerify bool)
 	}
 	hub.Logf = ClientLogFormatter
 	return hub, nil
-}
-
-type Hash struct {
-	// Algorithm holds the algorithm used to compute the hash.
-	Algorithm string
-
-	// Hex holds the hex portion of the content hash.
-	Hex string
-}
-
-func (h Hash) String() string {
-	return fmt.Sprintf("%s:%s", h.Algorithm, h.Hex)
-}
-
-func SHA256(r io.Reader) (Hash, int64, error) {
-	hasher := sha256.New()
-	n, err := io.Copy(hasher, r)
-	if err != nil {
-		return Hash{}, 0, err
-	}
-	return Hash{
-		Algorithm: "sha256",
-		Hex:       hex.EncodeToString(hasher.Sum(make([]byte, 0, hasher.Size()))),
-	}, n, nil
 }
 
 func GetRegistryDriver(reg imagesecModel.Registry) (Registry, error) {

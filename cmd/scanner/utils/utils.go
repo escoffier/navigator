@@ -1,18 +1,12 @@
 package scannerUtils
 
 import (
-	"bytes"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"io"
 	"os"
 
-	"github.com/docker/distribution/manifest/schema2"
-
 	"gitlab.com/security-rd/go-pkg/logging"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 )
 
@@ -94,28 +88,3 @@ func CommonFilter(fi os.FileInfo) bool {
 }
 
 type FileFilter func(fi os.FileInfo) bool
-
-func ManifestV2Digest(m *schema2.DeserializedManifest) string {
-	// caculate image digest
-	data, err := m.MarshalJSON()
-	if err != nil {
-		return ""
-	}
-	dig, _, err := SHA256(bytes.NewReader(data))
-	if err != nil {
-		return ""
-	}
-	return dig.String()
-}
-
-func SHA256(r io.Reader) (warehouse.Hash, int64, error) {
-	hasher := sha256.New()
-	n, err := io.Copy(hasher, r)
-	if err != nil {
-		return warehouse.Hash{}, 0, err
-	}
-	return warehouse.Hash{
-		Algorithm: "sha256",
-		Hex:       hex.EncodeToString(hasher.Sum(make([]byte, 0, hasher.Size()))),
-	}, n, nil
-}
