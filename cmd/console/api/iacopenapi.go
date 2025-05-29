@@ -512,7 +512,7 @@ func (api *api) OpenApiXJDockerfileScan() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("db operate fails")))
 			return
 		}
-		filterResult, _, err := iacModel.FilterDockerfileResultByTemplate(ctx, api.rdb.GetReadDB(), string(bf), snapshots[0].ID)
+		filterResult, successRate, err := iacModel.FilterDockerfileResultByTemplate(ctx, api.rdb.GetReadDB(), string(bf), snapshots[0].ID)
 		if err != nil {
 			logging.Get().Err(err).Msgf("FilterDockerfileResultByTemplate fails")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("FilterDockerfileResultByTemplate fails")))
@@ -528,6 +528,11 @@ func (api *api) OpenApiXJDockerfileScan() http.HandlerFunc {
 
 		// 保存数据库记录
 		err = api.rdb.Get().Transaction(func(tx *gorm.DB) error {
+			recordStatus := iacModel.DockerfileRecordStatusPass
+			if successRate < 1 {
+				recordStatus = iacModel.DockerfileRecordStatusAlert
+			}
+
 			hackStr := req.SystemNo + "_" + req.ProjectName
 			dockerfileRecord := iacModel.DockerfileRecord{
 				UUID:            uuid.NewString(),
@@ -536,7 +541,7 @@ func (api *api) OpenApiXJDockerfileScan() http.HandlerFunc {
 				TemplateName:    snapshots[0].Name,
 				FilesCount:      1,
 				DockerfilePaths: []string{hackStr},
-				Status:          iacModel.DockerfileRecordStatusPass,
+				Status:          recordStatus,
 				CreatedAt:       time.Now(),
 			}
 
@@ -553,8 +558,8 @@ func (api *api) OpenApiXJDockerfileScan() http.HandlerFunc {
 				Dockerfile:     req.Dockerfile,
 				Result:         string(bf),
 				HitWhitelist:   false,
-				SuccessRate:    1,
-				Status:         iacModel.DockerfileResultStatusPass,
+				SuccessRate:    successRate,
+				Status:         recordStatus,
 				ParseError:     "",
 				Error:          "",
 				CreatedAt:      time.Now(),
@@ -685,7 +690,7 @@ func (api *api) OpenApiXJYamlScan() http.HandlerFunc {
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("db operate fails")))
 			return
 		}
-		filterResult, _, err := iacModel.FilterYamlResultByTemplate(ctx, api.rdb.GetReadDB(), string(bf), snapshots[0].ID)
+		filterResult, successRate, err := iacModel.FilterYamlResultByTemplate(ctx, api.rdb.GetReadDB(), string(bf), snapshots[0].ID)
 		if err != nil {
 			logging.Get().Err(err).Msgf("FilterYamlResultByTemplate fails")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("FilterYamlResultByTemplate fails")))
@@ -747,9 +752,9 @@ func (api *api) OpenApiXJYamlScan() http.HandlerFunc {
 				ResourceNamespace:  "NA",
 				ResourceKind:       "NA",
 				ResourceName:       hackStr,
-				ResourceGeneration: -1,
+				ResourceGeneration: yamlResult.ResourceGeneration,
 				Status:             iacModel.YamlRecordStatusComplete,
-				SuccessRate:        1,
+				SuccessRate:        successRate,
 				ResultID:           yamlResult.ID,
 				FailReason:         "",
 				ResourceOnline:     false,
