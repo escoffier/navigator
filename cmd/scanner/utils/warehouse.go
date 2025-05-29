@@ -113,7 +113,7 @@ func PullImageManifestV2(cli *registry2.Registry, repo, digest string) (*Deseria
 
 			return deserializedManifest, nil
 		}
-		logging.Get().Info().Str("image", repo+"/"+digest).Str("header", h).Msg("not pull image PullImageManifest")
+		logging.Get().Debug().Str("image", repo+"/"+digest).Str("header", h).Msg("not pull image PullImageManifest")
 	}
 	return nil, fmt.Errorf("not found manifest")
 }
