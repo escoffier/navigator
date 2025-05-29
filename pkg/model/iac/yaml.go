@@ -5,11 +5,12 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"time"
+
 	goPkgIac "gitlab.com/security-rd/go-pkg/iac/pkg/scan"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"time"
 )
 
 const (
