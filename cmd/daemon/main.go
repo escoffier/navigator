@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io/fs"
 	"math/rand"
 	"os"
 	"os/signal"
@@ -411,22 +410,10 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 	defer flow.Close()
 
 	// microseg and waf
-	var agentClient, agentEventClient *heavyagent.Client
-	pathExists := false
-	if err != nil {
-		if os.IsNotExist(err) {
-			err = os.Mkdir("/var/run/heavy-agent", fs.ModeDir)
-			if err != nil {
-				logging.Get().Err(err).Msg("create dir: /var/run/heavy-agent/")
-			} else {
-				pathExists = true
-			}
-		}
-	} else {
-		pathExists = true
-	}
+	if os.Getenv("MICROSEG_ENABLED") == "true" {
 
-	if pathExists {
+		var agentClient, agentEventClient *heavyagent.Client
+
 		agentClient, err = heavyagent.NewClient("127.0.0.1:9999")
 		if err != nil {
 			return err
@@ -436,48 +423,54 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 		if err != nil {
 			return err
 		}
+
+		policyClient := microseg.NewPolicyClient(agentClient)
+		if agentClient == nil {
+			logging.Get().Error().Msg("agentClient is nil")
+		}
+
+		stopChan := make(chan struct{})
+
+		controller := nodeinfo.NewPodController(podWatcher.PodLister(), podWatcher.PodInformer(), containerInfo, policyClient)
+		go controller.Run(stopChan)
+
+		tensorFactory := externalversions.NewSharedInformerFactoryWithOptions(clientset.TensorClientset, 10*time.Hour,
+			externalversions.WithTweakListOptions(func(lo *v1.ListOptions) {
+				lo.LabelSelector = fmt.Sprintf("kubernetes.io/node-name=%s", hostName)
+			}))
+		ruleController := microseg.NewRuleGroupController(clientset.TensorClientset, tensorFactory, policyClient, hostName, mqWriter, agentClient)
+
+		go ruleController.Run(stopChan)
+
+		var wafEnabled = true
+		wafEnv := os.Getenv("WAF")
+		if wafEnv == "true" {
+			wafEnabled = true
+		}
+		if wafEnabled {
+			wafClient := waf.NewWafClient(agentClient)
+			wafController := waf.NewWafController(clientset.TensorClientset, factory, tensorFactory, podWatcher, wafClient)
+			go wafController.Run(stopCh)
+		}
+
+		tensorFactory.Start(stopChan)
+		tensorFactory.WaitForCacheSync(stopChan)
+
+		clusterManagerSvc := os.Getenv("CLUSTER_MANAGER_URL")
+		eventProcessor := heavyagent.NewEventProcessor(clusterManagerSvc, agentEventClient)
+
+		microsegHandler := microseg.NewHandler(clusterManagerSvc)
+		eventProcessor.AddHandler("microseg", microsegHandler)
+
+		wafhander := waf.NewHandler(clusterManagerSvc)
+		eventProcessor.AddHandler("waf", wafhander)
+
+		go eventProcessor.Run1()
+		go func() {
+			srv := status.NewServer(12000, agentClient)
+			srv.Run()
+		}()
 	}
-
-	stopChan := make(chan struct{})
-	policyClient := microseg.NewPolicyClient(agentClient)
-	if agentClient == nil {
-		logging.Get().Error().Msg("agentClient is nil")
-	}
-	controller := nodeinfo.NewPodController(podWatcher.PodLister(), podWatcher.PodInformer(), containerInfo, policyClient)
-	go controller.Run(stopChan)
-
-	tensorFactory := externalversions.NewSharedInformerFactoryWithOptions(clientset.TensorClientset, 10*time.Hour,
-		externalversions.WithTweakListOptions(func(lo *v1.ListOptions) {
-			lo.LabelSelector = fmt.Sprintf("kubernetes.io/node-name=%s", hostName)
-		}))
-	ruleController := microseg.NewRuleGroupController(clientset.TensorClientset, tensorFactory, policyClient, hostName, mqWriter, agentClient)
-
-	go ruleController.Run(stopChan)
-
-	var wafEnabled = true
-	wafEnv := os.Getenv("WAF")
-	if wafEnv == "true" {
-		wafEnabled = true
-	}
-	if wafEnabled {
-		wafClient := waf.NewWafClient(agentClient)
-		wafController := waf.NewWafController(clientset.TensorClientset, factory, tensorFactory, podWatcher, wafClient)
-		go wafController.Run(stopCh)
-	}
-
-	tensorFactory.Start(stopChan)
-	tensorFactory.WaitForCacheSync(stopChan)
-
-	clusterManagerSvc := os.Getenv("CLUSTER_MANAGER_URL")
-	eventProcessor := heavyagent.NewEventProcessor(clusterManagerSvc, agentEventClient)
-
-	microsegHandler := microseg.NewHandler(clusterManagerSvc)
-	eventProcessor.AddHandler("microseg", microsegHandler)
-
-	wafhander := waf.NewHandler(clusterManagerSvc)
-	eventProcessor.AddHandler("waf", wafhander)
-
-	go eventProcessor.Run1()
 
 	wg.Add(1)
 	go func() {
@@ -685,10 +678,6 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 		}()
 	}
 
-	go func() {
-		srv := status.NewServer(12000, agentClient)
-		srv.Run()
-	}()
 	WaitSignal(stopCh)
 	wg.Wait()
 	return err
