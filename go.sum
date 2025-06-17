@@ -3834,8 +3834,8 @@ scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.3.0 h1:xzNp4ZMprrVgo3KYaP4o1gW
 scm.tensorsecurity.cn/tensorsecurity-rd/go-pkg v0.3.0/go.mod h1:7iA3d/FiV1buGqWtcrcSH1/wlT7DNQpMmxzBtq3/zbY=
 scm.tensorsecurity.cn/tensorsecurity-rd/podman/v3 v3.4.6-20220425170000 h1:rDGiAo7tgLYDTzUOVlK31AfAcRHqr1DCtI24mi+LzyE=
 scm.tensorsecurity.cn/tensorsecurity-rd/podman/v3 v3.4.6-20220425170000/go.mod h1:ITId80W6JXHyW8fOwmaPCQtzMYkbL/F7EGE0A2nJmDI=
-scm.tensorsecurity.cn/tensorsecurity-rd/trivy v1.0.9 h1:Uwmam3dkSO98lFeejOM6CsARi3roJIHhnlaneptFHGI=
-scm.tensorsecurity.cn/tensorsecurity-rd/trivy v1.0.9/go.mod h1:o78dn4KNGFpSTl09lWFP/7oBeToBd50v+nUc/+WuICw=
+scm.tensorsecurity.cn/tensorsecurity-rd/trivy v1.0.9 h1:SgYxqUjXoyAb32TvwM2vC/IetTCaEKaJ+FL1MJz2nQ4=
+scm.tensorsecurity.cn/tensorsecurity-rd/trivy v1.0.9/go.mod h1:QV6gigaMUot+A0Ci6WsEDSKNUFsJsEknXgvjmNdU/TA=
 scm.tensorsecurity.cn/tensorsecurity-rd/trivy-db v0.0.5 h1:eMzXICTsuS0eKfpAXllC35r7VvetjI8NOWirOYnxajo=
 scm.tensorsecurity.cn/tensorsecurity-rd/trivy-db v0.0.5/go.mod h1:xC1FvSGGXtC13EUTc+xsmXrbKRqTBssbJK6df5wzcUE=
 sigs.k8s.io/apiserver-network-proxy/konnectivity-client v0.0.30/go.mod h1:fEO7lRTdivWO2qYVCVG7dEADOMo/MLDCVr8So2g88Uw=
