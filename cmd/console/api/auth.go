@@ -616,9 +616,9 @@ type tenantLoginReq struct {
 }
 
 type tenantLoginHttpResp struct {
-	Code    int    `json:"code"`
-	Message string `json:"message"`
-	Data    struct {
+	Code int    `json:"code"`
+	Msg  string `json:"msg"`
+	Data struct {
 		LoginName   string `json:"loginName"`
 		Token       string `json:"token"`
 		AppCode     string `json:"appCode"`
@@ -718,9 +718,9 @@ func (api *api) tenantLogin(ctx context.Context, w http.ResponseWriter, r *http.
 	}
 
 	// 如果返回码不为0，则表示登录失败
-	if tenantLoginHttpResp.Code != 200 || tenantLoginHttpResp.Data.ExpireTime == 0 {
+	if tenantLoginHttpResp.Code != 200 {
 		RespAndLog(w, r.Context(),
-			NewAnError(http.StatusInternalServerError, fmt.Errorf("tenant login check failed: %s", tenantLoginHttpResp.Message)))
+			NewAnError(http.StatusInternalServerError, fmt.Errorf("tenant login check failed: %v", tenantLoginHttpResp)))
 		return
 	}
 
