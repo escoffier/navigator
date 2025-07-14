@@ -3,6 +3,7 @@ package sync
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/registry/warehouse"
@@ -37,7 +38,8 @@ func (s *RegSyncSrv) createImageExtender(ctx context.Context, image warehouse.Im
 	if image.Created.IsZero() {
 		imageMeta.Created = configFile.Created.String()
 	}
-	s.Log.Debug().Interface("imageMeta", imageMeta).Msg("get a imageMeta")
+	s.Log.Debug().Str("image", fmt.Sprintf("%s:%s", image.Repository, image.Tag)).Msg("get a imageMeta")
+	s.Log.Trace().Interface("imageMeta", imageMeta).Msg("get a imageMeta with detail")
 
 	report.RegImages = append(report.RegImages, *imageMeta)
 
@@ -81,8 +83,9 @@ func (s *RegSyncSrv) GetLayers(image warehouse.Image) []imagesecTypes.Layer {
 	if image.ConfigJSON != "" {
 		_ = json.Unmarshal([]byte(image.ConfigJSON), &config)
 	}
-	s.Log.Debug().Interface("configFile", config).Msg("GetLayers")
-	s.Log.Debug().Interface("manifestV2", manifestV2).Msg("GetLayers")
+	s.Log.Debug().Str("image", fmt.Sprintf("%s:%s", image.Repository, image.Tag)).Msg("GetLayers")
+	s.Log.Trace().Interface("configFile", config).Msg("GetLayers with configFile")
+	s.Log.Trace().Interface("manifestV2", manifestV2).Msg("GetLayers with manifest v2")
 
 	layers1 := make([]imagesecTypes.Layer, 0)
 	for i := range manifestV2.Layers {

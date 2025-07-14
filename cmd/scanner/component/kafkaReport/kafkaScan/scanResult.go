@@ -543,7 +543,8 @@ func (s *ScanResultReportSrv) CreatePkgVuln(ctx context.Context, data *imagesecT
 		return emp, err
 	}
 
-	s.Log.Debug().Interface("matchVulnResult", results).Msg("matchVuln")
+	s.Log.Debug().Int64("taskID", data.TaskID).Int64("subtaskID", data.SubTaskID).Msg("matchVuln")
+	s.Log.Trace().Interface("matchVulnResult", results).Msg("matchVuln")
 
 	pkgs := make([]*imagesecModel.Pkg, 0)
 	pkgToImage := make([]*imagesecModel.PkgToImage, 0)
@@ -1280,10 +1281,13 @@ func (s *ScanResultReportSrv) ReceiveImageScanResult(ctx context.Context, msg ka
 		return err
 	}
 
-	s.Log.Debug().Int64("subtaskID", data.SubTaskID).Interface("data", data).
+	s.Log.Debug().Int64("subtaskID", data.SubTaskID).
 		Msg("receive image scan result report")
+	s.Log.Trace().Int64("subtaskID", data.SubTaskID).Interface("data", data).
+		Msg("receive image scan result report with data")
 	s.Log.Info().Str("result", data.LogStr()).Msg("receive image scan result report")
-	s.Log.Debug().Any("OriginArtifact", data.OriginArtifact).Msg("receive image scan result report")
+	s.Log.Debug().Int64("taskID", data.TaskID).Int64("subtaskID", data.SubTaskID).Msg("receive image scan result report")
+	s.Log.Trace().Any("OriginArtifact", data.OriginArtifact).Msg("receive image scan result report with detail")
 
 	if data.StatusStr == imagesecModel.TaskStatusFailedStr {
 		s.Log.Info().Str("result", data.LogStr()).Msg("scan failed just update scan subtask")
@@ -1361,7 +1365,7 @@ func (s *ScanResultReportSrv) StatisticsMathRes(data report.Results) (int, int) 
 		pkgCnt += len(data[i].Packages)
 		vulnCnt += len(data[i].Vulnerabilities)
 		for _, vu := range data[i].Vulnerabilities {
-			s.Log.Debug().Str("vuln", vu.VulnerabilityID).Msg("FindVuln")
+			s.Log.Trace().Str("vuln", vu.VulnerabilityID).Msg("FindVuln")
 		}
 	}
 	s.Log.Info().Int("vulnCnt", vulnCnt).Int("pkgCnt", pkgCnt).Msg("mathVuln statisticsMathRes")

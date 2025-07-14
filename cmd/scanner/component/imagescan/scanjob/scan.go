@@ -127,8 +127,10 @@ func (s *RegImageScan) ScanAndSend2(ctx context.Context, subtask imagesecTypes.S
 		_ = cleJob.Clear(ctx, prep)
 	}()
 
-	s.Log.Debug().Str("subtask", subtask.LogStr()).Interface("result", result).
+	s.Log.Debug().Str("subtask", subtask.LogStr()).
 		Msg("scanResult scan registry image end")
+	s.Log.Trace().Str("subtask", subtask.LogStr()).Interface("result", result).
+		Msg("scanResult scan registry image end with result")
 
 	return nil
 }

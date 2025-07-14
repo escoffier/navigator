@@ -385,6 +385,29 @@ func (api *api) scannerOpenApi() func(router chi.Router) {
 		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
 			Get("/scanTask/image/scan/subtask/list", api.ForwardScannerOpenApi())
 
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/ci/policies", api.ForwardScannerOpenApi())
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/ci/policy/{name}", api.ForwardScannerOpenApi())
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Post("/ci/result", api.ForwardScannerOpenApi())
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/ci/tidb/version", api.ForwardScannerOpenApi())
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/ci/tidb/assets/{name}", api.ForwardScannerOpenApi())
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Post("/ci/sign", api.ForwardScannerOpenApi())
+
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Post("/syncImage/startSync", api.ForwardScannerOpenApi())
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Post("/register/registry", api.ForwardScannerOpenApi())
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Put("/register/registry", api.ForwardScannerOpenApi())
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Delete("/register/registry", api.ForwardScannerOpenApi())
+		r.With(RateLimitMiddleware(api.redisClient, int64(rate))).
+			Get("/register/registries", api.ForwardScannerOpenApi())
 	}
 }
 
