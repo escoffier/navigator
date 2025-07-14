@@ -184,8 +184,12 @@ func (s *ScannerImageCacheService) handleDelete(ctx *gin.Context) {
 	// delete layer from file server
 	if s.LayerQueue.NeedDelete(digest) {
 		s.LayerQueue.Delete(digest)
-		if err := s.fs.DeleteFile(digest); err != nil {
-			logging.Get().Err(err).Msgf("delete layer file err,digest %s", digest)
+		if os.Getenv("RESERVE_LAYER_FILE") == "true" {
+			logging.Get().Debug().Msgf("reserve layer file,digest %s", digest)
+		} else {
+			if err := s.fs.DeleteFile(digest); err != nil {
+				logging.Get().Err(err).Msgf("delete layer file err,digest %s", digest)
+			}
 		}
 	} else {
 		logging.Get().Debug().Msgf("digest %s still has ref,no delete", digest)

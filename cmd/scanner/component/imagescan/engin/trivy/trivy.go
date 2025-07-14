@@ -257,11 +257,11 @@ func (s *TrivySrv) AddDetailVuln(ctx context.Context, vuln *imagesecModel.Vuln) 
 
 	cnnvdData, err := s.getCnnvdFromBolt(vuln.Name)
 	if err != nil {
-		s.Log.Debug().Str("error", err.Error()).Str("vulnID", vuln.Name).Msg("getCnnvdFromBolt not get cnnvd")
+		s.Log.Trace().Str("error", err.Error()).Str("vulnID", vuln.Name).Msg("getCnnvdFromBolt not get cnnvd")
 	}
 	cnvdData, err := s.getCnvdFromBolt(vuln.Name)
 	if err != nil {
-		s.Log.Debug().Str("error", err.Error()).Str("vulnID", vuln.Name).Msg("getCnvdFromBolt not get cnvd")
+		s.Log.Trace().Str("error", err.Error()).Str("vulnID", vuln.Name).Msg("getCnvdFromBolt not get cnvd")
 	}
 
 	if cnnvdData != nil {

@@ -282,12 +282,12 @@ func (s *RegImagePrepare) getManifest(ctx context.Context, subtask imagesecTypes
 
 func (s *RegImagePrepare) findNeedPrepareLayer(ctx context.Context, prep *imagesecTypes.PrepareScan) {
 
-	if !prep.Subtask.VulnCache.In(prep.ImageManifest.ImageDigest) {
-		s.Log.Debug().Str("ImageDigest", prep.ImageManifest.ImageDigest).Msg("vuln not cached")
-		for i := range prep.Layers {
-			prep.Layers[i].NeedPull = true
-		}
+	// 因为后续使用trivy扫描的时候，还是会去我们内部服务请求各个layer，所以这里还是需要拉取全部layer
+	// 可能的方案：后面改成本地layer扫描，则可以只拉取需要的layer
+	for i := range prep.Layers {
+		prep.Layers[i].NeedPull = true
 	}
+
 	for _, ly := range prep.Layers {
 		pull, ext := ly.NeedPull, ly.NeedExtract
 		if !prep.Subtask.SensitiveCache.In(ly.Digest) {

@@ -93,13 +93,13 @@ func (s *ImageInfoMetaSrv) ListImageWithScanInfo(ctx context.Context, param imag
 
 	res := make([]*imagesecModel.ImageBaseResponse, 0)
 
-	s.Log.Debug().Interface("param", param).Msg("ListImageWithScanInfo")
+	s.Log.Trace().Interface("param", param).Msg("ListImageWithScanInfo")
 
 	daoParam := param.ToImageDalParam()
 
 	daoParam.Fields = []string{"id", "unique_id"}
 
-	s.Log.Debug().Interface("daoParam", daoParam).Interface("filter", param.Filter).Msg("SearchImageWithScan SearchImage")
+	s.Log.Trace().Interface("daoParam", daoParam).Interface("filter", param.Filter).Msg("SearchImageWithScan SearchImage")
 
 	images, cnt, err := s.imageDal.SearchImage(ctx, daoParam)
 	if err != nil {
@@ -210,7 +210,7 @@ func (s *ImageInfoMetaSrv) GetImageCorrelateData(ctx context.Context,
 		param.SimplePolicyEnable = false
 	}
 
-	s.Log.Debug().Interface("param", param).Any("ans", ans).Msg("GetImageCorrelateData")
+	s.Log.Trace().Interface("param", param).Any("ans", ans).Msg("GetImageCorrelateData")
 
 	errs := make([]error, 0)
 	errs = append(errs, s.addRegistryData(ctx, &param, ans))
@@ -269,7 +269,7 @@ func (s *ImageInfoMetaSrv) GetImageCorrelateData(ctx context.Context,
 	}()
 	// 程序中分页
 	ans = ans.AddFilter(filter)
-	s.Log.Debug().Any("ans", ans).Msg("GetImageCorrelateData")
+	s.Log.Trace().Any("ans", ans).Msg("GetImageCorrelateData")
 	return ans, nil
 }
 

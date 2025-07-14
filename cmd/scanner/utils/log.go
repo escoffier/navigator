@@ -72,6 +72,17 @@ func (vi *LogEvent) Debug() *zerolog.Event {
 	return ev
 }
 
+func (vi *LogEvent) Trace() *zerolog.Event {
+	ev := logging.Get().Trace()
+	if vi.Module != "" {
+		ev = ev.Str(consts.LogModule, vi.Module)
+	}
+	if vi.Submodule != "" {
+		ev = ev.Str(consts.LogSubModule, vi.Submodule)
+	}
+	return ev
+}
+
 func (vi *LogEvent) Err(err error) *zerolog.Event {
 	ev := logging.Get().Err(err)
 	if vi.Module != "" {

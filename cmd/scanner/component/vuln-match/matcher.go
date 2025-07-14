@@ -34,7 +34,7 @@ func (m *Matcher) MatchVulnerability(artifactDetail ftypes.ArtifactDetail) (repo
 	}
 
 	m.res = rp
-	logging.Get().Debug().Interface("vulns", rp).Msg("match result")
+	logging.Get().Trace().Interface("vulns", rp).Msg("match result")
 
 	return rp.Results, nil
 }

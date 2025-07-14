@@ -118,8 +118,8 @@ func (s *ImageReport) ReceiveAssetReport(ctx context.Context, msg kafka.Message)
 		Str("node", report.NodeInfo.HostName).
 		Str("reg", report.RegInfo.Url+report.RegInfo.Name).
 		Int64("reportedAt", report.ReportedAt).
-		Interface("report", report).
 		Msg("receive image report")
+	s.Log.Trace().Str("uuid", report.UUID).Interface("report", report).Msg("receive image report with detail")
 
 	_ = s.NodeImage(ctx, report)
 	_ = s.RegImage(ctx, report)
