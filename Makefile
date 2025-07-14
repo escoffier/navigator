@@ -271,7 +271,6 @@ pushimages:
 	docker push $(REPOPREFIX)/node-image:$(IMAGE_TAG)
 	docker push $(REPOPREFIX)/heavy-agent:$(IMAGE_TAG)
 	docker push $(REPOPREFIX)/monitor:$(IMAGE_TAG)
-	docker push $(REPOPREFIX)/portal-backend:$(IMAGE_TAG)
 
 .PHONY: rm-local-images
 rm-local-images:
@@ -293,4 +292,3 @@ rm-local-images:
 	docker rmi $(REPOPREFIX)/node-image:$(IMAGE_TAG)
 	docker rmi $(REPOPREFIX)/heavy-agent:$(IMAGE_TAG)
 	docker rmi $(REPOPREFIX)/monitor:$(IMAGE_TAG)
-	docker rmi $(REPOPREFIX)/portal-backend:$(IMAGE_TAG)
