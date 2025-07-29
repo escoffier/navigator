@@ -3,7 +3,9 @@ package store
 import (
 	"context"
 	"fmt"
+	"gorm.io/gorm/logger"
 	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -48,7 +50,9 @@ func NewRDBInstance() *databases.RDBInstance {
 func InitDb(loglevel string) (err error) {
 	dbInitOnce.Do(func() {
 		var err error
-		scannerDB, err = databases.NewRDBWithMySQLByEnv(context.Background(), databases.OptionWithmaxOpenConnections(60),
+		scannerDB, err = databases.NewRDBWithMySQLByEnv(
+			context.Background(),
+			databases.OptionWithmaxOpenConnections(60),
 			databases.OptionWithMaxIdleConns(30),
 			databases.OptionWithConnMaxLifeTime(time.Hour),
 		)
@@ -57,7 +61,15 @@ func InitDb(loglevel string) (err error) {
 			err = fmt.Errorf("connect db err:%v", err)
 			return
 		}
-		if loglevel == "debug" {
+		rdbLogLevel := int(logger.Error)
+		if len(loglevel) > 0 {
+			var parseErr error
+			rdbLogLevel, parseErr = strconv.Atoi(loglevel)
+			if parseErr != nil {
+				rdbLogLevel = int(logger.Error)
+			}
+		}
+		if rdbLogLevel == int(logger.Info) {
 			scannerDB.SetDebugMode()
 		}
 		ciDao = adaptStore.NewCiDao(scannerDB)

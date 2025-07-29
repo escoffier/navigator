@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"os"
 	"runtime/debug"
 	"sync"
 	"time"
@@ -35,7 +36,8 @@ type ClusterKey struct {
 // NewScanner is to create a new Scanner struct.
 func NewScanner(opts *flag2.ScannerOpts) (*Scanner, error) {
 	// init db
-	if err := store.InitDb(opts.LogLevel); err != nil {
+	rdbLogLevelStr := os.Getenv("RDB_LOGGING_LEVEL")
+	if err := store.InitDb(rdbLogLevelStr); err != nil {
 		logging.Get().Err(err).Msg("connect db failed")
 		return nil, err
 	}

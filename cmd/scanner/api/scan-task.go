@@ -1,6 +1,7 @@
 package api
 
 import (
+	"gitlab.com/security-rd/go-pkg/logging"
 	"net/http"
 	"strconv"
 
@@ -34,6 +35,8 @@ func (s *ScanTaskAPI) CreateImageScanTask(ctx *gin.Context) {
 	if body.ImageFromType == "" {
 		body.ImageFromType = util.GetKeywordFromQuery(ctx, "imageFromType")
 	}
+
+	logging.Get().Trace().Interface("param", body).Msg("create image scan task")
 
 	taskInfo := &imagesecModel.ImageScanTask{
 		ImageFromType: body.ImageFromType,
