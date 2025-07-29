@@ -373,14 +373,18 @@ func OpenAPI(router *gin.Engine,
 		v12.POST("/startSync", apiRegistrySrv.CreateSyncTask)
 		v12.GET("/syncProgress", apiRegistrySrv.GetSyncProgress)
 		v12.GET("/syncStatus", apiRegistrySrv.GetSyncStatus)
+	}
 
-		v12.GET("/registries", apiRegistrySrv.SearchRegistry)
-		v12.GET("/registry", apiRegistrySrv.GetRegistry)
-		v12.PUT("/registry", apiRegistrySrv.UpdateRegistry)
-		v12.POST("/registry", apiRegistrySrv.CreateRegistry)
-		v12.DELETE("/registry", apiRegistrySrv.DeleteRegistry)
-		v12.GET("/regType", apiRegistrySrv.GetRegistryType)
-		v12.GET("/regions", apiRegistrySrv.GetRegions)
+	// 仓库相关
+	v13 := router.Group("/openapi/v1/register")
+	{
+		v13.GET("/registries", apiRegistrySrv.SearchRegistry)
+		v13.GET("/registry", apiRegistrySrv.GetRegistry)
+		v13.PUT("/registry", apiRegistrySrv.UpdateRegistry)
+		v13.POST("/registry", apiRegistrySrv.CreateRegistry)
+		v13.DELETE("/registry", apiRegistrySrv.DeleteRegistry)
+		v13.GET("/regType", apiRegistrySrv.GetRegistryType)
+		v13.GET("/regions", apiRegistrySrv.GetRegions)
 	}
 
 	scanInsSrv := NewScanInsAPISrv(scannerInfo)
