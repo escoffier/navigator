@@ -1,10 +1,10 @@
-package api
+package imagesec
 
 import (
+	"strings"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
-	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 )
 
 type ExportTensorTaskView struct {
@@ -26,7 +26,7 @@ type ExportTensorTaskView struct {
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
-func ModelToView(data imagesec.ExportTensorTask, lang string) ExportTensorTaskView {
+func ModelToView(data ExportTensorTask, lang string) ExportTensorTaskView {
 
 	task := ExportTensorTaskView{
 		ID:          data.ID,
@@ -56,4 +56,16 @@ func ModelToView(data imagesec.ExportTensorTask, lang string) ExportTensorTaskVi
 	}
 
 	return task
+}
+
+func GetFilename(file string) string {
+	if file == "" {
+		return file
+	}
+	split := strings.Split(file, "/")
+
+	if len(split) > 0 {
+		return split[len(split)-1]
+	}
+	return file
 }

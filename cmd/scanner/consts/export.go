@@ -10,7 +10,8 @@ const (
 	IACYamlExportType       string = "ExportIACYamls"
 	IACDockerfileExportType string = "ExportIACDockerfiles"
 
-	ExportImageSearch string = "ExportImageSearch"
+	ExportImageSearch   string = "ExportImageSearch"
+	ExportPortalProject string = "ExportPortalProject"
 
 	ExportCIReport string = "ExportCIReport"
 	ExportScanTask string = "ExportScanTask"
@@ -20,12 +21,14 @@ const (
 	ExportVulnViewCH          string = "漏洞报告"
 	ExportIACYamlViewCH       string = "yaml扫描"
 	ExportIACDockerfileViewCH string = "dockerfile扫描"
+	ExportPortalProjectView   string = "项目报告"
 
 	ExportImageViewEN         string = "Image Report"
 	AuditExeTypeViewEN        string = "Audit Log"
 	ExportVulnViewEN          string = "Vulnerability Report"
 	ExportIACYamlViewEN       string = "Yaml Scan"
 	ExportIACDockerfileViewEN string = "Dockerfile Scan"
+	ExportPortalProjectViewEN string = "Project Report"
 
 	ExportCIType = "ci"
 )
@@ -37,21 +40,6 @@ const (
 )
 
 func GetExportTypeView(exportType string, lang string) string {
-	if strings.ToLower(lang) == LangCH {
-		switch exportType {
-		case ExportCIReport, ExportScanTask, ExportImageSearch:
-			return ExportImageViewCH
-		case ExportVuln:
-			return ExportVulnViewCH
-		case AuditExeType:
-			return AuditExeTypeViewCH
-		case IACYamlExportType:
-			return ExportIACYamlViewCH
-		case IACDockerfileExportType:
-			return ExportIACDockerfileViewCH
-		}
-	}
-
 	if strings.ToLower(lang) == LangEN {
 		switch exportType {
 		case ExportCIReport, ExportScanTask, ExportImageSearch:
@@ -64,7 +52,24 @@ func GetExportTypeView(exportType string, lang string) string {
 			return ExportIACYamlViewEN
 		case IACDockerfileExportType:
 			return ExportIACDockerfileViewEN
+		case ExportPortalProject:
+			return ExportPortalProjectViewEN
 		}
+	}
+
+	switch exportType {
+	case ExportCIReport, ExportScanTask, ExportImageSearch:
+		return ExportImageViewCH
+	case ExportVuln:
+		return ExportVulnViewCH
+	case AuditExeType:
+		return AuditExeTypeViewCH
+	case IACYamlExportType:
+		return ExportIACYamlViewCH
+	case IACDockerfileExportType:
+		return ExportIACDockerfileViewCH
+	case ExportPortalProject:
+		return ExportPortalProjectView
 	}
 	return ""
 }

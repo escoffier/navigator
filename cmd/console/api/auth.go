@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/pquerna/otp/totp"
+	"gitlab.com/piccolo_su/vegeta/cmd/portal/utils"
 	"gitlab.com/security-rd/go-pkg/httputil"
 	"golang.org/x/time/rate"
 	"gopkg.in/gomail.v2"
@@ -1255,6 +1256,19 @@ func downloadAuth() func(http.Handler) http.Handler {
 						fmt.Errorf("no token")))
 				return
 			}
+			// portal项目
+			if strings.HasPrefix(token, "PORTAL") {
+				str := strings.ReplaceAll(token, "PORTAL:", "")
+				ti := utils.DecryptToTimestamp(str)
+				if time.Now().Unix() > ti+ExportTokenExpire || ti > time.Now().Unix() {
+					RespAndLog(w, ctx, InvalidTokenError(http.StatusBadRequest, fmt.Errorf("portal token invalid or expired")))
+					return
+				}
+
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			// 验证token是否已失效
 			jt := util.NewJWT(r.URL.Path)
 			if !jt.ValidateToken(token) {

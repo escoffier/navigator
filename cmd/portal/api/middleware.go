@@ -25,7 +25,6 @@ func GenTokenAuthMiddleware(ud store.UserDal) gin.HandlerFunc {
 		}
 		to = strings.TrimLeft(to, "Bearer")
 		to = strings.TrimSpace(to)
-
 		p, err := tm.Verify(to)
 		if err != nil {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})

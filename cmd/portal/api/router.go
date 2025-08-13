@@ -13,6 +13,8 @@ func NewAPi(
 	ud store.UserDal,
 	pr service.ProjectService,
 	cis ci.CiComponent,
+	vulnService service.VulnService,
+	exportSrv service.ExportTaskInterface,
 ) *gin.Engine {
 
 	gin.Default()
@@ -84,5 +86,29 @@ func NewAPi(
 		v6.GET("/consts/list", global.GetConst)
 	}
 
+	// 扫描结果相关
+	vulnAPI := NewVulnAPI(vulnService, pr, cis)
+	v7 := engin.Group("/api/v1/scan", GenTokenAuthMiddleware(ud))
+	{
+		v7.GET("/vuln/list/codesec", vulnAPI.SearchCodesecVuln)
+		v7.GET("/summary/codesec", vulnAPI.CodesecSummary)
+		v7.GET("/summary/sourceCheck", vulnAPI.SourceCheckSummary)
+		v7.GET("/vuln/list/sourceCheck", vulnAPI.SearchSourceCheckVuln)
+		v7.GET("/license/list/sourceCheck", vulnAPI.SearchSourceCheckLicense)
+		v7.GET("/component/list/sourceCheck", vulnAPI.SearchSourceCheckComponent)
+		v7.GET("/vuln/list/ci", vulnAPI.SearchCIVuln)
+		v7.GET("/image/list/ci", vulnAPI.SearchCIImage)
+		v7.POST("/startScan", vulnAPI.ScanProject)
+	}
+
+	// 导出任务
+	exportHandler := NewExportHandler(exportSrv)
+	v8 := engin.Group("/api/v1/export/task", GenTokenAuthMiddleware(ud))
+	{
+		v8.GET("/list", exportHandler.SearchExportTask)
+		// v8.GET("/download", exportHandler.DownLoadFile)
+		v8.GET("/download", exportHandler.DownLoad)
+		v8.POST("/createTask", exportHandler.CreateExportProject)
+	}
 	return engin
 }

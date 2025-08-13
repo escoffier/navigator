@@ -116,6 +116,7 @@ type ImageFilter struct {
 	Limit         int
 	Offset        int
 	KindAttribute string
+	ProjectUuid   string // 新增：按项目UUID过滤
 }
 
 type ImageParams struct {
@@ -128,10 +129,12 @@ type ImageParams struct {
 	KindAttribute string // and,or
 	Limit         int
 	Offset        int
+	ProjectUuid   string // 新增：按项目UUID过滤
 }
 
 type ImageRecord struct {
-	ID                int64 `json:"id"`
+	ID                int64  `json:"id"`
+	ProjectUuid       string `gorm:"column:project_uuid" json:"project_uuid"` // portal项目的Project.Uuid关联
 	ImageName         string
 	SeverityHistogram model.SeverityHistogramInfo `json:"severityHistogram"`
 	Questions         string

@@ -105,14 +105,14 @@ func main() {
 
 	if err != nil {
 		logging.Get().Fatal().Msgf("init db error, err :%v", err)
-		os.Exit(1)
+		// os.Exit(1)
 	}
 
 	// share data use db 0
 	rc0, err := cache.NewRedis(cache.SetDB(0))
 	if err != nil {
-		logging.Get().Fatal().Msgf("init redis error, err :%v", err)
-		os.Exit(1)
+		// logging.Get().Fatal().Msgf("init redis error, err :%v", err)
+		// os.Exit(1)
 	}
 
 	// 建议改为loggingOptions用法

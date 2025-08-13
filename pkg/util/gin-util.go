@@ -133,3 +133,22 @@ func GetLanguage(ctx *gin.Context) string {
 	}
 	return "zh"
 }
+
+// GetUint64SliceFromQuery 从gin的query中获取uint64数组
+func GetUint64SliceFromQuery(ctx *gin.Context, key string) []uint64 {
+	values := make([]uint64, 0)
+	str := ctx.Query(key)
+	if str != "" {
+		split := strings.Split(str, ",")
+		for i := range split {
+			parseInt, err := strconv.ParseUint(split[i], 10, 64)
+			if err != nil {
+				logging.GetLogger().Err(err).Str("param", split[i]).Msgf("get %s param", key)
+				continue
+			}
+			values = append(values, parseInt)
+		}
+	}
+
+	return DuplicateUint64Slice(values)
+}

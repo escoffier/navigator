@@ -349,7 +349,7 @@ func (s *ExportApiSrv) GetExportTaskDetail(ctx *gin.Context) {
 		return
 	}
 
-	ans := ModelToView(*task, ctx.GetString(consts.LangKey))
+	ans := imagesec.ModelToView(*task, ctx.GetString(consts.LangKey))
 	if ty == consts.ExportCIType {
 		ans.CiUUID = ctx.Query("id")
 	}
@@ -390,9 +390,9 @@ func (s *ExportApiSrv) GetReportTaskList(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	ans := make([]ExportTensorTaskView, len(tasks))
+	ans := make([]imagesec.ExportTensorTaskView, len(tasks))
 	for i := range tasks {
-		ans[i] = ModelToView(tasks[i], ctx.GetString(consts.LangKey))
+		ans[i] = imagesec.ModelToView(tasks[i], ctx.GetString(consts.LangKey))
 	}
 	for i := range ans {
 		if ans[i].Status == consts.ExportStatusRunning {

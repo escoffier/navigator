@@ -96,7 +96,7 @@ func (u *UserAPI) GetUser(ctx *gin.Context) {
 		response.JSONError(ctx, fmt.Errorf("not fond user"))
 		return
 	}
-	response.JSONOK(ctx, response.WithItem(ConvertModelUserToAPI(users[0])))
+	response.JSONOK(ctx, response.WithItem(users[0]))
 }
 
 func (u *UserAPI) SearchUser(ctx *gin.Context) {
@@ -114,13 +114,15 @@ func (u *UserAPI) SearchUser(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
-	res := make([]*User, 0)
 	for i := range users {
-		res = append(res, ConvertModelUserToAPI(users[i]))
 		users[i].Pwd = ""
+		users[i].PwdString = ""
+		users[i].SourceCheckPwd = ""
+		users[i].CodesecPwd = ""
+		users[i].TensorPwd = ""
 	}
 
-	response.JSONOK(ctx, response.WithItems(res),
+	response.JSONOK(ctx, response.WithItems(users),
 		response.WithTotalItems(cnt),
 		response.WithItemsPerPage(filter.Limit),
 		response.WithStartIndex(filter.Offset))
@@ -296,9 +298,9 @@ func (u *UserAPI) ChangePasswd(ctx *gin.Context) {
 }
 
 type ChangePasswdReq struct {
-	Id      int64  `json:"id"`
-	Pwd     string `json:"pwd"` // 管理员重置密码时使用
-	OldPwd  string `json:"oldPwd"`
-	NewPwd1 string `json:"newPwd1"`
-	NewPwd2 string `json:"newPwd2"`
+	Id      int64  `json:"id"`      // 用户 ID
+	Pwd     string `json:"pwd"`     // 管理员重置密码时使用
+	OldPwd  string `json:"oldPwd"`  // 旧密
+	NewPwd1 string `json:"newPwd1"` // 新密码1
+	NewPwd2 string `json:"newPwd2"` // 新密码2
 }

@@ -42,7 +42,7 @@ func (api *api) loginByAuthcode() http.HandlerFunc {
 		}
 		logging.Get().Info().Interface("user", consoleUser).Msg("loginByAuthcode")
 		// 生成JWT令牌
-		tokenString, err := api.issueJWTToken(ctx, consoleUser, r.UserAgent(), true)
+		tokenString, err := api.issueJWTToken(ctx, consoleUser, r.UserAgent(), false)
 		if err != nil {
 			RespAndLog(w, ctx, LoginError(http.StatusInternalServerError,
 				fmt.Errorf("令牌生成失败: %w", err)))

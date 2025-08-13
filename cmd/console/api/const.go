@@ -7,3 +7,7 @@ const (
 	orderAsc       = "asc"
 	orderDesc      = "desc"
 )
+
+const (
+	ExportTokenExpire = 60 * 60 // 一个小时
+)

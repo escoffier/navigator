@@ -58,6 +58,7 @@ const (
 	SeverityMedium       = "MEDIUM"
 	SeverityLow          = "LOW"
 	SeverityUnknown      = "UNKNOWN"
+	SeverityUnRisk       = "UNRisk"
 	SeverityCriticalView = "严重"
 	SeverityHighView     = "高"
 	SeverityMediumView   = "中"

@@ -84,7 +84,7 @@ func (s *UserStore) SearchUser(ctx context.Context, param portal.SearchUserParam
 		db = db.Where("status = ?", param.Status)
 	}
 	if param.Name != "" {
-		db = db.Where("name LIKE?", fmt.Sprintf("%%%s%%", param.Name))
+		db = db.Where("name LIKE ?", fmt.Sprintf("%%%s%%", param.Name))
 	}
 	var cnt int64
 	if err := db.Count(&cnt).Error; err != nil {

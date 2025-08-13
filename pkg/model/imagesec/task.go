@@ -169,7 +169,7 @@ func (vi *ImageScanTask) Check() error {
 	}
 
 	if vi.ScanType == "" {
-		return fmt.Errorf("not get ScanType")
+		return fmt.Errorf("not get ScanTypes")
 	}
 	if vi.Updater == "" {
 		vi.Updater = vi.Creator

@@ -1,4 +1,4 @@
-package portal
+package model
 
 import (
 	"encoding/hex"
@@ -11,33 +11,34 @@ import (
 )
 
 type User struct {
-	ID          int64  `gorm:"primary_key;AUTO_INCREMENT" json:"id"`
-	Name        string `gorm:"column:name" json:"name"`
-	Pwd         string `gorm:"column:pwd" json:"-"`
-	PwdString   string `gorm:"-" json:"pwd,omitempty"`
-	Role        string `gorm:"column:role" json:"role"` // typo; role
-	Mobile      string `gorm:"column:mobile" json:"mobile"`
-	Comment     string `gorm:"column:comment" json:"comment"`
-	Status      string `gorm:"column:status" json:"status"` // 账号状态，这一期不用
-	PortalEmail string `gorm:"column:portal_email" json:"portalEmail"`
+	ID          int64  `gorm:"primary_key;AUTO_INCREMENT" json:"id"`   // 用户ID
+	Name        string `gorm:"column:name" json:"name"`                // 用户名
+	Pwd         string `gorm:"column:pwd" json:"-"`                    // 加密后的密码
+	PwdString   string `gorm:"-" json:"pwd,omitempty"`                 // 明文密码
+	Role        string `gorm:"column:role" json:"role"`                // 用户角色
+	Mobile      string `gorm:"column:mobile" json:"mobile"`            // 手机号
+	Comment     string `gorm:"column:comment" json:"comment"`          // 备注信息
+	Status      string `gorm:"column:status" json:"status"`            // 账号状态，这一期不用
+	PortalEmail string `gorm:"column:portal_email" json:"portalEmail"` // 登录邮箱
 	// sourceCheck
-	SourceCheckToken string `gorm:"column:source_check_token" json:"sourceCheckToken"`
-	SourceCheckEmail string `gorm:"column:source_check_email" json:"sourceCheckEmail"`
-	SourceCheckPwd   string `gorm:"column:source_check_pwd" json:"-"`
+	SourceCheckToken string `gorm:"column:source_check_token" json:"sourceCheckToken"` // sourceCheck的访问令牌
+	SourceCheckEmail string `gorm:"column:source_check_email" json:"sourceCheckEmail"` // sourceCheck的登录邮箱
+	SourceCheckPwd   string `gorm:"column:source_check_pwd" json:"-"`                  // sourceCheck的登录密码
 	// codesec使用
-	CodesecAk    string `gorm:"column:codesec_ak" json:"codesecAk"` // 也就是 codesec的UserUuid
-	CodesecSk    string `gorm:"column:codesec_sk" json:"codesecSk"`
-	CodesecPwd   string `gorm:"column:codesec_pwd" json:"-"`
-	CodesecEmail string `gorm:"column:codesec_email" json:"codesecEmail"`
+	CodesecAk    string `gorm:"column:codesec_ak" json:"codesecAk"`       // 也就是 codesec的UserUuid
+	CodesecSk    string `gorm:"column:codesec_sk" json:"codesecSk"`       // 也就是 codesec的AccessSecret
+	CodesecPwd   string `gorm:"column:codesec_pwd" json:"-"`              // codesec的登录密码
+	CodesecEmail string `gorm:"column:codesec_email" json:"codesecEmail"` // codesec的登录邮箱
 	// 领航使用
-	TensorEmail string `gorm:"column:tensor_email" json:"tensorEmail"`
-	TensorPwd   string `gorm:"column:tensor_pwd" json:"tensorPwd"`
+	TensorEmail string `gorm:"column:tensor_email" json:"tensorEmail"` // tensor的登录邮箱
+	TensorPwd   string `gorm:"column:tensor_pwd" json:"tensorPwd"`     // tensor的登录密码
 
-	Token      string `gorm:"column:token" json:"-"`
-	TokenExpAt int64  `gorm:"column:token_exp_at" json:"-"`
+	Token      string `gorm:"column:token" json:"-"`        // jwt token
+	TokenExpAt int64  `gorm:"column:token_exp_at" json:"-"` // jwt token过期时间
 
 	CreatedAt int64 `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
 	UpdatedAt int64 `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
+	DeletedAt int64 `gorm:"column:deleted_at;default:0" json:"deletedAt"`            // milliseconds
 }
 
 type LoginResponse struct {

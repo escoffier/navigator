@@ -13,6 +13,8 @@ import (
 
 	"gitlab.com/security-rd/go-pkg/databases"
 
+	"gitlab.com/piccolo_su/vegeta/cmd/portal/store"
+	portalStore "gitlab.com/piccolo_su/vegeta/cmd/portal/store"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagemeta"
 	imagescanSrv "gitlab.com/piccolo_su/vegeta/cmd/scanner/component/imagescan/service"
 	common2 "gitlab.com/piccolo_su/vegeta/cmd/scanner/scan-report/export/common"
@@ -34,6 +36,7 @@ type BackgroundTasks struct {
 	ExportImageHtmlSrv        *html.ExportImageHtmlSrv
 	YamlScanExportExcel       *excel2.YamlScanExportExcel
 	DockerfileScanExportExcel *excel2.DockerfileScanExportExcel
+	PortalExport              *excel2.PortalExport
 }
 
 type Config struct {
@@ -81,6 +84,12 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 	scanConfigDal := imagesecStore.NewScanImageConfigDao(config.Rdb)
 	deployDal := imagesecStore.NewDeployDao(config.Rdb)
 
+	// Portal相关DAL
+	codesecScanDal := store.NewCodesecScanDao(config.Rdb)
+	sourceCheckScanDal := store.NewSourceCheckScanDao(config.Rdb)
+	ciScanDal := store.NewCiScanDao(config.Rdb)
+	projectDal := portalStore.NewProjectStore(config.Rdb)
+
 	updateTask := common2.NewUpdateTaskSrv(imagesecStore.NewExportTaskDao(config.Rdb), config.RedisCli)
 	cacheDal := imagesecStore.NewImageCacheDao(config.Rdb)
 	imageSvc := imagemeta.NewImageMetaSrv(
@@ -117,6 +126,17 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 	yamlScanExportExcel := excel2.NewYamlScanExportExcel(exportTaskDal, updateTask, config.Rdb, config.FileDir, translation)
 	dockerfileScanExportExcel := excel2.NewDockerfileScanExportExcel(exportTaskDal, updateTask, config.Rdb, config.FileDir, translation)
 
+	// Portal项目导出
+	portalExport := excel2.NewPortalExport(
+		exportTaskDal,
+		config.FileDir,
+		updateTask,
+		codesecScanDal,
+		sourceCheckScanDal,
+		projectDal,
+		ciScanDal,
+	)
+
 	imageHtmlSrv := html.NewExportImageHtmlSrv(
 		imageSvc,
 		exportTaskDal,
@@ -137,6 +157,7 @@ func NewBackgroundTasks(ctx context.Context, config Config) *BackgroundTasks {
 		ExportImageHtmlSrv:        imageHtmlSrv,
 		YamlScanExportExcel:       yamlScanExportExcel,
 		DockerfileScanExportExcel: dockerfileScanExportExcel,
+		PortalExport:              portalExport,
 	}
 	return srv
 }
@@ -230,6 +251,23 @@ func (s *BackgroundTasks) Start(ctx context.Context) {
 		for {
 			s.ExportImageHtmlSrv.Run(ctx)
 			logging.Get().Debug().Msg("finish ExportImageHtmlSrv job")
+			<-tick.C
+		}
+	}()
+
+	// Portal项目数据导出
+	go func() {
+		defer func() {
+			if r := recover(); r != nil {
+				logging.Get().Error().Str("stack", string(debug.Stack())).Msg("PortalExport panic")
+			}
+		}()
+
+		tick := time.NewTicker(time.Minute)
+		defer tick.Stop()
+		for {
+			s.PortalExport.Run(ctx)
+			logging.Get().Debug().Msg("finish PortalExport job")
 			<-tick.C
 		}
 	}()

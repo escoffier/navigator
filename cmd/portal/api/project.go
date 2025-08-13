@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/gin-gonic/gin"
-	model "gitlab.com/piccolo_su/vegeta/cmd/portal/model"
+	"gitlab.com/piccolo_su/vegeta/cmd/portal/model"
 	"gitlab.com/piccolo_su/vegeta/cmd/portal/service"
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/consts"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
@@ -36,18 +36,24 @@ func (h *ProjectHandler) GetProjects(ctx *gin.Context) {
 		return
 	}
 
-	response.JSONOK(ctx, response.WithItem(projects[0]))
+	// 转换为API结构体
+	apiProject := &Project{}
+	apiProject.FromModel(projects[0])
+	response.JSONOK(ctx, response.WithItem(apiProject))
 }
 
 func (h *ProjectHandler) SearchProjects(ctx *gin.Context) {
 	name := util.GetKeywordFromQuery(ctx, "name")
 	url := util.GetKeywordFromQuery(ctx, "url")
-	gitType := util.GetKeywordFromQuery(ctx, "gitType")
+	gitType := util.GetStringSliceFromQuery(ctx, "gitType")
+	riskLevel := util.GetStringSliceFromQuery(ctx, "riskLevel")
+
 	param := model.SearchProjectParam{
-		Name:    name,
-		GitType: gitType,
-		Url:     url,
-		Filter:  imagesecModel.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit).SetSortFiled("id").SetSortDesc(),
+		Name:      name,
+		GitType:   gitType,
+		Url:       url,
+		RiskLevel: riskLevel,
+		Filter:    imagesecModel.GetFilter(ctx).SetMaxLimit(consts.DefaultMaxLimit).SetSortFiled("created_at").SetSortDesc(),
 	}
 
 	projects, cnt, err := h.service.SearchProject(ctx, param)
@@ -55,6 +61,13 @@ func (h *ProjectHandler) SearchProjects(ctx *gin.Context) {
 		response.JSONError(ctx, err)
 		return
 	}
+
+	// 转换为API结构体列表项
+	apiProjects := make([]*Project, len(projects))
+	for i, project := range projects {
+		apiProjects[i] = apiProjects[i].FromModel(project)
+	}
+
 	response.JSONOK(ctx, response.WithItems(projects),
 		response.WithTotalItems(cnt),
 		response.WithItemsPerPage(param.Filter.Limit),

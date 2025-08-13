@@ -37,34 +37,34 @@ type Project struct {
 	Tag                  string `json:"tag,omitempty"`
 }
 
-func (pr *Project) ConvToMap() map[string]interface{} {
+func (s *Project) ConvToMap() map[string]interface{} {
 	res := map[string]interface{}{}
-	if pr.ProjectName != "" {
-		res["projectName"] = pr.ProjectName
+	if s.ProjectName != "" {
+		res["projectName"] = s.ProjectName
 	}
-	if pr.Url != "" {
-		res["url"] = pr.Url
+	if s.Url != "" {
+		res["url"] = s.Url
 	}
-	if pr.GitType != 0 {
-		res["gitType"] = pr.GitType
+	if s.GitType != 0 {
+		res["gitType"] = s.GitType
 	}
-	if pr.UrlHead != 0 {
-		res["urlHead"] = pr.UrlHead
+	if s.UrlHead != 0 {
+		res["urlHead"] = s.UrlHead
 	}
-	if pr.AuthenticationMethod != 0 {
-		res["authenticationMethod"] = pr.AuthenticationMethod
+	if s.AuthenticationMethod != 0 {
+		res["authenticationMethod"] = s.AuthenticationMethod
 	}
-	if pr.Token != "" {
-		res["token"] = pr.Token
+	if s.Token != "" {
+		res["token"] = s.Token
 	}
-	if pr.ProjectDesc != "" {
-		res["projectDesc"] = pr.ProjectDesc
+	if s.ProjectDesc != "" {
+		res["projectDesc"] = s.ProjectDesc
 	}
-	if pr.Branch != "" {
-		res["branch"] = pr.Branch
+	if s.Branch != "" {
+		res["branch"] = s.Branch
 	}
-	if pr.Tag != "" {
-		res["tag"] = pr.Tag
+	if s.Tag != "" {
+		res["tag"] = s.Tag
 	}
 	return res
 }
@@ -77,6 +77,7 @@ func (s *Project) Serializer() {
 	s.ProjectDesc = strings.TrimSpace(s.ProjectDesc)
 	s.Branch = strings.TrimSpace(s.Branch)
 }
+
 func (s *Project) Check() error {
 	if s.ProjectName == "" {
 		return fmt.Errorf("project name is empty")
@@ -101,8 +102,9 @@ type CreateProjectResponse struct {
 	Status  bool   `json:"status"`
 	Message string `json:"message"`
 	Data    struct {
-		ProjectUuid string `json:"projectUuid"`
-		OrgUuid     string `json:"orgUuid"`
+		ProjectUuid string `json:"projectUuid"` // 项目uuid
+		OrgUuid     string `json:"orgUuid"`     // 团队uuid
+		AppId       string `json:"appId"`       // 扫描任务 ID
 	} `json:"data"`
 }
 
@@ -153,7 +155,7 @@ func CreateProject(baseUrl string, param *CreateProjectParam) (*CreateProjectRes
 		return nil, err
 	}
 	if !response.Status {
-		return nil, fmt.Errorf("create project failed: %s", response.Message)
+		return response, fmt.Errorf("create project failed: %s", response.Message)
 	}
 	return response, nil
 }
@@ -263,7 +265,6 @@ func urlHead(url string) int {
 	return 0
 }
 
-// 定义请求结构体
 type CodesecProject struct {
 	ProjectName          string `json:"projectName"`
 	Url                  string `json:"url"`

@@ -1,0 +1,121 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"apps/v1","kind":"Deployment","metadata":{"annotations":{},"labels":{"app":"portal-frontend","app.kubernetes.io/name":"portal-frontend"},"name":"tensorsec-portal-frontend","namespace":"tensorsec"},"spec":{"progressDeadlineSeconds":600,"replicas":1,"revisionHistoryLimit":10,"selector":{"matchLabels":{"app.kubernetes.io/name":"portal-frontend"}},"strategy":{"rollingUpdate":{"maxSurge":"25%","maxUnavailable":"25%"},"type":"RollingUpdate"},"template":{"metadata":{"labels":{"app":"portal-frontend","app.kubernetes.io/name":"portal-frontend"}},"spec":{"containers":[{"image":"192.168.2.40:8080/tensorsec/portal-frontend:cluster02","imagePullPolicy":"Always","name":"portal-frontend","resources":{"limits":{"cpu":"500m","memory":"512Mi"},"requests":{"cpu":"100m","memory":"112Mi"}},"terminationMessagePath":"/dev/termination-log","terminationMessagePolicy":"File","volumeMounts":[{"mountPath":"/etc/nginx/conf.d/","name":"config"}]}],"dnsPolicy":"ClusterFirst","imagePullSecrets":[{"name":"harbor-admin-secret"}],"restartPolicy":"Always","schedulerName":"default-scheduler","securityContext":{},"terminationGracePeriodSeconds":30,"volumes":[{"configMap":{"defaultMode":420,"name":"tensorsec-nginx-conf"},"name":"config"}]}}}}
+  labels:
+    app: portal-frontend
+    app.kubernetes.io/name: portal-frontend
+  name: tensorsec-portal-frontend
+  namespace: tensorsec
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: portal-frontend
+  strategy:
+    rollingUpdate:
+      maxSurge: 25%
+      maxUnavailable: 25%
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        kubectl.kubernetes.io/restartedAt: "2025-04-02T10:44:57Z"
+      labels:
+        app: portal-frontend
+        app.kubernetes.io/name: portal-frontend
+    spec:
+      containers:
+        - image: 192.168.2.40:8080/tensorsecurity/portal-frontend:cluster02
+          imagePullPolicy: Always
+          name: portal-frontend
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 112Mi
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          volumeMounts:
+            - mountPath: /etc/nginx/conf.d/
+              name: config
+      dnsPolicy: ClusterFirst
+      imagePullSecrets:
+        - name: harbor-admin-secret
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: { }
+      terminationGracePeriodSeconds: 30
+      volumes:
+        - configMap:
+            defaultMode: 420
+            name: portal-nginx-conf
+          name: config
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{},"labels":{"app":"portal-frontend","app.kubernetes.io/name":"portal-frontend"},"name":"tensorsec-portal-frontend","namespace":"cspm"},"spec":{"ports":[{"name":"http","port":80,"protocol":"TCP","targetPort":80}],"selector":{"app.kubernetes.io/name":"portal-frontend"},"sessionAffinity":"None","type":"ClusterIP"}}
+  labels:
+    app: portal-frontend
+    app.kubernetes.io/name: portal-frontend
+  name: portal-frontend
+  namespace: tensorsec
+spec:
+  ports:
+    - name: http
+      port: 80
+      protocol: TCP
+      targetPort: 80
+  selector:
+    app: portal-frontend
+  type: ClusterIP
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/cors-allow-headers: DNT,X-CustomHeader,Keep-Alive,User-Agent,X-Requested-With,If-Modified-Since,Cache-Control,Content-Type,Authorization
+    nginx.ingress.kubernetes.io/cors-allow-methods: PUT, GET, POST, OPTIONS, DELETE
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: 2048m
+    nginx.ingress.kubernetes.io/proxy-buffer-size: 128k
+    nginx.ingress.kubernetes.io/proxy-max-temp-file-size: 128k
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    nginx.ingress.kubernetes.io/use-regex: "true"
+  name: portal-frontend
+  namespace: tensorsec
+spec:
+  rules:
+  - host: portal-local02.tensorsecurity.cn
+    http:
+      paths:
+      - path: /
+        pathType: ImplementationSpecific
+        backend:
+          service:
+            name: portal-frontend
+            port:
+              number: 80
+  tls:
+  - hosts:
+    - portal-local02.tensorsecurity.cn
+    secretName: tensorsec-ingress-tls
+status:
+  loadBalancer:
+    ingress:
+    - ip: 10.99.90.251

@@ -16,7 +16,7 @@ import (
 
 func main() {
 	configPath := ""
-	flag.StringVar(&configPath, "config-path", "config.yaml", "")
+	flag.StringVar(&configPath, "config-path", "/Users/liuqianli/work/golang/src/tensorsecurity-rd/tensornavigator/cmd/portal/component/config/portal-config.yaml", "")
 
 	flag.Parse()
 
@@ -35,11 +35,23 @@ func main() {
 	ciUserDal := imagesecStore.NewUserDao(instance)
 	portalUserDal := store.NewUserStore(instance)
 	useS := service.NewUserService(store.NewUserStore(instance))
-	proS := service.NewProjectService(store.NewProjectStore(instance))
+
+	// 创建漏洞相关服务
+	codesecStore := store.NewCodesecScanDao(instance)
+	sourceCheckStore := store.NewSourceCheckScanDao(instance)
+	ciScanStore := store.NewCiScanDao(instance)
+	projectStore := store.NewProjectStore(instance)
+	proS := service.NewProjectService(projectStore, codesecStore, sourceCheckStore)
+	vulnService := service.NewVulnService(codesecStore, sourceCheckStore, ciScanStore, projectStore)
 	ciDal := adaptStore.NewCiDao(instance)
 
+	// 创建导出相关服务
+	exportTaskDal := store.NewExportTaskDao(instance)
+	exportService := service.NewExportTaskService(exportTaskDal)
+
 	ciDalSrv := ci.NewCiComponent(ciDal, ciUserDal)
-	router := api.NewAPi(useS, portalUserDal, proS, ciDalSrv)
+
+	router := api.NewAPi(useS, portalUserDal, proS, ciDalSrv, vulnService, exportService)
 	if err := router.Run(cfg.Portal.Addr); err != nil {
 		panic("can not start api sever")
 	}
