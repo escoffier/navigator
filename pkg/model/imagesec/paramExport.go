@@ -41,3 +41,7 @@ type SearchHtmlVulnImageParam struct {
 	StartID     int64
 	Filter      *Filter
 }
+
+type PortalProjectExportParam struct {
+	ProjectID []int64 `json:"projectIds"`
+}

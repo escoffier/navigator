@@ -1,0 +1,41 @@
+portal:
+  addr: ":10800"
+  logLevel: "debug"
+  adminEmail: "admin@admin.com"
+  adminPassword: "admin@123"
+
+sourceCheck:
+  addr: "http://1.95.46.47:30000"
+  adminUser:
+    email: "admin@seczone.cn"
+    password: "sca@seczone2019"
+    token: "b3JnYWRtaW5AdGVuc29yc2VjLmNuOjIzOTk0OTA4ZGZkNjRhNmE4YTYwYjZkODg3MTAzZDI"
+    user_uuid: "1234567890"
+  orgUser:
+    email: "orgadmin@tensorsec.cn"
+    password: "P@ss1234"
+    token: "b3JnYWRtaW5AdGVuc29yc2VjLmNuOjIzOTk0OTA4ZGZkNjRhNmE4YTYwYjZkODg3MTAzZDI2"
+    user_uuid: "15a17679c34f477fa451665ebae512e3"
+
+codeSec :
+  addr: "http://1.95.60.107:28081"
+  adminUser:
+    email: "admin@tensorSecurity.cn"
+    password: "tensorSecurity@123"
+    accessKey : ""
+    accessSecret: ""
+  orgUser:
+    email: "sec@tensorSecurity.cn"
+    password: "tensorSecurity@123"
+    accessKey: "fb9d6032-e3ff-4357-8c42-18a17fd855bf"
+    accessSecret: "eyJhbGciOiJIUzUxMiJ9.eyJub25jZSI6ImQ2MGEwMTY4LTU3YTUtNDc2Mi04Y2Y5LTZkOTQyODQyZDFhZSIsInN1YiI6ImZiOWQ2MDMyLWUzZmYtNDM1Ny04YzQyLTE4YTE3ZmQ4NTViZiJ9.x-7_um6KLeDZgFPJSNRQyxNflEQLHtp5AIj80VXZJ53ekZaMx4ClTBiuiV_FaceN_dxja8H7Sf6qNh6WKB4rYw"
+  teamUser:
+    email: "team@tensorSecurity.cn"
+    password: "tensorSecurity@123"
+    accessKey: "7b214572-4f1d-4630-ba73-12731ecfdf02"
+    accessSecret: "eyJhbGciOiJIUzUxMiJ9.eyJub25jZSI6IjlkNTlhZDMyLTBhMzItNDAyNC04YjQ0LTYyZDUyOGY0Yzc3YiIsInN1YiI6IjdiMjE0NTcyLTRmMWQtNDYzMC1iYTczLTEyNzMxZWNmZGYwMiJ9.MbTQcgp_lzRq6ejwstlLoOsfgZkkEbwSbF08CfSBNbDSpPosCHD8zF7-a-yiFE8j6P_E_I-u-Nb2JElW47zCJA"
+
+tensor:
+  addr: "https://console-local02.tensorsecurity.cn"
+  email: "SeedAdmin"
+  pwd: "e$Db8Cf6@3"

@@ -252,16 +252,21 @@ func DuplicateIntSlice(va []int) []int {
 	return ans
 }
 
-func DuplicateUint64Slice(va []uint64) []uint64 {
-	exit := make(map[uint64]struct{})
-	ans := make([]uint64, 0, len(va))
-	for i := range va {
-		if _, ok := exit[va[i]]; !ok {
-			ans = append(ans, va[i])
-			exit[va[i]] = struct{}{}
+func DuplicateUint64Slice(data []uint64) []uint64 {
+	if len(data) == 0 {
+		return data
+	}
+
+	result := make([]uint64, 0, len(data))
+	temp := map[uint64]struct{}{}
+
+	for _, item := range data {
+		if _, ok := temp[item]; !ok {
+			temp[item] = struct{}{}
+			result = append(result, item)
 		}
 	}
-	return ans
+	return result
 }
 
 func DuplicateUint32Slice(va []uint32) []uint32 {

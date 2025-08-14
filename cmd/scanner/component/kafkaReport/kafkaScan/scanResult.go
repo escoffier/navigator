@@ -1257,12 +1257,12 @@ func (s *ScanResultReportSrv) ReceiveReport(ctx context.Context) error {
 	go func() {
 		defer func() {
 			if r := recover(); r != nil {
-				s.Log.Error().Stack().Msg("CreateScanResult")
+				s.Log.Error().Stack().Msg("CreateCodesecSummary")
 			}
 		}()
 
 		if err := s.ReceiveMsg(ch); err != nil {
-			s.Log.Err(err).Msg("CreateScanResult")
+			s.Log.Err(err).Msg("CreateCodesecSummary")
 		}
 	}()
 
@@ -1292,13 +1292,13 @@ func (s *ScanResultReportSrv) ReceiveImageScanResult(ctx context.Context, msg ka
 	if data.StatusStr == imagesecModel.TaskStatusFailedStr {
 		s.Log.Info().Str("result", data.LogStr()).Msg("scan failed just update scan subtask")
 		if err := s.UpdateSubtaskScanFinished(ctx, data); err != nil {
-			s.Log.Err(err).Int64("subtaskID", data.SubTaskID).Int64("taskID", data.TaskID).Msg("CreateScanResult")
+			s.Log.Err(err).Int64("subtaskID", data.SubTaskID).Int64("taskID", data.TaskID).Msg("CreateCodesecSummary")
 		}
 		return nil
 	}
 
 	if err := s.CreateScanResult(ctx, data); err != nil {
-		s.Log.Err(err).Msg("CreateScanResult")
+		s.Log.Err(err).Msg("CreateCodesecSummary")
 		// 消费消息后，不管扫描结果入库是否成功，对于 kafka来说都是成功消费，所以只记录，不返回 error
 	}
 

@@ -212,3 +212,133 @@ func CreateProjectFail(err error) *i18.ErrI18 {
 		En:   "create project fail",
 	}
 }
+
+// ===== CodeSec相关错误 =====
+
+// 获取扫描结果失败
+func GetScanResultFail(err error) *i18.ErrI18 {
+	if e1, ok := err.(*i18.ErrI18); ok {
+		return e1
+	}
+	return &i18.ErrI18{
+		Code: http.StatusBadRequest,
+		Err:  err,
+		Ch:   "获取扫描结果失败",
+		En:   "get scan result fail",
+	}
+}
+
+// 获取漏洞列表失败
+func GetVulnListFail(err error) *i18.ErrI18 {
+	if e1, ok := err.(*i18.ErrI18); ok {
+		return e1
+	}
+	return &i18.ErrI18{
+		Code: http.StatusBadRequest,
+		Err:  err,
+		Ch:   "获取漏洞列表失败",
+		En:   "get vulnerability list fail",
+	}
+}
+
+// 创建漏洞记录失败
+func CreateVulnFail(err error) *i18.ErrI18 {
+	if e1, ok := err.(*i18.ErrI18); ok {
+		return e1
+	}
+	return &i18.ErrI18{
+		Code: http.StatusBadRequest,
+		Err:  err,
+		Ch:   "创建漏洞记录失败",
+		En:   "create vulnerability record fail",
+	}
+}
+
+// 查询漏洞记录失败
+func SearchVulnFail(err error) *i18.ErrI18 {
+	if e1, ok := err.(*i18.ErrI18); ok {
+		return e1
+	}
+	return &i18.ErrI18{
+		Code: http.StatusBadRequest,
+		Err:  err,
+		Ch:   "查询漏洞记录失败",
+		En:   "search vulnerability record fail",
+	}
+}
+
+// 漏洞记录不存在
+func VulnNotExist(err error) *i18.ErrI18 {
+	if e1, ok := err.(*i18.ErrI18); ok {
+		return e1
+	}
+	return &i18.ErrI18{
+		Code: http.StatusBadRequest,
+		Err:  err,
+		Ch:   "漏洞记录不存在",
+		En:   "vulnerability record not exist",
+	}
+}
+
+// 扫描结果不存在
+func ScanResultNotExist(err error) *i18.ErrI18 {
+	if e1, ok := err.(*i18.ErrI18); ok {
+		return e1
+	}
+	return &i18.ErrI18{
+		Code: http.StatusBadRequest,
+		Err:  err,
+		Ch:   "扫描结果不存在",
+		En:   "scan result not exist",
+	}
+}
+
+// 项目UUID参数错误
+func ProjectUuidRequired(err error) *i18.ErrI18 {
+	if e1, ok := err.(*i18.ErrI18); ok {
+		return e1
+	}
+	return &i18.ErrI18{
+		Code: http.StatusBadRequest,
+		Err:  err,
+		Ch:   "项目UUID参数是必需的",
+		En:   "project UUID parameter is required",
+	}
+}
+
+func ScanProjectFail(err error) error {
+	if e1, ok := err.(*i18.ErrI18); ok {
+		return e1
+	}
+	return &i18.ErrI18{
+		Code: http.StatusBadRequest,
+		Err:  err,
+		Ch:   "扫描项目失败",
+		En:   "scan project fail",
+	}
+
+}
+
+func ProjectIDRequired(err error) error {
+	if e1, ok := err.(*i18.ErrI18); ok {
+		return e1
+	}
+	return &i18.ErrI18{
+		Code: http.StatusBadRequest,
+		Err:  err,
+		Ch:   "项目ID参数是必需的",
+		En:   "project ID parameter is required",
+	}
+}
+
+func ScanTypeRequired(err error) error {
+	if e1, ok := err.(*i18.ErrI18); ok {
+		return e1
+	}
+	return &i18.ErrI18{
+		Code: http.StatusBadRequest,
+		Err:  err,
+		Ch:   "扫描类型参数是必需的",
+		En:   "scan type parameter is required",
+	}
+}

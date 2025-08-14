@@ -126,8 +126,8 @@ type SensitiveFileResult struct {
 // PolicyResult policy result, add result here when we have new rule
 type PolicyResult struct {
 	// identify every local scan result
-	UUID string
-
+	UUID        string
+	ProjectUuid string
 	// image artifact which contain layer info,package info etc
 	Artifact ImageArtifact
 
@@ -261,6 +261,7 @@ func (CiPolicy) TableName() string {
 
 type CiScan struct {
 	ID                    int64                       `gorm:"primaryKey" json:"id"`
+	ProjectUuid           string                      `gorm:"column:project_uuid" json:"project_uuid"` // portal项目的Project.Uuid关联
 	CreatedAt             int64                       `gorm:"autoCreateTime:milli;column:created_at" json:"created_at"`
 	UpdatedAt             int64                       `gorm:"autoUpdateTime:milli;column:updated_at" json:"updated_at"`
 	DeletedAt             int                         `gorm:"coulmn:deleted_at"`
@@ -279,6 +280,17 @@ type CiScan struct {
 	Remediation           []byte                      `gorm:"type:blob" json:"remediation"`
 	StartedAt             int64                       `gorm:"autoUpdateTime:milli;column:started_at" json:"started_at"` // 扫描开始时间
 	FinishAt              time.Time                   `gorm:"column:finish_at" json:"finish_at"`                        // 扫描结束时间
+}
+
+func (vi *CiScan) Deserialize() {
+	if len(vi.SeverityHistogramJSON) > 0 {
+		hist := model.SeverityHistogramInfo{}
+		if err := json.Unmarshal(vi.SeverityHistogramJSON, &hist); err != nil {
+			logging.GetLogger().Err(err).Msg("CiScan Deserialize")
+		} else {
+			vi.SeverityHistogram = hist
+		}
+	}
 }
 
 func (CiScan) TableName() string {

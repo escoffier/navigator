@@ -160,7 +160,7 @@ func (s *userService) LoginUser(ctx context.Context, req *portal.User) (*portal.
 		api1 := sourceCheck.NewApi(sourceCheck.WithBaseURL(s.sourceCheckRUL))
 		p1 := sourceCheck.GetTokenReq{
 			Title:          "sourceCheckToken",
-			ExpirationTime: time.Now().UnixMilli() + 20*365*24*60*60, // 设置20年的过期时间
+			ExpirationTime: time.Now().UnixMilli() + 5*365*24*60*60*1000, // 设置5年的过期时间
 			Username:       use.SourceCheckEmail,
 			Password:       use.SourceCheckPwd,
 		}

@@ -205,6 +205,9 @@ func (c *CiDao) GetImageList(ctx context.Context, params scanner_ci.ImageFilter)
 	if params.Image != "" {
 		db = db.Where("image_name like ?", fmt.Sprintf("%%%s%%", params.Image))
 	}
+	if params.ProjectUuid != "" {
+		db = db.Where("project_uuid = ?", params.ProjectUuid)
+	}
 	if len(params.Kind) != 0 {
 		var flag uint64
 		for i := range params.Kind {

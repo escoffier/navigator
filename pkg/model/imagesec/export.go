@@ -25,6 +25,11 @@ type ExportTensorTask struct {
 	UpdatedAt   time.Time `gorm:"column:updated_at" json:"updatedAt"`
 }
 
+func (vi *ExportTensorTask) LogStr() string {
+	s := fmt.Sprintf("exportTask:%d-%s-%s", vi.ID, vi.TaskType, vi.ExecuteType)
+	return s
+}
+
 func (s *ExportTensorTask) GenRedisAllKey() string {
 	return fmt.Sprintf("export-all-%s-%d", s.TaskType, s.ID)
 }

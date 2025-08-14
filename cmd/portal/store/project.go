@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	model "gitlab.com/piccolo_su/vegeta/cmd/portal/model"
+	"gitlab.com/piccolo_su/vegeta/cmd/portal/model"
 	imagesecModel "gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
 	"gitlab.com/security-rd/go-pkg/databases"
 )
 
-type ProjectStore interface {
+type ProjectDal interface {
 	SearchProject(ctx context.Context, param model.SearchProjectParam) ([]*model.Project, int64, error)
 	CreateProject(ctx context.Context, project *model.Project) error
 	UpdateProject(ctx context.Context, param model.UpdateProjectParam) error
@@ -21,7 +21,7 @@ type projectStore struct {
 	db *databases.RDBInstance
 }
 
-func NewProjectStore(db *databases.RDBInstance) ProjectStore {
+func NewProjectStore(db *databases.RDBInstance) ProjectDal {
 	return &projectStore{db: db}
 }
 
@@ -43,12 +43,28 @@ func (s *projectStore) SearchProject(ctx context.Context, param model.SearchProj
 	if param.Url != "" {
 		db = db.Where("url like ?", fmt.Sprintf("%%%s%%", param.Url))
 	}
+	if len(param.Ids) > 0 {
+		db = db.Where("id IN ?", param.Ids)
+	}
 	if param.ID > 0 {
 		db = db.Where("id = ?", param.ID)
 	}
-	if param.GitType != "" {
-		db = db.Where("git_type = ?", param.GitType)
+	if len(param.GitType) > 0 {
+		db = db.Where("git_type IN ? ", param.GitType)
 	}
+	if len(param.RiskLevel) > 0 {
+		db = db.Where("risk_level IN ?", param.RiskLevel)
+	}
+	if param.ProjectUuid != "" {
+		db = db.Where("uuid = ?", param.ProjectUuid)
+	}
+	if param.CodesecScanStatus != "" {
+		db = db.Where("codesec_scan_status = ?", param.CodesecScanStatus)
+	}
+	if param.SourceCheckScanStatus != "" {
+		db = db.Where("source_check_scan_status = ?", param.SourceCheckScanStatus)
+	}
+
 	var cnt int64
 	if err := db.Count(&cnt).Error; err != nil {
 		return nil, 0, err
@@ -79,11 +95,23 @@ func (s *projectStore) CreateProject(ctx context.Context, project *model.Project
 func (s *projectStore) UpdateProject(ctx context.Context, param model.UpdateProjectParam) error {
 	ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	if param.ID <= 0 || len(param.Updater) == 0 {
+	if (param.ID <= 0 && param.CodesecUUID == "" && param.SourceCheckUUID == "") || len(param.Updater) == 0 {
 		return nil
 	}
-	db := s.db.Get().WithContext(ctx).Model(&model.Project{}).Where("id = ?", param.ID).Updates(param.Updater)
-	return db.Error
+	db := s.db.Get().WithContext(ctx).Model(&model.Project{})
+	if param.ID > 0 {
+		db = db.Where("id = ?", param.ID)
+	}
+	if param.CodesecUUID != "" {
+		db = db.Where("codesec_uuid = ?", param.CodesecUUID)
+	}
+	if param.SourceCheckUUID != "" {
+		db = db.Where("source_check_uuid = ?", param.SourceCheckUUID)
+	}
+	if err := db.Updates(param.Updater).Error; err != nil {
+		return err
+	}
+	return nil
 }
 
 func (s *projectStore) DeleteProject(ctx context.Context, id int64) error {

@@ -133,6 +133,7 @@ func (c *Controller) logPostgresRecord(ctx context.Context, result scanner_ci.Po
 
 	record := scanner_ci.CiScan{
 		ImageName:             result.Artifact.ImageName,
+		ProjectUuid:           result.ProjectUuid,
 		UniqueImage:           util.GenerateUUID64(result.Artifact.ImageName),
 		PipelineName:          result.PipelineName,
 		PolicySnapshot:        policyBytes,

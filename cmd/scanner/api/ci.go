@@ -117,6 +117,7 @@ func (c *CiApiSrv) GetImageList(ctx *gin.Context) {
 	limit := c.GetParseInt(ctx, "limit")
 	offset := c.GetParseInt(ctx, "offset")
 	kindAttribute := ctx.Query("kind_attribute")
+	projectUuid := ctx.Query("project_uuid")
 	// statusStr := strings.Split(status, ",")
 	// var params scanner_ci.ImageParams
 	// for _, v := range statusStr {
@@ -135,6 +136,7 @@ func (c *CiApiSrv) GetImageList(ctx *gin.Context) {
 		Limit:         int(limit),
 		Offset:        int(offset),
 		KindAttribute: kindAttribute,
+		ProjectUuid:   projectUuid,
 	}
 	res, cnt, err := c.Component.IM.GetImageList(ctx, params)
 	if err != nil {
@@ -335,6 +337,23 @@ func (c *CiApiSrv) SaveResult(ctx *gin.Context) {
 		response.JSONError(ctx, fmt.Errorf("bad request"))
 		return
 	}
+
+	// 由于irene项目的依赖和navigator的差很多，irene项目不好引用最新的navigator项目，所以这里先这样处理
+	// 后面可以把irene项目整合到navigator，或者把公共的数据结构放到一个公共项目里
+	type RichUUID struct {
+		UUID        string
+		ProjectUUID string
+	}
+	richUUID := RichUUID{}
+	err = json.Unmarshal([]byte(result.UUID), &richUUID)
+	if err != nil {
+		// just log
+		logging.Get().Warn().Str("err", err.Error()).Msg("failed to unmarshal uuid")
+	}
+
+	result.ProjectUuid = richUUID.ProjectUUID
+	logging.Get().Debug().Str("projectUUID", result.ProjectUuid).Msg("get ci result project uuid")
+
 	ciCtl := c.Component.Ctrl
 	err = ciCtl.SaveResult(result)
 	if err != nil {

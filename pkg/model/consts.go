@@ -34,8 +34,8 @@ const (
 	RejectReasonHasUnknown           = 6  // 存在未知漏洞
 	RejectReasonHasLow               = 7  // 存在低危漏洞
 	RejectReasonHasMedium            = 8  // 存在中危漏洞
-	RejectReasonHasHigh              = 9  // 存在危险漏洞
-	RejectReasonHasCritical          = 10 // 存在高危漏洞
+	RejectReasonHasHigh              = 9  // 存在高危漏洞
+	RejectReasonHasCritical          = 10 // 存在严重漏洞
 	RejectNoLibrary                  = 11 // 来源镜像不在本地仓库（安全模式）
 	RejectScanFailure                = 12 // 镜像扫描失败
 	RejectScanNotScanned             = 13 // 镜像未扫描

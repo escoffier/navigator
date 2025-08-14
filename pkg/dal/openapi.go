@@ -49,7 +49,7 @@ func SaveAuthToken(ctx context.Context, db *gorm.DB, username, token string) err
 	return db.WithContext(ctx).Clauses(
 		clause.OnConflict{
 			Columns:   []clause.Column{{Name: "username"}},
-			DoNothing: true,
+			DoUpdates: clause.AssignmentColumns([]string{"token", "updated_at"}),
 		},
 	).Create(authToken).Error
 }

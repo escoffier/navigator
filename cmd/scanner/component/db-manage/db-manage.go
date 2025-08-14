@@ -575,7 +575,7 @@ package dbManage
 // 	}
 // 	taskInfo := imagesecModel.ImageScanTask{
 // 		ImageFromType: imagesecModel.ImageFromNode,
-// 		ScanType:      imagesecModel.VulnDbUpdateTrigger,
+// 		ScanTypes:      imagesecModel.VulnDbUpdateTrigger,
 // 		Status:        imagesecModel.TaskStatusNotReady,
 // 		Updater:       imagesecModel.VulnDbUpdateTrigger,
 // 		Creator:       imagesecModel.VulnDbUpdateTrigger,

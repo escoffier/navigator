@@ -210,6 +210,7 @@ func (im *ImageManager) GetImageList(ctx context.Context, params scanner_ci.Imag
 		Limit:         params.Limit,
 		Offset:        params.Offset,
 		KindAttribute: params.KindAttribute,
+		ProjectUuid:   params.ProjectUuid,
 	}
 	scans, cnt, err := im.dal.GetImageList(ctx, filter)
 	if err != nil {
