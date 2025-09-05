@@ -213,6 +213,15 @@ func (s *ScanImageConfigSrv) GetConstView(ctx context.Context, constType string)
 	case consts.ConstViewOpenLicense:
 		avEn = GetOpenSources(imagesecModel.LangEn)
 		avZH = GetOpenSources(imagesecModel.LangZh)
+	case consts.ConstViewDBUpdateType:
+		avEn = map[string]string{
+			consts.UpdaterCycle:     "online",
+			consts.UpdaterSeedAdmin: "offline",
+		}
+		avZH = map[string]string{
+			consts.UpdaterCycle:     "在线",
+			consts.UpdaterSeedAdmin: "离线",
+		}
 	}
 
 	for k, v := range avEn {

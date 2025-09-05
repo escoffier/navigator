@@ -171,7 +171,39 @@ func (s *ConfigAPISrv) GetScanImageConfig(ctx *gin.Context) {
 		response.JSONError(ctx, i18.SearchErr(err))
 		return
 	}
+
 	response.JSONOK(ctx, response.WithItem(data.ImageScanConfig))
+}
+
+func (s *ConfigAPISrv) GetVulnDbUpdateConfig(ctx *gin.Context) {
+
+	configType := imagesecModel.ConfigTypeVulnDBUpdate
+	data, err := s.scanImageConfigService.GetScanImageConfig(ctx, configType)
+	if err != nil {
+		response.JSONError(ctx, i18.SearchErr(err))
+		return
+	}
+	response.JSONOK(ctx, response.WithItem(data.VulnDBUpdate))
+}
+
+func (s *ConfigAPISrv) UpdateVulnDBUpdateConfig(ctx *gin.Context) {
+	id := util.GetInt64FromQuery(ctx, "id")
+
+	configType := imagesecModel.ConfigTypeVulnDBUpdate
+	imageConfig := imagesecModel.VulnDBUpdate{}
+
+	err := ctx.BindJSON(&imageConfig)
+	if err != nil {
+		response.JSONError(ctx, err)
+		return
+	}
+	m := &imagesecModel.ScanImageConfig{VulnDBUpdate: &imageConfig, ConfigType: configType}
+
+	if err := s.scanImageConfigService.UpdateScanImageConfig(ctx, id, m); err != nil {
+		response.JSONError(ctx, i18.UpdateErr(err))
+		return
+	}
+	response.JSONOK(ctx, response.WithTarget(&response.TargetRef{ID: strconv.Itoa(int(id))}))
 }
 
 func (s *ConfigAPISrv) UpdateScanImageConfig(ctx *gin.Context) {
@@ -324,15 +356,22 @@ func (s *ConfigAPISrv) SearchDB(ctx *gin.Context) {
 		UpdateTime      int64  `json:"updateTime"`
 		DBType          string `json:"dbType"`
 		Updater         string `json:"updater"`
+		UpdateType      string `json:"updateType"`
 	}
 	ans := make([]HistoryResp, 0)
 	for i := range lis {
-		ans = append(ans, HistoryResp{
+		ty := HistoryResp{
 			CompressVersion: lis[i].DBVersion,
 			UpdateTime:      lis[i].UpdatedAt,
 			DBType:          lis[i].DBType,
 			Updater:         lis[i].Updater,
-		})
+		}
+		if ty.Updater == consts.UpdaterCycle {
+			ty.UpdateType = "online"
+		} else {
+			ty.UpdateType = "offline"
+		}
+		ans = append(ans, ty)
 	}
 
 	response.JSONOK(ctx, response.WithItems(ans),

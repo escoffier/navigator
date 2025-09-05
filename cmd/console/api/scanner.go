@@ -210,6 +210,8 @@ func (api *api) scanner() func(chi.Router) {
 		r.Get("/config/view/const", api.RedirectToScanner())
 		r.Put("/config/scan/image", api.RedirectToScanner())
 		r.Get("/managementCenter/docs", api.RedirectToScanner())
+		r.Get("/config/scan/vulnDB/update", api.RedirectToScanner())
+		r.Put("/config/scan/vulnDB/update", api.RedirectToScanner())
 
 		// 病毒库，漏洞库管理
 		r.Post("/config/manage/db/vuln", api.RedirectToScanner())

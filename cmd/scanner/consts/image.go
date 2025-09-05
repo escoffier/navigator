@@ -63,6 +63,7 @@ const (
 	ConstViewDetectPolicyType   = "detectPolicyType"
 	ConstViewImageFromType      = "imageFromType"
 	ConstViewDeployAction       = "deployAction"
+	ConstViewDBUpdateType       = "dbUpdateType"
 	ConstViewOpenLicense        = "openLicense"
 )
 
@@ -132,4 +133,9 @@ const (
 
 	RegistryNormal   = "normal"
 	RegistryAbnormal = "abnormal"
+)
+
+const (
+	UpdaterSeedAdmin = "SeedAdmin"
+	UpdaterCycle     = "system"
 )

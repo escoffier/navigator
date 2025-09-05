@@ -144,7 +144,7 @@ func newService(config register.ScannerServiceConfig) (register.ScannerService, 
 		return nil, err
 	}
 
-	dBManager := imagesecSrv.NewDBUpdateSrv(trivyJob, scanDbMetaDal)
+	dBManager := imagesecSrv.NewDBUpdateSrv(trivyJob, scanDbMetaDal, scannerConfigDal)
 
 	s := &ScannerAPIService{}
 	s.config.Options = config.Options

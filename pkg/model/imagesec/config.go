@@ -18,7 +18,8 @@ type ScanImageConfig struct {
 	ID              int64            `gorm:"column:id" json:"id"`
 	ConfigType      string           `gorm:"column:config_type" json:"configType"` // 配置类型
 	ConfigData      string           `gorm:"column:config_data" json:"configData"`
-	ImageScanConfig *ImageScanConfig `gorm:"-" json:"imageScanConfig"`                                // 命名不规范，得改
+	ImageScanConfig *ImageScanConfig `gorm:"-" json:"imageScanConfig"` // 命名不规范，得改
+	VulnDBUpdate    *VulnDBUpdate    `gorm:"-" json:"vulnDBUpdate"`
 	CreatedAt       int64            `gorm:"autoCreateTime:milli;column:created_at" json:"createdAt"` // milliseconds
 	UpdatedAt       int64            `gorm:"autoUpdateTime:milli;column:updated_at" json:"updatedAt"` // milliseconds
 }
@@ -49,6 +50,16 @@ func (vi *ScanImageConfig) TableName() string {
 }
 
 func (vi *ScanImageConfig) Deserialize() {
+	if vi.ConfigType == ConfigTypeVulnDBUpdate {
+		vi.VulnDBUpdate = &VulnDBUpdate{}
+		if err := json.Unmarshal([]byte(vi.ConfigData), vi.VulnDBUpdate); err != nil {
+			logging.Get().Err(err).Msg("VulnDBUpdate Deserialize")
+		}
+		vi.VulnDBUpdate.ID = vi.ID
+		vi.VulnDBUpdate.CreatedAt = vi.CreatedAt
+		vi.VulnDBUpdate.UpdatedAt = vi.UpdatedAt
+		return
+	}
 
 	empty := &ImageScanConfig{}
 	nodeImageConfig := &ImageScanConfig{}
@@ -78,18 +89,26 @@ func (vi *ScanImageConfig) Deserialize() {
 		vi.ImageScanConfig.ScanCycle.Weekday = make([]int64, 0)
 	}
 	vi.ImageScanConfig.ID = vi.ID
-
 }
 
 func (vi *ScanImageConfig) Serialize() {
-
-	vi.ImageScanConfig.ScanCycle.Serialize()
-
-	bys, err := json.Marshal(vi.ImageScanConfig)
-	if err != nil {
-		logging.Get().Err(err).Msg("ScanImageConfig Serialize")
-	} else {
-		vi.ConfigData = string(bys)
+	if vi.ConfigType == ConfigTypeVulnDBUpdate && vi.VulnDBUpdate != nil {
+		bys, err := json.Marshal(vi.VulnDBUpdate)
+		if err != nil {
+			logging.Get().Err(err).Msg("ScanImageConfig Serialize")
+		} else {
+			vi.ConfigData = string(bys)
+		}
+		return
+	}
+	if vi.ImageScanConfig != nil {
+		vi.ImageScanConfig.ScanCycle.Serialize()
+		bys, err := json.Marshal(vi.ImageScanConfig)
+		if err != nil {
+			logging.Get().Err(err).Msg("ScanImageConfig Serialize")
+		} else {
+			vi.ConfigData = string(bys)
+		}
 	}
 }
 
@@ -106,6 +125,13 @@ type ImageScanConfig struct {
 	OldImage       int64     `json:"oldImage"`      // 多少天前的镜像被认为是过期镜像
 	ScanCycle      ScanCycle `json:"scanCycle"`
 	Updater        string    `json:"updater"`
+}
+
+type VulnDBUpdate struct {
+	ID           int64  `json:"id"`
+	EnableOnline string `json:"enableOnline"`
+	CreatedAt    int64  `json:"createdAt"`
+	UpdatedAt    int64  `json:"updatedAt"`
 }
 
 type ScanCycle struct {
