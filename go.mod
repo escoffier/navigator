@@ -102,6 +102,7 @@ require (
 	github.com/google/cadvisor v0.44.1
 	github.com/gorilla/handlers v1.5.1
 	github.com/gorilla/websocket v1.4.2
+	github.com/huaweicloud/huaweicloud-sdk-go-obs v3.25.4+incompatible
 	github.com/jarcoal/httpmock v1.2.0
 	github.com/jellydator/ttlcache/v3 v3.0.0
 	github.com/jinzhu/copier v0.3.2

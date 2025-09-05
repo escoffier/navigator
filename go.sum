@@ -1532,6 +1532,8 @@ github.com/huandu/xstrings v1.3.2/go.mod h1:y5/lhBue+AyNmUVz9RLU9xbLR0o4KIIExikq
 github.com/huandu/xstrings v1.3.3/go.mod h1:y5/lhBue+AyNmUVz9RLU9xbLR0o4KIIExikq4ovT0aE=
 github.com/huandu/xstrings v1.4.0 h1:D17IlohoQq4UcpqD7fDk80P7l+lwAmlFaBHgOipl2FU=
 github.com/huandu/xstrings v1.4.0/go.mod h1:y5/lhBue+AyNmUVz9RLU9xbLR0o4KIIExikq4ovT0aE=
+github.com/huaweicloud/huaweicloud-sdk-go-obs v3.25.4+incompatible h1:yNjwdvn9fwuN6Ouxr0xHM0cVu03YMUWUyFmu2van/Yc=
+github.com/huaweicloud/huaweicloud-sdk-go-obs v3.25.4+incompatible/go.mod h1:l7VUhRbTKCzdOacdT4oWCwATKyvZqUOlOqr0Ous3k4s=
 github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.0.59 h1:pbydMydObcukeZ8iWqeMsXimCYHgBM3jRTGWg6oPLb0=
 github.com/huaweicloud/huaweicloud-sdk-go-v3 v0.0.59/go.mod h1:Z+vVu7nV/6xqti0P2evPEqhzh86ArBELsXTOU9zsnoM=
 github.com/hudl/fargo v1.3.0/go.mod h1:y3CKSmjA+wD2gak7sUSXTAoopbhU08POFhmITJgmKTg=

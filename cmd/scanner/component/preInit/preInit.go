@@ -47,6 +47,9 @@ func (s *InitScanner) Init(ctx context.Context) error {
 	if err := s.createRegImageScanConfig(ctx); err != nil {
 		return err
 	}
+	if err := s.createVulnDbUpdateConfig(ctx); err != nil {
+		return err
+	}
 	// 节点镜像默认安全策略
 	if err := s.createNodeDefaultDetectPolicy(ctx); err != nil {
 		return err
@@ -156,6 +159,28 @@ func (s *InitScanner) createRegImageScanConfig(ctx context.Context) error {
 				CycleType:  imagesecModel.CycleTypeDay,
 			},
 			Updater: consts.DefaultAdminUser,
+		},
+	}
+
+	if err := s.imageConfigDal.CreateScanImageConfig(ctx, &nodeConfig); err != nil {
+		s.Log.Err(err).Str("configType", imagesecModel.ConfigTypeRegScanImage).Msg("GetScanImageConfig")
+		return err
+	}
+	return nil
+}
+
+func (s *InitScanner) createVulnDbUpdateConfig(ctx context.Context) error {
+
+	_, err := s.imageConfigDal.GetScanImageConfig(ctx, imagesecModel.ConfigTypeVulnDBUpdate)
+	if err == nil {
+		s.Log.Info().Str("configType", imagesecModel.ConfigTypeVulnDBUpdate).Msg("GetScanImageConfig")
+		return nil
+	}
+
+	nodeConfig := imagesecModel.ScanImageConfig{
+		ConfigType: imagesecModel.ConfigTypeVulnDBUpdate,
+		VulnDBUpdate: &imagesecModel.VulnDBUpdate{
+			EnableOnline: consts.FalseString,
 		},
 	}
 

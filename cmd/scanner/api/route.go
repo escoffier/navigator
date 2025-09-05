@@ -292,6 +292,9 @@ func WebAPI(router *gin.Engine,
 		v19.GET("/view/const", configAPISrv.GetConstView)
 		v19.GET("/scan/image", configAPISrv.GetScanImageConfig)
 		v19.PUT("/scan/image", configAPISrv.UpdateScanImageConfig)
+		v19.GET("/scan/vulnDB/update", configAPISrv.GetVulnDbUpdateConfig)
+		v19.PUT("/scan/vulnDB/update", configAPISrv.UpdateVulnDBUpdateConfig)
+
 		v19.POST("/manage/db/vuln", configAPISrv.UpdateVulnDB)
 		v19.POST("/manage/db/avira", configAPISrv.UpdateAviraDB)
 		v19.GET("/manage/db/list", configAPISrv.SearchDB)

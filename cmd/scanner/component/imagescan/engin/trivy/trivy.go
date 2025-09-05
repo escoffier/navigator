@@ -65,7 +65,7 @@ func (s *TrivySrv) UpdateDB(ctx context.Context, param imagesecModel.UpdateDbPar
 		_ = os.RemoveAll(unZipPath)
 		return nil, err
 	}
-
+	// 一定要注意，zip 文件里直接放三个漏洞库文件：trivy.db,version和 custom.db,不能使用文件夹把这三个文件装起来
 	if err := scannerUtils.UnzipDBFile(zipFilename, unZipPath, consts.DBPassword); err != nil {
 		s.Log.Err(err).Msg("not zip file")
 		_ = os.RemoveAll(zipFilename)

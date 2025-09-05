@@ -275,6 +275,7 @@ const (
 const (
 	ConfigTypeNodeScanImage = "nodeImage"
 	ConfigTypeRegScanImage  = "regImage"
+	ConfigTypeVulnDBUpdate  = "vulnDBUpdate"
 	ConfigTypeDeploy        = "deploy"
 )
 

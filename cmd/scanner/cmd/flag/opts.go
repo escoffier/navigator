@@ -45,6 +45,13 @@ type ScannerOpts struct {
 	MaxScanFileSize       int64 // 文件过大就不再进行扫描，表示进行文件扫描时单文件的最大值 单位：byte
 	CacheCleanPerInterval int64
 	NeedStaticResource    string // 是否在启动时统计中移的集群使用情况
+
+	HuaweiSecretId   string
+	HuaweiSecretKey  string
+	HuaweiEndpoint   string
+	HuaweiVulnBucket string
+	VulnVersionKey   string
+	VulnZipKey       string
 }
 
 // NewDefaultScannerOpts the new default clair options.
@@ -64,6 +71,8 @@ func NewDefaultScannerOpts() *ScannerOpts {
 		SingeScanTimeout:      2 * 60, // 2分钟
 		MaxScanFileSize:       1024 * 1024 * 10,
 		CacheCleanPerInterval: 60 * 60,
+		VulnVersionKey:        "version",
+		VulnZipKey:            "vuln.zip",
 	}
 }
 
@@ -84,6 +93,12 @@ func GetScannerOpts(cmd *cobra.Command) *ScannerOpts {
 		SingeScanTimeout:      viper.GetInt64(singeScanTimeout),
 		MaxScanFileSize:       viper.GetInt64(maxScanFileSize),
 		CacheCleanPerInterval: viper.GetInt64(CacheCleanPerInterval),
+		VulnZipKey:            viper.GetString("vuln-zip-key"),
+		VulnVersionKey:        viper.GetString("vuln-version-key"),
+		HuaweiSecretId:        viper.GetString("huawei-secret-id"),
+		HuaweiSecretKey:       viper.GetString("huawei-secret-key"),
+		HuaweiEndpoint:        viper.GetString("huawei-endpoint"),
+		HuaweiVulnBucket:      viper.GetString("huawei-vuln-bucket"),
 	}
 }
 
@@ -103,6 +118,13 @@ func AddScannerFlags(cmd *cobra.Command) {
 	cmd.Flags().Int64(maxScanFileSize, defaultOps.MaxScanFileSize, "max file scan per byte")
 	cmd.Flags().Int64(CacheCleanPerInterval, defaultOps.CacheCleanPerInterval, "image scan cache clean interval")
 	cmd.Flags().String(pvcPath, defaultOps.PvcPath, "pvc path")
+	// Huawei OBS related
+	cmd.Flags().String("huawei-secret-id", defaultOps.HuaweiSecretId, "Huawei Cloud OBS access key id")
+	cmd.Flags().String("huawei-secret-key", defaultOps.HuaweiSecretKey, "Huawei Cloud OBS access key secret")
+	cmd.Flags().String("huawei-endpoint", defaultOps.HuaweiEndpoint, "Huawei Cloud OBS endpoint, e.g., obs.cn-east-3.myhuaweicloud.com")
+	cmd.Flags().String("huawei-vuln-bucket", defaultOps.HuaweiVulnBucket, "Huawei Cloud OBS bucket for vuln DB, e.g:tensorsec-vuln")
+	cmd.Flags().String("vuln-zip-key", defaultOps.VulnZipKey, "Huawei Cloud OBS vuln zip key, e.g., vuln.zip")
+	cmd.Flags().String("vuln-version-key", defaultOps.VulnVersionKey, "Huawei Cloud OBS vuln version key, e.g., version")
 	cmd.Flags().BoolVar(&EnableLeaderElection, "leader-elect", false,
 		"Enable leader election for console. "+
 			"Enabling this will ensure there is only one active console.")
@@ -121,6 +143,12 @@ func AddScannerFlags(cmd *cobra.Command) {
 		maxScanFileSize,
 		CacheCleanPerInterval,
 		pvcPath,
+		"huawei-secret-id",
+		"huawei-secret-key",
+		"huawei-endpoint",
+		"huawei-vuln-bucket",
+		"vuln-zip-key",
+		"vuln-version-key",
 	} {
 		err := viper.BindPFlag(flag, cmd.Flags().Lookup(flag))
 		if err != nil {
