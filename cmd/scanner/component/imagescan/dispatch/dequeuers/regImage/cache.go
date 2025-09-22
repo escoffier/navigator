@@ -177,7 +177,7 @@ func (s *RegImageScanQueue) modelToType(
 		imagesecModel.LicenseCacheData:   ver.License,
 	}
 
-	if os.Getenv("SCAN_NOT_USE_CACHE") != consts.TrueString {
+	if os.Getenv("SCAN_IMAGE_USE_CACHE") != consts.FalseString {
 		for i := range cache {
 			ca := cache[i]
 			if ca.DbVersion != version[ca.Issue] {

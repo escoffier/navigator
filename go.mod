@@ -76,7 +76,7 @@ require (
 	k8s.io/apiserver v0.27.2
 	k8s.io/client-go v0.27.2
 	scm.tensorsecurity.cn/tensorsecurity-rd/falcosider v0.2.64
-	scm.tensorsecurity.cn/tensorsecurity-rd/trivy v1.0.9
+	scm.tensorsecurity.cn/tensorsecurity-rd/trivy v1.0.10
 )
 
 require (
@@ -128,7 +128,7 @@ require (
 	layeh.com/radius v0.0.0-20210819152912-ad72663a72ab
 	moul.io/http2curl v1.0.0
 	scm.tensorsecurity.cn/tensorsecurity-rd/api v0.2.5-0.20240801072704-fb66778c2462
-	scm.tensorsecurity.cn/tensorsecurity-rd/fanal v1.1.6
+	scm.tensorsecurity.cn/tensorsecurity-rd/fanal v1.1.7
 	scm.tensorsecurity.cn/tensorsecurity-rd/trivy-db v0.0.5
 )
 
