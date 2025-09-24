@@ -119,7 +119,7 @@ func (s *DBUpdateSrv) StartBackgroundUpdater(ctx context.Context) error {
 				s.Log.Error().Msgf("panic: %v.stack:%s", r, debug.Stack())
 			}
 		}()
-		ticker := time.NewTicker(time.Minute * 20)
+		ticker := time.NewTicker(time.Minute * 5)
 		defer ticker.Stop()
 		for {
 			<-ticker.C
@@ -159,7 +159,7 @@ func (s *DBUpdateSrv) StartBackgroundUpdater(ctx context.Context) error {
 				continue
 			}
 			remoteCompress := ver.TrivyVersion.Version
-			if s.WorkVersion != "" || s.WorkVersion >= remoteCompress {
+			if s.WorkVersion != "" && s.WorkVersion >= remoteCompress {
 				s.Log.Info().Str("remoteCompress", remoteCompress).Str("localCompress", s.WorkVersion).Msg("vuln db do not need update")
 				continue
 			}

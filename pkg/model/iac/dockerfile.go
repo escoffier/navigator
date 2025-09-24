@@ -5,9 +5,10 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"time"
+
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
-	"time"
 
 	"gitlab.com/security-rd/go-pkg/iac/pkg/scan"
 	goPkgIac "gitlab.com/security-rd/go-pkg/iac/pkg/scan"

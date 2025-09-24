@@ -3,11 +3,12 @@ package store
 import (
 	"context"
 	"fmt"
-	"gorm.io/gorm/logger"
 	"os"
 	"strconv"
 	"sync"
 	"time"
+
+	"gorm.io/gorm/logger"
 
 	"github.com/go-redis/redis/v8"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -107,6 +108,11 @@ func InitRedisClient() error {
 		return err
 	}
 	redisClients[1] = rc1
+
+	// flash redis db 1
+	// 使用trivy进行扫描时，trivy会记录层信息到redis中，如果上一次解析出错的话，那么之后的扫描会直接取到错误的，
+	// 现在我们的扫描已经在数据库中做了缓存，可以scanner启动时清空redis里的缓存
+	rc1.FlushAll(context.Background())
 	return nil
 }
 
