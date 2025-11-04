@@ -132,14 +132,6 @@ func (s *userService) CreateUser(ctx context.Context, data *portal.User) error {
 	}
 	data.CodesecSk = resp.Data.AccessKey
 	data.CodesecAk = resp.Data.AccessSecret
-
-	if err := s.userStore.CreateUser(ctx, data); err != nil {
-		s.Log.Err(err).Interface("user", data).Msg("can not create user")
-		if strings.Contains(err.Error(), consts.DuplicateKey) {
-			return portalI18.UserUsernameExit(err)
-		}
-		return err
-	}
 	s.Log.Info().Interface("user", data).Msg("create user success")
 	return nil
 }

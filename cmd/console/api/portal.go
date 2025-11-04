@@ -27,7 +27,7 @@ func (api *api) loginByAuthcode() http.HandlerFunc {
 
 		// 通过portal接口验证authCode
 		portalUser, err := api.GetPortalUser(authCode)
-		if err != nil || portalUser.TensorEmail == "" {
+		if err != nil || portalUser.TensorEmail == "" || portalUser.TensorPwd == "" {
 			RespAndLog(w, ctx, LoginError(http.StatusUnauthorized,
 				fmt.Errorf("not get portal user: %w", err)))
 			return
@@ -71,11 +71,13 @@ func (api *api) getConsoleUser(ctx context.Context, req *portal.User) (*model.Us
 	// 尝试查询现有用户
 	_, user, err := dal.SelectUserByAccount(ctx, api.rdb.Get(), req.TensorEmail)
 	if err == nil && user != nil && user.Account == req.TensorEmail {
+		logging.Get().Info().Interface("user", user).Msg("found existing user")
 		return user, nil
 	}
 
 	var modules []model.ModuleGroup
 	if err := api.rdb.Get().Find(&modules).Error; err != nil {
+		logging.Get().Error().Err(err).Msg("failed to get module groups")
 		return nil, err
 	}
 	md := make([]string, 0)
@@ -87,6 +89,7 @@ func (api *api) getConsoleUser(ctx context.Context, req *portal.User) (*model.Us
 	}
 
 	err = api.rdb.Get().Transaction(func(tx *gorm.DB) error {
+		// Portal SSO 登录创建的用户不需要首次登录修改密码
 		newu, innerErr := dal.InsertInactiveUser(ctx, tx, req.TensorEmail, model.RoleTypeAdmin, md,
 			false, portal.UserAdminName, req.Mobile)
 		if innerErr != nil {
@@ -95,18 +98,20 @@ func (api *api) getConsoleUser(ctx context.Context, req *portal.User) (*model.Us
 			}
 			return innerErr
 		}
-		_, innerErr = dal.ActiveUser(ctx, tx, newu.UserName, model.DefaultPassword, false)
+		_, innerErr = dal.ActiveUser(ctx, tx, newu.UserName, req.TensorPwd, false)
 		return innerErr
 	})
 	if err != nil {
-		logging.Get().Error().Err(err).Interface("user", req).Msg("failed to create user")
+		logging.Get().Error().Err(err).Interface("user", req).Msg("failed to create user in transaction")
 		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 	_, user, err = dal.SelectUserByAccount(ctx, api.rdb.Get(), req.TensorEmail)
 	if err == nil && user != nil && user.Account == req.TensorEmail {
+		logging.Get().Info().Interface("user", user).Msg("user created, retrieved from database")
 		return user, nil
 	}
-	return nil, fmt.Errorf("failed to create user: %w", err)
+	logging.Get().Error().Err(err).Str("account", req.TensorEmail).Msg("failed to retrieve created user")
+	return nil, fmt.Errorf("failed to retrieve created user: %w", err)
 }
 
 func GetAllModuleGroups(db *gorm.DB) ([]model.ModuleGroup, error) {
