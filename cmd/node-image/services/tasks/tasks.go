@@ -163,9 +163,9 @@ func (m *ScanTaskManager) makeScanCmd(imageName string, subtask imagesec.ScanSub
 
 	// default scan cmd without malware and webshell opt
 	cmdStr := fmt.Sprintf(" local-scan %s -i %s --parse-pkgs-only --cache-dir %s --policy-file-name %s "+
-		"--output %s -t %d --mount-prefix %s ",
+		"--output %s -t %d --mount-prefix %s --namespace %s",
 		m.ScanCommOpt(), imageName, cachePath, policyPath,
-		m.scanOutputFile(subtask), m.getTimeOutOpt(), m.runtimeConfig.ScanConfig.MountPrefix)
+		m.scanOutputFile(subtask), m.getTimeOutOpt(), m.runtimeConfig.ScanConfig.MountPrefix, subtask.NodeImageMeta.Namespace)
 
 	if m.shouldDeepScan() {
 		cmdStr = fmt.Sprintf("%s %s", cmdStr, m.deepScanOption())

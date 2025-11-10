@@ -6,6 +6,8 @@ WORKDIR /var/lib/tensor
 RUN sed -i "s!archive.ubuntu.com/!${MIRROR_SOURCE}/!g" /etc/apt/sources.list \
     && sed -i "s!ports.ubuntu.com/!${MIRROR_SOURCE}/!g" /etc/apt/sources.list \
     && apt-get update -y \
+    && apt install -y dnsutils netcat telnet iputils-ping curl wget \
+    && apt install -y containerd \
     && apt-get full-upgrade -y \
     && apt-get install -y libclamav-dev libgpgme-dev vim libdevmapper1.02.1 iptables language-pack-zh-han* \
     && apt-get clean \

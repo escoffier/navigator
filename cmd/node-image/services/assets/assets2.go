@@ -51,13 +51,16 @@ func (s *SendAssetManager) filterImage(images []container.ImageSummary) []contai
 	ans := make([]container.ImageSummary, 0)
 	for i := range images {
 		im := images[i]
+		s.Log.Info().Str("Image", im.LogStr()).Msg("find image")
 		if im.ID == "" {
+			s.Log.Info().Str("Image", im.LogStr()).Msg("filterImage not upload")
 			continue
 		}
 
 		im = s.FilterRepoTag(im)
 		im = s.FilterRepoDigest(im)
 		if len(im.RepoTags) == 0 || len(im.RepoDigests) == 0 {
+			s.Log.Info().Str("Image", im.LogStr()).Msg("filterImage not upload")
 			continue
 		}
 		ans = append(ans, im)
