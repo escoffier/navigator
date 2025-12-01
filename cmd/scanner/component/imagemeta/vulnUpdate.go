@@ -74,7 +74,6 @@ func (s *ImageUpdateSrv) UpdateVulnFlag(ctx context.Context) error {
 		}()
 
 		for im := range addOnlineImage {
-			s.Log.Info().Int64("image", im.ID).Msg("CreateOnlineVuln")
 			if im.UniqueID <= 0 || !util.ExistBit1(im.Flag, imagesecModel.FlagImageOnline) {
 				continue
 			}

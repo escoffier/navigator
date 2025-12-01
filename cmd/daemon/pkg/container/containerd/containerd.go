@@ -287,10 +287,11 @@ func (c *containerdDriver) ListImages() ([]container.ImageSummary, error) {
 				continue
 			}
 			imageList = append(imageList, container.ImageSummary{
-				Namespace: ns,
-				ID:        image.Name(),
-				Labels:    image.Labels(),
-				RepoTags:  []string{image.Name()},
+				Namespace:   ns,
+				ID:          image.Name(),
+				Labels:      image.Labels(),
+				RepoTags:    []string{image.Name()},
+				RepoDigests: []string{image.Target().Digest.String()},
 			})
 		}
 	}
@@ -636,8 +637,10 @@ func NewcontainerdDriver(config container.RuntimeConfig) (container.Runtime, err
 		os.Setenv("containerd_HOST", d.config.Endpoint)
 	}
 	uri := nodeinfo.GetContainerdAddr()
+	uri = strings.TrimPrefix(uri, "unix://")
 	// containerd client
-	containerdCli, err := containerd.New(strings.TrimPrefix(uri, "unix://"), containerd.WithTimeout(time.Duration(5*time.Second)))
+	logging.Get().Info().Str("containerdUnix", uri).Msg("containerd connect to")
+	containerdCli, err := containerd.New(uri, containerd.WithTimeout(time.Duration(5*time.Second)))
 	if err != nil {
 		logging.Get().
 			Err(err).
@@ -654,7 +657,7 @@ type Schema struct {
 	MediaType     string `json:"mediaType"`
 	SchemaVersion int    `json:"schemaVersion"`
 
-	//Manifests 有值:"mediaType": "application/vnd.docker.distribution.manifest.list.v2+json"
+	// Manifests 有值:"mediaType": "application/vnd.docker.distribution.manifest.list.v2+json"
 	Manifests []struct {
 		Digest    string `json:"digest"`
 		MediaType string `json:"mediaType"`

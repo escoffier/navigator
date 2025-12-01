@@ -1,6 +1,9 @@
 package container
 
-import "time"
+import (
+	"fmt"
+	"time"
+)
 
 type Container struct {
 	ID        string `json:"Id"`
@@ -174,6 +177,11 @@ type ImageSummary struct {
 	// virtual size
 	// Required: true
 	// VirtualSize int64 `json:"VirtualSize"`
+}
+
+func (vi *ImageSummary) LogStr() string {
+	ss := fmt.Sprintf("Namespace:%s-ID:%s-RepoDigests-cout:%d-RepoTags-count:%d", vi.Namespace, vi.ID, len(vi.RepoDigests), len(vi.RepoTags))
+	return ss
 }
 
 // ImageInspect contains response of Engine API:
