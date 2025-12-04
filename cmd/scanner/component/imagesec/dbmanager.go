@@ -3,8 +3,10 @@ package imagesec
 import (
 	"context"
 	"encoding/json"
+	"os"
 	"runtime/debug"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -119,7 +121,12 @@ func (s *DBUpdateSrv) StartBackgroundUpdater(ctx context.Context) error {
 				s.Log.Error().Msgf("panic: %v.stack:%s", r, debug.Stack())
 			}
 		}()
-		ticker := time.NewTicker(time.Minute * 5)
+		mi := os.Getenv("VULN_ONLINE_PER_MIMI")
+		mii, err := strconv.Atoi(mi)
+		if err != nil || mii <= 0 {
+			mii = 5
+		}
+		ticker := time.NewTicker(time.Minute * time.Duration(int64(mii)))
 		defer ticker.Stop()
 		for {
 			<-ticker.C
