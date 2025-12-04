@@ -279,6 +279,7 @@ func FindDockerfileTemplateSnapshots(ctx context.Context, db *gorm.DB, filter ma
 	if limit, ok := options["limit"].(int); ok {
 		db = db.Limit(limit)
 	}
+	db = db.Order("id desc")
 	err := db.Find(&templates).Error
 	return templates, err
 }
@@ -450,7 +451,7 @@ func (p *DockerfilePolicy) Check(result []scan.FlatResult) ([]scan.FlatResult, b
 
 func FilterDockerfileResultByTemplate(ctx context.Context, db *gorm.DB, result string, templateSnapShotID int) (string, float64, error) {
 	templateSnapShots, err := FindDockerfileTemplateSnapshots(ctx, db, map[string]interface{}{"id": templateSnapShotID}, map[string]interface{}{})
-	if err != nil || len(templateSnapShots) != 1 {
+	if err != nil || len(templateSnapShots) == 0 {
 		err = fmt.Errorf("FindDockerfileTemplateSnapshots err: %v, len: %d", err, len(templateSnapShots))
 		logging.Get().Error().Err(err).Msg("FindDockerfileTemplateSnapshots fails")
 		return "", 0, err

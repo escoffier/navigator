@@ -49,7 +49,7 @@ func (api *api) OpenApiDockerfilePolicy() http.HandlerFunc {
 		name := chi.URLParam(r, "name")
 
 		templateSnapshots, err := iacModel.FindDockerfileTemplateSnapshots(ctx, api.rdb.GetReadDB(), map[string]interface{}{"name": name}, map[string]interface{}{"limit": 1, "order": "id desc"})
-		if err != nil || len(templateSnapshots) != 1 {
+		if err != nil || len(templateSnapshots) == 0 {
 			logging.Get().Error().Err(fmt.Errorf("FindDockerfileTemplatesByNameEqual err: %v, len: %d", err, len(templateSnapshots))).Msg("FindDockerfileTemplatesByNameEqual fails")
 			RespAndLog(w, ctx,
 				NewAnError(http.StatusInternalServerError, errors.New("FindDockerfileTemplatesByNameEqual fails")))
@@ -271,7 +271,7 @@ func (api *api) OpenApiDockerfileScan() http.HandlerFunc {
 			return
 		}
 		snapshots, err := iacModel.FindDockerfileTemplateSnapshots(ctx, api.rdb.GetReadDB(), map[string]interface{}{"template_id": req.TemplateID}, map[string]interface{}{})
-		if err != nil || len(snapshots) != 1 {
+		if err != nil || len(snapshots) == 0 {
 			logging.Get().Error().Err(fmt.Errorf("FindDockerfileTemplateSnapshots err: %v, len: %d", err, len(snapshots))).Msg("FindDockerfileTemplateSnapshots fails")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("db operate fails")))
 			return
@@ -507,7 +507,7 @@ func (api *api) OpenApiXJDockerfileScan() http.HandlerFunc {
 			return
 		}
 		snapshots, err := iacModel.FindDockerfileTemplateSnapshots(ctx, api.rdb.GetReadDB(), map[string]interface{}{"template_id": req.TemplateID}, map[string]interface{}{})
-		if err != nil || len(snapshots) != 1 {
+		if err != nil || len(snapshots) == 0 {
 			logging.Get().Error().Err(fmt.Errorf("FindDockerfileTemplateSnapshots err: %v, len: %d", err, len(snapshots))).Msg("FindDockerfileTemplateSnapshots fails")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("db operate fails")))
 			return

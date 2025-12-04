@@ -5,14 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
-	"gorm.io/gorm"
 	"io"
 	"net/http"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
+	"gorm.io/gorm"
 
 	"github.com/go-chi/chi"
 	param "github.com/oceanicdev/chi-param"
@@ -1673,7 +1674,7 @@ func (api *api) DockerfileScan() http.HandlerFunc {
 			return
 		}
 		snapshots, err := iacModel.FindDockerfileTemplateSnapshots(ctx, api.rdb.GetReadDB(), map[string]interface{}{"template_id": req.TemplateID}, map[string]interface{}{})
-		if err != nil || len(snapshots) != 1 {
+		if err != nil || len(snapshots) == 0 {
 			logging.Get().Error().Err(fmt.Errorf("FindDockerfileTemplateSnapshots err: %v, len: %d", err, len(snapshots))).Msg("FindDockerfileTemplateSnapshots fails")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("db operate fails")))
 			return
@@ -2294,7 +2295,7 @@ func (api *api) DockerfileTemplateSnapshotsDetail() http.HandlerFunc {
 		}
 
 		snapshots, err := iacModel.FindDockerfileTemplateSnapshots(ctx, api.rdb.GetReadDB(), map[string]interface{}{"id": id}, map[string]interface{}{})
-		if err != nil || len(snapshots) != 1 {
+		if err != nil || len(snapshots) == 0 {
 			logging.Get().Error().Err(fmt.Errorf("FindDockerfileTemplateSnapshots err: %v, len: %d", err, len(snapshots))).Msg("FindDockerfileTemplateSnapshots fails")
 			RespAndLog(w, ctx, NewAnError(http.StatusInternalServerError, errors.New("db operate fails")))
 			return
