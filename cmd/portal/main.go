@@ -16,7 +16,7 @@ import (
 
 func main() {
 	configPath := ""
-	flag.StringVar(&configPath, "config-path", "/Users/liuqianli/work/golang/src/tensorsecurity-rd/tensornavigator/cmd/portal/component/config/portal-config.yaml", "")
+	flag.StringVar(&configPath, "config-path", "cmd/portal/component/config/portal-config.yaml", "")
 
 	flag.Parse()
 

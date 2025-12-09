@@ -47,6 +47,24 @@ type LoginResponse struct {
 	Token       string `json:"token"`
 }
 
+func (u *User) Same(b *User) bool {
+	same := u.PortalEmail == b.PortalEmail &&
+		u.Mobile == b.Mobile &&
+		u.Status == b.Status &&
+		u.Name == b.Name &&
+		u.Role == b.Role &&
+		u.SourceCheckToken == b.SourceCheckToken &&
+		u.SourceCheckEmail == b.SourceCheckEmail &&
+		u.CodesecAk == b.CodesecAk &&
+		u.CodesecSk == b.CodesecSk &&
+		u.CodesecEmail == b.CodesecEmail &&
+		u.TensorEmail == b.TensorEmail &&
+		u.TensorPwd == b.TensorPwd &&
+		u.SourceCheckPwd == b.SourceCheckPwd &&
+		u.CodesecPwd == b.CodesecPwd
+	return same
+}
+
 type SearchUserParam struct {
 	ID          int64
 	PortalEmail string

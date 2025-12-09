@@ -296,8 +296,13 @@ func (s *userService) CreateAdminUser(ctx context.Context) error {
 		s.Log.Err(err).Msg("search admin user")
 		return err
 	}
-	if len(users) > 0 && users[0].Role == portal.UserRoleAdmin {
+	if len(users) > 0 && ad.Same(users[0]) {
 		return nil
+	}
+	// 先删除
+	if err := s.userStore.DeleteUser(ctx, users[0].ID); err != nil {
+		s.Log.Err(err).Msg("delete admin user")
+		// 不管删除成功、失败都执行下面的创建
 	}
 
 	if err := s.userStore.CreateUser(ctx, ad); err != nil {
