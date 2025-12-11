@@ -300,9 +300,11 @@ func (s *userService) CreateAdminUser(ctx context.Context) error {
 		return nil
 	}
 	// 先删除
-	if err := s.userStore.DeleteUser(ctx, users[0].ID); err != nil {
-		s.Log.Err(err).Msg("delete admin user")
-		// 不管删除成功、失败都执行下面的创建
+	if len(users) > 0 {
+		if err := s.userStore.DeleteUser(ctx, users[0].ID); err != nil {
+			s.Log.Err(err).Msg("delete admin user")
+			return err
+		}
 	}
 
 	if err := s.userStore.CreateUser(ctx, ad); err != nil {

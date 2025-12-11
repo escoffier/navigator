@@ -56,7 +56,9 @@ func (s *UserStore) CreateUser(ctx context.Context, user *portal.User) error {
 		Mobile:  user.Mobile,
 	}
 	if err := s.addUserToConsole(ctx, user2); err != nil {
-		return err
+		if !strings.Contains(err.Error(), consts.DuplicateKey) {
+			return nil
+		}
 	}
 
 	if err := s.db.Get().WithContext(timeoutCtx).Create(user).Error; err != nil {
