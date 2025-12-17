@@ -3,14 +3,13 @@ package store
 import (
 	"context"
 	"fmt"
-	"strings"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/portal/consts"
 	portal "gitlab.com/piccolo_su/vegeta/cmd/portal/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/dal"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/model/imagesec"
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"gitlab.com/security-rd/go-pkg/databases"
 	"gorm.io/gorm"
 )
@@ -121,7 +120,7 @@ func (s *UserStore) DeleteUser(ctx context.Context, userID int64) error {
 func (s *UserStore) AddUserToConsole(ctx context.Context, user *portal.User) error {
 
 	req := ConsoleAddUser{
-		Account: user.PortalEmail,
+		Account: user.TensorEmail,
 		Role:    model.RoleTypeAdmin,
 		Mobile:  user.Mobile,
 	}
@@ -132,16 +131,21 @@ func (s *UserStore) AddUserToConsole(ctx context.Context, user *portal.User) err
 	}
 	md := make([]string, 0)
 	for _, m := range modules {
+		if m.ModuleNameEn == "User Center" {
+			continue
+		}
 		md = append(md, fmt.Sprintf("%d", m.Id))
 	}
 	err := s.db.Get().Transaction(func(tx *gorm.DB) error {
-		newu, innerErr := dal.InsertInactiveUser(ctx, tx, req.Account, req.Role,
-			md, false, consts.PortalAdminName, req.Mobile)
-		if innerErr != nil && !strings.Contains(innerErr.Error(), consts.DuplicateKey) {
+		newu, innerErr := dal.InsertInactiveUser(ctx, tx, req.Account, req.Role, md, false, portal.UserAdminName, req.Mobile)
+		if innerErr != nil {
+			if util.IsPostgresDuplicateError(innerErr) {
+				return nil
+			}
 			return innerErr
 		}
 
-		_, innerErr = dal.ActiveUser(ctx, tx, newu.UserName, model.DefaultPassword, false)
+		_, innerErr = dal.ActiveUser(ctx, tx, newu.UserName, user.TensorPwd, false)
 		return innerErr
 	})
 	return err

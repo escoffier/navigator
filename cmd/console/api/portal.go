@@ -2,10 +2,13 @@ package api
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
+	"strings"
 
 	param "github.com/oceanicdev/chi-param"
 	portal "gitlab.com/piccolo_su/vegeta/cmd/portal/model"
@@ -24,18 +27,42 @@ func (api *api) loginByAuthcode() http.HandlerFunc {
 		defer cancel()
 
 		authCode, _ := param.QueryString(r, "authCode")
-
+		logging.Get().Info().
+			Str("authCodeLen", authCode).
+			Msg("loginByAuthcode start")
+		authCode = convertToBase64(authCode)
+		logging.Get().Debug().Str("authCode", authCode).Msg("loginByAuthcode convert authCode to base64")
 		// 通过portal接口验证authCode
 		portalUser, err := api.GetPortalUser(authCode)
-		if err != nil || portalUser.TensorEmail == "" || portalUser.TensorPwd == "" {
-			RespAndLog(w, ctx, LoginError(http.StatusUnauthorized,
-				fmt.Errorf("not get portal user: %w", err)))
-			return
+		if err != nil || portalUser.TensorEmail == "" {
+			logging.Get().Err(err).Str("authCode", authCode).
+				Msg("failed get portal user by portal, fallback to local")
+			email, err := base64.StdEncoding.DecodeString(authCode)
+			if err != nil {
+				logging.Get().Err(err).Str("authCode", authCode).Msg("failed to decode auth code")
+				RespAndLog(w, ctx, LoginError(http.StatusUnauthorized,
+					fmt.Errorf("can not decode auth code: %w", err)))
+				return
+			}
+			logging.Get().Info().Str("authCode", authCode).Str("email", string(email)).
+				Msg("decoded email from authCode")
+			byEmail, err := dal.GetPortalUserByEmail(ctx, api.rdb.Get(), string(email))
+			if err != nil {
+				logging.Get().Err(err).Str("authCode", authCode).Str("email", string(email)).Msg("failed to get portal user")
+				RespAndLog(w, ctx, LoginError(http.StatusUnauthorized,
+					fmt.Errorf("can not get portal user by get database: %w", err)))
+				return
+			}
+			logging.Get().Info().
+				Str("portalEmail", byEmail.TensorEmail).
+				Msg("found portal user by decoded email")
+			portalUser = byEmail
 		}
 
 		// 查询或创建console用户
 		consoleUser, err := api.getConsoleUser(ctx, portalUser)
 		if err != nil {
+			logging.Get().Error().Err(err).Interface("portalUser", portalUser).Msg("getConsoleUser failed")
 			RespAndLog(w, ctx, LoginError(http.StatusInternalServerError,
 				fmt.Errorf("用户同步失败: %w", err)))
 			return
@@ -66,6 +93,22 @@ func (api *api) loginByAuthcode() http.HandlerFunc {
 	}
 }
 
+// base64编码经过url编码后的字符串可能和原字符串不同，所以需要先url解码，再base64编码
+func convertToBase64(str string) string {
+	decoded := str
+	// 为啥要做这一步呢，因为生成的authCode可能包含特殊字符，在url进行传递时会有错误
+	uDec, _ := url.QueryUnescape(decoded)
+	if uDec != "" {
+		decoded = uDec
+	}
+	decoded = strings.TrimSpace(decoded)
+	decoded = strings.ReplaceAll(decoded, " ", "+")
+	if m := len(decoded) % 4; m != 0 {
+		decoded += strings.Repeat("=", 4-m)
+	}
+	return decoded
+}
+
 // 获取或创建用户
 func (api *api) getConsoleUser(ctx context.Context, req *portal.User) (*model.User, error) {
 	// 尝试查询现有用户
@@ -89,12 +132,11 @@ func (api *api) getConsoleUser(ctx context.Context, req *portal.User) (*model.Us
 	}
 
 	err = api.rdb.Get().Transaction(func(tx *gorm.DB) error {
-		// Portal SSO 登录创建的用户不需要首次登录修改密码
 		newu, innerErr := dal.InsertInactiveUser(ctx, tx, req.TensorEmail, model.RoleTypeAdmin, md,
 			false, portal.UserAdminName, req.Mobile)
 		if innerErr != nil {
 			if util.IsPostgresDuplicateError(innerErr) {
-				return ErrUserAlreadyExists
+				return nil
 			}
 			return innerErr
 		}
@@ -103,7 +145,6 @@ func (api *api) getConsoleUser(ctx context.Context, req *portal.User) (*model.Us
 	})
 	if err != nil {
 		logging.Get().Error().Err(err).Interface("user", req).Msg("failed to create user in transaction")
-		return nil, fmt.Errorf("failed to create user: %w", err)
 	}
 	_, user, err = dal.SelectUserByAccount(ctx, api.rdb.Get(), req.TensorEmail)
 	if err == nil && user != nil && user.Account == req.TensorEmail {
