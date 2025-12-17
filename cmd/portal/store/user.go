@@ -21,6 +21,7 @@ type UserDal interface {
 	SearchUser(ctx context.Context, param portal.SearchUserParam) ([]*portal.User, int64, error)
 	UpdateUser(ctx context.Context, up portal.UpdateUserParam) error
 	DeleteUser(ctx context.Context, userID int64) error
+	AddUserToConsole(ctx context.Context, user *portal.User) error
 }
 
 type UserStore struct {
@@ -50,17 +51,6 @@ func (s *UserStore) CreateUser(ctx context.Context, user *portal.User) error {
 		return err
 	}
 	user.Serialize()
-	user2 := ConsoleAddUser{
-		Account: user.PortalEmail,
-		Role:    model.RoleTypeAdmin,
-		Mobile:  user.Mobile,
-	}
-	if err := s.addUserToConsole(ctx, user2); err != nil {
-		if !strings.Contains(err.Error(), consts.DuplicateKey) {
-			return nil
-		}
-	}
-
 	if err := s.db.Get().WithContext(timeoutCtx).Create(user).Error; err != nil {
 		return err
 	}
@@ -120,18 +110,22 @@ func (s *UserStore) UpdateUser(ctx context.Context, param portal.UpdateUserParam
 func (s *UserStore) DeleteUser(ctx context.Context, userID int64) error {
 	timeoutCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
-	up := map[string]interface{}{
-		"status": portal.UserDeleted,
-	}
 
 	db := s.db.Get().WithContext(timeoutCtx).Model(new(portal.User)).Where("id = ?", userID)
-	if err := db.Updates(up).Error; err != nil {
+	if err := db.Delete(&model.User{ID: userID}).Error; err != nil {
 		return err
 	}
 	return nil
 }
 
-func (s *UserStore) addUserToConsole(ctx context.Context, req ConsoleAddUser) error {
+func (s *UserStore) AddUserToConsole(ctx context.Context, user *portal.User) error {
+
+	req := ConsoleAddUser{
+		Account: user.PortalEmail,
+		Role:    model.RoleTypeAdmin,
+		Mobile:  user.Mobile,
+	}
+
 	var modules []model.ModuleGroup
 	if err := s.db.Get().Find(&modules).Error; err != nil {
 		return err
