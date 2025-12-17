@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"gitlab.com/piccolo_su/vegeta/cmd/portal/component/token"
-	model "gitlab.com/piccolo_su/vegeta/cmd/portal/model"
+	"gitlab.com/piccolo_su/vegeta/cmd/portal/model"
 	"gitlab.com/piccolo_su/vegeta/cmd/portal/portalI18"
 	"gitlab.com/piccolo_su/vegeta/cmd/portal/service"
 	"gitlab.com/piccolo_su/vegeta/cmd/portal/utils"

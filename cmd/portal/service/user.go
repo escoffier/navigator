@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -18,7 +19,6 @@ import (
 	portal "gitlab.com/piccolo_su/vegeta/cmd/portal/model"
 	"gitlab.com/piccolo_su/vegeta/cmd/portal/portalI18"
 	"gitlab.com/piccolo_su/vegeta/cmd/portal/store"
-	"gitlab.com/piccolo_su/vegeta/cmd/portal/utils"
 	scannerUtils "gitlab.com/piccolo_su/vegeta/cmd/scanner/utils"
 )
 
@@ -132,6 +132,15 @@ func (s *userService) CreateUser(ctx context.Context, data *portal.User) error {
 	}
 	data.CodesecSk = resp.Data.AccessKey
 	data.CodesecAk = resp.Data.AccessSecret
+
+	if err := s.userStore.CreateUser(ctx, data); err != nil {
+		s.Log.Err(err).Interface("user", data).Msg("can not create user")
+		if strings.Contains(err.Error(), consts.DuplicateKey) {
+			return portalI18.UserUsernameExit(err)
+		}
+		return err
+	}
+
 	s.Log.Info().Interface("user", data).Msg("create user success")
 	return nil
 }
@@ -228,7 +237,8 @@ func (s *userService) DeleteUser(ctx context.Context, userID int64) error {
 	}
 
 	up := map[string]interface{}{
-		"status": portal.UserDeleted,
+		"status":     portal.UserDeleted,
+		"deleted_at": time.Now().Unix(),
 	}
 
 	err := s.userStore.UpdateUser(ctx, portal.UpdateUserParam{ID: userID, Updater: up})
@@ -245,8 +255,8 @@ func (s *userService) GetUserAuthCode(ctx context.Context, param portal.SearchUs
 	if err != nil || len(use) == 0 {
 		return "", portalI18.NotGetUser(fmt.Errorf("user not found"))
 	}
-
-	code := utils.GenerateRandomString(32)
+	// 生成base64
+	code := base64.StdEncoding.EncodeToString([]byte(use[0].PortalEmail))
 	s.setUserCode(use[0].ID, code)
 	s.Log.Info().Int64("UserID", use[0].ID).Str("code", code).Msg("get user auth code success")
 	return code, nil
@@ -291,25 +301,28 @@ func (s *userService) CreateAdminUser(ctx context.Context) error {
 	}
 	ad.Serialize()
 	// 检查是否存在
-	users, _, err := s.userStore.SearchUser(ctx, portal.SearchUserParam{PortalEmail: ad.PortalEmail, Status: portal.UserNormal})
+	users, _, err := s.userStore.SearchUser(ctx, portal.SearchUserParam{PortalEmail: ad.PortalEmail})
 	if err != nil {
 		s.Log.Err(err).Msg("search admin user")
 		return err
 	}
-	if len(users) > 0 && ad.Same(users[0]) {
-		return nil
-	}
-	// 先删除
-	if len(users) > 0 {
-		if err := s.userStore.DeleteUser(ctx, users[0].ID); err != nil {
-			s.Log.Err(err).Msg("delete admin user")
+	// 先删除之前的,因为可能配置出错导致建立错误的user
+	has := false
+	for i := range users {
+		if ad.Same(users[i]) {
+			has = true
+			continue
+		}
+		if err := s.userStore.DeleteUser(ctx, users[i].ID); err != nil {
+			s.Log.Err(err).Msg("delete pre admin user")
 			return err
 		}
 	}
-
-	if err := s.userStore.CreateUser(ctx, ad); err != nil {
-		s.Log.Err(err).Msg("create admin user")
-		return err
+	if !has {
+		if err := s.userStore.CreateUser(ctx, ad); err != nil {
+			s.Log.Err(err).Msg("create admin user")
+			return err
+		}
 	}
 	return nil
 }
