@@ -15,6 +15,7 @@ import (
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gorm.io/gorm"
 
+	portal "gitlab.com/piccolo_su/vegeta/cmd/portal/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
@@ -291,6 +292,19 @@ func SelectUserByAccount(ctx context.Context, rdb *gorm.DB, account string) (boo
 		return false, nil, err
 	}
 	return true, &queryUser, nil
+}
+
+func GetPortalUserByEmail(ctx context.Context, rdb *gorm.DB, email string) (*portal.User, error) {
+	queryUser := portal.User{}
+
+	err := rdb.WithContext(ctx).Model(&queryUser).Where("portal_email = ? OR tensor_email = ?", email, email).First(&queryUser).Error
+	if err == gorm.ErrRecordNotFound {
+		return nil, fmt.Errorf("user not found")
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &queryUser, nil
 }
 
 func InsertInactiveUser(ctx context.Context, rdb *gorm.DB, account string, role model.RoleType, moduleID []string, mustChangePwd bool, creator string, mobile string) (*model.User, error) {

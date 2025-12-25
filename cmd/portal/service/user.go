@@ -78,6 +78,7 @@ func (s *userService) CreateUser(ctx context.Context, data *portal.User) error {
 	data.Role = portal.UserRoleOperator
 	data.CodesecPwd = data.PwdString
 	data.SourceCheckPwd = data.PwdString
+	data.Serialize()
 
 	if err := data.Check(); err != nil {
 		return err
@@ -140,8 +141,13 @@ func (s *userService) CreateUser(ctx context.Context, data *portal.User) error {
 		}
 		return err
 	}
-
+	// 向tensorsec写入用户
+	if err := s.userStore.AddUserToConsole(ctx, data); err != nil {
+		s.Log.Err(err).Interface("user", data).Msg("can not add user to console")
+		return err
+	}
 	s.Log.Info().Interface("user", data).Msg("create user success")
+
 	return nil
 }
 
