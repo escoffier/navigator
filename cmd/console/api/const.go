@@ -6,6 +6,7 @@ const (
 	userUnknown    = "unknown"
 	orderAsc       = "asc"
 	orderDesc      = "desc"
+	GdydPlatform   = "gdyd-shy"
 )
 
 const (
