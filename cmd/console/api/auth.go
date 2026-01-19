@@ -442,7 +442,7 @@ func (api *api) getIdpLoginUrl() http.HandlerFunc {
 		}
 		// 广东移动的sso不是这个模式，但是前端还是会请求，就会报错，所以这里做一下兼容
 		if platform == GdydPlatform {
-			response.Ok(w, response.WithItem(map[string]string{"url": ""}))
+			response.Ok(w, response.WithItem(map[string]string{"url": "?platform=gdyd-shy"}))
 			return
 		}
 
