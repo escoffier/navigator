@@ -223,7 +223,7 @@ scarecrow:   ## Build scarecrow docker to test CVEs
 .PHONY: webhook
 webhook:
 	@echo "build webhook"
-	go build -v \
+	CGO_ENABLED=0 go build -v \
 		-tags=jsoniter -o dist/webhook gitlab.com/piccolo_su/vegeta/cmd/webhook
 	#upx --lzma --best dist/webhook
 	docker build -t $(REPOPREFIX)/webhook:$(IMAGE_TAG) -f ./build/webhook/Dockerfile .

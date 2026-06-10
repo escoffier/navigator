@@ -6,11 +6,12 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
-	"gitlab.com/piccolo_su/vegeta/pkg/util"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/util"
 
 	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/security-rd/go-pkg/logging"
@@ -131,8 +132,9 @@ func (m *Mutator) Mutate(ctx context.Context, parameters *processors.MutatorPara
 // buildDigestImage replace image name with image digest
 func (m *Mutator) buildDigestImage(ctx context.Context, parameters *processors.MutatorParameters, container *corev1.Container, kubeSecretNames []string) ImageDigest {
 	originImage := container.Image
-	if strings.Contains(originImage, "@sha256") || container.ImagePullPolicy != "Always" {
-		return ImageDigest{Image: originImage}
+	if strings.Contains(originImage, "@sha256") {
+		logging.Get().Info().Msgf("image %s is already a digest", originImage)
+		return ImageDigest{Image: originImage, Digest: originImage}
 	}
 	secret := m.getSecrets(parameters.ClusterKey, parameters.Namespace, originImage, kubeSecretNames)
 	digest := getImageDigestFromHarbor(ctx, originImage, secret)
