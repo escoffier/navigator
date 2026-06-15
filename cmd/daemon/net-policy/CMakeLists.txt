@@ -4,6 +4,8 @@ project(net-rule)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
+# Static .a libs from Debian (libunwind, nghttp2, pcre2, ...) are not PIE-ready.
+set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -no-pie")
 # set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIE")
 # set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIE")
 #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address  -fno-omit-frame-pointer")
