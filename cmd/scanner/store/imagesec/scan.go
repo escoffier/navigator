@@ -585,6 +585,9 @@ func (dal *ScanResultDao) SearchPkg(ctx context.Context, param imagesecModel.Sca
 		return nil, 0, err
 	}
 	db = imagesecModel.AddFilter(db, param.Filter)
+	// 兜底排序: 无 ORDER BY 时 MySQL 分页(LIMIT/OFFSET)行序不确定,会导致翻页出现重复/遗漏。
+	// 这里按主键 id 追加一个确定性排序,作为用户排序字段之后的最终 tie-breaker。
+	db = db.Order("id")
 
 	if err := db.Find(&res).Error; err != nil {
 		return nil, 0, err
