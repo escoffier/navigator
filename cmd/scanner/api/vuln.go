@@ -91,7 +91,11 @@ func (vf VulnPKGs) Len() int {
 }
 
 func (vf VulnPKGs) Less(i, j int) bool {
-	return vf[i].SortScore > vf[j].SortScore
+	if vf[i].SortScore != vf[j].SortScore {
+		return vf[i].SortScore > vf[j].SortScore
+	}
+	// SortScore 相同时用 UniqueID 兜底,保证分页顺序确定、可重复
+	return vf[i].UniqueID < vf[j].UniqueID
 }
 
 func (vf VulnPKGs) Swap(i, j int) {
@@ -126,7 +130,14 @@ func (vf VulnLanguages) Len() int {
 }
 
 func (vf VulnLanguages) Less(i, j int) bool {
-	return vf[i].SortScore > vf[j].SortScore
+	if vf[i].SortScore != vf[j].SortScore {
+		return vf[i].SortScore > vf[j].SortScore
+	}
+	// SortScore 相同时用 语言名+路径 兜底,保证分页顺序确定、可重复
+	if vf[i].LanguageName != vf[j].LanguageName {
+		return vf[i].LanguageName < vf[j].LanguageName
+	}
+	return vf[i].LanguagePath < vf[j].LanguagePath
 }
 
 func (vf VulnLanguages) Swap(i, j int) {
@@ -160,7 +171,14 @@ func (vf VulnGobinaries) Len() int {
 }
 
 func (vf VulnGobinaries) Less(i, j int) bool {
-	return vf[i].SortScore > vf[j].SortScore
+	if vf[i].SortScore != vf[j].SortScore {
+		return vf[i].SortScore > vf[j].SortScore
+	}
+	// SortScore 相同时用 名称+路径 兜底,保证分页顺序确定、可重复
+	if vf[i].GoName != vf[j].GoName {
+		return vf[i].GoName < vf[j].GoName
+	}
+	return vf[i].GoPath < vf[j].GoPath
 }
 
 func (vf VulnGobinaries) Swap(i, j int) {
@@ -193,7 +211,11 @@ func (vf VulnFrames) Len() int {
 }
 
 func (vf VulnFrames) Less(i, j int) bool {
-	return vf[i].SortScore > vf[j].SortScore
+	if vf[i].SortScore != vf[j].SortScore {
+		return vf[i].SortScore > vf[j].SortScore
+	}
+	// SortScore 相同时用 框架名 兜底,保证分页顺序确定、可重复
+	return vf[i].Frame < vf[j].Frame
 }
 
 func (vf VulnFrames) Swap(i, j int) {
