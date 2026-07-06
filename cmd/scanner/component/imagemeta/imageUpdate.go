@@ -3,6 +3,7 @@ package imagemeta
 import (
 	"context"
 	"os"
+	"runtime/debug"
 	"time"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/scanner/component/detect"
@@ -81,6 +82,22 @@ func NewImageUpdateSrv(
 	return &srv
 }
 
+// safeRun 执行单个周期任务，并对其单独做 panic 兜底。
+// 这样任一任务 panic 只会跳过本次执行，不会导致整个维护 goroutine 退出、
+// 使在线刷新/仓库清理等周期动作永久停摆。同时打印 panic 值与堆栈便于定位。
+func (s *ImageUpdateSrv) safeRun(ctx context.Context, name string, fn func(context.Context) error) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.Log.Error().
+				Str("task", name).
+				Interface("panic", r).
+				Bytes("stack", debug.Stack()).
+				Msg("ContinueUpdate task panic recovered")
+		}
+	}()
+	_ = fn(ctx)
+}
+
 func (s *ImageUpdateSrv) ContinueUpdate(ctx context.Context) error {
 
 	update := os.Getenv("CONTINUE_UPDATE_IMAGE")
@@ -90,50 +107,34 @@ func (s *ImageUpdateSrv) ContinueUpdate(ctx context.Context) error {
 	}
 
 	go func() {
-		defer func() {
-			if err := recover(); err != nil {
-				s.Log.Error().Msg("ContinueUpdate recover")
-			}
-		}()
 		ticker := time.NewTicker(time.Minute * 5)
 		defer ticker.Stop()
 		for {
-			_ = s.updateOnlineImage(ctx)
-			_ = s.updateTrustedImage(ctx)
-			_ = s.cleanAfterDeleteRegistry(ctx)
-			_ = s.cleanDeletedDetectPolicy(ctx)
-			_ = s.updateSafeFlag(ctx)
+			s.safeRun(ctx, "updateOnlineImage", s.updateOnlineImage)
+			s.safeRun(ctx, "updateTrustedImage", s.updateTrustedImage)
+			s.safeRun(ctx, "cleanAfterDeleteRegistry", s.cleanAfterDeleteRegistry)
+			s.safeRun(ctx, "cleanDeletedDetectPolicy", s.cleanDeletedDetectPolicy)
+			s.safeRun(ctx, "updateSafeFlag", s.updateSafeFlag)
 			ticker.Reset(time.Minute * 5)
 			<-ticker.C
 		}
 	}()
 
 	go func() {
-		defer func() {
-			if err := recover(); err != nil {
-				s.Log.Error().Msg("ContinueUpdate recover")
-			}
-		}()
 		ticker := time.NewTicker(time.Hour)
 		defer ticker.Stop()
 		for {
 			<-ticker.C
-			_ = s.deleteOverdueImage(ctx)
+			s.safeRun(ctx, "deleteOverdueImage", s.deleteOverdueImage)
 			ticker.Reset(time.Hour)
 		}
 	}()
 
 	go func() {
-		defer func() {
-			if err := recover(); err != nil {
-				s.Log.Error().Msg("ContinueUpdate recover")
-			}
-		}()
-
 		ticker := time.NewTicker(time.Minute * 5)
 		defer ticker.Stop()
 		for {
-			_ = s.UpdateImagePrepareData(ctx)
+			s.safeRun(ctx, "UpdateImagePrepareData", s.UpdateImagePrepareData)
 			<-ticker.C
 		}
 	}()
@@ -866,6 +867,12 @@ func (s *ImageUpdateSrv) updateScanConfigAfterDeleteReg(ctx context.Context, reg
 	}
 	for i := range policy {
 		po := policy[i].ImageScanConfig
+		// SearchImageConfig 会返回所有类型的配置行(含漏洞库更新 ConfigTypeVulnDBUpdate)，
+		// 而后者 Deserialize 后 ImageScanConfig 为 nil，这里必须跳过，否则解引用会 panic，
+		// 进而拖垮整个维护 goroutine(在线刷新/仓库清理等)。
+		if po == nil {
+			continue
+		}
 		if po.ScanCycle.AllReg {
 			continue
 		}

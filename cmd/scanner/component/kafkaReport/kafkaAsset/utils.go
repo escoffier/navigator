@@ -11,6 +11,18 @@ import (
 	imagesecTypes "gitlab.com/piccolo_su/vegeta/pkg/types/imagesec"
 )
 
+// normalizeRegistryHost 归一化仓库地址，作为镜像的 Host。
+// 仓库地址配置可能带结尾斜杠，若原样拼接进镜像名(GetImageName = Host + "/" + Repo:Tag)，
+// 会出现如 "https://harbor.example.com//library/xxx" 的双斜杠；而 GenUUID 在计算
+// image_uuid 时只剥掉 "https://"/"http://" 协议头、不会处理中间的双斜杠，导致仓库镜像
+// 算出的 image_uuid 与节点侧容器算出的 image_uuid 不一致，进而镜像一直显示离线。
+// 这里只去掉首尾多余的斜杠，保留 http(s):// 协议头，与存量数据格式及其他依赖协议头的逻辑保持一致。
+func normalizeRegistryHost(url string) string {
+	host := strings.TrimSpace(url)
+	host = strings.Trim(host, "/")
+	return host
+}
+
 func GetRegImageInfo(data imagesecTypes.NodeReport) ([]*imagesecModel.Image,
 	map[uint64][]*imagesecModel.ImageEnv) {
 	images := make([]*imagesecModel.Image, 0)
@@ -28,7 +40,7 @@ func GetRegImageInfo(data imagesecTypes.NodeReport) ([]*imagesecModel.Image,
 			Repo:          image.Repo,
 			Tag:           image.Tag,
 			RegID:         data.RegInfo.RegID,
-			Host:          data.RegInfo.Url,
+			Host:          normalizeRegistryHost(data.RegInfo.Url),
 			Heartbeat:     time.Now().UnixMilli(),
 		}
 		split := strings.Split(image.Os, ":")
