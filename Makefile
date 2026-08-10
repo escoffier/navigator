@@ -46,7 +46,7 @@ apiscan-job:
 .PHONY: cluster-manager
 cluster-manager:
 	@echo "build cluster-manager"
-	go build -v \
+	CGO_ENABLED=0 go build -v \
 		-tags=jsoniter -o dist/cluster-manager gitlab.com/piccolo_su/vegeta/cmd/clustermanager
 	#upx --lzma --best dist/cluster-manager
 	docker build -t $(REPOPREFIX)/cluster-manager:$(IMAGE_TAG) -f ./build/cluster-manager/Dockerfile .
@@ -163,7 +163,7 @@ endif
 .PHONY: kafka-proxy
 kafka-proxy:
 	@echo "build kafka-proxy"
-	go build -v \
+	CGO_ENABLED=0 go build -v \
 		-o dist/kafka-proxy gitlab.com/piccolo_su/vegeta/cmd/kafkaproxy
 	#upx --lzma --best dist/kafka-proxy
 	docker build -t $(REPOPREFIX)/kafka-proxy:$(IMAGE_TAG) -f ./build/kafka-proxy/Dockerfile .
