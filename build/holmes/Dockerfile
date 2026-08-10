@@ -7,7 +7,14 @@ FROM debian:buster
 COPY --from=holmes-packages /packages/holmes*.deb /tmp/
 
 ARG TARGETARCH
+# Debian buster is EOL. Use domestic debian-archive mirrors (aliyun/tencent),
+# not regular debian mirrors (404) or archive.debian.org (too slow in CN).
 ARG MIRROR_SOURCE=mirrors.aliyun.com
+# Optional build-time proxy for apt/curl (e.g. HK http proxy). Do not hardcode secrets.
+ARG HTTP_PROXY=
+ARG HTTPS_PROXY=
+ARG http_proxy=$HTTP_PROXY
+ARG https_proxy=$HTTPS_PROXY
 
 ARG VERSION_BUCKET=deb
 ENV VERSION_BUCKET=${VERSION_BUCKET}
@@ -15,8 +22,22 @@ ENV VERSION_BUCKET=${VERSION_BUCKET}
 ENV FALCO_VERSION=${FALCO_VERSION}
 ENV HOST_ROOT /host
 ENV HOME /root
+ENV HTTP_PROXY=${HTTP_PROXY}
+ENV HTTPS_PROXY=${HTTPS_PROXY}
+ENV http_proxy=${http_proxy}
+ENV https_proxy=${https_proxy}
 
-RUN sed -i "s!deb.debian.org/!${MIRROR_SOURCE}/!g" /etc/apt/sources.list \
+# Use debian-archive paths on domestic mirrors.
+RUN printf '%s\n' \
+	"deb http://${MIRROR_SOURCE}/debian-archive/debian buster main contrib non-free" \
+	"deb http://${MIRROR_SOURCE}/debian-archive/debian buster-updates main contrib non-free" \
+	"deb http://${MIRROR_SOURCE}/debian-archive/debian-security buster/updates main contrib non-free" \
+	> /etc/apt/sources.list \
+	&& echo 'Acquire::Check-Valid-Until "false";' > /etc/apt/apt.conf.d/99no-check-valid-until \
+	&& if [ -n "$HTTP_PROXY" ]; then \
+		printf 'Acquire::http::Proxy "%s";\nAcquire::https::Proxy "%s";\n' \
+			"$HTTP_PROXY" "${HTTPS_PROXY:-$HTTP_PROXY}" > /etc/apt/apt.conf.d/01proxy; \
+	fi \
 	&& apt-get update \
 	&& apt-get full-upgrade -y \
 	&& apt-get install supervisor libdevmapper-dev libgpgme-dev -y \

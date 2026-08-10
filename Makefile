@@ -140,17 +140,23 @@ endif
 .PHONY: holmes
 holmes:     ## Build holmes docker
 	@echo "+ $@"
-	go build -v \
+	CGO_ENABLED=0 go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/starter/cmd.Version=$(VERSION)" \
 		-o dist/holmes-starter gitlab.com/piccolo_su/vegeta/cmd/holmes/starter
 ifeq ($(UNAME_M),x86_64)
 	docker build -t $(REPOPREFIX)/holmes:$(IMAGE_TAG) -f ./build/holmes/Dockerfile \
 		--build-arg REPO=$(REPOPREFIX) --build-arg TAG=$(FETCHTAG) \
-		--build-arg MIRROR_SOURCE=$(MIRROR_SOURCE) --build-arg TARGETARCH=amd64 .
+		--build-arg MIRROR_SOURCE=$(or $(HOLMES_MIRROR_SOURCE),mirrors.aliyun.com) \
+		--build-arg HTTP_PROXY=$(HTTP_PROXY) \
+		--build-arg HTTPS_PROXY=$(or $(HTTPS_PROXY),$(HTTP_PROXY)) \
+		--build-arg TARGETARCH=amd64 .
 else
 	docker build -t $(REPOPREFIX)/holmes:$(IMAGE_TAG) -f ./build/holmes/Dockerfile \
 		--build-arg REPO=$(REPOPREFIX) --build-arg TAG=$(FETCHTAG) \
-		--build-arg MIRROR_SOURCE=$(MIRROR_SOURCE) --build-arg TARGETARCH=arm64 .
+		--build-arg MIRROR_SOURCE=$(or $(HOLMES_MIRROR_SOURCE),mirrors.aliyun.com) \
+		--build-arg HTTP_PROXY=$(HTTP_PROXY) \
+		--build-arg HTTPS_PROXY=$(or $(HTTPS_PROXY),$(HTTP_PROXY)) \
+		--build-arg TARGETARCH=arm64 .
 endif
 
 
