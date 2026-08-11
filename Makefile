@@ -54,7 +54,7 @@ cluster-manager:
 .PHONY: monitor
 monitor:
 	@echo "build monitor"
-	go build -v \
+	CGO_ENABLED=0 go build -v \
 		-tags=jsoniter -o dist/monitor gitlab.com/piccolo_su/vegeta/cmd/monitor
 	#upx --lzma --best dist/monitor
 	docker build -t $(REPOPREFIX)/monitor:$(IMAGE_TAG) -f ./build/monitor/Dockerfile .
