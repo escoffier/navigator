@@ -70,12 +70,12 @@ cluster-proxy:
 .PHONY: console
 console: 		## Build console binary
 	@echo "+ $@"
-	go build -v \
+	CGO_ENABLED=0 go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/console/cmd.Version=$(VERSION)" \
 		-tags="$(LICENSE_SECRET) jsoniter" -o dist/console gitlab.com/piccolo_su/vegeta/cmd/console
 	#upx --lzma --best dist/console
 
-	go build -v \
+	CGO_ENABLED=0 go build -v \
 		--ldflags "$(LDFLAGS) -X gitlab.com/piccolo_su/vegeta/cmd/holmes/encodefile/cmd.Version=$(VERSION)" \
 		-o dist/holmes-rules-pack gitlab.com/piccolo_su/vegeta/cmd/holmes/encodefile
 	#upx --lzma --best dist/holmes-rules-pack
