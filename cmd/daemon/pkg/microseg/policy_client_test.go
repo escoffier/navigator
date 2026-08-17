@@ -1,52 +1,86 @@
 package microseg
 
 import (
+	"context"
 	"net"
 	"testing"
-	"time"
+
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/test/bufconn"
 
 	heavyagent "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/heavy-agent"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/heavy-agent/pb"
 )
 
-func Test_policyCliet_DeletePolicy(t *testing.T) {
-	type fields struct {
-		conn          *net.UnixConn
-		writeDeadline time.Time
-	}
-	type args struct {
-		rule *PolicyRule
-	}
+type fakeControlServer struct {
+	pb.UnimplementedNetPolicyControlServer
+	lastDeleteReq *pb.DeletePolicyRuleRequest
+	lastPodUpReq  *pb.PodUpRequest
+	status        int32
+}
 
-	agentCli, err := heavyagent.NewClient("/tmp/echo.socket")
-	cli := NewPolicyClient(agentCli)
+func (f *fakeControlServer) DeletePolicyRule(_ context.Context, req *pb.DeletePolicyRuleRequest) (*pb.StatusResponse, error) {
+	f.lastDeleteReq = req
+	return &pb.StatusResponse{Status: f.status}, nil
+}
+
+func (f *fakeControlServer) PodUp(_ context.Context, req *pb.PodUpRequest) (*pb.StatusResponse, error) {
+	f.lastPodUpReq = req
+	return &pb.StatusResponse{Status: f.status}, nil
+}
+
+func newTestPolicyClient(t *testing.T, srv *fakeControlServer) PolicyClient {
+	t.Helper()
+	lis := bufconn.Listen(1024 * 1024)
+	s := grpc.NewServer()
+	pb.RegisterNetPolicyControlServer(s, srv)
+	go func() { _ = s.Serve(lis) }()
+	t.Cleanup(s.Stop)
+
+	conn, err := grpc.DialContext(context.Background(), "bufnet",
+		grpc.WithContextDialer(func(context.Context, string) (net.Conn, error) { return lis.Dial() }),
+		grpc.WithTransportCredentials(insecure.NewCredentials()))
 	if err != nil {
-		t.Fatal(err)
+		t.Fatalf("dial bufconn: %v", err)
 	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		wantErr bool
-	}{
-		{
-			name:   "test-1",
-			fields: fields{},
-			args: args{
-				rule: &PolicyRule{
-					MessageType: 4,
-					PolicyName:  "test-policy",
-				},
-			},
-			wantErr: false,
-		},
+	t.Cleanup(func() { _ = conn.Close() })
+
+	return NewPolicyClient(&heavyagent.ControlClient{
+		NetPolicyControlClient: pb.NewNetPolicyControlClient(conn),
+	})
+}
+
+func Test_policyClient_DeletePolicy(t *testing.T) {
+	srv := &fakeControlServer{}
+	cli := newTestPolicyClient(t, srv)
+
+	err := cli.DeletePolicy(&PolicyRule{PolicyName: "test-policy"})
+	if err != nil {
+		t.Fatalf("DeletePolicy: %v", err)
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if err := cli.DeletePolicy(tt.args.rule); (err != nil) != tt.wantErr {
-				t.Errorf("policyCliet.DeletePolicy() error = %v, wantErr %v", err, tt.wantErr)
-			}
-			// time.Sleep(time.Second * 5)
-		})
+	if srv.lastDeleteReq.GetPolicyName() != "test-policy" {
+		t.Errorf("server received policy_name = %q, want %q", srv.lastDeleteReq.GetPolicyName(), "test-policy")
 	}
-	// cli.Stop()
+}
+
+func Test_policyClient_DeletePolicy_NonZeroStatus(t *testing.T) {
+	srv := &fakeControlServer{status: 1}
+	cli := newTestPolicyClient(t, srv)
+
+	if err := cli.DeletePolicy(&PolicyRule{PolicyName: "test-policy"}); err == nil {
+		t.Fatal("DeletePolicy: want error for non-zero status, got nil")
+	}
+}
+
+func Test_policyClient_AddContainer(t *testing.T) {
+	srv := &fakeControlServer{}
+	cli := newTestPolicyClient(t, srv)
+
+	if err := cli.AddContainer(123, 456); err != nil {
+		t.Fatalf("AddContainer: %v", err)
+	}
+	if srv.lastPodUpReq.GetPid() != 123 || srv.lastPodUpReq.GetPodId() != 456 {
+		t.Errorf("server received %+v, want pid=123 pod_id=456", srv.lastPodUpReq)
+	}
 }
