@@ -9,9 +9,10 @@ import (
 	"time"
 
 	param "github.com/oceanicdev/chi-param"
+	"gitlab.com/security-rd/go-pkg/logging"
+
 	heavyagent "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/heavy-agent"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/heavy-agent/pb"
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 var log = logging.Get().With().Str("module", "status").Logger()

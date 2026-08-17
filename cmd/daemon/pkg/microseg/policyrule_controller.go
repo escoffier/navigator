@@ -14,9 +14,6 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/segmentio/kafka-go"
-	heavyagent "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/heavy-agent"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/heavy-agent/pb"
-	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/microseg/types/microseg"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/model"
 	"gitlab.com/security-rd/go-pkg/mq"
@@ -29,6 +26,10 @@ import (
 	"k8s.io/client-go/util/workqueue"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/clientset/versioned"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
+
+	heavyagent "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/heavy-agent"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/heavy-agent/pb"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/microseg/types/microseg"
 
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	hashutil "k8s.io/kubernetes/pkg/util/hash"

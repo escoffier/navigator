@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
+	"gitlab.com/security-rd/go-pkg/logging"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/heavy-agent/pb"
-	"gitlab.com/security-rd/go-pkg/logging"
 )
 
 const eventsRetryBackoff = 500 * time.Millisecond

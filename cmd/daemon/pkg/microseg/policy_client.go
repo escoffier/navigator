@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"time"
 
+	crdv1alpha1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/microsegmentation.security.io/v1alpha1"
+
 	heavyagent "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/heavy-agent"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/heavy-agent/pb"
-	crdv1alpha1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/microsegmentation.security.io/v1alpha1"
 )
 
 const requestTimeout = 3 * time.Second
