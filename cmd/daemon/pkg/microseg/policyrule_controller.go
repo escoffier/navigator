@@ -13,9 +13,9 @@ import (
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
-	"github.com/google/uuid"
 	"github.com/segmentio/kafka-go"
 	heavyagent "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/heavy-agent"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/heavy-agent/pb"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/microseg/types/microseg"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/model"
@@ -48,11 +48,11 @@ type RuleGroupController struct {
 	polCli          PolicyClient
 	nodeName        string
 	mqSender        mq.Writer
-	agentCli        *heavyagent.Client
+	agentCli        *heavyagent.ControlClient
 	ruleMap         map[string]sets.String
 }
 
-func NewRuleGroupController(clientset *versioned.Clientset, crdFactory externalversions.SharedInformerFactory, cli PolicyClient, nodeName string, mqWriter mq.Writer, agentCli *heavyagent.Client) *RuleGroupController {
+func NewRuleGroupController(clientset *versioned.Clientset, crdFactory externalversions.SharedInformerFactory, cli PolicyClient, nodeName string, mqWriter mq.Writer, agentCli *heavyagent.ControlClient) *RuleGroupController {
 	ruleInformer := crdFactory.Microsegmentation().V1alpha1().NetworkPolicyRuleGroups().Informer()
 	controller := &RuleGroupController{
 		ruleInformer:    ruleInformer,
@@ -539,90 +539,72 @@ func (rg *RuleGroupController) checkSync() error {
 	if err != nil {
 		return err
 	}
-	req := microseg.ConfigDumpReq{
-		UUID:        uuid.NewString(),
-		MessageType: 10,
-	}
-	data, err := json.Marshal(&req)
-	if err != nil {
-		return err
-	}
-	// err = rg.agentCli.Send(data)
-	// if err != nil {
-	// 	return err
-	// }
-
-	// var resp microseg.ConfigDumpResp
-	// err = rg.agentCli.ReceiveMessage(&resp)
-	// if err != nil {
-	// 	return err
-	// }
-
-	var resp microseg.ConfigDumpResp
-	err = rg.agentCli.SendAndReceiveMessage(data, &resp)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	resp, err := rg.agentCli.DumpConfig(ctx, &pb.DumpConfigRequest{})
 	if err != nil {
 		return err
 	}
 
-	logging.Get().Info().Msgf("agent config inbound: %d, outbound %d", len(resp.Body.InboundRules), len(resp.Body.OutboundRules))
+	logging.Get().Info().Msgf("agent config inbound: %d, outbound %d", len(resp.GetInboundRules()), len(resp.GetOutboundRules()))
 
 	// group by name
 	ruleMap := make(map[string][]microseg.SingleRule, 3)
-	for _, r := range resp.Body.InboundRules {
-		protocol := r.Protocol
-		if r.Protocol == "" {
+	for _, r := range resp.GetInboundRules() {
+		protocol := r.GetProtocol()
+		if r.GetProtocol() == "" {
 			protocol = "ANY"
 		}
-		if _, ok := ruleMap[r.PolicyName]; ok {
-			ruleMap[r.PolicyName] = append(ruleMap[r.PolicyName], microseg.SingleRule{
-				PolicyName:  r.PolicyName,
-				Priority:    r.Priority,
-				Direction:   r.Direction,
-				Action:      r.Action,
+		if _, ok := ruleMap[r.GetPolicyName()]; ok {
+			ruleMap[r.GetPolicyName()] = append(ruleMap[r.GetPolicyName()], microseg.SingleRule{
+				PolicyName:  r.GetPolicyName(),
+				Priority:    int(r.GetPriority()),
+				Direction:   r.GetDirection(),
+				Action:      r.GetAction(),
 				Protocol:    protocol,
-				FromAddress: r.FromAddress,
-				ToAddress:   r.ToAddress,
+				FromAddress: r.GetFromAddress(),
+				ToAddress:   r.GetToAddress(),
 			})
 		} else {
-			ruleMap[r.PolicyName] = []microseg.SingleRule{
+			ruleMap[r.GetPolicyName()] = []microseg.SingleRule{
 				{
-					PolicyName:  r.PolicyName,
-					Priority:    r.Priority,
-					Direction:   r.Direction,
-					Action:      r.Action,
+					PolicyName:  r.GetPolicyName(),
+					Priority:    int(r.GetPriority()),
+					Direction:   r.GetDirection(),
+					Action:      r.GetAction(),
 					Protocol:    protocol,
-					FromAddress: r.FromAddress,
-					ToAddress:   r.ToAddress,
+					FromAddress: r.GetFromAddress(),
+					ToAddress:   r.GetToAddress(),
 				},
 			}
 		}
 	}
 
-	for _, r := range resp.Body.OutboundRules {
-		protocol := r.Protocol
-		if r.Protocol == "" {
+	for _, r := range resp.GetOutboundRules() {
+		protocol := r.GetProtocol()
+		if r.GetProtocol() == "" {
 			protocol = "ANY"
 		}
-		if _, ok := ruleMap[r.PolicyName]; ok {
-			ruleMap[r.PolicyName] = append(ruleMap[r.PolicyName], microseg.SingleRule{
-				PolicyName:  r.PolicyName,
-				Priority:    r.Priority,
-				Direction:   r.Direction,
-				Action:      r.Action,
+		if _, ok := ruleMap[r.GetPolicyName()]; ok {
+			ruleMap[r.GetPolicyName()] = append(ruleMap[r.GetPolicyName()], microseg.SingleRule{
+				PolicyName:  r.GetPolicyName(),
+				Priority:    int(r.GetPriority()),
+				Direction:   r.GetDirection(),
+				Action:      r.GetAction(),
 				Protocol:    protocol,
-				FromAddress: r.FromAddress,
-				ToAddress:   r.ToAddress,
+				FromAddress: r.GetFromAddress(),
+				ToAddress:   r.GetToAddress(),
 			})
 		} else {
-			ruleMap[r.PolicyName] = []microseg.SingleRule{
+			ruleMap[r.GetPolicyName()] = []microseg.SingleRule{
 				{
-					PolicyName:  r.PolicyName,
-					Priority:    r.Priority,
-					Direction:   r.Direction,
-					Action:      r.Action,
+					PolicyName:  r.GetPolicyName(),
+					Priority:    int(r.GetPriority()),
+					Direction:   r.GetDirection(),
+					Action:      r.GetAction(),
 					Protocol:    protocol,
-					FromAddress: r.FromAddress,
-					ToAddress:   r.ToAddress,
+					FromAddress: r.GetFromAddress(),
+					ToAddress:   r.GetToAddress(),
 				},
 			}
 		}
