@@ -8,16 +8,24 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
+	"k8s.io/apimachinery/pkg/util/intstr"
 
 	heavyagent "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/heavy-agent"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/heavy-agent/pb"
+	crdv1alpha1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/microsegmentation.security.io/v1alpha1"
 )
 
 type fakeControlServer struct {
 	pb.UnimplementedNetPolicyControlServer
+	lastAddReq    *pb.AddPolicyRuleRequest
 	lastDeleteReq *pb.DeletePolicyRuleRequest
 	lastPodUpReq  *pb.PodUpRequest
 	status        int32
+}
+
+func (f *fakeControlServer) AddPolicyRule(_ context.Context, req *pb.AddPolicyRuleRequest) (*pb.StatusResponse, error) {
+	f.lastAddReq = req
+	return &pb.StatusResponse{Status: f.status}, nil
 }
 
 func (f *fakeControlServer) DeletePolicyRule(_ context.Context, req *pb.DeletePolicyRuleRequest) (*pb.StatusResponse, error) {
@@ -49,6 +57,48 @@ func newTestPolicyClient(t *testing.T, srv *fakeControlServer) PolicyClient {
 	return NewPolicyClient(&heavyagent.ControlClient{
 		NetPolicyControlClient: pb.NewNetPolicyControlClient(conn),
 	})
+}
+
+func Test_policyClient_AddPolicy(t *testing.T) {
+	srv := &fakeControlServer{}
+	cli := newTestPolicyClient(t, srv)
+
+	port := intstr.FromInt(8080)
+	rule := &PolicyRule{
+		PolicyName: "test-policy",
+		Rules: []NodeRule{{
+			Action:      "Allow",
+			Direction:   "ingress",
+			Protocol:    "TCP",
+			FromAddress: []Address{{IP: "10.0.0.1"}},
+			ToAddresses: []Address{{IP: "10.0.0.2"}},
+			Ports:       []crdv1alpha1.NetworkPolicyPort{{Port: &port}},
+		}},
+	}
+
+	if err := cli.AddPolicy(rule); err != nil {
+		t.Fatalf("AddPolicy: %v", err)
+	}
+
+	if srv.lastAddReq.GetPolicyName() != "test-policy" {
+		t.Errorf("server received policy_name = %q, want %q", srv.lastAddReq.GetPolicyName(), "test-policy")
+	}
+	if len(srv.lastAddReq.GetRules()) != 1 {
+		t.Fatalf("server received %d rules, want 1", len(srv.lastAddReq.GetRules()))
+	}
+	spec := srv.lastAddReq.GetRules()[0]
+	if spec.GetAction() != pb.PolicyAction_POLICY_ACTION_ALLOW {
+		t.Errorf("action = %v, want ALLOW", spec.GetAction())
+	}
+	if spec.GetDirection() != pb.FlowDirection_FLOW_DIRECTION_INGRESS {
+		t.Errorf("direction = %v, want INGRESS", spec.GetDirection())
+	}
+	if len(spec.GetFromAddresses()) != 1 || spec.GetFromAddresses()[0].GetIp() != "10.0.0.1" {
+		t.Errorf("from_addresses = %+v, want one address with ip=10.0.0.1", spec.GetFromAddresses())
+	}
+	if len(spec.GetToAddresses()) != 1 || spec.GetToAddresses()[0].GetIp() != "10.0.0.2" {
+		t.Errorf("to_addresses = %+v, want one address with ip=10.0.0.2", spec.GetToAddresses())
+	}
 }
 
 func Test_policyClient_DeletePolicy(t *testing.T) {

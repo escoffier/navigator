@@ -440,17 +440,21 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 		// net-policy dropped WAF support entirely (no gRPC equivalent exists), so this
 		// dials the now-dead port 9999. heavyagent.NewClient blocks retrying forever
 		// until something accepts the connection, so this must run in its own
-		// goroutine rather than on Run's main startup path.
-		go func() {
-			agentClient, err := heavyagent.NewClient("127.0.0.1:9999")
-			if err != nil {
-				logging.Get().Err(err).Msg("dial legacy waf agent client")
-				return
-			}
-			wafClient := waf.NewWafClient(agentClient)
-			wafController := waf.NewWafController(clientset.TensorClientset, factory, tensorFactory, podWatcher, wafClient)
-			wafController.Run(stopCh)
-		}()
+		// goroutine rather than on Run's main startup path. Since nothing will ever
+		// listen on that port again, gate it behind WAF=true so it doesn't log-spam
+		// an ERROR every 3 seconds, forever, on every node by default.
+		if os.Getenv("WAF") == "true" {
+			go func() {
+				agentClient, err := heavyagent.NewClient("127.0.0.1:9999")
+				if err != nil {
+					logging.Get().Err(err).Msg("dial legacy waf agent client")
+					return
+				}
+				wafClient := waf.NewWafClient(agentClient)
+				wafController := waf.NewWafController(clientset.TensorClientset, factory, tensorFactory, podWatcher, wafClient)
+				wafController.Run(stopCh)
+			}()
+		}
 
 		tensorFactory.Start(stopChan)
 		tensorFactory.WaitForCacheSync(stopChan)

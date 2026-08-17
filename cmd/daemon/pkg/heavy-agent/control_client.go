@@ -49,6 +49,17 @@ func (c *ControlClient) AddReConnectionCallback(cb ReConnectCB) {
 
 // shouldFireResync reports whether a connectivity transition from old to
 // new should trigger the registered resync callbacks.
+//
+// This depends on two behaviors of the pinned google.golang.org/grpc version
+// (v1.56.3, per go.mod): (1) the pickfirst load-balancing policy's "sticky
+// TRANSIENT_FAILURE" behavior, so a real disconnect/reconnect is observed as
+// TRANSIENT_FAILURE -> READY rather than TRANSIENT_FAILURE -> CONNECTING ->
+// READY, which this check would miss; and (2) the channel's idle timeout
+// being disabled by default in this version, so a healthy-but-quiet
+// connection doesn't drift to IDLE and back (which also wouldn't produce the
+// TRANSIENT_FAILURE -> READY transition this depends on). A future
+// google.golang.org/grpc upgrade should re-verify both before assuming
+// resync still works.
 func shouldFireResync(old, new connectivity.State) bool {
 	return old == connectivity.TransientFailure && new == connectivity.Ready
 }
