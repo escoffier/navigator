@@ -16,6 +16,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/learn"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/memshell"
 	heavyagent "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/heavy-agent"
+	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/heavy-agent/pb"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo/handler"
 	svcdiscovery "gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/nodeinfo/svc-discovery"
 	"gitlab.com/piccolo_su/vegeta/cmd/daemon/pkg/waf"
@@ -50,7 +51,7 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	"gitlab.com/piccolo_su/vegeta/pkg/mozart"
 	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
-	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
+	streampb "gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 	"gitlab.com/piccolo_su/vegeta/pkg/util"
 )
 
@@ -354,8 +355,8 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 
 	nodeKey := fmt.Sprintf("%s-daemon", os.Getenv("MY_NODE_NAME"))
 	rpcStream := rpcstream.NewStreamFactory(rpcstream.WithClusterKey(nodeKey)).Client(clusterGrpcAddr)
-	_ = rpcStream.AddHandler(&pb.ComplianceScanReq{}, &scapper.ScanHandler{Writer: mqWriter})
-	_ = rpcStream.AddHandler(&pb.NodeLoadReq{}, &handler.NodeLoadHandler{})
+	_ = rpcStream.AddHandler(&streampb.ComplianceScanReq{}, &scapper.ScanHandler{Writer: mqWriter})
+	_ = rpcStream.AddHandler(&streampb.NodeLoadReq{}, &handler.NodeLoadHandler{})
 	rpcStream.Start()
 
 	kubeConfig, err := k8s.KubeConfig()
@@ -411,23 +412,17 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 
 	// microseg and waf
 	if os.Getenv("MICROSEG_ENABLED") == "true" {
-
-		var agentClient, agentEventClient *heavyagent.Client
-
-		agentClient, err = heavyagent.NewClient("127.0.0.1:9999")
+		ctrlClient, err := heavyagent.NewControlClient("127.0.0.1:50051")
 		if err != nil {
 			return err
 		}
 
-		agentEventClient, err = heavyagent.NewClient("127.0.0.1:8888")
+		eventsClient, err := heavyagent.NewEventsClient("127.0.0.1:50052")
 		if err != nil {
 			return err
 		}
 
-		policyClient := microseg.NewPolicyClient(agentClient)
-		if agentClient == nil {
-			logging.Get().Error().Msg("agentClient is nil")
-		}
+		policyClient := microseg.NewPolicyClient(ctrlClient)
 
 		stopChan := make(chan struct{})
 
@@ -438,36 +433,39 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 			externalversions.WithTweakListOptions(func(lo *v1.ListOptions) {
 				lo.LabelSelector = fmt.Sprintf("kubernetes.io/node-name=%s", hostName)
 			}))
-		ruleController := microseg.NewRuleGroupController(clientset.TensorClientset, tensorFactory, policyClient, hostName, mqWriter, agentClient)
+		ruleController := microseg.NewRuleGroupController(clientset.TensorClientset, tensorFactory, policyClient, hostName, mqWriter, ctrlClient)
 
 		go ruleController.Run(stopChan)
 
-		var wafEnabled = true
-		wafEnv := os.Getenv("WAF")
-		if wafEnv == "true" {
-			wafEnabled = true
-		}
-		if wafEnabled {
+		// net-policy dropped WAF support entirely (no gRPC equivalent exists), so this
+		// dials the now-dead port 9999. heavyagent.NewClient blocks retrying forever
+		// until something accepts the connection, so this must run in its own
+		// goroutine rather than on Run's main startup path.
+		go func() {
+			agentClient, err := heavyagent.NewClient("127.0.0.1:9999")
+			if err != nil {
+				logging.Get().Err(err).Msg("dial legacy waf agent client")
+				return
+			}
 			wafClient := waf.NewWafClient(agentClient)
 			wafController := waf.NewWafController(clientset.TensorClientset, factory, tensorFactory, podWatcher, wafClient)
-			go wafController.Run(stopCh)
-		}
+			wafController.Run(stopCh)
+		}()
 
 		tensorFactory.Start(stopChan)
 		tensorFactory.WaitForCacheSync(stopChan)
 
 		clusterManagerSvc := os.Getenv("CLUSTER_MANAGER_URL")
-		eventProcessor := heavyagent.NewEventProcessor(clusterManagerSvc, agentEventClient)
-
 		microsegHandler := microseg.NewHandler(clusterManagerSvc)
-		eventProcessor.AddHandler("microseg", microsegHandler)
 
-		wafhander := waf.NewHandler(clusterManagerSvc)
-		eventProcessor.AddHandler("waf", wafhander)
+		go eventsClient.Run(ctx, func(evt *pb.PolicyMatchEvent) {
+			if err := microsegHandler.Handle(ctx, microseg.EventPayloadFromPolicyMatch(evt)); err != nil {
+				logging.Get().Err(err).Msg("post microseg event err")
+			}
+		})
 
-		go eventProcessor.Run1()
 		go func() {
-			srv := status.NewServer(12000, agentClient)
+			srv := status.NewServer(12000, ctrlClient)
 			srv.Run()
 		}()
 	}

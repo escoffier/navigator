@@ -15,10 +15,17 @@ import (
 )
 
 const (
-	moduleKey     = "module"
-	moduleName    = "heavy-agent"
-	messagePrefix = "#%% pre"
+	moduleKey      = "module"
+	moduleName     = "heavy-agent"
+	messagePrefix  = "#%% pre"
+	eventPrefix    = "#%% pre"
+	eventHeaderLen = 11
 )
+
+type EventHeader struct {
+	Prefix []byte
+	Length uint32
+}
 
 type ReConnectCB func() error
 
