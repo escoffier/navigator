@@ -1,0 +1,103 @@
+syntax = "proto3";
+package netpolicy.v1;
+
+option go_package = "./;pb";
+
+import "net_policy_common.proto";
+
+service NetPolicyControl {
+  rpc PodUp(PodUpRequest)                       returns (StatusResponse);
+  rpc PodDown(PodDownRequest)                   returns (StatusResponse);
+  rpc AddPolicyRule(AddPolicyRuleRequest)       returns (StatusResponse);
+  rpc DeletePolicyRule(DeletePolicyRuleRequest) returns (StatusResponse);
+  rpc DumpHeapProfile(DumpHeapProfileRequest)   returns (StatusResponse);
+  rpc DumpConfig(DumpConfigRequest)             returns (DumpConfigResponse);
+  rpc DumpConnections(DumpConnectionsRequest)   returns (DumpConnectionsResponse);
+  rpc ResetConfig(ResetConfigRequest)           returns (StatusResponse);
+  rpc UpdateNodeConfig(UpdateNodeConfigRequest) returns (StatusResponse);
+  rpc SetLogLevel(SetLogLevelRequest)           returns (StatusResponse);
+}
+
+message StatusResponse {
+  int32  status = 1;
+  string uuid   = 2;
+}
+
+message PodUpRequest {
+  int32  pid    = 1;
+  uint64 pod_id = 2;
+}
+message PodDownRequest {
+  uint64 pod_id = 1;
+}
+
+message PolicyRuleSpec {
+  PolicyAction  action      = 1;
+  FlowDirection direction   = 2;
+  L4Protocol    protocol    = 3;
+  repeated HttpMatchRule   http_rules     = 4;
+  repeated AddressEndpoint from_addresses = 5;
+  repeated AddressEndpoint to_addresses   = 6;
+  repeated PortRange       ports          = 7;
+  int32 priority = 8;
+}
+message AddPolicyRuleRequest {
+  string policy_name = 1;
+  repeated PolicyRuleSpec rules = 2;
+}
+message DeletePolicyRuleRequest {
+  string policy_name = 1;
+}
+
+message DumpHeapProfileRequest {
+  bool enable = 1;
+}
+
+message DumpConfigRequest {
+  string policy_name = 1;
+}
+
+message PolicyRuleConfigEntry {
+  string policy_name  = 1;
+  int32  priority      = 2;
+  string direction     = 3;
+  string action        = 4;
+  string protocol      = 5;
+  int32  protocol_int  = 6;
+  string from_address  = 7;
+  string to_address    = 8;
+}
+message ContainerInfo {
+  int32  pid    = 1;
+  uint64 pod_id = 2;
+}
+message DumpConfigResponse {
+  repeated PolicyRuleConfigEntry inbound_rules  = 1;
+  repeated PolicyRuleConfigEntry outbound_rules = 2;
+  repeated ContainerInfo containers = 3;
+  int64 tcp_connections = 4;
+}
+
+message DumpConnectionsRequest {
+  int32 limit = 1;
+}
+message DumpConnectionsResponse {
+  int64 total = 1;
+  repeated string items = 2;
+}
+
+message ResetConfigRequest {}
+
+message UpdateNodeConfigRequest {
+  enum Action {
+    ACTION_UNSPECIFIED = 0;
+    ACTION_ADD          = 1;
+    ACTION_DELETE       = 2;
+  }
+  Action action = 1;
+  repeated string node_ips = 2;
+}
+
+message SetLogLevelRequest {
+  int32 level = 1;
+}

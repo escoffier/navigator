@@ -1,0 +1,31 @@
+syntax = "proto3";
+package netpolicy.v1;
+
+option go_package = "./;pb";
+
+import "net_policy_common.proto";
+
+service NetPolicyEvents {
+  rpc SubscribeEvents(SubscribeEventsRequest) returns (stream PolicyEvent);
+}
+
+message SubscribeEventsRequest {
+  string client_id = 1;
+}
+
+message PolicyEvent {
+  oneof event {
+    PolicyMatchEvent policy_match = 1;
+  }
+}
+
+message PolicyMatchEvent {
+  L4Protocol    protocol    = 1;
+  PolicyAction  action      = 2;
+  FlowDirection direction   = 3;
+  uint32 src_port    = 4;
+  uint32 dst_port    = 5;
+  string src_ip      = 6;
+  string dst_ip      = 7;
+  string policy_name = 8;
+}
