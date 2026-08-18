@@ -1157,8 +1157,40 @@ func (npc *NetworkPolicyController) Run(stopChan chan struct{}) {
 		npc.podSynced, npc.namepaceSynced, npc.clusterPolicySynced, npc.clusterGroupSynced, npc.ruleGroupSynced) {
 		return
 	}
+	// Only the gRPC push path (onConnectStream set) needs the warm gate: the
+	// CRD path's "current state" already comes durably from k8s, so it has
+	// no equivalent gap to close (issue #2). This runs synchronously, before
+	// the async worker below starts, so nothing else touches
+	// ruleGroupMap/firstSynced concurrently during the pass.
+	if npc.onConnectStream != nil {
+		npc.reconcileAllPolicies()
+		npc.markWarmAndSync()
+	}
 	go wait.Until(npc.worker, time.Second, stopChan)
 	// go wait.Until(npc.nodeWorker, time.Second, stopChan)
+}
+
+// reconcileAllPolicies synchronously runs syncPolicy for every
+// ClusterNetworkPolicy currently known to the lister. This is the "one full
+// reconcile pass" issue #2's warm gate requires: it guarantees
+// pushedRuleGroupCache reflects true desired state for every policy before
+// markWarmAndSync starts serving bootstrap snapshots from it.
+func (npc *NetworkPolicyController) reconcileAllPolicies() {
+	policies, err := npc.policyLister.List(labels.Everything())
+	if err != nil {
+		logging.Get().Err(err).Msg("list cluster network policies for initial reconcile")
+		return
+	}
+	for _, p := range policies {
+		key, err := KeyFunc(p)
+		if err != nil {
+			logging.Get().Err(err).Str("policy", p.Name).Msg("build key for initial reconcile")
+			continue
+		}
+		if err := npc.syncPolicy(key); err != nil {
+			logging.Get().Err(err).Str("policy", p.Name).Msg("initial reconcile of policy")
+		}
+	}
 }
 
 func (npc *NetworkPolicyController) worker() {

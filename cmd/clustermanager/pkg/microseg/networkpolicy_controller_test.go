@@ -2782,3 +2782,50 @@ func Test_MarkWarmAndSync_NilOnConnectStreamIsNoop(t *testing.T) {
 		t.Fatal("controller marked warm despite no onConnectStream")
 	}
 }
+
+func Test_reconcileAllPolicies_SyncsEveryPolicy(t *testing.T) {
+	crdClient := crdfake.NewSimpleClientset()
+	crdFactory := externalversions.NewSharedInformerFactory(crdClient, time.Hour)
+	policyStore := crdFactory.Microsegmentation().V1alpha1().ClusterNetworkPolicies().Informer().GetIndexer()
+
+	policyStore.Add(&crdv1alpha1.ClusterNetworkPolicy{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-a"},
+		Spec:       crdv1alpha1.ClusterNetworkPolicySpec{Enable: false},
+	})
+	policyStore.Add(&crdv1alpha1.ClusterNetworkPolicy{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-b"},
+		Spec:       crdv1alpha1.ClusterNetworkPolicySpec{Enable: false},
+	})
+
+	cache := newPushedRuleGroupCache()
+	cache.Set(&crdv1alpha1.NetworkPolicyRuleGroup{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-a-node1", Labels: map[string]string{"kubernetes.io/networkpolicy-name": "policy-a"}},
+		Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{NodeName: "node1"},
+	})
+	cache.Set(&crdv1alpha1.NetworkPolicyRuleGroup{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-b-node2", Labels: map[string]string{"kubernetes.io/networkpolicy-name": "policy-b"}},
+		Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{NodeName: "node2"},
+	})
+	stream := &fakeRuleGroupStream{}
+
+	npc := &NetworkPolicyController{
+		policyLister:    crdFactory.Microsegmentation().V1alpha1().ClusterNetworkPolicies().Lister(),
+		ruleGroupMap:    make(map[string]sets.String),
+		firstSynced:     make(map[string]bool),
+		ruleGroupPusher: &grpcRuleGroupPusher{cache: cache, stream: stream},
+	}
+
+	npc.reconcileAllPolicies()
+
+	if all, _ := cache.List(nil); len(all) != 0 {
+		t.Fatalf("pushedCache not drained by reconcile: %+v", all)
+	}
+	if len(stream.pushed) != 2 {
+		t.Fatalf("pushed %d messages, want 2 DELETEs", len(stream.pushed))
+	}
+	for _, p := range stream.pushed {
+		if p.msgType != pb.MessageType_DELETE {
+			t.Errorf("msgType = %v, want DELETE", p.msgType)
+		}
+	}
+}
