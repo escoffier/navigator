@@ -24,10 +24,38 @@ type ruleGroupLister interface {
 type pushedRuleGroupCache struct {
 	mu     sync.RWMutex
 	byName map[string]*crdv1alpha1.NetworkPolicyRuleGroup
+
+	// nodeMu guards nodeLocks itself (lazy creation only); nodeLocks holds
+	// one mutex per node name. Every code path that reads/mutates this
+	// cache for a node and then enqueues a push for that node must acquire
+	// it via LockNode across both steps, so a bootstrap snapshot and an
+	// incremental delta for the same node can never be enqueued out of
+	// order relative to each other (issue #4).
+	nodeMu    sync.Mutex
+	nodeLocks map[string]*sync.Mutex
 }
 
 func newPushedRuleGroupCache() *pushedRuleGroupCache {
-	return &pushedRuleGroupCache{byName: make(map[string]*crdv1alpha1.NetworkPolicyRuleGroup)}
+	return &pushedRuleGroupCache{
+		byName:    make(map[string]*crdv1alpha1.NetworkPolicyRuleGroup),
+		nodeLocks: make(map[string]*sync.Mutex),
+	}
+}
+
+// LockNode acquires (creating on first use) the per-node lock for nodeName
+// and returns its Unlock method as the caller's unlock closure. Callers must
+// hold it across "read/mutate the cache for this node" plus "enqueue the
+// corresponding push" as one atomic unit — see the nodeLocks field comment.
+func (c *pushedRuleGroupCache) LockNode(nodeName string) func() {
+	c.nodeMu.Lock()
+	l, ok := c.nodeLocks[nodeName]
+	if !ok {
+		l = &sync.Mutex{}
+		c.nodeLocks[nodeName] = l
+	}
+	c.nodeMu.Unlock()
+	l.Lock()
+	return l.Unlock
 }
 
 func (c *pushedRuleGroupCache) Set(rg *crdv1alpha1.NetworkPolicyRuleGroup) {

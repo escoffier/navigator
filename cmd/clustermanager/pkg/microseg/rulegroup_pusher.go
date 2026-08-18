@@ -70,18 +70,26 @@ type grpcRuleGroupPusher struct {
 }
 
 func (p *grpcRuleGroupPusher) Create(ctx context.Context, rg *crdv1alpha1.NetworkPolicyRuleGroup) error {
+	unlock := p.cache.LockNode(rg.Spec.NodeName)
+	defer unlock()
 	p.cache.Set(rg)
 	req := &pb.NetworkPolicyRuleGroupReq{RuleGroup: ruleGroupToPayload(rg)}
 	return p.stream.PushRuleGroup(ctx, rg.Spec.NodeName+daemonNodeKeySuffix, pb.MessageType_CREATE, req)
 }
 
 func (p *grpcRuleGroupPusher) Update(ctx context.Context, _, desired *crdv1alpha1.NetworkPolicyRuleGroup) error {
+	unlock := p.cache.LockNode(desired.Spec.NodeName)
+	defer unlock()
 	p.cache.Set(desired)
 	req := &pb.NetworkPolicyRuleGroupReq{RuleGroup: ruleGroupToPayload(desired)}
 	return p.stream.PushRuleGroup(ctx, desired.Spec.NodeName+daemonNodeKeySuffix, pb.MessageType_UPDATE, req)
 }
 
 func (p *grpcRuleGroupPusher) Delete(ctx context.Context, name string) error {
+	// Safe to read rg.Spec.NodeName before acquiring the node's lock: a rule
+	// group's name always embeds its node (e.g. "<policy>-<node>", see
+	// generateRules), so the node this Get returns can never change under
+	// us before we lock it.
 	rg, err := p.cache.Get(name)
 	if err != nil {
 		if errors.IsNotFound(err) {
@@ -89,6 +97,8 @@ func (p *grpcRuleGroupPusher) Delete(ctx context.Context, name string) error {
 		}
 		return err
 	}
+	unlock := p.cache.LockNode(rg.Spec.NodeName)
+	defer unlock()
 	req := &pb.NetworkPolicyRuleGroupReq{RuleGroup: &pb.NetworkPolicyRuleGroupPayload{Name: name}}
 	if err := p.stream.PushRuleGroup(ctx, rg.Spec.NodeName+daemonNodeKeySuffix, pb.MessageType_DELETE, req); err != nil {
 		return err

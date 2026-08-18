@@ -5,6 +5,7 @@ import (
 	"flag"
 	"path/filepath"
 	"reflect"
+	"sync"
 	"testing"
 	"time"
 
@@ -2663,6 +2664,218 @@ func (f *fakeOnConnectStream) PushRuleGroupSync(_ context.Context, nodeKey strin
 		req     *pb.NetworkPolicyRuleGroupSyncReq
 	}{nodeKey, req})
 	return nil
+}
+
+// fakeRaceStream implements both ruleGroupStreamPusher (PushRuleGroup, used
+// by grpcRuleGroupPusher) and ruleGroupOnConnectStream (OnConnect/
+// PushRuleGroupSync/ConnectedNodeKeys, used by pushSnapshotToNode), so a
+// single instance can stand in for both sides of the issue #4 race in one
+// test.
+type fakeRaceStream struct {
+	onConnect    func(string)
+	onPushDelete func() // called synchronously inside PushRuleGroup, before it returns
+}
+
+func (f *fakeRaceStream) PushRuleGroup(_ context.Context, _ string, _ pb.MessageType, _ *pb.NetworkPolicyRuleGroupReq) error {
+	if f.onPushDelete != nil {
+		f.onPushDelete()
+	}
+	return nil
+}
+
+func (f *fakeRaceStream) OnConnect(fn func(string))   { f.onConnect = fn }
+func (f *fakeRaceStream) ConnectedNodeKeys() []string { return nil }
+func (f *fakeRaceStream) PushRuleGroupSync(_ context.Context, _ string, _ *pb.NetworkPolicyRuleGroupSyncReq) error {
+	return nil
+}
+
+func Test_pushSnapshotToNode_SerializesAgainstConcurrentDelete(t *testing.T) {
+	cache := newPushedRuleGroupCache()
+	cache.Set(&crdv1alpha1.NetworkPolicyRuleGroup{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-node1"},
+		Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{NodeName: "node1"},
+	})
+
+	entered := make(chan struct{})
+	proceed := make(chan struct{})
+	var enteredOnce sync.Once
+	stream := &fakeRaceStream{
+		onPushDelete: func() {
+			enteredOnce.Do(func() { close(entered) })
+			<-proceed
+		},
+	}
+	pusher := &grpcRuleGroupPusher{cache: cache, stream: stream}
+	npc := &NetworkPolicyController{pushedCache: cache}
+
+	deleteDone := make(chan error, 1)
+	go func() {
+		deleteDone <- pusher.Delete(context.Background(), "policy-node1")
+	}()
+
+	select {
+	case <-entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Delete's PushRuleGroup call never entered")
+	}
+	// Delete is now holding node1's lock, blocked inside PushRuleGroup.
+
+	snapshotDone := make(chan struct{})
+	go func() {
+		npc.pushSnapshotToNode(stream, "node1-daemon")
+		close(snapshotDone)
+	}()
+
+	select {
+	case <-snapshotDone:
+		t.Fatal("pushSnapshotToNode proceeded while Delete still held node1's lock")
+	case <-time.After(150 * time.Millisecond):
+	}
+
+	close(proceed)
+
+	select {
+	case err := <-deleteDone:
+		if err != nil {
+			t.Fatalf("Delete: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Delete never completed after proceed was closed")
+	}
+
+	select {
+	case <-snapshotDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("pushSnapshotToNode never completed after Delete released node1's lock")
+	}
+}
+
+func Test_pushSnapshotToNode_SerializesAgainstConcurrentCreate(t *testing.T) {
+	cache := newPushedRuleGroupCache()
+
+	entered := make(chan struct{})
+	proceed := make(chan struct{})
+	var enteredOnce sync.Once
+	stream := &fakeRaceStream{
+		onPushDelete: func() {
+			enteredOnce.Do(func() { close(entered) })
+			<-proceed
+		},
+	}
+	pusher := &grpcRuleGroupPusher{cache: cache, stream: stream}
+	npc := &NetworkPolicyController{pushedCache: cache}
+
+	rg := &crdv1alpha1.NetworkPolicyRuleGroup{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-node1"},
+		Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{NodeName: "node1"},
+	}
+
+	createDone := make(chan error, 1)
+	go func() {
+		createDone <- pusher.Create(context.Background(), rg)
+	}()
+
+	select {
+	case <-entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Create's PushRuleGroup call never entered")
+	}
+	// Create is now holding node1's lock, blocked inside PushRuleGroup.
+
+	snapshotDone := make(chan struct{})
+	go func() {
+		npc.pushSnapshotToNode(stream, "node1-daemon")
+		close(snapshotDone)
+	}()
+
+	select {
+	case <-snapshotDone:
+		t.Fatal("pushSnapshotToNode proceeded while Create still held node1's lock")
+	case <-time.After(150 * time.Millisecond):
+	}
+
+	close(proceed)
+
+	select {
+	case err := <-createDone:
+		if err != nil {
+			t.Fatalf("Create: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Create never completed after proceed was closed")
+	}
+
+	select {
+	case <-snapshotDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("pushSnapshotToNode never completed after Create released node1's lock")
+	}
+}
+
+func Test_pushSnapshotToNode_SerializesAgainstConcurrentUpdate(t *testing.T) {
+	cache := newPushedRuleGroupCache()
+	cache.Set(&crdv1alpha1.NetworkPolicyRuleGroup{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-node1"},
+		Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{NodeName: "node1"},
+	})
+
+	entered := make(chan struct{})
+	proceed := make(chan struct{})
+	var enteredOnce sync.Once
+	stream := &fakeRaceStream{
+		onPushDelete: func() {
+			enteredOnce.Do(func() { close(entered) })
+			<-proceed
+		},
+	}
+	pusher := &grpcRuleGroupPusher{cache: cache, stream: stream}
+	npc := &NetworkPolicyController{pushedCache: cache}
+
+	desired := &crdv1alpha1.NetworkPolicyRuleGroup{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-node1"},
+		Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{NodeName: "node1"},
+	}
+
+	updateDone := make(chan error, 1)
+	go func() {
+		updateDone <- pusher.Update(context.Background(), nil, desired)
+	}()
+
+	select {
+	case <-entered:
+	case <-time.After(2 * time.Second):
+		t.Fatal("Update's PushRuleGroup call never entered")
+	}
+	// Update is now holding node1's lock, blocked inside PushRuleGroup.
+
+	snapshotDone := make(chan struct{})
+	go func() {
+		npc.pushSnapshotToNode(stream, "node1-daemon")
+		close(snapshotDone)
+	}()
+
+	select {
+	case <-snapshotDone:
+		t.Fatal("pushSnapshotToNode proceeded while Update still held node1's lock")
+	case <-time.After(150 * time.Millisecond):
+	}
+
+	close(proceed)
+
+	select {
+	case err := <-updateDone:
+		if err != nil {
+			t.Fatalf("Update: %v", err)
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("Update never completed after proceed was closed")
+	}
+
+	select {
+	case <-snapshotDone:
+	case <-time.After(2 * time.Second):
+		t.Fatal("pushSnapshotToNode never completed after Update released node1's lock")
+	}
 }
 
 func Test_RegisterOnConnect_EmptyNodeStillGetsSnapshot(t *testing.T) {
