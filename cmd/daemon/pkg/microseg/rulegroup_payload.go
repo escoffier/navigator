@@ -4,8 +4,9 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/intstr"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 	crdv1alpha1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/microsegmentation.security.io/v1alpha1"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 )
 
 // payloadToRuleGroup adapts a gRPC-pushed rule group payload back into the
