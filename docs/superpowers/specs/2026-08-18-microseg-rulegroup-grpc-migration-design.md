@@ -191,3 +191,28 @@ message NetworkPolicyRuleGroupResp {
   snapshot handler.
 - No e2e harness exists for this path; rely on unit tests plus manual verification (`doc/UseTest.md`
   convention) before flipping the flag on a real cluster.
+
+### Known limitations (surfaced by the final whole-branch review, not fixed in this pass)
+
+Two gaps were found that are architectural rather than implementation bugs — both are documented
+here as explicit blockers for production rollout, to be addressed in a follow-up design pass
+rather than folded into this migration's fix wave:
+
+- **Non-durable pushed-state cache loses DELETEs across a clustermanager restart.** Today's CRD
+  write makes k8s the durable "current state" `syncPolicyRules` diffs against; `pushedRuleGroupCache`
+  is in-memory only. If a node drops out of a policy's scope while clustermanager is down, the
+  first reconcile after restart sees an empty "current" set and has nothing to diff the removal
+  against, so no DELETE is ever sent — that node's daemon keeps enforcing the stale rule group
+  indefinitely. A correct fix needs a "warm" gate: only start answering `OnConnect` bootstrap
+  requests (including legitimately-empty ones) after clustermanager has completed one full
+  reconcile pass over every `ClusterNetworkPolicy`, and push corrected snapshots to
+  already-connected daemons at that warm transition — sending real snapshots before warm risks
+  transiently wiping correct daemon state with an incomplete view.
+- **`pkg/streaming`'s per-message dispatch (`go func(){ handler.OnX(...) }()` in `stream.go`) does
+  not preserve message ordering**, and this migration is the first user of that framework to put
+  ordered state replication (CREATE/UPDATE/DELETE for the same rule group) on it — every prior use
+  (compliance scans, node load queries) was idempotent one-shot RPCs where order didn't matter. Two
+  `UPDATE`s for the same rule group in quick succession can be applied out of order, and there is no
+  self-healing: `checkSync` only warns on divergence, it never re-syncs. Needs either synchronous
+  per-rule-group-name dispatch, a serializing worker keyed by rule-group name, or a monotonic
+  generation/resourceVersion carried in the payload so stale messages can be dropped on receipt.
