@@ -433,7 +433,15 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 			externalversions.WithTweakListOptions(func(lo *v1.ListOptions) {
 				lo.LabelSelector = fmt.Sprintf("kubernetes.io/node-name=%s", hostName)
 			}))
-		ruleController := microseg.NewRuleGroupController(clientset.TensorClientset, tensorFactory, policyClient, hostName, mqWriter, ctrlClient)
+
+		var ruleController *microseg.RuleGroupController
+		if os.Getenv("MICROSEG_GRPC_ENABLED") == "true" {
+			ruleController = microseg.NewStreamRuleGroupController(policyClient, hostName, mqWriter, ctrlClient)
+			_ = rpcStream.AddHandler(&streampb.NetworkPolicyRuleGroupReq{}, &microseg.RuleGroupStreamHandler{Controller: ruleController})
+			_ = rpcStream.AddHandler(&streampb.NetworkPolicyRuleGroupSyncReq{}, &microseg.RuleGroupSyncStreamHandler{Controller: ruleController})
+		} else {
+			ruleController = microseg.NewRuleGroupController(clientset.TensorClientset, tensorFactory, policyClient, hostName, mqWriter, ctrlClient)
+		}
 
 		go ruleController.Run(stopChan)
 
