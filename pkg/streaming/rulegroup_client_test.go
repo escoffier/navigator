@@ -10,16 +10,24 @@ import (
 )
 
 type fakeStream struct {
-	sent []*pb.ClusterMessage
+	sent        []*pb.ClusterMessage
+	handlerAdds []string
+	orderedAdds []string
 }
 
-func (f *fakeStream) Dispatch() error                                { return nil }
-func (f *fakeStream) AddHandler(string, MessageHandler) error        { return nil }
-func (f *fakeStream) AddOrderedHandler(string, MessageHandler) error { return nil }
-func (f *fakeStream) AddHandlerFunc(string, ProcessFunc) error       { return nil }
-func (f *fakeStream) AddSession(id string, ack bool)                 {}
-func (f *fakeStream) DelSession(id string)                           {}
-func (f *fakeStream) DelAllSession()                                 {}
+func (f *fakeStream) Dispatch() error { return nil }
+func (f *fakeStream) AddHandler(name string, _ MessageHandler) error {
+	f.handlerAdds = append(f.handlerAdds, name)
+	return nil
+}
+func (f *fakeStream) AddOrderedHandler(name string, _ MessageHandler) error {
+	f.orderedAdds = append(f.orderedAdds, name)
+	return nil
+}
+func (f *fakeStream) AddHandlerFunc(string, ProcessFunc) error { return nil }
+func (f *fakeStream) AddSession(id string, ack bool)           {}
+func (f *fakeStream) DelSession(id string)                     {}
+func (f *fakeStream) DelAllSession()                           {}
 func (f *fakeStream) Send(m *pb.ClusterMessage) error {
 	f.sent = append(f.sent, m)
 	return nil
