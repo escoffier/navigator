@@ -1068,6 +1068,10 @@ const daemonNodeKeySuffix = "-daemon"
 type ruleGroupOnConnectStream interface {
 	OnConnect(f func(nodeKey string))
 	PushRuleGroupSync(ctx context.Context, nodeKey string, req *pb.NetworkPolicyRuleGroupSyncReq) error
+	// ConnectedNodeKeys returns node keys connected right now, used by
+	// markWarmAndSync to catch up daemons that connected before the
+	// controller became warm.
+	ConnectedNodeKeys() []string
 }
 
 // RegisterOnConnect wires this controller's pushed-rule-group cache to the
@@ -1121,6 +1125,30 @@ func (npc *NetworkPolicyController) pushSnapshotToNode(stream ruleGroupOnConnect
 		return
 	}
 	logging.Get().Info().Str("nodeKey", nodeKey).Int("ruleGroups", len(groups)).Msg("pushed rule group snapshot")
+}
+
+// markWarmAndSync flips the controller to "warm" — meaning it has completed
+// one full reconcile pass over every ClusterNetworkPolicy and pushedCache
+// now reflects true desired state (see issue #2) — then pushes a corrected
+// snapshot to every daemon connection that exists at that instant. Those
+// daemons either got no snapshot yet (RegisterOnConnect defers while not
+// warm) or connected and were skipped for the same reason; either way this
+// is the single source-of-truth correction. Called once, from Run.
+func (npc *NetworkPolicyController) markWarmAndSync() {
+	if npc.onConnectStream == nil {
+		return
+	}
+	npc.warmMu.Lock()
+	npc.warm = true
+	nodeKeys := npc.onConnectStream.ConnectedNodeKeys()
+	npc.warmMu.Unlock()
+
+	for _, nodeKey := range nodeKeys {
+		if !strings.HasSuffix(nodeKey, daemonNodeKeySuffix) {
+			continue
+		}
+		npc.pushSnapshotToNode(npc.onConnectStream, nodeKey)
+	}
 }
 
 func (npc *NetworkPolicyController) Run(stopChan chan struct{}) {

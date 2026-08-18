@@ -2645,14 +2645,17 @@ func Test_syncPolicyRules_UsesInjectedPusher(t *testing.T) {
 }
 
 type fakeOnConnectStream struct {
-	onConnect func(string)
-	pushed    []struct {
+	onConnect     func(string)
+	connectedKeys []string
+	pushed        []struct {
 		nodeKey string
 		req     *pb.NetworkPolicyRuleGroupSyncReq
 	}
 }
 
 func (f *fakeOnConnectStream) OnConnect(fn func(string)) { f.onConnect = fn }
+
+func (f *fakeOnConnectStream) ConnectedNodeKeys() []string { return f.connectedKeys }
 
 func (f *fakeOnConnectStream) PushRuleGroupSync(_ context.Context, nodeKey string, req *pb.NetworkPolicyRuleGroupSyncReq) error {
 	f.pushed = append(f.pushed, struct {
@@ -2735,5 +2738,47 @@ func Test_RegisterOnConnect_DeferredWhileNotWarm(t *testing.T) {
 
 	if len(fake.pushed) != 0 {
 		t.Fatalf("pushed = %+v, want no pushes before clustermanager is warm", fake.pushed)
+	}
+}
+
+func Test_MarkWarmAndSync_PushesToAlreadyConnectedDaemons(t *testing.T) {
+	cache := newPushedRuleGroupCache()
+	cache.Set(&crdv1alpha1.NetworkPolicyRuleGroup{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-node1"},
+		Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{Policy: "policy", NodeName: "node1"},
+	})
+	npc := &NetworkPolicyController{pushedCache: cache}
+	fake := &fakeOnConnectStream{connectedKeys: []string{"node1-daemon", "node2-daemon", "node3-monitor"}}
+	npc.RegisterOnConnect(fake)
+
+	if npc.isWarm() {
+		t.Fatal("controller warm before markWarmAndSync")
+	}
+
+	npc.markWarmAndSync()
+
+	if !npc.isWarm() {
+		t.Fatal("controller not warm after markWarmAndSync")
+	}
+	if len(fake.pushed) != 2 {
+		t.Fatalf("pushed = %+v, want 2 pushes (node1-daemon, node2-daemon), node3-monitor excluded", fake.pushed)
+	}
+	pushedTo := map[string]int{}
+	for _, p := range fake.pushed {
+		pushedTo[p.nodeKey] = len(p.req.GetRuleGroups())
+	}
+	if n, ok := pushedTo["node1-daemon"]; !ok || n != 1 {
+		t.Errorf("node1-daemon pushed %d rule groups, want 1", n)
+	}
+	if n, ok := pushedTo["node2-daemon"]; !ok || n != 0 {
+		t.Errorf("node2-daemon pushed %d rule groups, want 0 (empty snapshot)", n)
+	}
+}
+
+func Test_MarkWarmAndSync_NilOnConnectStreamIsNoop(t *testing.T) {
+	npc := &NetworkPolicyController{pushedCache: newPushedRuleGroupCache()}
+	npc.markWarmAndSync()
+	if npc.isWarm() {
+		t.Fatal("controller marked warm despite no onConnectStream")
 	}
 }
