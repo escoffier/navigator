@@ -87,8 +87,11 @@ func (p *grpcRuleGroupPusher) Delete(ctx context.Context, name string) error {
 		}
 		return err
 	}
+	if err := p.stream.PushRuleGroup(ctx, rg.Spec.NodeName+"-daemon", pb.MessageType_DELETE, &pb.NetworkPolicyRuleGroupReq{RuleGroup: &pb.NetworkPolicyRuleGroupPayload{Name: name}}); err != nil {
+		return err
+	}
 	p.cache.Delete(name)
-	return p.stream.PushRuleGroup(ctx, rg.Spec.NodeName+"-daemon", pb.MessageType_DELETE, &pb.NetworkPolicyRuleGroupReq{RuleGroup: &pb.NetworkPolicyRuleGroupPayload{Name: name}})
+	return nil
 }
 
 func (p *grpcRuleGroupPusher) DeleteByPolicy(ctx context.Context, policyName string) error {

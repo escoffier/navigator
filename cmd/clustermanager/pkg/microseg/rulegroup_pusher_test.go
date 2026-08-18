@@ -2,6 +2,7 @@ package microseg
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -16,9 +17,13 @@ type fakeRuleGroupStream struct {
 		msgType pb.MessageType
 		req     *pb.NetworkPolicyRuleGroupReq
 	}
+	err error
 }
 
 func (f *fakeRuleGroupStream) PushRuleGroup(_ context.Context, nodeKey string, msgType pb.MessageType, req *pb.NetworkPolicyRuleGroupReq) error {
+	if f.err != nil {
+		return f.err
+	}
 	f.pushed = append(f.pushed, struct {
 		nodeKey string
 		msgType pb.MessageType
@@ -65,6 +70,23 @@ func Test_grpcRuleGroupPusher_Delete_TargetsCachedNode(t *testing.T) {
 	}
 	if _, err := cache.Get("policy-node1"); err == nil {
 		t.Fatal("cache still has policy-node1 after Delete")
+	}
+}
+
+func Test_grpcRuleGroupPusher_Delete_PushFailureKeepsCacheEntry(t *testing.T) {
+	cache := newPushedRuleGroupCache()
+	cache.Set(&crdv1alpha1.NetworkPolicyRuleGroup{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-node1"},
+		Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{NodeName: "node1"},
+	})
+	stream := &fakeRuleGroupStream{err: errors.New("push failed")}
+	p := &grpcRuleGroupPusher{cache: cache, stream: stream}
+
+	if err := p.Delete(context.Background(), "policy-node1"); err == nil {
+		t.Fatal("Delete: want error when push fails, got nil")
+	}
+	if _, err := cache.Get("policy-node1"); err != nil {
+		t.Fatalf("cache entry removed despite failed push: %v", err)
 	}
 }
 
