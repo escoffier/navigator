@@ -10,7 +10,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/davecgh/go-spew/spew"
@@ -52,7 +51,6 @@ type RuleGroupController struct {
 	agentCli        *heavyagent.ControlClient
 	ruleMap         map[string]sets.String
 	streamCache     *streamRuleCache
-	synced          atomic.Bool
 }
 
 func NewRuleGroupController(clientset *versioned.Clientset, crdFactory externalversions.SharedInformerFactory, cli PolicyClient, nodeName string, mqWriter mq.Writer, agentCli *heavyagent.ControlClient) *RuleGroupController {
@@ -95,7 +93,7 @@ func NewStreamRuleGroupController(cli PolicyClient, nodeName string, mqWriter mq
 		agentCli:    agentCli,
 		ruleMap:     make(map[string]sets.String),
 	}
-	controller.ruleGroupSynced = controller.synced.Load
+	controller.ruleGroupSynced = func() bool { return true }
 
 	if cli != nil {
 		cli.AddReConnectionCallback(controller.ReSyncAllPolicy)

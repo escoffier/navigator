@@ -28,6 +28,7 @@ func (h *RuleGroupStreamHandler) upsert(message protoreflect.ProtoMessage) {
 	rg := payloadToRuleGroup(req.GetRuleGroup())
 	h.Controller.streamCache.Set(rg)
 	h.Controller.queue.Add(rg.Name)
+	logging.Get().Info().Str("ruleGroup", rg.Name).Msg("received rule group update")
 }
 
 func (h *RuleGroupStreamHandler) OnCreate(_ rpcstream.Stream, _ string, message protoreflect.ProtoMessage) {
@@ -47,6 +48,7 @@ func (h *RuleGroupStreamHandler) OnDelete(_ rpcstream.Stream, _ string, message 
 	name := req.GetRuleGroup().GetName()
 	h.Controller.streamCache.Delete(name)
 	h.Controller.queue.Add(name)
+	logging.Get().Info().Str("ruleGroup", name).Msg("received rule group delete")
 }
 
 func (h *RuleGroupStreamHandler) OnRead(_ rpcstream.Stream, _ string, _ protoreflect.ProtoMessage) {
@@ -78,7 +80,7 @@ func (h *RuleGroupSyncStreamHandler) OnCreate(_ rpcstream.Stream, _ string, mess
 	for _, rg := range rgs {
 		h.Controller.queue.Add(rg.Name)
 	}
-	h.Controller.synced.Store(true)
+	logging.Get().Info().Int("ruleGroups", len(rgs)).Int("removed", len(removed)).Msg("received rule group bootstrap snapshot")
 }
 
 func (h *RuleGroupSyncStreamHandler) OnRead(_ rpcstream.Stream, _ string, _ protoreflect.ProtoMessage) {

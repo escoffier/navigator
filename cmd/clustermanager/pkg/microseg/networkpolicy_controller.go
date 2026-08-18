@@ -1045,23 +1045,34 @@ func NewNetworkPolicyController(clientset *versioned.Clientset, factory informer
 	return &controller
 }
 
+// daemonNodeKeySuffix is appended to a node name to form the rpcstream node
+// key daemons register under (e.g. "node1-daemon") — shared by
+// RegisterOnConnect and grpcRuleGroupPusher so the convention only needs to
+// change in one place.
+const daemonNodeKeySuffix = "-daemon"
+
+// ruleGroupOnConnectStream is the subset of rpcstream.MessageStream
+// RegisterOnConnect needs — kept narrow so tests can fake it without a real
+// stream, mirroring ruleGroupStreamPusher's narrowing of the same interface
+// in rulegroup_pusher.go.
+type ruleGroupOnConnectStream interface {
+	OnConnect(f func(nodeKey string))
+	PushRuleGroupSync(ctx context.Context, nodeKey string, req *pb.NetworkPolicyRuleGroupSyncReq) error
+}
+
 // RegisterOnConnect wires this controller's pushed-rule-group cache to the
 // stream's OnConnect hook, so a (re)connecting daemon receives a full
 // bootstrap snapshot of the rule groups clustermanager has already computed
 // for its node — the gRPC-push equivalent of the initial List a k8s informer
 // gets for free. No-op for node keys that aren't a daemon connection (e.g.
 // "-monitor", which shares the same in-cluster stream).
-func (npc *NetworkPolicyController) RegisterOnConnect(stream rpcstream.MessageStream) {
+func (npc *NetworkPolicyController) RegisterOnConnect(stream ruleGroupOnConnectStream) {
 	stream.OnConnect(func(nodeKey string) {
-		const suffix = "-daemon"
-		if !strings.HasSuffix(nodeKey, suffix) || npc.pushedCache == nil {
+		if !strings.HasSuffix(nodeKey, daemonNodeKeySuffix) || npc.pushedCache == nil {
 			return
 		}
-		nodeName := strings.TrimSuffix(nodeKey, suffix)
+		nodeName := strings.TrimSuffix(nodeKey, daemonNodeKeySuffix)
 		groups := npc.pushedCache.ListForNode(nodeName)
-		if len(groups) == 0 {
-			return
-		}
 		req := &pb.NetworkPolicyRuleGroupSyncReq{}
 		for _, rg := range groups {
 			req.RuleGroups = append(req.RuleGroups, ruleGroupToPayload(rg))
@@ -1070,7 +1081,9 @@ func (npc *NetworkPolicyController) RegisterOnConnect(stream rpcstream.MessageSt
 		defer cancel()
 		if err := stream.PushRuleGroupSync(ctx, nodeKey, req); err != nil {
 			logging.Get().Err(err).Str("nodeKey", nodeKey).Msg("push rule group bootstrap snapshot")
+			return
 		}
+		logging.Get().Info().Str("nodeKey", nodeKey).Int("ruleGroups", len(groups)).Msg("pushed rule group bootstrap snapshot")
 	})
 }
 

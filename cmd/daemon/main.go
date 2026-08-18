@@ -357,7 +357,6 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 	rpcStream := rpcstream.NewStreamFactory(rpcstream.WithClusterKey(nodeKey)).Client(clusterGrpcAddr)
 	_ = rpcStream.AddHandler(&streampb.ComplianceScanReq{}, &scapper.ScanHandler{Writer: mqWriter})
 	_ = rpcStream.AddHandler(&streampb.NodeLoadReq{}, &handler.NodeLoadHandler{})
-	rpcStream.Start()
 
 	kubeConfig, err := k8s.KubeConfig()
 	if err != nil {
@@ -481,6 +480,11 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 			srv.Run()
 		}()
 	}
+
+	// Start the stream only after every AddHandler above has run: clustermanager
+	// pushes the rule-group bootstrap snapshot the instant it sees Register, and
+	// a message that arrives before its handler is registered is dropped.
+	rpcStream.Start()
 
 	wg.Add(1)
 	go func() {

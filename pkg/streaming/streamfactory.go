@@ -251,7 +251,9 @@ func (s *messageStream) Request(ctx context.Context, nodeKey string, msgType pb.
 		NodeKey:     s.noderKey,
 		Payload:     payload,
 	}
+	s.streamLock.Lock()
 	stream := s.streams[nodeKey]
+	s.streamLock.Unlock()
 	if stream == nil {
 		return nil, fmt.Errorf("not found stream: %s", nodeKey)
 	}

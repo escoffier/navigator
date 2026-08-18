@@ -65,7 +65,15 @@ func Test_RuleGroupSyncStreamHandler_OnCreate_ReplacesCacheAndEnqueuesRemovals(t
 	if controller.queue.Len() != 2 {
 		t.Fatalf("queue length = %d, want 2", controller.queue.Len())
 	}
-	if !controller.synced.Load() {
-		t.Fatal("synced flag not set after first snapshot")
+}
+
+// The stream-fed controller must not gate its worker on a bootstrap snapshot
+// ever arriving: clustermanager only pushes one when the daemon is connected
+// and registered, so waiting for it in Run's WaitForNamedCacheSync could block
+// forever. ruleGroupSynced is therefore unconditionally true.
+func Test_NewStreamRuleGroupController_SyncedWithoutSnapshot(t *testing.T) {
+	controller := NewStreamRuleGroupController(nil, "node1", nil, nil)
+	if !controller.ruleGroupSynced() {
+		t.Fatal("ruleGroupSynced() = false before any snapshot, want true (worker must not block)")
 	}
 }

@@ -71,12 +71,14 @@ type grpcRuleGroupPusher struct {
 
 func (p *grpcRuleGroupPusher) Create(ctx context.Context, rg *crdv1alpha1.NetworkPolicyRuleGroup) error {
 	p.cache.Set(rg)
-	return p.stream.PushRuleGroup(ctx, rg.Spec.NodeName+"-daemon", pb.MessageType_CREATE, &pb.NetworkPolicyRuleGroupReq{RuleGroup: ruleGroupToPayload(rg)})
+	req := &pb.NetworkPolicyRuleGroupReq{RuleGroup: ruleGroupToPayload(rg)}
+	return p.stream.PushRuleGroup(ctx, rg.Spec.NodeName+daemonNodeKeySuffix, pb.MessageType_CREATE, req)
 }
 
 func (p *grpcRuleGroupPusher) Update(ctx context.Context, _, desired *crdv1alpha1.NetworkPolicyRuleGroup) error {
 	p.cache.Set(desired)
-	return p.stream.PushRuleGroup(ctx, desired.Spec.NodeName+"-daemon", pb.MessageType_UPDATE, &pb.NetworkPolicyRuleGroupReq{RuleGroup: ruleGroupToPayload(desired)})
+	req := &pb.NetworkPolicyRuleGroupReq{RuleGroup: ruleGroupToPayload(desired)}
+	return p.stream.PushRuleGroup(ctx, desired.Spec.NodeName+daemonNodeKeySuffix, pb.MessageType_UPDATE, req)
 }
 
 func (p *grpcRuleGroupPusher) Delete(ctx context.Context, name string) error {
@@ -87,7 +89,8 @@ func (p *grpcRuleGroupPusher) Delete(ctx context.Context, name string) error {
 		}
 		return err
 	}
-	if err := p.stream.PushRuleGroup(ctx, rg.Spec.NodeName+"-daemon", pb.MessageType_DELETE, &pb.NetworkPolicyRuleGroupReq{RuleGroup: &pb.NetworkPolicyRuleGroupPayload{Name: name}}); err != nil {
+	req := &pb.NetworkPolicyRuleGroupReq{RuleGroup: &pb.NetworkPolicyRuleGroupPayload{Name: name}}
+	if err := p.stream.PushRuleGroup(ctx, rg.Spec.NodeName+daemonNodeKeySuffix, pb.MessageType_DELETE, req); err != nil {
 		return err
 	}
 	p.cache.Delete(name)
