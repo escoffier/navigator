@@ -1115,6 +1115,8 @@ func (npc *NetworkPolicyController) isWarm() bool {
 // (Task 3).
 func (npc *NetworkPolicyController) pushSnapshotToNode(stream ruleGroupOnConnectStream, nodeKey string) {
 	nodeName := strings.TrimSuffix(nodeKey, daemonNodeKeySuffix)
+	unlock := npc.pushedCache.LockNode(nodeName)
+	defer unlock()
 	groups := npc.pushedCache.ListForNode(nodeName)
 	req := &pb.NetworkPolicyRuleGroupSyncReq{}
 	for _, rg := range groups {
@@ -1195,14 +1197,13 @@ func (npc *NetworkPolicyController) Run(stopChan chan struct{}) {
 	// the daemon strictly after the warm-transition snapshot just pushed
 	// above: both microseg rule-group message types are registered via
 	// AddOrderedHandler (see pkg/streaming/stream.go), so pkg/streaming no
-	// longer reorders them on receipt (issue #3, fixed). A different,
-	// still-open race remains on the SEND side: RegisterOnConnect's callback
-	// (fired asynchronously per connecting daemon) and this worker both
-	// read/mutate pushedCache and enqueue pushes for the same node with no
-	// serialization between the two goroutines, so a bootstrap snapshot
-	// computed before a concurrent DELETE can still be enqueued after it,
-	// resurrecting a rule group — checkSync only warns, it doesn't
-	// self-heal. Tracked by issue #4.
+	// longer reorders them on receipt (issue #3, fixed). RegisterOnConnect's
+	// callback (fired asynchronously per connecting daemon) and this worker
+	// both read/mutate pushedCache and enqueue pushes for the same node —
+	// pushedRuleGroupCache.LockNode serializes the two so a bootstrap
+	// snapshot and a concurrent delta for the same node are always enqueued
+	// in the order their cache read/mutation actually happened, closing the
+	// send-side race issue #4 described (fixed).
 	go wait.Until(npc.worker, time.Second, stopChan)
 	// go wait.Until(npc.nodeWorker, time.Second, stopChan)
 }
