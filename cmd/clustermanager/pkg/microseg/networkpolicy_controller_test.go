@@ -2699,6 +2699,52 @@ func Test_syncPolicyRules_ReturnsErrorWhenUpdateFails(t *testing.T) {
 	}
 }
 
+func Test_syncPolicyRules_AttemptsBothDeleteAndUpdateEvenWhenBothFail(t *testing.T) {
+	cache := newPushedRuleGroupCache()
+	cache.Set(&crdv1alpha1.NetworkPolicyRuleGroup{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-node1", Labels: map[string]string{"kubernetes.io/networkpolicy-name": "policy"}},
+		Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{Policy: "policy", NodeName: "node1"},
+	})
+	cache.Set(&crdv1alpha1.NetworkPolicyRuleGroup{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-node2", Labels: map[string]string{"kubernetes.io/networkpolicy-name": "policy"}},
+		Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{Policy: "policy", NodeName: "node2"},
+	})
+	stream := &fakeRuleGroupStream{err: errors.New("push failed")}
+	npc := &NetworkPolicyController{
+		ruleGroupLister: cache,
+		ruleGroupPusher: &grpcRuleGroupPusher{cache: cache, stream: stream},
+	}
+
+	// "policy-node1" is no longer desired (triggers Delete); "policy-node2"
+	// is still desired (triggers Update). Both pushes fail via the fake
+	// stream's err. Both must still be attempted, and the call must return
+	// a non-nil error either way.
+	rules := map[string]*crdv1alpha1.NetworkPolicyRuleGroup{
+		"node2": {
+			ObjectMeta: v1.ObjectMeta{Name: "policy-node2", Labels: map[string]string{"kubernetes.io/networkpolicy-name": "policy"}},
+			Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{Policy: "policy", NodeName: "node2"},
+		},
+	}
+
+	if err := npc.syncPolicyRules("policy", rules); err == nil {
+		t.Fatal("syncPolicyRules: want error when both delete and update pushes fail, got nil")
+	}
+	// Delete's push failed, so grpcRuleGroupPusher.Delete must have kept
+	// "policy-node1" in the cache (already-tested pusher behavior) — its
+	// continued presence here is evidence Delete was actually attempted,
+	// not skipped.
+	if _, err := cache.Get("policy-node1"); err != nil {
+		t.Fatalf("policy-node1 missing from cache — delete wasn't attempted or cache was mutated unexpectedly: %v", err)
+	}
+	// "policy-node2" must still be present too (Update's cache.Set happens
+	// unconditionally before the push, per grpcRuleGroupPusher.Update) —
+	// its presence is evidence Update was attempted, not skipped after
+	// Delete's failure.
+	if _, err := cache.Get("policy-node2"); err != nil {
+		t.Fatalf("policy-node2 missing from cache — update wasn't attempted: %v", err)
+	}
+}
+
 type fakeOnConnectStream struct {
 	onConnect     func(string)
 	connectedKeys []string

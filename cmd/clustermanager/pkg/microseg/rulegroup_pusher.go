@@ -42,7 +42,15 @@ func (p *k8sRuleGroupPusher) Update(ctx context.Context, cur, desired *crdv1alph
 }
 
 func (p *k8sRuleGroupPusher) Delete(ctx context.Context, name string) error {
-	return p.clientset.MicrosegmentationV1alpha1().NetworkPolicyRuleGroups().Delete(ctx, name, v1.DeleteOptions{})
+	// Now that syncPolicyRules returns (rather than swallows) this error,
+	// a retried delete of an already-deleted rule group would otherwise
+	// spuriously fail the whole policy sync — mirror DeleteByPolicy's
+	// existing IsNotFound tolerance below.
+	err := p.clientset.MicrosegmentationV1alpha1().NetworkPolicyRuleGroups().Delete(ctx, name, v1.DeleteOptions{})
+	if err != nil && !errors.IsNotFound(err) {
+		return err
+	}
+	return nil
 }
 
 func (p *k8sRuleGroupPusher) DeleteByPolicy(ctx context.Context, policyName string) error {

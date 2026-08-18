@@ -243,4 +243,7 @@ Four gaps have been found here — all four are now fixed.
   healed only via the 8-hour informer resync. Fixed by having `syncPolicyRules` accumulate any
   `Delete`/`Update` push failure (while still attempting every other rule group in the same call)
   and return it, so `processNextItem`/`handleErr`'s existing requeue-with-backoff picks the policy
-  back up instead of the error being silently dropped after logging.
+  back up instead of the error being silently dropped after logging. This narrows rather than fully
+  eliminates the exposure window: `handleErr` gives up after `maxRetries` (15) exponential-backoff
+  attempts and forgets the key, so a daemon disconnected long enough to exhaust all of them still
+  relies on the 8-hour informer resync as the final backstop, same as before this fix.
