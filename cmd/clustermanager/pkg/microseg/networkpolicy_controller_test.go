@@ -2663,7 +2663,7 @@ func (f *fakeOnConnectStream) PushRuleGroupSync(_ context.Context, nodeKey strin
 }
 
 func Test_RegisterOnConnect_EmptyNodeStillGetsSnapshot(t *testing.T) {
-	npc := &NetworkPolicyController{pushedCache: newPushedRuleGroupCache()}
+	npc := &NetworkPolicyController{pushedCache: newPushedRuleGroupCache(), warm: true}
 	fake := &fakeOnConnectStream{}
 	npc.RegisterOnConnect(fake)
 
@@ -2683,7 +2683,7 @@ func Test_RegisterOnConnect_NodeWithRuleGroups(t *testing.T) {
 		ObjectMeta: v1.ObjectMeta{Name: "policy-node1"},
 		Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{Policy: "policy", NodeName: "node1"},
 	})
-	npc := &NetworkPolicyController{pushedCache: cache}
+	npc := &NetworkPolicyController{pushedCache: cache, warm: true}
 	fake := &fakeOnConnectStream{}
 	npc.RegisterOnConnect(fake)
 
@@ -2718,5 +2718,22 @@ func Test_RegisterOnConnect_NilCacheIsNoop(t *testing.T) {
 
 	if len(fake.pushed) != 0 {
 		t.Fatalf("pushed = %+v, want no pushes when pushedCache is nil", fake.pushed)
+	}
+}
+
+func Test_RegisterOnConnect_DeferredWhileNotWarm(t *testing.T) {
+	cache := newPushedRuleGroupCache()
+	cache.Set(&crdv1alpha1.NetworkPolicyRuleGroup{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-node1"},
+		Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{Policy: "policy", NodeName: "node1"},
+	})
+	npc := &NetworkPolicyController{pushedCache: cache} // warm defaults to false
+	fake := &fakeOnConnectStream{}
+	npc.RegisterOnConnect(fake)
+
+	fake.onConnect("node1-daemon")
+
+	if len(fake.pushed) != 0 {
+		t.Fatalf("pushed = %+v, want no pushes before clustermanager is warm", fake.pushed)
 	}
 }
