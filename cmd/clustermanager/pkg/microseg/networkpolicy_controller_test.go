@@ -2645,14 +2645,17 @@ func Test_syncPolicyRules_UsesInjectedPusher(t *testing.T) {
 }
 
 type fakeOnConnectStream struct {
-	onConnect func(string)
-	pushed    []struct {
+	onConnect     func(string)
+	connectedKeys []string
+	pushed        []struct {
 		nodeKey string
 		req     *pb.NetworkPolicyRuleGroupSyncReq
 	}
 }
 
 func (f *fakeOnConnectStream) OnConnect(fn func(string)) { f.onConnect = fn }
+
+func (f *fakeOnConnectStream) ConnectedNodeKeys() []string { return f.connectedKeys }
 
 func (f *fakeOnConnectStream) PushRuleGroupSync(_ context.Context, nodeKey string, req *pb.NetworkPolicyRuleGroupSyncReq) error {
 	f.pushed = append(f.pushed, struct {
@@ -2663,7 +2666,7 @@ func (f *fakeOnConnectStream) PushRuleGroupSync(_ context.Context, nodeKey strin
 }
 
 func Test_RegisterOnConnect_EmptyNodeStillGetsSnapshot(t *testing.T) {
-	npc := &NetworkPolicyController{pushedCache: newPushedRuleGroupCache()}
+	npc := &NetworkPolicyController{pushedCache: newPushedRuleGroupCache(), warm: true}
 	fake := &fakeOnConnectStream{}
 	npc.RegisterOnConnect(fake)
 
@@ -2683,7 +2686,7 @@ func Test_RegisterOnConnect_NodeWithRuleGroups(t *testing.T) {
 		ObjectMeta: v1.ObjectMeta{Name: "policy-node1"},
 		Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{Policy: "policy", NodeName: "node1"},
 	})
-	npc := &NetworkPolicyController{pushedCache: cache}
+	npc := &NetworkPolicyController{pushedCache: cache, warm: true}
 	fake := &fakeOnConnectStream{}
 	npc.RegisterOnConnect(fake)
 
@@ -2718,5 +2721,116 @@ func Test_RegisterOnConnect_NilCacheIsNoop(t *testing.T) {
 
 	if len(fake.pushed) != 0 {
 		t.Fatalf("pushed = %+v, want no pushes when pushedCache is nil", fake.pushed)
+	}
+}
+
+func Test_RegisterOnConnect_DeferredWhileNotWarm(t *testing.T) {
+	cache := newPushedRuleGroupCache()
+	cache.Set(&crdv1alpha1.NetworkPolicyRuleGroup{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-node1"},
+		Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{Policy: "policy", NodeName: "node1"},
+	})
+	npc := &NetworkPolicyController{pushedCache: cache} // warm defaults to false
+	fake := &fakeOnConnectStream{}
+	npc.RegisterOnConnect(fake)
+
+	fake.onConnect("node1-daemon")
+
+	if len(fake.pushed) != 0 {
+		t.Fatalf("pushed = %+v, want no pushes before clustermanager is warm", fake.pushed)
+	}
+}
+
+func Test_MarkWarmAndSync_PushesToAlreadyConnectedDaemons(t *testing.T) {
+	cache := newPushedRuleGroupCache()
+	cache.Set(&crdv1alpha1.NetworkPolicyRuleGroup{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-node1"},
+		Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{Policy: "policy", NodeName: "node1"},
+	})
+	npc := &NetworkPolicyController{pushedCache: cache}
+	fake := &fakeOnConnectStream{connectedKeys: []string{"node1-daemon", "node2-daemon", "node3-monitor"}}
+	npc.RegisterOnConnect(fake)
+
+	if npc.isWarm() {
+		t.Fatal("controller warm before markWarmAndSync")
+	}
+
+	npc.markWarmAndSync()
+
+	if !npc.isWarm() {
+		t.Fatal("controller not warm after markWarmAndSync")
+	}
+	if len(fake.pushed) != 2 {
+		t.Fatalf("pushed = %+v, want 2 pushes (node1-daemon, node2-daemon), node3-monitor excluded", fake.pushed)
+	}
+	pushedTo := map[string]int{}
+	for _, p := range fake.pushed {
+		pushedTo[p.nodeKey] = len(p.req.GetRuleGroups())
+	}
+	if n, ok := pushedTo["node1-daemon"]; !ok || n != 1 {
+		t.Errorf("node1-daemon pushed %d rule groups, want 1", n)
+	}
+	if n, ok := pushedTo["node2-daemon"]; !ok || n != 0 {
+		t.Errorf("node2-daemon pushed %d rule groups, want 0 (empty snapshot)", n)
+	}
+
+	fake.onConnect("node4-daemon")
+	if len(fake.pushed) != 3 {
+		t.Fatalf("pushed = %+v, want a 3rd push for a connect after markWarmAndSync", fake.pushed)
+	}
+}
+
+func Test_MarkWarmAndSync_NilOnConnectStreamIsNoop(t *testing.T) {
+	npc := &NetworkPolicyController{pushedCache: newPushedRuleGroupCache()}
+	npc.markWarmAndSync()
+	if npc.isWarm() {
+		t.Fatal("controller marked warm despite no onConnectStream")
+	}
+}
+
+func Test_reconcileAllPolicies_SyncsEveryPolicy(t *testing.T) {
+	crdClient := crdfake.NewSimpleClientset()
+	crdFactory := externalversions.NewSharedInformerFactory(crdClient, time.Hour)
+	policyStore := crdFactory.Microsegmentation().V1alpha1().ClusterNetworkPolicies().Informer().GetIndexer()
+
+	policyStore.Add(&crdv1alpha1.ClusterNetworkPolicy{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-a"},
+		Spec:       crdv1alpha1.ClusterNetworkPolicySpec{Enable: false},
+	})
+	policyStore.Add(&crdv1alpha1.ClusterNetworkPolicy{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-b"},
+		Spec:       crdv1alpha1.ClusterNetworkPolicySpec{Enable: false},
+	})
+
+	cache := newPushedRuleGroupCache()
+	cache.Set(&crdv1alpha1.NetworkPolicyRuleGroup{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-a-node1", Labels: map[string]string{"kubernetes.io/networkpolicy-name": "policy-a"}},
+		Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{NodeName: "node1"},
+	})
+	cache.Set(&crdv1alpha1.NetworkPolicyRuleGroup{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-b-node2", Labels: map[string]string{"kubernetes.io/networkpolicy-name": "policy-b"}},
+		Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{NodeName: "node2"},
+	})
+	stream := &fakeRuleGroupStream{}
+
+	npc := &NetworkPolicyController{
+		policyLister:    crdFactory.Microsegmentation().V1alpha1().ClusterNetworkPolicies().Lister(),
+		ruleGroupMap:    make(map[string]sets.String),
+		firstSynced:     make(map[string]bool),
+		ruleGroupPusher: &grpcRuleGroupPusher{cache: cache, stream: stream},
+	}
+
+	npc.reconcileAllPolicies()
+
+	if all, _ := cache.List(nil); len(all) != 0 {
+		t.Fatalf("pushedCache not drained by reconcile: %+v", all)
+	}
+	if len(stream.pushed) != 2 {
+		t.Fatalf("pushed %d messages, want 2 DELETEs", len(stream.pushed))
+	}
+	for _, p := range stream.pushed {
+		if p.msgType != pb.MessageType_DELETE {
+			t.Errorf("msgType = %v, want DELETE", p.msgType)
+		}
 	}
 }

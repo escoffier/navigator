@@ -7,6 +7,7 @@ import (
 	"reflect"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/segmentio/kafka-go"
@@ -46,6 +47,7 @@ var log = logging.Get().With().Str("module", "microseg").Logger()
 
 type NetworkPolicyController struct {
 	clietset              *versioned.Clientset
+	factory               informers.SharedInformerFactory
 	policyInfomer         cache.SharedIndexInformer
 	podInformer           cache.SharedIndexInformer
 	nodeInformer          cache.SharedIndexInformer
@@ -80,6 +82,15 @@ type NetworkPolicyController struct {
 	ruleGroupMap        map[string]sets.String
 	pushedCache         *pushedRuleGroupCache
 	ruleGroupPusher     ruleGroupPusher
+
+	// onConnectStream, warmMu and warm implement the issue #2 "warm gate":
+	// RegisterOnConnect defers pushing a bootstrap snapshot to a connecting
+	// daemon until warm is true, and markWarmAndSync (Task 3) flips warm to
+	// true and catches up already-connected daemons at that point. Both nil
+	// unless MICROSEG_GRPC_ENABLED (i.e. pushedCache is also non-nil).
+	onConnectStream ruleGroupOnConnectStream
+	warmMu          sync.Mutex
+	warm            bool
 }
 
 func podLabelIndexFunc(obj interface{}) ([]string, error) {
@@ -931,6 +942,7 @@ func NewNetworkPolicyController(clientset *versioned.Clientset, factory informer
 	policyInfomer := crdFactory.Microsegmentation().V1alpha1().ClusterNetworkPolicies().Informer()
 	controller := NetworkPolicyController{
 		clietset:             clientset,
+		factory:              factory,
 		policyInfomer:        policyInfomer,
 		clusterGroupInformer: crdFactory.Microsegmentation().V1alpha1().ClusterWorkloadSets().Informer(),
 		podInformer:          factory.Core().V1().Pods().Informer(),
@@ -1058,6 +1070,10 @@ const daemonNodeKeySuffix = "-daemon"
 type ruleGroupOnConnectStream interface {
 	OnConnect(f func(nodeKey string))
 	PushRuleGroupSync(ctx context.Context, nodeKey string, req *pb.NetworkPolicyRuleGroupSyncReq) error
+	// ConnectedNodeKeys returns node keys connected right now, used by
+	// markWarmAndSync to catch up daemons that connected before the
+	// controller became warm.
+	ConnectedNodeKeys() []string
 }
 
 // RegisterOnConnect wires this controller's pushed-rule-group cache to the
@@ -1066,35 +1082,152 @@ type ruleGroupOnConnectStream interface {
 // for its node — the gRPC-push equivalent of the initial List a k8s informer
 // gets for free. No-op for node keys that aren't a daemon connection (e.g.
 // "-monitor", which shares the same in-cluster stream).
+//
+// Before the controller is warm (see markWarmAndSync), the callback defers
+// entirely rather than pushing a possibly-empty/incomplete snapshot — doing
+// so could transiently wipe correct state on a daemon that already has it
+// (issue #2). markWarmAndSync catches up any daemon that connected during
+// this deferred window once the controller becomes warm.
 func (npc *NetworkPolicyController) RegisterOnConnect(stream ruleGroupOnConnectStream) {
+	npc.onConnectStream = stream
 	stream.OnConnect(func(nodeKey string) {
 		if !strings.HasSuffix(nodeKey, daemonNodeKeySuffix) || npc.pushedCache == nil {
 			return
 		}
-		nodeName := strings.TrimSuffix(nodeKey, daemonNodeKeySuffix)
-		groups := npc.pushedCache.ListForNode(nodeName)
-		req := &pb.NetworkPolicyRuleGroupSyncReq{}
-		for _, rg := range groups {
-			req.RuleGroups = append(req.RuleGroups, ruleGroupToPayload(rg))
-		}
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := stream.PushRuleGroupSync(ctx, nodeKey, req); err != nil {
-			logging.Get().Err(err).Str("nodeKey", nodeKey).Msg("push rule group bootstrap snapshot")
+		if !npc.isWarm() {
+			logging.Get().Info().Str("nodeKey", nodeKey).
+				Msg("deferring rule group bootstrap snapshot until clustermanager completes its initial reconcile")
 			return
 		}
-		logging.Get().Info().Str("nodeKey", nodeKey).Int("ruleGroups", len(groups)).Msg("pushed rule group bootstrap snapshot")
+		npc.pushSnapshotToNode(stream, nodeKey)
 	})
+}
+
+func (npc *NetworkPolicyController) isWarm() bool {
+	npc.warmMu.Lock()
+	defer npc.warmMu.Unlock()
+	return npc.warm
+}
+
+// pushSnapshotToNode sends nodeKey's full pushedCache-derived rule group set
+// as one NetworkPolicyRuleGroupSyncReq. Shared by RegisterOnConnect's
+// post-warm connect path and markWarmAndSync's warm-transition catch-up
+// (Task 3).
+func (npc *NetworkPolicyController) pushSnapshotToNode(stream ruleGroupOnConnectStream, nodeKey string) {
+	nodeName := strings.TrimSuffix(nodeKey, daemonNodeKeySuffix)
+	groups := npc.pushedCache.ListForNode(nodeName)
+	req := &pb.NetworkPolicyRuleGroupSyncReq{}
+	for _, rg := range groups {
+		req.RuleGroups = append(req.RuleGroups, ruleGroupToPayload(rg))
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := stream.PushRuleGroupSync(ctx, nodeKey, req); err != nil {
+		logging.Get().Err(err).Str("nodeKey", nodeKey).Msg("push rule group snapshot")
+		return
+	}
+	logging.Get().Info().Str("nodeKey", nodeKey).Int("ruleGroups", len(groups)).Msg("pushed rule group snapshot")
+}
+
+// markWarmAndSync flips the controller to "warm" — meaning it has completed
+// one full reconcile pass over every ClusterNetworkPolicy and pushedCache
+// now reflects true desired state (see issue #2) — then pushes a corrected
+// snapshot to every daemon connection that exists at that instant. Those
+// daemons either got no snapshot yet (RegisterOnConnect defers while not
+// warm) or connected and were skipped for the same reason; either way this
+// is the single source-of-truth correction. Called once, from Run.
+// This is safe only because stream.OnConnect (see pkg/streaming) fires its
+// callback asynchronously, outside its own connection-map lock — if that
+// ever became synchronous, this function's warmMu-then-streamLock ordering
+// could deadlock against a callback trying to acquire warmMu from inside
+// that lock.
+func (npc *NetworkPolicyController) markWarmAndSync() {
+	if npc.onConnectStream == nil {
+		return
+	}
+	npc.warmMu.Lock()
+	npc.warm = true
+	nodeKeys := npc.onConnectStream.ConnectedNodeKeys()
+	npc.warmMu.Unlock()
+
+	for _, nodeKey := range nodeKeys {
+		if !strings.HasSuffix(nodeKey, daemonNodeKeySuffix) {
+			continue
+		}
+		npc.pushSnapshotToNode(npc.onConnectStream, nodeKey)
+	}
 }
 
 func (npc *NetworkPolicyController) Run(stopChan chan struct{}) {
 	logging.Get().Info().Msg("run Network Policy Controller")
 	if !cache.WaitForNamedCacheSync("network_policy", stopChan,
-		npc.podSynced, npc.namepaceSynced, npc.clusterPolicySynced, npc.clusterGroupSynced, npc.ruleGroupSynced) {
+		npc.podSynced, npc.namepaceSynced, npc.clusterPolicySynced, npc.clusterGroupSynced, npc.ruleGroupSynced, npc.nodeSynced) {
 		return
 	}
+	// Only the gRPC push path (onConnectStream set) needs the warm gate: the
+	// CRD path's "current state" already comes durably from k8s, so it has
+	// no equivalent gap to close (issue #2). This runs synchronously, before
+	// the async worker below starts, so nothing else touches
+	// ruleGroupMap/firstSynced concurrently during the pass.
+	if npc.onConnectStream != nil {
+		if npc.factory != nil {
+			// generateRules (via syncPolicy) also reads serviceLister/
+			// endpointsliceLister, which aren't covered by the
+			// WaitForNamedCacheSync call above — wait for every informer
+			// registered on the shared factory so the reconcile pass below
+			// sees fully-synced state before any snapshot goes out (final
+			// review finding #2).
+			npc.factory.WaitForCacheSync(stopChan)
+		}
+		// Retry until a full pass succeeds with no errors, or shutdown.
+		// Marking warm after a partial/failed pass would push an
+		// incomplete pushedRuleGroupCache as if it were authoritative —
+		// exactly the failure mode the warm gate exists to prevent (final
+		// review finding #1).
+		if err := wait.PollImmediateUntil(time.Second, func() (bool, error) {
+			return npc.reconcileAllPolicies(), nil
+		}, stopChan); err != nil {
+			return
+		}
+		npc.markWarmAndSync()
+	}
+	// The warm-transition snapshot just pushed above can race this worker's
+	// first incremental deltas once it starts: pkg/streaming dispatches each
+	// message in its own goroutine with no ordering guarantee (issue #3), so
+	// in principle a daemon could apply a later DELETE before an
+	// still-in-flight snapshot, resurrecting a rule group — checkSync only
+	// warns, it doesn't self-heal. Not fixed here; tracked by issue #3.
 	go wait.Until(npc.worker, time.Second, stopChan)
 	// go wait.Until(npc.nodeWorker, time.Second, stopChan)
+}
+
+// reconcileAllPolicies synchronously runs syncPolicy for every
+// ClusterNetworkPolicy currently known to the lister. This is the "one full
+// reconcile pass" issue #2's warm gate requires: it guarantees
+// pushedRuleGroupCache reflects true desired state for every policy before
+// markWarmAndSync starts serving bootstrap snapshots from it. Returns false
+// if the lister failed or any policy's sync failed — Run retries the whole
+// pass until this returns true rather than marking warm on incomplete state.
+func (npc *NetworkPolicyController) reconcileAllPolicies() bool {
+	policies, err := npc.policyLister.List(labels.Everything())
+	if err != nil {
+		logging.Get().Err(err).Msg("list cluster network policies for initial reconcile")
+		return false
+	}
+	ok := true
+	for _, p := range policies {
+		key, err := KeyFunc(p)
+		if err != nil {
+			logging.Get().Err(err).Str("policy", p.Name).Msg("build key for initial reconcile")
+			ok = false
+			continue
+		}
+		if err := npc.syncPolicy(key); err != nil {
+			logging.Get().Err(err).Str("policy", p.Name).Msg("initial reconcile of policy")
+			ok = false
+		}
+	}
+	return ok
 }
 
 func (npc *NetworkPolicyController) worker() {
