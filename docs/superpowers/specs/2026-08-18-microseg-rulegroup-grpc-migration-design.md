@@ -48,13 +48,19 @@ go directly from clustermanager down to daemon with no console hop.
   new `PushRuleGroup(ctx, nodeKey, messageType, payload)` on the in-cluster stream, targeting
   `nodeKey = fmt.Sprintf("%s-daemon", nodeName)` — the same addressing convention `ComplianceScanReq`/
   `NodeLoadReq` already use.
-- **Bootstrap-on-connect**: the stream framework's client sends a `Register` message on connect
-  (`pkg/streaming/streamfactory.go`). A new handler on clustermanager's in-cluster server reacts to
-  `Register` by looking up all rule groups currently computed for that node (from clustermanager's
-  existing in-memory store, `cmd/clustermanager/pkg/microseg/store.go`) and pushing them as one
-  `NetworkPolicyRuleGroupSyncReq` snapshot. This replaces the implicit full-List a k8s informer gets
-  on startup/reconnect, so daemon always converges to correct state after a restart or network blip
-  without needing k8s as an intermediary.
+- **Bootstrap-on-connect**: the stream framework's client sends a `Register` message on connect, but
+  `messageStreamServer.SendMessage` (`pkg/streaming/streamfactory.go`) consumes that first message
+  directly via `stream.Recv()` before the handler-dispatch loop starts, so it can't be intercepted
+  via the normal `AddHandler` mechanism. Instead, this spec adds a new `OnConnect` extension point to
+  the streaming framework itself — a callback fired with the connecting peer's node key right after
+  its stream is registered. Clustermanager registers one that looks up all rule groups currently
+  computed for that node and pushes them as one `NetworkPolicyRuleGroupSyncReq` snapshot. Note:
+  `cmd/clustermanager/pkg/microseg/store.go`'s `NewRuleStore`/`NewPolicyStore` turned out to be
+  unused dead code (confirmed via repo-wide grep) — there is no existing in-memory store to reuse
+  here, so this spec adds a small new one (`pushedRuleGroupCache`) purpose-built for this lookup,
+  fed by the same Create/Update/Delete pushes described above. This replaces the implicit full-List
+  a k8s informer gets on startup/reconnect, so daemon always converges to correct state after a
+  restart or network blip without needing k8s as an intermediary.
 - Daemon's local net-policy reconciliation (`checkSync`/`ReSyncAllPolicy`/`DumpConfig`) is unchanged;
   it already reconciles against "whatever daemon currently considers desired state" — that state now
   comes from the stream-fed cache instead of the informer lister.
@@ -139,11 +145,14 @@ message NetworkPolicyRuleGroupResp {
 - `pkg/streaming/client.go`: add `PushRuleGroup` to `MessageStreamClient`, same shape as
   `PushComplianceScan`, wrapping `NetworkPolicyRuleGroupReq` with `ack=false` (fire-and-forget,
   matching today's un-acked CRD write).
-- `cmd/clustermanager/cmd/server.go`: register a new handler for `pb.Register` on the in-cluster
-  server that, on a daemon (re)connecting under a given node key, looks up that node's currently
-  computed rule groups from the existing in-memory store (`store.go`) and pushes a
-  `NetworkPolicyRuleGroupSyncReq` snapshot. No new persistent store — the existing indexer already
-  holds this state (confirms single-instance/no-shared-store assumption).
+- `pkg/streaming/streamfactory.go`: add an `OnConnect(f func(nodeKey string))` method to
+  `MessageStream`, fired from `messageStreamServer.SendMessage` right after a connecting peer's
+  stream is registered (see the corrected bootstrap-on-connect note above).
+  `cmd/clustermanager/cmd/server.go`/`networkpolicy_controller.go`: register a callback via
+  `OnConnect` that, on a daemon (re)connecting under a given node key, looks up that node's
+  currently computed rule groups from a new in-memory cache (`pushedRuleGroupCache`, populated by
+  the same Create/Update/Delete pushes) and pushes a `NetworkPolicyRuleGroupSyncReq` snapshot. This
+  cache is in-memory only, consistent with the single-instance/no-shared-store assumption.
 - The CRD write path and its clientset wiring are removed once the rollout flag (below) is flipped
   and verified.
 
