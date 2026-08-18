@@ -208,7 +208,7 @@ type fakeSendMessageServer struct {
 	closed   chan struct{}
 }
 
-func newFakeSendMessageServer(nodeKey string) *fakeSendMessageServer {
+func newFakeSendMessageServer() *fakeSendMessageServer {
 	return &fakeSendMessageServer{closed: make(chan struct{})}
 }
 
@@ -240,7 +240,7 @@ func Test_OnConnect_FiresWithConnectingNodeKey(t *testing.T) {
 		got <- nodeKey
 	})
 
-	fake := newFakeSendMessageServer("node1-daemon")
+	fake := newFakeSendMessageServer()
 	go func() {
 		_ = srv.SendMessage(&registerOnceStream{fakeSendMessageServer: fake, nodeKey: "node1-daemon"})
 	}()
@@ -271,7 +271,7 @@ func (r *registerOnceStream) Recv() (*pb.ClusterMessage, error) {
 	if !r.sentReg {
 		r.sentReg = true
 		r.mu.Unlock()
-		payload, _ := anypbNew(&pb.Register{NodeKey: r.nodeKey})
+		payload, _ := anypb.New(&pb.Register{NodeKey: r.nodeKey})
 		return &pb.ClusterMessage{NodeKey: r.nodeKey, MessageType: pb.MessageType_CREATE, Payload: payload}, nil
 	}
 	r.mu.Unlock()
@@ -279,15 +279,7 @@ func (r *registerOnceStream) Recv() (*pb.ClusterMessage, error) {
 }
 ```
 
-Add a tiny local helper at the bottom of the test file (avoids importing `anypb` just for the test body inline):
-
-```go
-func anypbNew(m interface{ ProtoReflect() protoreflect.Message }) (*anypb.Any, error) {
-	return anypb.New(m.(protoreflect.ProtoMessage))
-}
-```
-
-Add imports `"google.golang.org/protobuf/reflect/protoreflect"` and `"google.golang.org/protobuf/types/known/anypb"` to the test file.
+Add the import `"google.golang.org/protobuf/types/known/anypb"` to the test file (`pb.Register` already satisfies `proto.Message`/`protoreflect.ProtoMessage`, so `anypb.New` takes it directly — no extra wrapper needed).
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -366,10 +358,20 @@ type MessageStream interface {
 Run: `go test ./pkg/streaming/... -run Test_OnConnect_FiresWithConnectingNodeKey -v`
 Expected: PASS
 
-- [ ] **Step 5: Run the full package test suite to check for regressions**
+- [ ] **Step 5: Check for regressions (scoped — do not run the bare package)**
 
-Run: `go test ./pkg/streaming/...`
-Expected: PASS (existing `Test_messageStream_Request` and `Test_channel` are pre-existing scaffolding — Test_channel takes ~10s and passes trivially since it has no assertions; do not modify it).
+**Do not run a bare `go test ./pkg/streaming/...`.** The pre-existing `Test_channel` in
+`streamfactory_test.go` ends with an unconditional `select {}` and blocks forever; a bare
+package-wide run hangs for ~10 minutes and then reports FAIL, unrelated to this task. Confirmed
+present at this plan's baseline commit, before any change in this plan — out of scope to fix here.
+
+Instead run:
+```
+go test ./pkg/streaming/... -run 'Test_OnConnect_FiresWithConnectingNodeKey|Test_messageStream_Request'
+go build ./pkg/streaming/...
+```
+Expected: the `-run` invocation PASSes (covers this task's new test plus the pre-existing, already-passing
+`Test_messageStream_Request` scaffold — its table is empty so it trivially passes); the `go build` succeeds.
 
 - [ ] **Step 6: Commit**
 
@@ -1817,10 +1819,23 @@ func (p *grpcRuleGroupPusher) DeleteByPolicy(ctx context.Context, policyName str
 Run: `go test ./cmd/clustermanager/pkg/microseg/... -run Test_grpcRuleGroupPusher -v`
 Expected: PASS
 
-- [ ] **Step 9: Run the full clustermanager microseg package test suite**
+- [ ] **Step 9: Check for regressions (scoped — do not run the bare package)**
 
-Run: `go test ./cmd/clustermanager/pkg/microseg/...`
-Expected: PASS (including pre-existing `networkpolicy_controller_test.go`/`utils_test.go` — this task must not break them; it adds new files only so far, no existing code is touched yet).
+**Do not run a bare `go test ./cmd/clustermanager/pkg/microseg/...`.** This package has several
+pre-existing, unrelated failures at this plan's baseline — `TestNetworkPolicyController_caculatePolicy`,
+`TestNetworkPolicyController_caculateAddressMap`, `TestNetworkPolicyController_caculateNodeRules`,
+`TestPolicyIndex` (fragile pointer-comparison assertions), `TestCreateCRD` (needs a local envtest
+apiserver not available here), and `Test_getServicePort` (a pre-existing nil-pointer panic that
+**crashes the whole test binary**, potentially preventing tests after it from running/reporting in
+the same invocation). None of this is caused by this task — out of scope to fix.
+
+Instead run:
+```
+go test ./cmd/clustermanager/pkg/microseg/... -run 'Test_pushedRuleGroupCache|Test_grpcRuleGroupPusher'
+go build ./cmd/clustermanager/pkg/microseg/...
+```
+Expected: the `-run` invocation PASSes; the build succeeds. This task adds new files only (no
+existing code touched yet), so there is nothing else in this package for it to regress.
 
 - [ ] **Step 10: Commit**
 
@@ -2084,10 +2099,25 @@ Adjust field names/imports to match whatever the existing test file already impo
 Run: `go test ./cmd/clustermanager/pkg/microseg/... -run Test_syncPolicyRules_UsesInjectedPusher -v`
 Expected first: FAIL (field/type mismatches before Steps 1-2 land). After Steps 1-2: PASS.
 
-- [ ] **Step 5: Run the full clustermanager microseg package test suite**
+- [ ] **Step 5: Check for regressions (scoped — do not run the bare package)**
 
-Run: `go test ./cmd/clustermanager/pkg/microseg/...`
-Expected: PASS. Pay particular attention to any existing test that constructs `NetworkPolicyController` via `NewNetworkPolicyController(...)` directly — its call site needs a trailing `nil` argument added for the new `stream` parameter (flag-off behavior, unchanged CRD path) rather than being left broken by the signature change.
+**Do not run a bare `go test ./cmd/clustermanager/pkg/microseg/...`.** This package has
+pre-existing, unrelated failures at this plan's baseline (see Task 9's Step 9 for the full list),
+including a nil-pointer panic in `Test_getServicePort` that crashes the whole test binary and can
+prevent tests after it from running/reporting in the same invocation.
+
+This step's real goal is narrower: catch any existing test that constructs `NetworkPolicyController`
+via `NewNetworkPolicyController(...)` directly, whose call site needs a trailing `nil` argument
+added for the new `stream` parameter (flag-off behavior, unchanged CRD path) — a signature-change
+break, not a runtime failure. Compiling the test binary without running anything catches this
+safely, without touching the panicking test:
+```
+go test -run '^$' -count=1 ./cmd/clustermanager/pkg/microseg/...
+go test ./cmd/clustermanager/pkg/microseg/... -run Test_syncPolicyRules_UsesInjectedPusher -v
+```
+Expected: the first command reports `ok` (compiles cleanly, zero tests matched/run — confirms no
+`NewNetworkPolicyController(...)` call site was left broken by the signature change); the second
+PASSes (already covered in Step 4, re-confirm here in the context of the full file compiling).
 
 - [ ] **Step 6: Commit**
 
@@ -2157,19 +2187,40 @@ Expected: both succeed.
 
 - [ ] **Step 2: Run the full test suite for every package touched**
 
+Two of these packages have pre-existing, unrelated failures confirmed present at this plan's
+baseline commit (before Task 1): `pkg/streaming`'s `Test_channel` hangs forever (`select {}`,
+~10 min timeout then FAIL), and `cmd/clustermanager/pkg/microseg` has several pre-existing
+failures including a nil-pointer panic in `Test_getServicePort` that crashes the whole test
+binary (`TestNetworkPolicyController_caculatePolicy`, `TestNetworkPolicyController_caculateAddressMap`,
+`TestNetworkPolicyController_caculateNodeRules`, `TestPolicyIndex`, `TestCreateCRD` also
+pre-exist as failures/needs-envtest). None of this is caused by this plan — out of scope to fix.
+Do not run a bare `go test` across those two package trees.
+
 ```bash
-go test ./pkg/streaming/... ./cmd/daemon/pkg/microseg/... ./cmd/clustermanager/pkg/microseg/... ./cmd/clustermanager/cmd/...
+go test ./pkg/streaming/... -run 'Test_OnConnect_FiresWithConnectingNodeKey|Test_messageStream_Request|Test_messageStream_PushRuleGroup'
+go test ./cmd/daemon/pkg/microseg/...
+go test ./cmd/clustermanager/pkg/microseg/... -run 'Test_ruleGroupToPayload|Test_pushedRuleGroupCache|Test_grpcRuleGroupPusher|Test_syncPolicyRules_UsesInjectedPusher'
+go test ./cmd/clustermanager/cmd/...
+go test -run '^$' -count=1 ./pkg/streaming/... ./cmd/clustermanager/pkg/microseg/...
 ```
 
-Expected: all PASS.
+Expected: every `-run`-scoped invocation PASSes; `cmd/daemon/pkg/microseg` (no pre-existing
+issues there — confirmed clean at baseline) PASSes in full; the final `-run '^$'` pair reports
+`ok` for both packages with zero tests run, confirming everything in both trees still compiles
+(catches any test-file compile break across either package without triggering the pre-existing
+hang/panic).
 
 - [ ] **Step 3: Run the broader repo test suite to catch any unnoticed breakage**
 
 ```bash
-go test ./cmd/daemon/... ./cmd/clustermanager/...
+go test ./cmd/daemon/... ./cmd/clustermanager/... 2>&1 | grep -v "^ok" | tee /tmp/task12-broad-test.log
 ```
 
-Expected: all PASS (this also re-runs the pre-existing `heavy-agent`, `waf`, and other daemon-subpackage tests untouched by this plan, confirming no accidental cross-package breakage).
+Expected: review `/tmp/task12-broad-test.log` for any FAIL entries beyond the known pre-existing
+`cmd/clustermanager/pkg/microseg` list from Step 2 — anything new is this plan's responsibility to
+fix; anything matching the known list is pre-existing and out of scope. This also re-runs the
+pre-existing `heavy-agent`, `waf`, and other daemon-subpackage tests untouched by this plan,
+confirming no accidental cross-package breakage there.
 
 - [ ] **Step 4: Lint**
 
