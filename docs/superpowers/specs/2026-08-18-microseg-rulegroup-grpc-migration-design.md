@@ -199,16 +199,17 @@ here as explicit blockers for production rollout, to be addressed in a follow-up
 rather than folded into this migration's fix wave:
 
 - **Non-durable pushed-state cache loses DELETEs across a clustermanager restart** (tracked as
-  [#2](https://github.com/escoffier/navigator/issues/2)). Today's CRD
+  [#2](https://github.com/escoffier/navigator/issues/2), fixed). Today's CRD
   write makes k8s the durable "current state" `syncPolicyRules` diffs against; `pushedRuleGroupCache`
   is in-memory only. If a node drops out of a policy's scope while clustermanager is down, the
-  first reconcile after restart sees an empty "current" set and has nothing to diff the removal
-  against, so no DELETE is ever sent — that node's daemon keeps enforcing the stale rule group
-  indefinitely. A correct fix needs a "warm" gate: only start answering `OnConnect` bootstrap
-  requests (including legitimately-empty ones) after clustermanager has completed one full
-  reconcile pass over every `ClusterNetworkPolicy`, and push corrected snapshots to
-  already-connected daemons at that warm transition — sending real snapshots before warm risks
-  transiently wiping correct daemon state with an incomplete view.
+  first reconcile after restart used to see an empty "current" set and have nothing to diff the
+  removal against, so no DELETE was ever sent — that node's daemon would keep enforcing the stale
+  rule group indefinitely. Fixed with a "warm" gate (`NetworkPolicyController.warm`,
+  `reconcileAllPolicies`, `markWarmAndSync` in `networkpolicy_controller.go`): `OnConnect` now
+  defers answering bootstrap requests (including legitimately-empty ones) until clustermanager has
+  completed one full reconcile pass over every `ClusterNetworkPolicy`, and pushes corrected
+  snapshots to already-connected daemons at that warm transition — avoiding the risk of a real
+  snapshot sent before warm transiently wiping correct daemon state with an incomplete view.
 - **`pkg/streaming`'s per-message dispatch (`go func(){ handler.OnX(...) }()` in `stream.go`) does
   not preserve message ordering** (tracked as
   [#3](https://github.com/escoffier/navigator/issues/3)), and this migration is the first user of
