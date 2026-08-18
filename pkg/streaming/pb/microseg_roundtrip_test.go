@@ -1,8 +1,9 @@
 package pb
 
 import (
-	"google.golang.org/protobuf/proto"
 	"testing"
+
+	"google.golang.org/protobuf/proto"
 )
 
 func TestNetworkPolicyRuleGroupPayload_RoundTrip(t *testing.T) {
@@ -12,12 +13,12 @@ func TestNetworkPolicyRuleGroupPayload_RoundTrip(t *testing.T) {
 		Policy:   "policy",
 		NodeName: "node1",
 		Rules: []*MicrosegNodeRule{{
-			Name:      "rule1",
-			Priority:  100,
-			Protocol:  "TCP",
-			Direction: "ingress",
-			Action:    "Allow",
-			Ports:     []*MicrosegPort{{Protocol: protocol, Port: "80", EndPort: 0}},
+			Name:        "rule1",
+			Priority:    100,
+			Protocol:    "TCP",
+			Direction:   "ingress",
+			Action:      "Allow",
+			Ports:       []*MicrosegPort{{Protocol: protocol, Port: "80", EndPort: 0}},
 			ToAddresses: []*MicrosegAddress{{IP: "10.0.0.2", PodNamespace: "ns", PodName: "pod"}},
 			FromIPBlock: []*MicrosegIPBlock{{CIDR: "10.0.0.0/24"}},
 			Http:        &MicrosegHttp{Method: "GET", Path: "/", Host: "example.com"},
