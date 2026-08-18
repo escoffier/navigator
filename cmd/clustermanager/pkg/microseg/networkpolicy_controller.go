@@ -1345,10 +1345,19 @@ func (npc *NetworkPolicyController) syncPolicyRules(policy string, rules map[str
 
 	deletingRuleGroups := curRuleGroupNames.Difference(desiredRuleGroupNames)
 	logging.Get().Info().Msgf("deletingRuleGroups %v", deletingRuleGroups.List())
+	// pushErr accumulates delete/update push failures so the policy still
+	// gets retried (via processNextItem/handleErr's requeue-with-backoff)
+	// instead of silently leaving a stale pushedRuleGroupCache entry that
+	// can resurrect on a later daemon reconnect (issue #5). Every group is
+	// still attempted even after an earlier failure in this same call,
+	// matching the existing "log and continue" behavior for the ones that
+	// do succeed.
+	var pushErr error
 	for name := range deletingRuleGroups {
 		err := npc.ruleGroupPusher.Delete(context.Background(), name)
 		if err != nil {
 			logging.Get().Error().Err(err).Msgf("delete rule group %s", name)
+			pushErr = err
 		}
 	}
 
@@ -1369,10 +1378,11 @@ func (npc *NetworkPolicyController) syncPolicyRules(policy string, rules map[str
 		err = npc.ruleGroupPusher.Update(context.TODO(), curRule, r)
 		if err != nil {
 			logging.Get().Error().Err(err).Msgf("update rule group %s", r.Name)
+			pushErr = err
 		}
 	}
 	// npc.ruleGroupMap[policy] = ruleGroupNames
-	return nil
+	return pushErr
 }
 
 func sortPeerForRule(rule crdv1alpha1.NodeRule) {

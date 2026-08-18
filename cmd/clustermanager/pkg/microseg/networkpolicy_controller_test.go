@@ -2,6 +2,7 @@ package microseg
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"path/filepath"
 	"reflect"
@@ -2642,6 +2643,59 @@ func Test_syncPolicyRules_UsesInjectedPusher(t *testing.T) {
 	stream := pusher.stream.(*fakeRuleGroupStream)
 	if len(stream.pushed) != 1 || stream.pushed[0].msgType != pb.MessageType_CREATE {
 		t.Fatalf("pushed = %+v, want one CREATE", stream.pushed)
+	}
+}
+
+func Test_syncPolicyRules_ReturnsErrorWhenDeleteFails(t *testing.T) {
+	cache := newPushedRuleGroupCache()
+	cache.Set(&crdv1alpha1.NetworkPolicyRuleGroup{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-node1", Labels: map[string]string{"kubernetes.io/networkpolicy-name": "policy"}},
+		Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{Policy: "policy", NodeName: "node1"},
+	})
+	stream := &fakeRuleGroupStream{err: errors.New("push failed")}
+	npc := &NetworkPolicyController{
+		ruleGroupLister: cache,
+		ruleGroupPusher: &grpcRuleGroupPusher{cache: cache, stream: stream},
+	}
+
+	// No rule groups desired anymore, so the existing "policy-node1" entry
+	// should be deleted — the delete push fails via the fake stream's err.
+	rules := map[string]*crdv1alpha1.NetworkPolicyRuleGroup{}
+
+	if err := npc.syncPolicyRules("policy", rules); err == nil {
+		t.Fatal("syncPolicyRules: want error when a delete push fails, got nil")
+	}
+	// The cache entry must still be there — grpcRuleGroupPusher.Delete keeps
+	// it on push failure (already tested at the pusher level); this test is
+	// about syncPolicyRules surfacing that failure, not re-testing Delete.
+	if _, err := cache.Get("policy-node1"); err != nil {
+		t.Fatalf("cache entry removed despite failed delete push: %v", err)
+	}
+}
+
+func Test_syncPolicyRules_ReturnsErrorWhenUpdateFails(t *testing.T) {
+	cache := newPushedRuleGroupCache()
+	cache.Set(&crdv1alpha1.NetworkPolicyRuleGroup{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-node1", Labels: map[string]string{"kubernetes.io/networkpolicy-name": "policy"}},
+		Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{Policy: "policy", NodeName: "node1"},
+	})
+	stream := &fakeRuleGroupStream{err: errors.New("push failed")}
+	npc := &NetworkPolicyController{
+		ruleGroupLister: cache,
+		ruleGroupPusher: &grpcRuleGroupPusher{cache: cache, stream: stream},
+	}
+
+	// Same name still desired -> syncPolicyRules takes the Update path
+	// (ruleGroupLister.Get finds the existing entry), and that push fails.
+	rules := map[string]*crdv1alpha1.NetworkPolicyRuleGroup{
+		"node1": {
+			ObjectMeta: v1.ObjectMeta{Name: "policy-node1", Labels: map[string]string{"kubernetes.io/networkpolicy-name": "policy"}},
+			Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{Policy: "policy", NodeName: "node1"},
+		},
+	}
+
+	if err := npc.syncPolicyRules("policy", rules); err == nil {
+		t.Fatal("syncPolicyRules: want error when an update push fails, got nil")
 	}
 }
 
