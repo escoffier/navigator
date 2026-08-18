@@ -192,11 +192,11 @@ message NetworkPolicyRuleGroupResp {
 - No e2e harness exists for this path; rely on unit tests plus manual verification (`doc/UseTest.md`
   convention) before flipping the flag on a real cluster.
 
-### Known limitations (surfaced by the final whole-branch review, not fixed in this pass)
+### Known limitations (surfaced by the final whole-branch review)
 
-Two gaps were found that are architectural rather than implementation bugs — both are documented
-here as explicit blockers for production rollout, to be addressed in a follow-up design pass
-rather than folded into this migration's fix wave:
+Two gaps were found that are architectural rather than implementation bugs, originally documented
+here as explicit blockers for production rollout. One is now fixed (see below); the other remains
+open and still blocks enabling `MICROSEG_GRPC_ENABLED=true` in production:
 
 - **Non-durable pushed-state cache loses DELETEs across a clustermanager restart** (tracked as
   [#2](https://github.com/escoffier/navigator/issues/2), fixed). Today's CRD

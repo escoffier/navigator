@@ -2773,6 +2773,11 @@ func Test_MarkWarmAndSync_PushesToAlreadyConnectedDaemons(t *testing.T) {
 	if n, ok := pushedTo["node2-daemon"]; !ok || n != 0 {
 		t.Errorf("node2-daemon pushed %d rule groups, want 0 (empty snapshot)", n)
 	}
+
+	fake.onConnect("node4-daemon")
+	if len(fake.pushed) != 3 {
+		t.Fatalf("pushed = %+v, want a 3rd push for a connect after markWarmAndSync", fake.pushed)
+	}
 }
 
 func Test_MarkWarmAndSync_NilOnConnectStreamIsNoop(t *testing.T) {
