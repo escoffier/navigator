@@ -10,8 +10,6 @@ import (
 	"time"
 
 	"github.com/segmentio/kafka-go"
-	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/microseg/types"
-	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
 	"gitlab.com/security-rd/go-pkg/logging"
 	"gitlab.com/security-rd/go-pkg/model"
 	"gitlab.com/security-rd/go-pkg/mq"
@@ -35,6 +33,11 @@ import (
 	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/clientset/versioned"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/listers/microsegmentation.security.io/v1alpha1"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/microseg/types"
+	"gitlab.com/piccolo_su/vegeta/pkg/k8s"
+	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
+	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 )
 
 const maxRetries = 15
@@ -59,7 +62,7 @@ type NetworkPolicyController struct {
 	endpointsliceLister        dislisterv1.EndpointSliceLister
 	endpointsliceListerv1beta1 dislisterv1beta1.EndpointSliceLister
 	clusterGroupLister         v1alpha1.ClusterWorkloadSetLister
-	ruleGroupLister            v1alpha1.NetworkPolicyRuleGroupLister
+	ruleGroupLister            ruleGroupLister
 
 	podSynced           cache.InformerSynced
 	namepaceSynced      cache.InformerSynced
@@ -75,6 +78,8 @@ type NetworkPolicyController struct {
 	mqTopic             string
 	firstSynced         map[string]bool
 	ruleGroupMap        map[string]sets.String
+	pushedCache         *pushedRuleGroupCache
+	ruleGroupPusher     ruleGroupPusher
 }
 
 func podLabelIndexFunc(obj interface{}) ([]string, error) {
@@ -922,7 +927,7 @@ func (npc *NetworkPolicyController) UpdateResourceExtraNetworkPolicy(nodesIp []s
 	return nil
 }
 
-func NewNetworkPolicyController(clientset *versioned.Clientset, factory informers.SharedInformerFactory, crdFactory externalversions.SharedInformerFactory, writer mq.Writer, topic string) *NetworkPolicyController {
+func NewNetworkPolicyController(clientset *versioned.Clientset, factory informers.SharedInformerFactory, crdFactory externalversions.SharedInformerFactory, writer mq.Writer, topic string, stream rpcstream.MessageStream) *NetworkPolicyController {
 	policyInfomer := crdFactory.Microsegmentation().V1alpha1().ClusterNetworkPolicies().Informer()
 	controller := NetworkPolicyController{
 		clietset:             clientset,
@@ -936,7 +941,6 @@ func NewNetworkPolicyController(clientset *versioned.Clientset, factory informer
 		nodeLister:           factory.Core().V1().Nodes().Lister(),
 		policyLister:         crdFactory.Microsegmentation().V1alpha1().ClusterNetworkPolicies().Lister(),
 		clusterGroupLister:   crdFactory.Microsegmentation().V1alpha1().ClusterWorkloadSets().Lister(),
-		ruleGroupLister:      crdFactory.Microsegmentation().V1alpha1().NetworkPolicyRuleGroups().Lister(),
 		podLister:            factory.Core().V1().Pods().Lister(),
 		namespaceLister:      factory.Core().V1().Namespaces().Lister(),
 		podSynced:            factory.Core().V1().Pods().Informer().HasSynced,
@@ -944,7 +948,6 @@ func NewNetworkPolicyController(clientset *versioned.Clientset, factory informer
 		nodeSynced:           factory.Core().V1().Nodes().Informer().HasSynced,
 		clusterPolicySynced:  crdFactory.Microsegmentation().V1alpha1().ClusterNetworkPolicies().Informer().HasSynced,
 		clusterGroupSynced:   crdFactory.Microsegmentation().V1alpha1().ClusterWorkloadSets().Informer().HasSynced,
-		ruleGroupSynced:      crdFactory.Microsegmentation().V1alpha1().NetworkPolicyRuleGroups().Informer().HasSynced,
 		queue:                workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "networkpolicy-queue"),
 		nodeQueue:            workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "node_queue"),
 		pod2Policy:           make(map[string]string, 100),
@@ -953,6 +956,19 @@ func NewNetworkPolicyController(clientset *versioned.Clientset, factory informer
 		mqTopic:              topic,
 		firstSynced:          make(map[string]bool),
 		ruleGroupMap:         make(map[string]sets.String),
+	}
+
+	if stream != nil {
+		pushed := newPushedRuleGroupCache()
+		controller.pushedCache = pushed
+		controller.ruleGroupLister = pushed
+		controller.ruleGroupSynced = func() bool { return true }
+		controller.ruleGroupPusher = &grpcRuleGroupPusher{cache: pushed, stream: stream}
+		controller.RegisterOnConnect(stream)
+	} else {
+		controller.ruleGroupLister = crdFactory.Microsegmentation().V1alpha1().NetworkPolicyRuleGroups().Lister()
+		controller.ruleGroupSynced = crdFactory.Microsegmentation().V1alpha1().NetworkPolicyRuleGroups().Informer().HasSynced
+		controller.ruleGroupPusher = &k8sRuleGroupPusher{clientset: clientset}
 	}
 
 	policyInfomer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
@@ -1027,6 +1043,48 @@ func NewNetworkPolicyController(clientset *versioned.Clientset, factory informer
 	// }, time.Hour*8)
 	logging.Get().Info().Msg("create NetworkPolicyController")
 	return &controller
+}
+
+// daemonNodeKeySuffix is appended to a node name to form the rpcstream node
+// key daemons register under (e.g. "node1-daemon") — shared by
+// RegisterOnConnect and grpcRuleGroupPusher so the convention only needs to
+// change in one place.
+const daemonNodeKeySuffix = "-daemon"
+
+// ruleGroupOnConnectStream is the subset of rpcstream.MessageStream
+// RegisterOnConnect needs — kept narrow so tests can fake it without a real
+// stream, mirroring ruleGroupStreamPusher's narrowing of the same interface
+// in rulegroup_pusher.go.
+type ruleGroupOnConnectStream interface {
+	OnConnect(f func(nodeKey string))
+	PushRuleGroupSync(ctx context.Context, nodeKey string, req *pb.NetworkPolicyRuleGroupSyncReq) error
+}
+
+// RegisterOnConnect wires this controller's pushed-rule-group cache to the
+// stream's OnConnect hook, so a (re)connecting daemon receives a full
+// bootstrap snapshot of the rule groups clustermanager has already computed
+// for its node — the gRPC-push equivalent of the initial List a k8s informer
+// gets for free. No-op for node keys that aren't a daemon connection (e.g.
+// "-monitor", which shares the same in-cluster stream).
+func (npc *NetworkPolicyController) RegisterOnConnect(stream ruleGroupOnConnectStream) {
+	stream.OnConnect(func(nodeKey string) {
+		if !strings.HasSuffix(nodeKey, daemonNodeKeySuffix) || npc.pushedCache == nil {
+			return
+		}
+		nodeName := strings.TrimSuffix(nodeKey, daemonNodeKeySuffix)
+		groups := npc.pushedCache.ListForNode(nodeName)
+		req := &pb.NetworkPolicyRuleGroupSyncReq{}
+		for _, rg := range groups {
+			req.RuleGroups = append(req.RuleGroups, ruleGroupToPayload(rg))
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := stream.PushRuleGroupSync(ctx, nodeKey, req); err != nil {
+			logging.Get().Err(err).Str("nodeKey", nodeKey).Msg("push rule group bootstrap snapshot")
+			return
+		}
+		logging.Get().Info().Str("nodeKey", nodeKey).Int("ruleGroups", len(groups)).Msg("pushed rule group bootstrap snapshot")
+	})
 }
 
 func (npc *NetworkPolicyController) Run(stopChan chan struct{}) {
@@ -1144,7 +1202,7 @@ func (npc *NetworkPolicyController) syncPolicyRules(policy string, rules map[str
 	deletingRuleGroups := curRuleGroupNames.Difference(desiredRuleGroupNames)
 	logging.Get().Info().Msgf("deletingRuleGroups %v", deletingRuleGroups.List())
 	for name := range deletingRuleGroups {
-		err := npc.clietset.MicrosegmentationV1alpha1().NetworkPolicyRuleGroups().Delete(context.Background(), name, v1.DeleteOptions{})
+		err := npc.ruleGroupPusher.Delete(context.Background(), name)
 		if err != nil {
 			logging.Get().Error().Err(err).Msgf("delete rule group %s", name)
 		}
@@ -1154,7 +1212,7 @@ func (npc *NetworkPolicyController) syncPolicyRules(policy string, rules map[str
 		curRule, err := npc.ruleGroupLister.Get(r.Name)
 		if err != nil {
 			if errors.IsNotFound(err) {
-				_, err = npc.clietset.MicrosegmentationV1alpha1().NetworkPolicyRuleGroups().Create(context.TODO(), r, v1.CreateOptions{})
+				err = npc.ruleGroupPusher.Create(context.TODO(), r)
 				npc.updatePolicyRuleStatus(err, r.Spec.Rules)
 				if err != nil {
 					return err
@@ -1164,10 +1222,7 @@ func (npc *NetworkPolicyController) syncPolicyRules(policy string, rules map[str
 			npc.updatePolicyRuleStatus(err, r.Spec.Rules)
 			return err
 		}
-		newRule := curRule.DeepCopy()
-		newRule.Spec = r.Spec
-		_, err = npc.clietset.MicrosegmentationV1alpha1().NetworkPolicyRuleGroups().Update(context.TODO(), newRule, v1.UpdateOptions{})
-		// npc.updatePolicyRuleStatus(err, r.Spec.Rules)
+		err = npc.ruleGroupPusher.Update(context.TODO(), curRule, r)
 		if err != nil {
 			logging.Get().Error().Err(err).Msgf("update rule group %s", r.Name)
 		}
@@ -1389,13 +1444,7 @@ func (npc *NetworkPolicyController) generateRules(policy *crdv1alpha1.ClusterNet
 }
 
 func (npc *NetworkPolicyController) deleteRuleGroup(policyName string) error {
-	err := npc.clietset.MicrosegmentationV1alpha1().NetworkPolicyRuleGroups().DeleteCollection(context.Background(), v1.DeleteOptions{}, v1.ListOptions{
-		LabelSelector: fmt.Sprintf("kubernetes.io/networkpolicy-name=%s", policyName),
-	})
-	if err != nil && !errors.IsNotFound(err) {
-		return err
-	}
-	return nil
+	return npc.ruleGroupPusher.DeleteByPolicy(context.Background(), policyName)
 }
 
 func (npc *NetworkPolicyController) syncPolicy(key string) error {

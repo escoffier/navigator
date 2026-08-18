@@ -20,9 +20,10 @@ import (
 	"google.golang.org/protobuf/types/known/anypb"
 	"k8s.io/apimachinery/pkg/util/wait"
 
-	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
+
+	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 )
 
 type StreamFactoryOption func(*streamFactory) *streamFactory
@@ -74,6 +75,7 @@ type MessageStream interface {
 	AddHandlerFunc(msg protoreflect.ProtoMessage, f ProcessFunc) error
 	Response(stream Stream, reqUUID string, resp protoreflect.ProtoMessage) error
 	DumpStreams() string
+	OnConnect(f func(nodeKey string))
 }
 
 type StreamFactory interface {
@@ -89,6 +91,7 @@ type messageStream struct {
 	noderKey   string
 	Label      string
 	streamLock sync.Mutex
+	onConnect  func(nodeKey string)
 }
 
 type messageStreamServer struct {
@@ -170,9 +173,14 @@ func (s *messageStreamServer) SendMessage(stream pb.ClusterService_SendMessageSe
 	for name, handler := range s.hanlders {
 		s.streams[in.NodeKey].AddHandler(name, handler)
 	}
+	onConnect := s.onConnect
 	s.streamLock.Unlock()
 
 	go rs.Run(stopChan)
+
+	if onConnect != nil {
+		go onConnect(in.NodeKey)
+	}
 
 	logging.Get().Info().Msg("begin dispatching message")
 	rs.Dispatch()
@@ -243,7 +251,9 @@ func (s *messageStream) Request(ctx context.Context, nodeKey string, msgType pb.
 		NodeKey:     s.noderKey,
 		Payload:     payload,
 	}
+	s.streamLock.Lock()
 	stream := s.streams[nodeKey]
+	s.streamLock.Unlock()
 	if stream == nil {
 		return nil, fmt.Errorf("not found stream: %s", nodeKey)
 	}
@@ -303,6 +313,12 @@ func (s *messageStream) DumpStreams() string {
 		return ""
 	}
 	return string(data)
+}
+
+func (s *messageStream) OnConnect(f func(nodeKey string)) {
+	s.streamLock.Lock()
+	defer s.streamLock.Unlock()
+	s.onConnect = f
 }
 
 func (s *messageStreamServer) Start() error {

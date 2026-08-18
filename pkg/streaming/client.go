@@ -32,6 +32,12 @@ type MessageStreamClient interface {
 
 	// PushComplianceScan 发起合规扫描
 	PushComplianceScan(ctx context.Context, nodeKey string, req *pb.ComplianceScanReq) (*pb.CommonReponse, error)
+
+	// PushRuleGroup 推送 NetworkPolicyRuleGroup 增量事件到指定节点
+	PushRuleGroup(ctx context.Context, nodeKey string, msgType pb.MessageType, req *pb.NetworkPolicyRuleGroupReq) error
+
+	// PushRuleGroupSync 推送节点重连时的全量快照
+	PushRuleGroupSync(ctx context.Context, nodeKey string, req *pb.NetworkPolicyRuleGroupSyncReq) error
 }
 
 func (s *messageStream) UpdateVulnDB(ctx context.Context, nodeKey string, vulnReq *pb.ImageSecReq) (*pb.ImageSecResp, error) {
@@ -264,4 +270,22 @@ func (s *messageStream) PushComplianceScan(ctx context.Context, nodeKey string, 
 	logging.Get().Debug().Str("resp", r.String()).Msg("recv compliance scan rsp end")
 
 	return r, nil
+}
+
+func (s *messageStream) PushRuleGroup(ctx context.Context, nodeKey string, msgType pb.MessageType, req *pb.NetworkPolicyRuleGroupReq) error {
+	_, err := s.Request(ctx, nodeKey, msgType, req, false)
+	if err != nil {
+		logging.Get().Err(err).Str("nodeKey", nodeKey).Msg("failed to push rule group msg")
+		return err
+	}
+	return nil
+}
+
+func (s *messageStream) PushRuleGroupSync(ctx context.Context, nodeKey string, req *pb.NetworkPolicyRuleGroupSyncReq) error {
+	_, err := s.Request(ctx, nodeKey, pb.MessageType_CREATE, req, false)
+	if err != nil {
+		logging.Get().Err(err).Str("nodeKey", nodeKey).Msg("failed to push rule group sync msg")
+		return err
+	}
+	return nil
 }

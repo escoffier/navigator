@@ -8,8 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/microseg/types"
-	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	corev1 "k8s.io/api/core/v1"
@@ -31,6 +29,10 @@ import (
 	crdfake "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/clientset/versioned/fake"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/listers/microsegmentation.security.io/v1alpha1"
+
+	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/microseg/types"
+	"gitlab.com/piccolo_su/vegeta/pkg/assets"
+	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 )
 
 func TestNetworkPolicyController_caculatePolicy(t *testing.T) {
@@ -2615,5 +2617,106 @@ func TestDeepEqual(t *testing.T) {
 	eq := apiequality.Semantic.DeepEqual(rule1, rule2)
 	if eq {
 		t.Errorf("DeepEqual= %v, want: %v", eq, true)
+	}
+}
+
+func Test_syncPolicyRules_UsesInjectedPusher(t *testing.T) {
+	npc := &NetworkPolicyController{
+		ruleGroupLister: newPushedRuleGroupCache(),
+		ruleGroupPusher: &grpcRuleGroupPusher{cache: newPushedRuleGroupCache(), stream: &fakeRuleGroupStream{}},
+	}
+
+	rules := map[string]*crdv1alpha1.NetworkPolicyRuleGroup{
+		"node1": {
+			ObjectMeta: v1.ObjectMeta{Name: "policy-node1", Labels: map[string]string{"kubernetes.io/networkpolicy-name": "policy"}},
+			Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{Policy: "policy", NodeName: "node1"},
+		},
+	}
+
+	if err := npc.syncPolicyRules("policy", rules); err != nil {
+		t.Fatalf("syncPolicyRules: %v", err)
+	}
+
+	pusher := npc.ruleGroupPusher.(*grpcRuleGroupPusher)
+	stream := pusher.stream.(*fakeRuleGroupStream)
+	if len(stream.pushed) != 1 || stream.pushed[0].msgType != pb.MessageType_CREATE {
+		t.Fatalf("pushed = %+v, want one CREATE", stream.pushed)
+	}
+}
+
+type fakeOnConnectStream struct {
+	onConnect func(string)
+	pushed    []struct {
+		nodeKey string
+		req     *pb.NetworkPolicyRuleGroupSyncReq
+	}
+}
+
+func (f *fakeOnConnectStream) OnConnect(fn func(string)) { f.onConnect = fn }
+
+func (f *fakeOnConnectStream) PushRuleGroupSync(_ context.Context, nodeKey string, req *pb.NetworkPolicyRuleGroupSyncReq) error {
+	f.pushed = append(f.pushed, struct {
+		nodeKey string
+		req     *pb.NetworkPolicyRuleGroupSyncReq
+	}{nodeKey, req})
+	return nil
+}
+
+func Test_RegisterOnConnect_EmptyNodeStillGetsSnapshot(t *testing.T) {
+	npc := &NetworkPolicyController{pushedCache: newPushedRuleGroupCache()}
+	fake := &fakeOnConnectStream{}
+	npc.RegisterOnConnect(fake)
+
+	fake.onConnect("node1-daemon")
+
+	if len(fake.pushed) != 1 || fake.pushed[0].nodeKey != "node1-daemon" {
+		t.Fatalf("pushed = %+v, want one push to node1-daemon", fake.pushed)
+	}
+	if len(fake.pushed[0].req.GetRuleGroups()) != 0 {
+		t.Fatalf("RuleGroups = %+v, want empty (explicit empty snapshot)", fake.pushed[0].req.GetRuleGroups())
+	}
+}
+
+func Test_RegisterOnConnect_NodeWithRuleGroups(t *testing.T) {
+	cache := newPushedRuleGroupCache()
+	cache.Set(&crdv1alpha1.NetworkPolicyRuleGroup{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-node1"},
+		Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{Policy: "policy", NodeName: "node1"},
+	})
+	npc := &NetworkPolicyController{pushedCache: cache}
+	fake := &fakeOnConnectStream{}
+	npc.RegisterOnConnect(fake)
+
+	fake.onConnect("node1-daemon")
+
+	if len(fake.pushed) != 1 || len(fake.pushed[0].req.GetRuleGroups()) != 1 {
+		t.Fatalf("pushed = %+v, want one push with one rule group", fake.pushed)
+	}
+	if fake.pushed[0].req.GetRuleGroups()[0].GetName() != "policy-node1" {
+		t.Errorf("RuleGroups[0].Name = %q, want policy-node1", fake.pushed[0].req.GetRuleGroups()[0].GetName())
+	}
+}
+
+func Test_RegisterOnConnect_IgnoresNonDaemonSuffix(t *testing.T) {
+	npc := &NetworkPolicyController{pushedCache: newPushedRuleGroupCache()}
+	fake := &fakeOnConnectStream{}
+	npc.RegisterOnConnect(fake)
+
+	fake.onConnect("node1-monitor")
+
+	if len(fake.pushed) != 0 {
+		t.Fatalf("pushed = %+v, want no pushes for non-daemon connection", fake.pushed)
+	}
+}
+
+func Test_RegisterOnConnect_NilCacheIsNoop(t *testing.T) {
+	npc := &NetworkPolicyController{}
+	fake := &fakeOnConnectStream{}
+	npc.RegisterOnConnect(fake)
+
+	fake.onConnect("node1-daemon")
+
+	if len(fake.pushed) != 0 {
+		t.Fatalf("pushed = %+v, want no pushes when pushedCache is nil", fake.pushed)
 	}
 }

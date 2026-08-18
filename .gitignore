@@ -32,3 +32,5 @@ benchmark/mock-httpserver/mock-httpserver
 tool/db/db-tool
 tool/migrate/migration-tool
 build
+
+.worktrees/

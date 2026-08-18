@@ -12,6 +12,15 @@ import (
 	json "github.com/json-iterator/go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"gitlab.com/security-rd/go-pkg/cache"
+	"gitlab.com/security-rd/go-pkg/databases"
+	"gitlab.com/security-rd/go-pkg/logging"
+	"gitlab.com/security-rd/go-pkg/mq"
+	"gitlab.com/security-rd/go-pkg/redisearch"
+	"gitlab.com/security-rd/go-pkg/sdk/palace"
+	"k8s.io/client-go/informers"
+	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
+
 	clusterAgent "gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg"
 	apisecurity "gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/api-security"
 	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/assets"
@@ -27,14 +36,6 @@ import (
 	"gitlab.com/piccolo_su/vegeta/pkg/model"
 	rpcstream "gitlab.com/piccolo_su/vegeta/pkg/streaming"
 	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
-	"gitlab.com/security-rd/go-pkg/cache"
-	"gitlab.com/security-rd/go-pkg/databases"
-	"gitlab.com/security-rd/go-pkg/logging"
-	"gitlab.com/security-rd/go-pkg/mq"
-	"gitlab.com/security-rd/go-pkg/redisearch"
-	"gitlab.com/security-rd/go-pkg/sdk/palace"
-	"k8s.io/client-go/informers"
-	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 )
 
 const (
@@ -97,7 +98,6 @@ func NewServer() (*server, error) {
 	}
 
 	inClusterStream := rpcstream.NewStreamFactory(rpcstream.WithPodNameKey()).Server("tcp", ":19090")
-	_ = inClusterStream.Start()
 
 	stream := rpcstream.NewStreamFactory(rpcstream.WithClusterKey(agent.CusterID)).Client(s.config.MasterGrpcAddr)
 	_ = stream.AddHandler(&pb.HoneySpotReq{}, &service.HoneypotHandler{
@@ -159,7 +159,17 @@ func NewServer() (*server, error) {
 	}
 	go heartbeat.NewBeatSend(mqWriter, monitorTopic, time.Minute, agent.CusterID).Run()
 
-	go microseg.NewNetworkPolicyController(agent.GetHostClient().TensorClientset, factory, tensorFactory, mqWriter, "ivan_microseg_status").Run(stopChan)
+	var ruleGroupStream rpcstream.MessageStream
+	if os.Getenv("MICROSEG_GRPC_ENABLED") == "true" {
+		ruleGroupStream = inClusterStream
+	}
+	go microseg.NewNetworkPolicyController(agent.GetHostClient().TensorClientset, factory, tensorFactory, mqWriter, "ivan_microseg_status", ruleGroupStream).Run(stopChan)
+
+	// Start accepting daemon connections only after NewNetworkPolicyController has
+	// registered its OnConnect hook (it does so synchronously, before the `go`
+	// above dispatches Run) — a daemon that connects earlier would never get its
+	// bootstrap snapshot.
+	_ = inClusterStream.Start()
 
 	if s.config.ClusterType == model.HostCluster {
 		rdb, err := databases.NewRDBWithMySQLByEnv(context.Background())

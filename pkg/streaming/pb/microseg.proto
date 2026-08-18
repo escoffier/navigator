@@ -1,0 +1,59 @@
+syntax = "proto3";
+package pb;
+option go_package = "./;pb";
+
+message MicrosegAddress {
+    string IP = 1;
+    string PodNamespace = 2;
+    string PodName = 3;
+}
+
+message MicrosegIPBlock {
+    string CIDR = 1;
+}
+
+message MicrosegPort {
+    string Protocol = 1;
+    string Port = 2;
+    int32 EndPort = 3;
+}
+
+message MicrosegHttp {
+    string Method = 1;
+    string Path = 2;
+    string Host = 3;
+}
+
+message MicrosegNodeRule {
+    string Name = 1;
+    int32 Priority = 2;
+    string Protocol = 3;
+    string Direction = 4;
+    string Action = 5;
+    repeated MicrosegPort Ports = 6;
+    repeated MicrosegAddress ToAddresses = 7;
+    repeated MicrosegIPBlock ToIPBlock = 8;
+    repeated MicrosegAddress FromAddress = 9;
+    repeated MicrosegIPBlock FromIPBlock = 10;
+    MicrosegHttp Http = 11;
+}
+
+message NetworkPolicyRuleGroupPayload {
+    string Name = 1;
+    string Policy = 2;
+    string NodeName = 3;
+    repeated MicrosegNodeRule Rules = 4;
+}
+
+message NetworkPolicyRuleGroupReq {
+    NetworkPolicyRuleGroupPayload RuleGroup = 1;
+}
+
+message NetworkPolicyRuleGroupSyncReq {
+    repeated NetworkPolicyRuleGroupPayload RuleGroups = 1;
+}
+
+message NetworkPolicyRuleGroupResp {
+    bool Success = 1;
+    string Error = 2;
+}

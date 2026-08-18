@@ -34,7 +34,6 @@ import (
 	apiequality "k8s.io/apimachinery/pkg/api/equality"
 	hashutil "k8s.io/kubernetes/pkg/util/hash"
 	crdv1alpha1 "scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/apis/microsegmentation.security.io/v1alpha1"
-	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/listers/microsegmentation.security.io/v1alpha1"
 )
 
 const maxRetries = 15
@@ -43,7 +42,7 @@ var log = logging.Get().With().Str("module", "microseg").Logger()
 
 type RuleGroupController struct {
 	ruleInformer    cache.SharedIndexInformer
-	ruleLister      v1alpha1.NetworkPolicyRuleGroupLister
+	ruleLister      ruleGroupLister
 	ruleGroupSynced cache.InformerSynced
 	queue           workqueue.RateLimitingInterface
 	polCli          PolicyClient
@@ -51,6 +50,7 @@ type RuleGroupController struct {
 	mqSender        mq.Writer
 	agentCli        *heavyagent.ControlClient
 	ruleMap         map[string]sets.String
+	streamCache     *streamRuleCache
 }
 
 func NewRuleGroupController(clientset *versioned.Clientset, crdFactory externalversions.SharedInformerFactory, cli PolicyClient, nodeName string, mqWriter mq.Writer, agentCli *heavyagent.ControlClient) *RuleGroupController {
@@ -73,6 +73,31 @@ func NewRuleGroupController(clientset *versioned.Clientset, crdFactory externalv
 	}, time.Hour*8)
 
 	cli.AddReConnectionCallback(controller.ReSyncAllPolicy)
+	return controller
+}
+
+// NewStreamRuleGroupController builds a RuleGroupController fed by the
+// daemon<->clustermanager gRPC stream instead of a k8s informer, used when
+// MICROSEG_GRPC_ENABLED=true. Callers must register RuleGroupStreamHandler and
+// RuleGroupSyncStreamHandler on the stream for the returned controller (see
+// cmd/daemon/main.go).
+func NewStreamRuleGroupController(cli PolicyClient, nodeName string, mqWriter mq.Writer, agentCli *heavyagent.ControlClient) *RuleGroupController {
+	streamCache := newStreamRuleCache()
+	controller := &RuleGroupController{
+		ruleLister:  streamCache,
+		streamCache: streamCache,
+		queue:       workqueue.NewNamedRateLimitingQueue(workqueue.DefaultControllerRateLimiter(), "rulegroup-queue"),
+		polCli:      cli,
+		nodeName:    nodeName,
+		mqSender:    mqWriter,
+		agentCli:    agentCli,
+		ruleMap:     make(map[string]sets.String),
+	}
+	controller.ruleGroupSynced = func() bool { return true }
+
+	if cli != nil {
+		cli.AddReConnectionCallback(controller.ReSyncAllPolicy)
+	}
 	return controller
 }
 

@@ -357,7 +357,6 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 	rpcStream := rpcstream.NewStreamFactory(rpcstream.WithClusterKey(nodeKey)).Client(clusterGrpcAddr)
 	_ = rpcStream.AddHandler(&streampb.ComplianceScanReq{}, &scapper.ScanHandler{Writer: mqWriter})
 	_ = rpcStream.AddHandler(&streampb.NodeLoadReq{}, &handler.NodeLoadHandler{})
-	rpcStream.Start()
 
 	kubeConfig, err := k8s.KubeConfig()
 	if err != nil {
@@ -433,7 +432,15 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 			externalversions.WithTweakListOptions(func(lo *v1.ListOptions) {
 				lo.LabelSelector = fmt.Sprintf("kubernetes.io/node-name=%s", hostName)
 			}))
-		ruleController := microseg.NewRuleGroupController(clientset.TensorClientset, tensorFactory, policyClient, hostName, mqWriter, ctrlClient)
+
+		var ruleController *microseg.RuleGroupController
+		if os.Getenv("MICROSEG_GRPC_ENABLED") == "true" {
+			ruleController = microseg.NewStreamRuleGroupController(policyClient, hostName, mqWriter, ctrlClient)
+			_ = rpcStream.AddHandler(&streampb.NetworkPolicyRuleGroupReq{}, &microseg.RuleGroupStreamHandler{Controller: ruleController})
+			_ = rpcStream.AddHandler(&streampb.NetworkPolicyRuleGroupSyncReq{}, &microseg.RuleGroupSyncStreamHandler{Controller: ruleController})
+		} else {
+			ruleController = microseg.NewRuleGroupController(clientset.TensorClientset, tensorFactory, policyClient, hostName, mqWriter, ctrlClient)
+		}
 
 		go ruleController.Run(stopChan)
 
@@ -473,6 +480,11 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 			srv.Run()
 		}()
 	}
+
+	// Start the stream only after every AddHandler above has run: clustermanager
+	// pushes the rule-group bootstrap snapshot the instant it sees Register, and
+	// a message that arrives before its handler is registered is dropped.
+	rpcStream.Start()
 
 	wg.Add(1)
 	go func() {
