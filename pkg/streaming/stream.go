@@ -23,6 +23,20 @@ type SenderFunc func(*pb.ClusterMessage) error
 type Stream interface {
 	Dispatch() error
 	AddHandler(StreammsgName string, handler MessageHandler) error
+	// AddOrderedHandler is like AddHandler, but Dispatch invokes this
+	// handler synchronously (in receive order) instead of spawning a
+	// goroutine per message. Use only for handlers whose relative message
+	// order matters (see issue #3). This blocks the ENTIRE connection's
+	// dispatch loop for the duration of the call — not just this message
+	// type — including every other registered handler, processor, and
+	// response/session delivery on the same connection. An ordered handler
+	// must never block waiting on a message arriving over that same
+	// connection (e.g. a synchronous Request/Response round trip): Dispatch
+	// won't read the reply until the handler returns, so that would
+	// deadlock the connection permanently. All AddOrderedHandler
+	// registrations should complete before the stream starts running
+	// (Dispatch reads this registration state without synchronization).
+	AddOrderedHandler(StreammsgName string, handler MessageHandler) error
 	AddHandlerFunc(StreammsgName string, f ProcessFunc) error
 	AddSession(id string, ack bool)
 	DelSession(id string)
@@ -43,9 +57,14 @@ type Session struct {
 }
 
 type baseStream struct {
-	stopChan    chan struct{}
-	processors  map[string]ProcessFunc
-	handlers    map[string]MessageHandler
+	stopChan   chan struct{}
+	processors map[string]ProcessFunc
+	handlers   map[string]MessageHandler
+	// ordered holds the message names registered via AddOrderedHandler —
+	// Dispatch invokes these synchronously instead of via go func() (see
+	// issue #3). Empty/nil means "no ordering guarantee", the pre-existing
+	// default for every handler registered via plain AddHandler.
+	ordered     map[string]struct{}
 	sessions    map[string]*Session
 	queue       cache.Queue
 	sessionLock sync.RWMutex
@@ -57,6 +76,21 @@ func (s *baseStream) AddHandler(msgName string, handler MessageHandler) error {
 	logging.Get().Debug().Msgf("add handler for %s", msgName)
 	s.handlers[msgName] = handler
 	return nil
+}
+
+func (s *baseStream) AddOrderedHandler(msgName string, handler MessageHandler) error {
+	logging.Get().Debug().Msgf("add ordered handler for %s", msgName)
+	s.handlers[msgName] = handler
+	if s.ordered == nil {
+		s.ordered = make(map[string]struct{})
+	}
+	s.ordered[msgName] = struct{}{}
+	return nil
+}
+
+func (s *baseStream) isOrdered(msgName string) bool {
+	_, ok := s.ordered[msgName]
+	return ok
 }
 
 func (s *baseStream) AddHandlerFunc(msgName string, f ProcessFunc) error {
@@ -173,11 +207,12 @@ func (s *baseStream) Dispatch() error {
 			go fn(s, in.ReqUUID, in.MessageType, m)
 			continue
 		}
-		handler, ok := s.handlers[string(m.ProtoReflect().Descriptor().Name())]
+		msgName := string(m.ProtoReflect().Descriptor().Name())
+		handler, ok := s.handlers[msgName]
 		//	logging.Get().Info().Msgf("映射handler并处理 %v %v %v", in.MessageType, string(m.ProtoReflect().Descriptor().Name()), ok)
 		if ok {
 			logging.Get().Debug().Str("reqID", in.ReqUUID).Msg("handler dealing msg")
-			go func() {
+			dispatch := func() {
 				switch in.MessageType {
 				case pb.MessageType_CREATE:
 					handler.OnCreate(s, in.ReqUUID, m)
@@ -188,8 +223,12 @@ func (s *baseStream) Dispatch() error {
 				case pb.MessageType_DELETE:
 					handler.OnDelete(s, in.ReqUUID, m)
 				}
-
-			}()
+			}
+			if s.isOrdered(msgName) {
+				dispatch()
+			} else {
+				go dispatch()
+			}
 			continue
 		}
 
@@ -265,6 +304,7 @@ func NewServerStream(stream pb.ClusterService_SendMessageServer) Stream {
 			stopChan:   make(chan struct{}),
 			processors: make(map[string]ProcessFunc, 0),
 			handlers:   make(map[string]MessageHandler, 0),
+			ordered:    make(map[string]struct{}, 0),
 			sessions:   make(map[string]*Session),
 			queue: cache.NewFIFO(func(obj interface{}) (string, error) {
 				msg := obj.(*pb.ClusterMessage)
@@ -292,6 +332,7 @@ func NewClientStream(stream pb.ClusterService_SendMessageClient) Stream {
 			stopChan:   make(chan struct{}),
 			processors: make(map[string]ProcessFunc, 0),
 			handlers:   make(map[string]MessageHandler, 0),
+			ordered:    make(map[string]struct{}, 0),
 			sessions:   make(map[string]*Session),
 			queue: cache.NewFIFO(func(obj interface{}) (string, error) {
 				msg := obj.(*pb.ClusterMessage)

@@ -72,6 +72,14 @@ type MessageStream interface {
 	MessageStreamClient
 	Start() error
 	AddHandler(msg protoreflect.ProtoMessage, handler MessageHandler) error
+	// AddOrderedHandler is like AddHandler, but messages of this type are
+	// dispatched synchronously, in receive order, on every connection —
+	// this blocks that connection's entire dispatch loop for the handler's
+	// duration (not just this message type), so an ordered handler must
+	// never itself wait on a message arriving over the same connection. All
+	// registrations should complete before calling Start(). See
+	// Stream.AddOrderedHandler and issue #3.
+	AddOrderedHandler(msg protoreflect.ProtoMessage, handler MessageHandler) error
 	AddHandlerFunc(msg protoreflect.ProtoMessage, f ProcessFunc) error
 	Response(stream Stream, reqUUID string, resp protoreflect.ProtoMessage) error
 	DumpStreams() string
@@ -92,11 +100,16 @@ type messageStream struct {
 	streams    map[string]Stream
 	processors map[string]ProcessFunc
 	hanlders   map[string]MessageHandler
-	KeyToLabel map[string]string
-	noderKey   string
-	Label      string
-	streamLock sync.Mutex
-	onConnect  func(nodeKey string)
+	// orderedNames holds the message names registered via AddOrderedHandler
+	// — every new connection registers these via Stream.AddOrderedHandler
+	// instead of Stream.AddHandler (see issue #3). A name in hanlders but
+	// not here got a plain AddHandler and dispatches unordered, as before.
+	orderedNames map[string]struct{}
+	KeyToLabel   map[string]string
+	noderKey     string
+	Label        string
+	streamLock   sync.Mutex
+	onConnect    func(nodeKey string)
 }
 
 type messageStreamServer struct {
@@ -176,7 +189,11 @@ func (s *messageStreamServer) SendMessage(stream pb.ClusterService_SendMessageSe
 		s.streams[in.NodeKey].AddHandlerFunc(name, fun)
 	}
 	for name, handler := range s.hanlders {
-		s.streams[in.NodeKey].AddHandler(name, handler)
+		if _, ordered := s.orderedNames[name]; ordered {
+			s.streams[in.NodeKey].AddOrderedHandler(name, handler)
+		} else {
+			s.streams[in.NodeKey].AddHandler(name, handler)
+		}
 	}
 	onConnect := s.onConnect
 	s.streamLock.Unlock()
@@ -203,12 +220,13 @@ func (f *streamFactory) Server(network string, address string) MessageStream {
 		network: network,
 		address: address,
 		messageStream: messageStream{
-			streams:    make(map[string]Stream, 0),
-			processors: make(map[string]ProcessFunc, 0),
-			hanlders:   make(map[string]MessageHandler, 0),
-			KeyToLabel: make(map[string]string, 0),
-			noderKey:   f.NodeKey,
-			Label:      f.Label,
+			streams:      make(map[string]Stream, 0),
+			processors:   make(map[string]ProcessFunc, 0),
+			hanlders:     make(map[string]MessageHandler, 0),
+			orderedNames: make(map[string]struct{}, 0),
+			KeyToLabel:   make(map[string]string, 0),
+			noderKey:     f.NodeKey,
+			Label:        f.Label,
 		},
 	}
 }
@@ -241,6 +259,23 @@ func (s *messageStream) AddHandler(msg protoreflect.ProtoMessage, handler Messag
 	}
 	return nil
 
+}
+
+func (s *messageStream) AddOrderedHandler(msg protoreflect.ProtoMessage, handler MessageHandler) error {
+	s.streamLock.Lock()
+	defer s.streamLock.Unlock()
+
+	messageName := string(msg.ProtoReflect().Descriptor().Name())
+	logging.Get().Info().Msgf("add ordered handler for : %s", messageName)
+	s.hanlders[messageName] = handler
+	if s.orderedNames == nil {
+		s.orderedNames = make(map[string]struct{})
+	}
+	s.orderedNames[messageName] = struct{}{}
+	for _, stream := range s.streams {
+		stream.AddOrderedHandler(messageName, handler)
+	}
+	return nil
 }
 
 func (s *messageStream) Request(ctx context.Context, nodeKey string, msgType pb.MessageType, req protoreflect.ProtoMessage, ack bool) (protoreflect.ProtoMessage, error) {
@@ -360,12 +395,13 @@ func (f *streamFactory) Client(remoteAddress string) MessageStream {
 	return &messageStreamClient{
 		remoteAddress: remoteAddress,
 		messageStream: messageStream{
-			streams:    make(map[string]Stream, 0),
-			processors: make(map[string]ProcessFunc, 3),
-			hanlders:   make(map[string]MessageHandler, 0),
-			KeyToLabel: make(map[string]string, 0),
-			noderKey:   f.NodeKey,
-			Label:      f.Label,
+			streams:      make(map[string]Stream, 0),
+			processors:   make(map[string]ProcessFunc, 3),
+			hanlders:     make(map[string]MessageHandler, 0),
+			orderedNames: make(map[string]struct{}, 0),
+			KeyToLabel:   make(map[string]string, 0),
+			noderKey:     f.NodeKey,
+			Label:        f.Label,
 		},
 		reConnect: false,
 	}
@@ -413,7 +449,11 @@ func (c *messageStreamClient) Start() error {
 				_ = c.streams[defaultNodeKey].AddHandlerFunc(name, fun)
 			}
 			for name, handler := range c.hanlders {
-				_ = c.streams[defaultNodeKey].AddHandler(name, handler)
+				if _, ordered := c.orderedNames[name]; ordered {
+					_ = c.streams[defaultNodeKey].AddOrderedHandler(name, handler)
+				} else {
+					_ = c.streams[defaultNodeKey].AddHandler(name, handler)
+				}
 			}
 			c.streamLock.Unlock()
 			logging.Get().Debug().Msg("add stream handler end")

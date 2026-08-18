@@ -1191,12 +1191,18 @@ func (npc *NetworkPolicyController) Run(stopChan chan struct{}) {
 		}
 		npc.markWarmAndSync()
 	}
-	// The warm-transition snapshot just pushed above can race this worker's
-	// first incremental deltas once it starts: pkg/streaming dispatches each
-	// message in its own goroutine with no ordering guarantee (issue #3), so
-	// in principle a daemon could apply a later DELETE before an
-	// still-in-flight snapshot, resurrecting a rule group — checkSync only
-	// warns, it doesn't self-heal. Not fixed here; tracked by issue #3.
+	// This worker's first incremental deltas, once it starts, are applied by
+	// the daemon strictly after the warm-transition snapshot just pushed
+	// above: both microseg rule-group message types are registered via
+	// AddOrderedHandler (see pkg/streaming/stream.go), so pkg/streaming no
+	// longer reorders them on receipt (issue #3, fixed). A different,
+	// still-open race remains on the SEND side: RegisterOnConnect's callback
+	// (fired asynchronously per connecting daemon) and this worker both
+	// read/mutate pushedCache and enqueue pushes for the same node with no
+	// serialization between the two goroutines, so a bootstrap snapshot
+	// computed before a concurrent DELETE can still be enqueued after it,
+	// resurrecting a rule group — checkSync only warns, it doesn't
+	// self-heal. Tracked by issue #4.
 	go wait.Until(npc.worker, time.Second, stopChan)
 	// go wait.Until(npc.nodeWorker, time.Second, stopChan)
 }
