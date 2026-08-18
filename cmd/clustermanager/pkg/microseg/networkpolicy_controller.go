@@ -1142,7 +1142,11 @@ func (npc *NetworkPolicyController) pushSnapshotToNode(stream ruleGroupOnConnect
 // callback asynchronously, outside its own connection-map lock — if that
 // ever became synchronous, this function's warmMu-then-streamLock ordering
 // could deadlock against a callback trying to acquire warmMu from inside
-// that lock.
+// that lock. The pushSnapshotToNode calls below also acquire
+// pushedCache.LockNode before their PushRuleGroupSync call reaches
+// streamLock (via Request) — same hazard, same reason it's safe today: the
+// only thing that could invert this is stream.OnConnect becoming
+// synchronous under streamLock.
 func (npc *NetworkPolicyController) markWarmAndSync() {
 	if npc.onConnectStream == nil {
 		return

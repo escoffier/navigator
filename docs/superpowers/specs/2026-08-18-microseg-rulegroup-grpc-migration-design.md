@@ -192,10 +192,11 @@ message NetworkPolicyRuleGroupResp {
 - No e2e harness exists for this path; rely on unit tests plus manual verification (`doc/UseTest.md`
   convention) before flipping the flag on a real cluster.
 
-### Known limitations (surfaced across two rounds of final whole-branch review)
+### Known limitations (surfaced across three rounds of final whole-branch review)
 
 Three gaps were found here, all architectural rather than implementation bugs — all three are now
-fixed:
+fixed. A fourth, narrower gap (error handling, not architectural) was found by the third review;
+it's tracked separately below.
 
 - **Non-durable pushed-state cache loses DELETEs across a clustermanager restart** (tracked as
   [#2](https://github.com/escoffier/navigator/issues/2), fixed). Today's CRD
@@ -234,3 +235,12 @@ fixed:
   (`rulegroup_pusher.go`) and `NetworkPolicyController.pushSnapshotToNode`
   (`networkpolicy_controller.go`) all acquire across "read/mutate the cache for this node" plus
   "enqueue the corresponding push," so the two code paths can never interleave for the same node.
+- **Failed DELETE push leaves a stale cache entry that resurrects on daemon reconnect** (tracked
+  as [#5](https://github.com/escoffier/navigator/issues/5)). `grpcRuleGroupPusher.Delete`
+  deliberately keeps the cache entry when the push itself fails (so a later attempt can retry), but
+  `syncPolicyRules`'s delete loop only logs that error — it never returns it, so the policy is
+  never requeued with backoff. The most likely failure is the target daemon being disconnected,
+  which is exactly the reconnect scenario issue #4 concerned — so a deleted rule group can still
+  resurrect on reconnect through this path, via swallowed error handling rather than a race. Self-
+  heals only via the 8-hour informer resync. Needs `syncPolicyRules` to aggregate and return delete
+  errors so `handleErr` requeues the policy.

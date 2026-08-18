@@ -86,6 +86,10 @@ func (p *grpcRuleGroupPusher) Update(ctx context.Context, _, desired *crdv1alpha
 }
 
 func (p *grpcRuleGroupPusher) Delete(ctx context.Context, name string) error {
+	// Safe to read rg.Spec.NodeName before acquiring the node's lock: a rule
+	// group's name always embeds its node (e.g. "<policy>-<node>", see
+	// generateRules), so the node this Get returns can never change under
+	// us before we lock it.
 	rg, err := p.cache.Get(name)
 	if err != nil {
 		if errors.IsNotFound(err) {
