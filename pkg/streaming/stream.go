@@ -49,9 +49,9 @@ type Session struct {
 }
 
 type baseStream struct {
-	stopChan    chan struct{}
-	processors  map[string]ProcessFunc
-	handlers    map[string]MessageHandler
+	stopChan   chan struct{}
+	processors map[string]ProcessFunc
+	handlers   map[string]MessageHandler
 	// ordered holds the message names registered via AddOrderedHandler —
 	// Dispatch invokes these synchronously instead of via go func() (see
 	// issue #3). Empty/nil means "no ordering guarantee", the pre-existing

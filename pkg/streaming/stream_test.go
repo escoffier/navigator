@@ -110,6 +110,7 @@ func Test_baseStream_Dispatch_UnorderedHandlerDoesNotBlockNextMessage(t *testing
 	}
 
 	blockForever := make(chan struct{})
+	defer close(blockForever)
 	secondCalled := make(chan string, 1)
 	h := &MessageHandlerFuncs{
 		CreateFunc: func(_ Stream, _ string, m protoreflect.ProtoMessage) {
