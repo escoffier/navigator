@@ -76,6 +76,11 @@ type MessageStream interface {
 	Response(stream Stream, reqUUID string, resp protoreflect.ProtoMessage) error
 	DumpStreams() string
 	OnConnect(f func(nodeKey string))
+	// ConnectedNodeKeys returns the node keys of every stream currently
+	// registered (i.e. connected right now). Used to catch up already-connected
+	// peers when a consumer's local state transitions from "not ready" to
+	// "ready" after OnConnect may have already fired for them.
+	ConnectedNodeKeys() []string
 }
 
 type StreamFactory interface {
@@ -319,6 +324,16 @@ func (s *messageStream) OnConnect(f func(nodeKey string)) {
 	s.streamLock.Lock()
 	defer s.streamLock.Unlock()
 	s.onConnect = f
+}
+
+func (s *messageStream) ConnectedNodeKeys() []string {
+	s.streamLock.Lock()
+	defer s.streamLock.Unlock()
+	keys := make([]string, 0, len(s.streams))
+	for k := range s.streams {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 func (s *messageStreamServer) Start() error {

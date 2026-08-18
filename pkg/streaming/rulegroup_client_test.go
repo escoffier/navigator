@@ -83,3 +83,28 @@ func Test_messageStream_PushRuleGroupSync(t *testing.T) {
 		t.Errorf("payload = %+v, want 2 rule groups", got)
 	}
 }
+
+func Test_messageStream_ConnectedNodeKeys(t *testing.T) {
+	s := &messageStream{streams: map[string]Stream{
+		"node1-daemon": &fakeStream{},
+		"node2-daemon": &fakeStream{},
+	}}
+
+	got := s.ConnectedNodeKeys()
+	want := map[string]bool{"node1-daemon": true, "node2-daemon": true}
+	if len(got) != len(want) {
+		t.Fatalf("ConnectedNodeKeys() = %v, want keys %v", got, want)
+	}
+	for _, k := range got {
+		if !want[k] {
+			t.Errorf("unexpected key %q in ConnectedNodeKeys()", k)
+		}
+	}
+}
+
+func Test_messageStream_ConnectedNodeKeys_Empty(t *testing.T) {
+	s := &messageStream{streams: map[string]Stream{}}
+	if got := s.ConnectedNodeKeys(); len(got) != 0 {
+		t.Fatalf("ConnectedNodeKeys() = %v, want empty", got)
+	}
+}
