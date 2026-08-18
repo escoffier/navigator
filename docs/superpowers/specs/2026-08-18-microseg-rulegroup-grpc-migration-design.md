@@ -212,11 +212,12 @@ open and still blocks enabling `MICROSEG_GRPC_ENABLED=true` in production:
   snapshot sent before warm transiently wiping correct daemon state with an incomplete view.
 - **`pkg/streaming`'s per-message dispatch (`go func(){ handler.OnX(...) }()` in `stream.go`) does
   not preserve message ordering** (tracked as
-  [#3](https://github.com/escoffier/navigator/issues/3)), and this migration is the first user of
-  that framework to put
-  ordered state replication (CREATE/UPDATE/DELETE for the same rule group) on it — every prior use
-  (compliance scans, node load queries) was idempotent one-shot RPCs where order didn't matter. Two
-  `UPDATE`s for the same rule group in quick succession can be applied out of order, and there is no
-  self-healing: `checkSync` only warns on divergence, it never re-syncs. Needs either synchronous
-  per-rule-group-name dispatch, a serializing worker keyed by rule-group name, or a monotonic
-  generation/resourceVersion carried in the payload so stale messages can be dropped on receipt.
+  [#3](https://github.com/escoffier/navigator/issues/3), fixed). This migration was the first user
+  of that framework to put ordered state replication (CREATE/UPDATE/DELETE for the same rule group)
+  on it — every prior use (compliance scans, node load queries) was idempotent one-shot RPCs where
+  order didn't matter, so the framework never needed an ordering guarantee. Fixed by adding an
+  opt-in `AddOrderedHandler` (`pkg/streaming/stream.go`, `streamfactory.go`): message types
+  registered this way dispatch synchronously, in receive order, instead of via `go func()`; every
+  other consumer of the framework is unaffected since it keeps using plain `AddHandler`. The
+  daemon's two microseg rule-group handlers (`cmd/daemon/main.go`) are the only callers of
+  `AddOrderedHandler` today.
