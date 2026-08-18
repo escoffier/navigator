@@ -26,8 +26,16 @@ type Stream interface {
 	// AddOrderedHandler is like AddHandler, but Dispatch invokes this
 	// handler synchronously (in receive order) instead of spawning a
 	// goroutine per message. Use only for handlers whose relative message
-	// order matters (see issue #3) — it introduces head-of-line blocking
-	// for this message type on this connection.
+	// order matters (see issue #3). This blocks the ENTIRE connection's
+	// dispatch loop for the duration of the call — not just this message
+	// type — including every other registered handler, processor, and
+	// response/session delivery on the same connection. An ordered handler
+	// must never block waiting on a message arriving over that same
+	// connection (e.g. a synchronous Request/Response round trip): Dispatch
+	// won't read the reply until the handler returns, so that would
+	// deadlock the connection permanently. All AddOrderedHandler
+	// registrations should complete before the stream starts running
+	// (Dispatch reads this registration state without synchronization).
 	AddOrderedHandler(StreammsgName string, handler MessageHandler) error
 	AddHandlerFunc(StreammsgName string, f ProcessFunc) error
 	AddSession(id string, ack bool)
@@ -73,6 +81,9 @@ func (s *baseStream) AddHandler(msgName string, handler MessageHandler) error {
 func (s *baseStream) AddOrderedHandler(msgName string, handler MessageHandler) error {
 	logging.Get().Debug().Msgf("add ordered handler for %s", msgName)
 	s.handlers[msgName] = handler
+	if s.ordered == nil {
+		s.ordered = make(map[string]struct{})
+	}
 	s.ordered[msgName] = struct{}{}
 	return nil
 }

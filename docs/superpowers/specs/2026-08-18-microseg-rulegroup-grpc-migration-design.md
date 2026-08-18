@@ -192,11 +192,12 @@ message NetworkPolicyRuleGroupResp {
 - No e2e harness exists for this path; rely on unit tests plus manual verification (`doc/UseTest.md`
   convention) before flipping the flag on a real cluster.
 
-### Known limitations (surfaced by the final whole-branch review)
+### Known limitations (surfaced across two rounds of final whole-branch review)
 
-Two gaps were found that are architectural rather than implementation bugs, originally documented
-here as explicit blockers for production rollout. One is now fixed (see below); the other remains
-open and still blocks enabling `MICROSEG_GRPC_ENABLED=true` in production:
+Three gaps have been found here, all architectural rather than implementation bugs. The two
+original gaps are now fixed (see below); a third, newly-surfaced gap remains open and still blocks
+enabling `MICROSEG_GRPC_ENABLED=true` in production on clusters with daemons reconnecting while
+policy is actively changing:
 
 - **Non-durable pushed-state cache loses DELETEs across a clustermanager restart** (tracked as
   [#2](https://github.com/escoffier/navigator/issues/2), fixed). Today's CRD
@@ -221,3 +222,15 @@ open and still blocks enabling `MICROSEG_GRPC_ENABLED=true` in production:
   other consumer of the framework is unaffected since it keeps using plain `AddHandler`. The
   daemon's two microseg rule-group handlers (`cmd/daemon/main.go`) are the only callers of
   `AddOrderedHandler` today.
+- **Clustermanager send-side race between a bootstrap snapshot and a concurrent incremental delta
+  for the same node** (tracked as
+  [#4](https://github.com/escoffier/navigator/issues/4)). `RegisterOnConnect`'s callback (fired
+  asynchronously per connecting daemon) and `NetworkPolicyController.worker` both read/mutate
+  `pushedRuleGroupCache` and enqueue pushes for the same node with no serialization between the two
+  goroutines: a snapshot computed before a concurrent `DELETE` can still be enqueued after it, so
+  the daemon (correctly, in the order things were actually sent — issue #3 is fixed) applies the
+  `DELETE` then the stale snapshot, resurrecting the deleted rule group permanently. `checkSync`
+  can't detect this — it only compares the daemon's own cache against what's applied locally, not
+  against clustermanager's true state. Needs pushes for a given node serialized across
+  `RegisterOnConnect`'s bootstrap push and `grpcRuleGroupPusher`'s incremental pushes (e.g. a small
+  per-node mutex or single-goroutine-per-node queue).

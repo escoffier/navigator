@@ -74,7 +74,11 @@ type MessageStream interface {
 	AddHandler(msg protoreflect.ProtoMessage, handler MessageHandler) error
 	// AddOrderedHandler is like AddHandler, but messages of this type are
 	// dispatched synchronously, in receive order, on every connection —
-	// see Stream.AddOrderedHandler and issue #3.
+	// this blocks that connection's entire dispatch loop for the handler's
+	// duration (not just this message type), so an ordered handler must
+	// never itself wait on a message arriving over the same connection. All
+	// registrations should complete before calling Start(). See
+	// Stream.AddOrderedHandler and issue #3.
 	AddOrderedHandler(msg protoreflect.ProtoMessage, handler MessageHandler) error
 	AddHandlerFunc(msg protoreflect.ProtoMessage, f ProcessFunc) error
 	Response(stream Stream, reqUUID string, resp protoreflect.ProtoMessage) error
@@ -264,6 +268,9 @@ func (s *messageStream) AddOrderedHandler(msg protoreflect.ProtoMessage, handler
 	messageName := string(msg.ProtoReflect().Descriptor().Name())
 	logging.Get().Info().Msgf("add ordered handler for : %s", messageName)
 	s.hanlders[messageName] = handler
+	if s.orderedNames == nil {
+		s.orderedNames = make(map[string]struct{})
+	}
 	s.orderedNames[messageName] = struct{}{}
 	for _, stream := range s.streams {
 		stream.AddOrderedHandler(messageName, handler)
