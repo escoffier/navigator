@@ -198,7 +198,8 @@ Two gaps were found that are architectural rather than implementation bugs — b
 here as explicit blockers for production rollout, to be addressed in a follow-up design pass
 rather than folded into this migration's fix wave:
 
-- **Non-durable pushed-state cache loses DELETEs across a clustermanager restart.** Today's CRD
+- **Non-durable pushed-state cache loses DELETEs across a clustermanager restart** (tracked as
+  [#2](https://github.com/escoffier/navigator/issues/2)). Today's CRD
   write makes k8s the durable "current state" `syncPolicyRules` diffs against; `pushedRuleGroupCache`
   is in-memory only. If a node drops out of a policy's scope while clustermanager is down, the
   first reconcile after restart sees an empty "current" set and has nothing to diff the removal
@@ -209,7 +210,9 @@ rather than folded into this migration's fix wave:
   already-connected daemons at that warm transition — sending real snapshots before warm risks
   transiently wiping correct daemon state with an incomplete view.
 - **`pkg/streaming`'s per-message dispatch (`go func(){ handler.OnX(...) }()` in `stream.go`) does
-  not preserve message ordering**, and this migration is the first user of that framework to put
+  not preserve message ordering** (tracked as
+  [#3](https://github.com/escoffier/navigator/issues/3)), and this migration is the first user of
+  that framework to put
   ordered state replication (CREATE/UPDATE/DELETE for the same rule group) on it — every prior use
   (compliance scans, node load queries) was idempotent one-shot RPCs where order didn't matter. Two
   `UPDATE`s for the same rule group in quick succession can be applied out of order, and there is no
