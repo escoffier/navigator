@@ -436,8 +436,15 @@ func Run(ctx context.Context, stopCh chan struct{}) error {
 		var ruleController *microseg.RuleGroupController
 		if os.Getenv("MICROSEG_GRPC_ENABLED") == "true" {
 			ruleController = microseg.NewStreamRuleGroupController(policyClient, hostName, mqWriter, ctrlClient)
-			_ = rpcStream.AddHandler(&streampb.NetworkPolicyRuleGroupReq{}, &microseg.RuleGroupStreamHandler{Controller: ruleController})
-			_ = rpcStream.AddHandler(&streampb.NetworkPolicyRuleGroupSyncReq{}, &microseg.RuleGroupSyncStreamHandler{Controller: ruleController})
+			// Ordered, not plain AddHandler: these carry ordered state
+			// replication (CREATE/UPDATE/DELETE for the same rule group,
+			// plus the bootstrap snapshot), where pkg/streaming's default
+			// per-message-goroutine dispatch does not preserve receive
+			// order (issue #3). Both handlers share the same connection's
+			// ordered set, so the bootstrap snapshot and a regular CRUD
+			// event for the same rule group also can't race each other.
+			_ = rpcStream.AddOrderedHandler(&streampb.NetworkPolicyRuleGroupReq{}, &microseg.RuleGroupStreamHandler{Controller: ruleController})
+			_ = rpcStream.AddOrderedHandler(&streampb.NetworkPolicyRuleGroupSyncReq{}, &microseg.RuleGroupSyncStreamHandler{Controller: ruleController})
 		} else {
 			ruleController = microseg.NewRuleGroupController(clientset.TensorClientset, tensorFactory, policyClient, hostName, mqWriter, ctrlClient)
 		}
