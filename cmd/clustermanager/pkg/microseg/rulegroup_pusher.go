@@ -2,6 +2,8 @@ package microseg
 
 import (
 	"context"
+	stderrors "errors"
+	"fmt"
 
 	"k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -12,6 +14,18 @@ import (
 
 	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 )
+
+// errNodeNotConnected marks a grpcRuleGroupPusher push failure that happened
+// because the target node has no live daemon connection right now, as
+// opposed to a genuine delivery/protocol error. reconcileAllPolicies uses
+// errors.Is against this to treat that class of failure as non-blocking for
+// its warm-gate decision: Create/Update already write pushedRuleGroupCache
+// through before attempting delivery, and Delete deliberately keeps its
+// stale entry on a failed push (see grpcRuleGroupPusher.Delete) — so the
+// cache is already correct either way, and the node gets caught up the
+// moment it connects (via RegisterOnConnect once warm, or immediately via
+// markWarmAndSync's snapshot if it's already connected by then).
+var errNodeNotConnected = stderrors.New("microseg: target node has no live daemon connection")
 
 // ruleGroupPusher delivers rule-group changes to daemons; syncPolicyRules and
 // deleteRuleGroup call it instead of the k8s clientset directly, so the same
@@ -65,8 +79,13 @@ func (p *k8sRuleGroupPusher) DeleteByPolicy(ctx context.Context, policyName stri
 
 // ruleGroupStreamPusher is the subset of rpcstream.MessageStreamClient this
 // package needs — kept narrow so tests can fake it without a real stream.
+// ConnectedNodeKeys mirrors the method of the same name on
+// ruleGroupOnConnectStream (networkpolicy_controller.go); the concrete
+// rpcstream.MessageStream passed to NewNetworkPolicyController already
+// implements it, satisfying both narrow interfaces with one object.
 type ruleGroupStreamPusher interface {
 	PushRuleGroup(ctx context.Context, nodeKey string, msgType pb.MessageType, req *pb.NetworkPolicyRuleGroupReq) error
+	ConnectedNodeKeys() []string
 }
 
 // grpcRuleGroupPusher pushes rule-group changes over the daemon<->clustermanager
@@ -77,12 +96,29 @@ type grpcRuleGroupPusher struct {
 	stream ruleGroupStreamPusher
 }
 
+// wrapPushErr classifies a PushRuleGroup(Sync) failure: if nodeKey has no
+// live connection right now, it's wrapped as errNodeNotConnected so callers
+// (reconcileAllPolicies) can tell it apart from a genuine delivery failure
+// to a node that IS connected. Returns nil unchanged.
+func (p *grpcRuleGroupPusher) wrapPushErr(err error, nodeKey string) error {
+	if err == nil {
+		return nil
+	}
+	for _, connected := range p.stream.ConnectedNodeKeys() {
+		if connected == nodeKey {
+			return err
+		}
+	}
+	return fmt.Errorf("%w: %s: %v", errNodeNotConnected, nodeKey, err)
+}
+
 func (p *grpcRuleGroupPusher) Create(ctx context.Context, rg *crdv1alpha1.NetworkPolicyRuleGroup) error {
 	unlock := p.cache.LockNode(rg.Spec.NodeName)
 	defer unlock()
 	p.cache.Set(rg)
 	req := &pb.NetworkPolicyRuleGroupReq{RuleGroup: ruleGroupToPayload(rg)}
-	return p.stream.PushRuleGroup(ctx, rg.Spec.NodeName+daemonNodeKeySuffix, pb.MessageType_CREATE, req)
+	nodeKey := rg.Spec.NodeName + daemonNodeKeySuffix
+	return p.wrapPushErr(p.stream.PushRuleGroup(ctx, nodeKey, pb.MessageType_CREATE, req), nodeKey)
 }
 
 func (p *grpcRuleGroupPusher) Update(ctx context.Context, _, desired *crdv1alpha1.NetworkPolicyRuleGroup) error {
@@ -90,7 +126,8 @@ func (p *grpcRuleGroupPusher) Update(ctx context.Context, _, desired *crdv1alpha
 	defer unlock()
 	p.cache.Set(desired)
 	req := &pb.NetworkPolicyRuleGroupReq{RuleGroup: ruleGroupToPayload(desired)}
-	return p.stream.PushRuleGroup(ctx, desired.Spec.NodeName+daemonNodeKeySuffix, pb.MessageType_UPDATE, req)
+	nodeKey := desired.Spec.NodeName + daemonNodeKeySuffix
+	return p.wrapPushErr(p.stream.PushRuleGroup(ctx, nodeKey, pb.MessageType_UPDATE, req), nodeKey)
 }
 
 func (p *grpcRuleGroupPusher) Delete(ctx context.Context, name string) error {
@@ -107,8 +144,9 @@ func (p *grpcRuleGroupPusher) Delete(ctx context.Context, name string) error {
 	}
 	unlock := p.cache.LockNode(rg.Spec.NodeName)
 	defer unlock()
+	nodeKey := rg.Spec.NodeName + daemonNodeKeySuffix
 	req := &pb.NetworkPolicyRuleGroupReq{RuleGroup: &pb.NetworkPolicyRuleGroupPayload{Name: name}}
-	if err := p.stream.PushRuleGroup(ctx, rg.Spec.NodeName+daemonNodeKeySuffix, pb.MessageType_DELETE, req); err != nil {
+	if err := p.wrapPushErr(p.stream.PushRuleGroup(ctx, nodeKey, pb.MessageType_DELETE, req), nodeKey); err != nil {
 		return err
 	}
 	p.cache.Delete(name)
@@ -120,10 +158,16 @@ func (p *grpcRuleGroupPusher) DeleteByPolicy(ctx context.Context, policyName str
 	if err != nil {
 		return err
 	}
+	// pushErr accumulates delete failures so every group is still attempted
+	// even after an earlier one fails in this same call, matching
+	// syncPolicyRules's delete loop (issue #5) rather than aborting and
+	// leaving the remaining groups' stale pushedRuleGroupCache entries in
+	// place, which could resurrect on a later daemon reconnect.
+	var pushErr error
 	for _, rg := range groups {
 		if err := p.Delete(ctx, rg.Name); err != nil {
-			return err
+			pushErr = err
 		}
 	}
-	return nil
+	return pushErr
 }

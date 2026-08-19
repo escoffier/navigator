@@ -21,7 +21,6 @@ import (
 	"k8s.io/client-go/kubernetes/fake"
 	listerv1 "k8s.io/client-go/listers/core/v1"
 	dislisterv1 "k8s.io/client-go/listers/discovery/v1"
-	dislisterv1beta1 "k8s.io/client-go/listers/discovery/v1beta1"
 	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/util/homedir"
@@ -32,376 +31,9 @@ import (
 	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/informers/externalversions"
 	"scm.tensorsecurity.cn/tensorsecurity-rd/api/pkg/generated/listers/microsegmentation.security.io/v1alpha1"
 
-	"gitlab.com/piccolo_su/vegeta/cmd/clustermanager/pkg/microseg/types"
 	"gitlab.com/piccolo_su/vegeta/pkg/assets"
 	"gitlab.com/piccolo_su/vegeta/pkg/streaming/pb"
 )
-
-func TestNetworkPolicyController_caculatePolicy(t *testing.T) {
-	type fields struct {
-		policyInfomer     cache.SharedIndexInformer
-		podInformer       cache.SharedIndexInformer
-		namespaceInformer cache.SharedIndexInformer
-		policyLister      v1alpha1.ClusterNetworkPolicyLister
-		podLister         listerv1.PodLister
-		namespaceLister   listerv1.NamespaceLister
-		queue             workqueue.RateLimitingInterface
-	}
-	type args struct {
-		cnp *crdv1alpha1.ClusterNetworkPolicy
-	}
-
-	client := fake.NewSimpleClientset()
-	factory := informers.NewSharedInformerFactory(client, time.Hour)
-	podStore := factory.Core().V1().Pods().Informer().GetIndexer()
-	namespaceStore := factory.Core().V1().Namespaces().Informer().GetIndexer()
-	pod := corev1.Pod{
-		ObjectMeta: v1.ObjectMeta{
-			Namespace: "default",
-			Name:      "test1",
-			Labels: map[string]string{
-				"app":  "http",
-				"user": "robbie",
-			},
-		}}
-
-	pod1 := corev1.Pod{
-		ObjectMeta: v1.ObjectMeta{
-			Namespace: "default",
-			Name:      "test1",
-			Labels: map[string]string{
-				"app":  "http",
-				"user": "robbie",
-			},
-		},
-		Status: corev1.PodStatus{
-			PodIP: "168.1.1.2",
-		},
-	}
-	pod2 := corev1.Pod{
-		ObjectMeta: v1.ObjectMeta{
-			Namespace: "ns1",
-			Name:      "test1",
-			Labels: map[string]string{
-				"app":  "frontend",
-				"user": "robbie",
-			},
-		},
-		Status: corev1.PodStatus{
-			PodIP: "11.10.1.9",
-		},
-	}
-	pod3 := corev1.Pod{
-		ObjectMeta: v1.ObjectMeta{
-			Namespace: "ns1",
-			Name:      "mysql",
-			Labels: map[string]string{
-				"app":  "database",
-				"user": "robbie",
-			},
-		},
-		Status: corev1.PodStatus{
-			PodIP: "10.10.1.9",
-		},
-	}
-	pod4 := corev1.Pod{
-		ObjectMeta: v1.ObjectMeta{
-			Namespace: "default",
-			Name:      "app-1",
-			Labels: map[string]string{
-				"app":  "worker",
-				"user": "robbie",
-			},
-		},
-		Status: corev1.PodStatus{
-			PodIP: "110.10.1.18",
-		},
-	}
-	pod5 := corev1.Pod{
-		ObjectMeta: v1.ObjectMeta{
-			Namespace: "default",
-			Name:      "app-2",
-			Labels: map[string]string{
-				"app":  "test",
-				"user": "robbie",
-			},
-		},
-		Status: corev1.PodStatus{
-			PodIP: "110.34.4.76",
-		},
-	}
-	namespace1 := corev1.Namespace{
-		ObjectMeta: v1.ObjectMeta{
-			Name: "default",
-			Labels: map[string]string{
-				"tier":    "backend",
-				"label-1": "value-1",
-			},
-		},
-	}
-	namespaceStore.Add(&namespace1)
-	podStore.Add(&pod)
-	podStore.Add(&pod1)
-	podStore.Add(&pod2)
-	podStore.Add(&pod3)
-	podStore.Add(&pod4)
-	podStore.Add(&pod5)
-
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    *types.NetwokPolicy
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-		{
-			name: "test1",
-			fields: fields{
-				podInformer:       factory.Core().V1().Pods().Informer(),
-				namespaceInformer: factory.Core().V1().Namespaces().Informer(),
-				podLister:         factory.Core().V1().Pods().Lister(),
-				namespaceLister:   factory.Core().V1().Namespaces().Lister(),
-			},
-			args: args{
-				cnp: &crdv1alpha1.ClusterNetworkPolicy{
-					ObjectMeta: v1.ObjectMeta{
-						Name: "cnp-1",
-					},
-					Spec: crdv1alpha1.ClusterNetworkPolicySpec{
-						PodSelector: &v1.LabelSelector{MatchLabels: map[string]string{"app": "http"}},
-						Ingress: []crdv1alpha1.Rule{
-							{
-								From: []crdv1alpha1.NetworkPolicyPeer{
-									{
-										PodSelector: &v1.LabelSelector{
-											MatchLabels: map[string]string{
-												"app": "frontend",
-											},
-										},
-									},
-								},
-							},
-						},
-						Egress: []crdv1alpha1.Rule{
-							{
-								To: []crdv1alpha1.NetworkPolicyPeer{
-									{
-										PodSelector: &v1.LabelSelector{
-											MatchLabels: map[string]string{
-												"app": "database",
-											},
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			want: &types.NetwokPolicy{
-				AppliedAddress: []crdv1alpha1.Address{{IP: "168.1.1.2"}},
-				Rules: []types.NetwokPolicyRule{
-					{
-						FromAddress: []crdv1alpha1.Address{{IP: "11.10.1.9"}},
-					},
-					{
-						ToAddresses: []crdv1alpha1.Address{{IP: "10.10.1.9"}},
-					},
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name: "test-2",
-			fields: fields{
-				podInformer:       factory.Core().V1().Pods().Informer(),
-				namespaceInformer: factory.Core().V1().Namespaces().Informer(),
-				podLister:         factory.Core().V1().Pods().Lister(),
-				namespaceLister:   factory.Core().V1().Namespaces().Lister(),
-			},
-			args: args{
-				cnp: &crdv1alpha1.ClusterNetworkPolicy{
-					ObjectMeta: v1.ObjectMeta{
-						Name: "namespace-policy",
-					},
-					Spec: crdv1alpha1.ClusterNetworkPolicySpec{
-						PodSelector: &v1.LabelSelector{MatchLabels: map[string]string{"app": "frontend"}},
-						Ingress: []crdv1alpha1.Rule{
-							{
-								From: []crdv1alpha1.NetworkPolicyPeer{
-									{
-										NamespaceSelector: &v1.LabelSelector{MatchLabels: map[string]string{"tier": "backend"}},
-									},
-								},
-							},
-						},
-					},
-				},
-			},
-			want: &types.NetwokPolicy{
-				AppliedAddress: []crdv1alpha1.Address{{IP: "11.10.1.9"}},
-				Rules: []types.NetwokPolicyRule{
-					{
-						FromAddress: []crdv1alpha1.Address{{IP: "110.10.1.18"}, {IP: "110.34.4.76"}, {IP: "168.1.1.2"}},
-					},
-				},
-			},
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			npc := &NetworkPolicyController{
-				policyInfomer:     tt.fields.policyInfomer,
-				podInformer:       tt.fields.podInformer,
-				namespaceInformer: tt.fields.namespaceInformer,
-				policyLister:      tt.fields.policyLister,
-				podLister:         tt.fields.podLister,
-				namespaceLister:   tt.fields.namespaceLister,
-				queue:             tt.fields.queue,
-			}
-			got, err := npc.caculatePolicy(tt.args.cnp)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("NetworkPolicyController.caculatePolicy() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("NetworkPolicyController.caculatePolicy() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestNetworkPolicyController_calulateAddress(t *testing.T) {
-	type fields struct {
-		policyInfomer     cache.SharedIndexInformer
-		podInformer       cache.SharedIndexInformer
-		namespaceInformer cache.SharedIndexInformer
-		policyLister      v1alpha1.ClusterNetworkPolicyLister
-		podLister         listerv1.PodLister
-		namespaceLister   listerv1.NamespaceLister
-		queue             workqueue.RateLimitingInterface
-	}
-	type args struct {
-		podLabels       *v1.LabelSelector
-		namespaceLabels *v1.LabelSelector
-		group           string
-	}
-
-	client := fake.NewSimpleClientset()
-	factory := informers.NewSharedInformerFactory(client, time.Hour)
-	stopChan := make(chan struct{})
-	factory.Start(stopChan)
-
-	podStore := factory.Core().V1().Pods().Informer().GetIndexer()
-	namespaceStore := factory.Core().V1().Namespaces().Informer().GetIndexer()
-	pod1 := corev1.Pod{
-		ObjectMeta: v1.ObjectMeta{
-			Namespace: "ns1",
-			Name:      "test1",
-			Labels: map[string]string{
-				"app":  "http",
-				"user": "robbie",
-			},
-		},
-		Status: corev1.PodStatus{
-			PodIP: "168.1.1.2",
-		},
-	}
-	pod2 := corev1.Pod{
-		ObjectMeta: v1.ObjectMeta{
-			Namespace: "ns1",
-			Name:      "test11",
-			Labels: map[string]string{
-				"app":  "frontend",
-				"user": "robbie",
-			},
-		},
-		Status: corev1.PodStatus{
-			PodIP: "10.10.1.9",
-		},
-	}
-	pod3 := corev1.Pod{
-		ObjectMeta: v1.ObjectMeta{
-			Namespace: "ns1",
-			Name:      "mysql",
-			Labels: map[string]string{
-				"app":  "database",
-				"user": "robbie",
-			},
-		},
-		Status: corev1.PodStatus{
-			PodIP: "10.10.1.9",
-		},
-	}
-	namespace1 := &corev1.Namespace{
-		ObjectMeta: v1.ObjectMeta{
-			Name: "ns1",
-			Labels: map[string]string{
-				"tier":    "backend",
-				"label-1": "value-1",
-			},
-		},
-	}
-	namespaceStore.Add(namespace1)
-	podStore.Add(&pod1)
-	podStore.Add(&pod2)
-	podStore.Add(&pod3)
-
-	factory.WaitForCacheSync(stopChan)
-
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    []crdv1alpha1.Address
-		wantErr bool
-	}{
-		{
-			name: "test1",
-			fields: fields{
-				podInformer:       factory.Core().V1().Pods().Informer(),
-				namespaceInformer: factory.Core().V1().Namespaces().Informer(),
-				podLister:         factory.Core().V1().Pods().Lister(),
-				namespaceLister:   factory.Core().V1().Namespaces().Lister(),
-			},
-			args: args{
-				podLabels: &v1.LabelSelector{
-					MatchLabels: map[string]string{"app": "http"},
-				},
-				namespaceLabels: &v1.LabelSelector{
-					MatchLabels: map[string]string{
-						"tier": "backend",
-					},
-				},
-			},
-			want:    []crdv1alpha1.Address{{IP: "168.1.1.2", PodReference: podReference(&pod1)}},
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			npc := &NetworkPolicyController{
-				policyInfomer:     tt.fields.policyInfomer,
-				podInformer:       tt.fields.podInformer,
-				namespaceInformer: tt.fields.namespaceInformer,
-				policyLister:      tt.fields.policyLister,
-				podLister:         tt.fields.podLister,
-				namespaceLister:   tt.fields.namespaceLister,
-				queue:             tt.fields.queue,
-			}
-			got, err := npc.caculateAddress(tt.args.podLabels, tt.args.namespaceLabels, tt.args.group)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("NetworkPolicyController.calulateAddress() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("NetworkPolicyController.calulateAddress() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
 
 func TestPolicyIndex(t *testing.T) {
 	client := crdfake.NewSimpleClientset()
@@ -998,353 +630,6 @@ func TestNetworkPolicyController_caculateAddressMap(t *testing.T) {
 	}
 }
 
-func TestNetworkPolicyController_caculateNodeRules(t *testing.T) {
-	type fields struct {
-		policyInfomer      cache.SharedIndexInformer
-		podInformer        cache.SharedIndexInformer
-		namespaceInformer  cache.SharedIndexInformer
-		policyLister       v1alpha1.ClusterNetworkPolicyLister
-		podLister          listerv1.PodLister
-		namespaceLister    listerv1.NamespaceLister
-		clusterGroupLister v1alpha1.ClusterWorkloadSetLister
-		queue              workqueue.RateLimitingInterface
-	}
-	type args struct {
-		cnp *crdv1alpha1.ClusterNetworkPolicy
-	}
-
-	client := fake.NewSimpleClientset()
-	factory := informers.NewSharedInformerFactory(client, time.Hour)
-
-	crdClient := crdfake.NewSimpleClientset()
-	crdFactory := externalversions.NewSharedInformerFactory(crdClient, time.Hour)
-
-	stopChan := make(chan struct{})
-	factory.Start(stopChan)
-	factory.WaitForCacheSync(stopChan)
-	crdFactory.Start(stopChan)
-	crdFactory.WaitForCacheSync(stopChan)
-
-	podStore := factory.Core().V1().Pods().Informer().GetIndexer()
-	namespaceStore := factory.Core().V1().Namespaces().Informer().GetIndexer()
-	clusterGroupStore := crdFactory.Microsegmentation().V1alpha1().ClusterWorkloadSets().Informer().GetIndexer()
-
-	pod1 := corev1.Pod{
-		ObjectMeta: v1.ObjectMeta{
-			Namespace: "default",
-			Name:      "test1",
-			Labels: map[string]string{
-				"app":  "http",
-				"user": "robbie",
-			},
-		},
-		Spec: corev1.PodSpec{
-			NodeName: "node1",
-		},
-		Status: corev1.PodStatus{
-			PodIP: "168.1.1.2",
-		},
-	}
-	pod2 := corev1.Pod{
-		ObjectMeta: v1.ObjectMeta{
-			Namespace: "ns2",
-			Name:      "test1",
-			Labels: map[string]string{
-				"app":  "http",
-				"user": "robbie",
-			},
-		},
-		Spec: corev1.PodSpec{
-			NodeName: "node2",
-		},
-		Status: corev1.PodStatus{
-			PodIP: "10.10.1.9",
-		},
-	}
-	pod3 := corev1.Pod{
-		ObjectMeta: v1.ObjectMeta{
-			Namespace: "ns1",
-			Name:      "mysql-1",
-			Labels: map[string]string{
-				"app":  "database",
-				"user": "robbie",
-			},
-		},
-		Spec: corev1.PodSpec{
-			NodeName: "node3",
-		},
-		Status: corev1.PodStatus{
-			PodIP: "10.11.1.9",
-		},
-	}
-
-	pod4 := corev1.Pod{
-		ObjectMeta: v1.ObjectMeta{
-			Namespace: "ns1",
-			Name:      "mysql-2",
-			Labels: map[string]string{
-				"app":  "redis",
-				"user": "robbie",
-			},
-		},
-		Spec: corev1.PodSpec{
-			NodeName: "node3",
-		},
-		Status: corev1.PodStatus{
-			PodIP: "189.11.1.9",
-		},
-	}
-	pod5 := corev1.Pod{
-		ObjectMeta: v1.ObjectMeta{
-			Namespace: "ns1",
-			Name:      "redis-1",
-			Labels: map[string]string{
-				"app":  "redis",
-				"user": "robbie",
-			},
-		},
-		Spec: corev1.PodSpec{
-			NodeName: "node5",
-		},
-		Status: corev1.PodStatus{
-			PodIP: "178.11.1.9",
-		},
-	}
-	namespace1 := corev1.Namespace{
-		ObjectMeta: v1.ObjectMeta{
-			Name: "ns1",
-			Labels: map[string]string{
-				"tier":    "backend",
-				"label-1": "value-1",
-			},
-		},
-	}
-	namespaceStore.Add(&namespace1)
-	podStore.Add(&pod1)
-	podStore.Add(&pod2)
-	podStore.Add(&pod3)
-	podStore.Add(&pod4)
-	podStore.Add(&pod5)
-
-	clusterGroupStore.Add(&crdv1alpha1.ClusterWorkloadSet{
-		ObjectMeta: v1.ObjectMeta{
-			Name: "cluster-group-1",
-		},
-		Spec: crdv1alpha1.ClusterWorkloadSetSpec{
-			PodSelector: &v1.LabelSelector{
-				MatchLabels: map[string]string{"app": "http"},
-			},
-		},
-	})
-
-	clusterGroupStore.Add(&crdv1alpha1.ClusterWorkloadSet{
-		ObjectMeta: v1.ObjectMeta{
-			Name: "cluster-group-2",
-		},
-		Spec: crdv1alpha1.ClusterWorkloadSetSpec{
-			PodSelector: &v1.LabelSelector{
-				MatchLabels: map[string]string{"app": "redis"},
-			},
-		},
-	})
-
-	action := crdv1alpha1.RuleActionAllow
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    map[string][]types.NodeRule
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-		{
-			name: "test-ingress",
-			fields: fields{
-				podInformer:       factory.Core().V1().Pods().Informer(),
-				namespaceInformer: factory.Core().V1().Namespaces().Informer(),
-				podLister:         factory.Core().V1().Pods().Lister(),
-				namespaceLister:   factory.Core().V1().Namespaces().Lister(),
-			},
-			args: args{&crdv1alpha1.ClusterNetworkPolicy{
-				ObjectMeta: v1.ObjectMeta{
-					Name: "test-1",
-				},
-				Spec: crdv1alpha1.ClusterNetworkPolicySpec{
-					PodSelector: &v1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": "http",
-						},
-					},
-					Ingress: []crdv1alpha1.Rule{
-						{
-							Action: &action,
-							From: []crdv1alpha1.NetworkPolicyPeer{
-								{
-									NamespaceSelector: &v1.LabelSelector{
-										MatchLabels: map[string]string{
-											"tier": "backend",
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			}},
-			want: map[string][]types.NodeRule{
-				"node1": {
-					{
-						PolicyName:  "test-1",
-						NodeName:    "node1",
-						Priority:    0,
-						Action:      "Allow",
-						ToAddresses: []crdv1alpha1.Address{{IP: "168.1.1.2"}},
-						FromAddress: []crdv1alpha1.Address{{IP: "10.11.1.9"}, {IP: "178.11.1.9"}, {IP: "189.11.1.9"}},
-					},
-				},
-				"node2": {
-					{
-						PolicyName:  "test-1",
-						NodeName:    "node2",
-						Priority:    0,
-						Action:      "Allow",
-						ToAddresses: []crdv1alpha1.Address{{IP: "10.10.1.9"}},
-						FromAddress: []crdv1alpha1.Address{{IP: "10.11.1.9"}, {IP: "178.11.1.9"}, {IP: "189.11.1.9"}},
-					},
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name: "test-egress",
-			fields: fields{
-				podInformer:       factory.Core().V1().Pods().Informer(),
-				namespaceInformer: factory.Core().V1().Namespaces().Informer(),
-				podLister:         factory.Core().V1().Pods().Lister(),
-				namespaceLister:   factory.Core().V1().Namespaces().Lister(),
-			},
-			args: args{&crdv1alpha1.ClusterNetworkPolicy{
-				ObjectMeta: v1.ObjectMeta{
-					Name: "test-egress",
-				},
-				Spec: crdv1alpha1.ClusterNetworkPolicySpec{
-					PodSelector: &v1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": "http",
-						},
-					},
-					Egress: []crdv1alpha1.Rule{
-						{
-							Action: &action,
-							To: []crdv1alpha1.NetworkPolicyPeer{
-								{
-									NamespaceSelector: &v1.LabelSelector{
-										MatchLabels: map[string]string{
-											"tier": "backend",
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			}},
-			want: map[string][]types.NodeRule{
-				"node3": {
-					{
-						PolicyName:  "test-egress",
-						NodeName:    "node3",
-						Action:      "Allow",
-						FromAddress: []crdv1alpha1.Address{{IP: "10.10.1.9"}, {IP: "168.1.1.2"}},
-						ToAddresses: []crdv1alpha1.Address{{IP: "10.11.1.9"}, {IP: "189.11.1.9"}},
-					},
-				},
-				"node5": {
-					{
-						PolicyName:  "test-egress",
-						NodeName:    "node5",
-						Action:      "Allow",
-						FromAddress: []crdv1alpha1.Address{{IP: "10.10.1.9"}, {IP: "168.1.1.2"}},
-						ToAddresses: []crdv1alpha1.Address{{IP: "178.11.1.9"}},
-					},
-				},
-			},
-			wantErr: false,
-		},
-		{
-			name: "test-group",
-			fields: fields{
-				podInformer:        factory.Core().V1().Pods().Informer(),
-				namespaceInformer:  factory.Core().V1().Namespaces().Informer(),
-				podLister:          factory.Core().V1().Pods().Lister(),
-				namespaceLister:    factory.Core().V1().Namespaces().Lister(),
-				clusterGroupLister: crdFactory.Microsegmentation().V1alpha1().ClusterWorkloadSets().Lister(),
-			},
-			args: args{&crdv1alpha1.ClusterNetworkPolicy{
-				ObjectMeta: v1.ObjectMeta{
-					Name: "group-policy",
-				},
-				Spec: crdv1alpha1.ClusterNetworkPolicySpec{
-					Group: "cluster-group-1",
-					Ingress: []crdv1alpha1.Rule{
-						{
-							From: []crdv1alpha1.NetworkPolicyPeer{
-								{
-									Group: "cluster-group-2",
-								},
-							},
-							Action: &action,
-						},
-					},
-				},
-			}},
-			want: map[string][]types.NodeRule{
-				"node1": {
-					{
-						PolicyName:  "group-policy",
-						NodeName:    "node1",
-						FromAddress: []crdv1alpha1.Address{{IP: "178.11.1.9"}, {IP: "189.11.1.9"}},
-						ToAddresses: []crdv1alpha1.Address{{IP: "168.1.1.2"}},
-						Action:      "Allow",
-					},
-				},
-				"node2": {
-					{
-						PolicyName:  "group-policy",
-						NodeName:    "node2",
-						FromAddress: []crdv1alpha1.Address{{IP: "178.11.1.9"}, {IP: "189.11.1.9"}},
-						ToAddresses: []crdv1alpha1.Address{{IP: "10.10.1.9"}},
-						Action:      "Allow",
-					},
-				},
-			},
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			npc := &NetworkPolicyController{
-				policyInfomer:      tt.fields.policyInfomer,
-				podInformer:        tt.fields.podInformer,
-				namespaceInformer:  tt.fields.namespaceInformer,
-				policyLister:       tt.fields.policyLister,
-				podLister:          tt.fields.podLister,
-				namespaceLister:    tt.fields.namespaceLister,
-				clusterGroupLister: tt.fields.clusterGroupLister,
-				queue:              tt.fields.queue,
-			}
-			got, err := npc.caculateNodeRules(tt.args.cnp)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("NetworkPolicyController.caculateNodeRules() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("NetworkPolicyController.caculateNodeRules() = %+v, want %+v", got, tt.want)
-			}
-		})
-	}
-}
-
 func Test_getNamespacePolicyRelationShips(t *testing.T) {
 	type args struct {
 		policyLister v1alpha1.ClusterNetworkPolicyLister
@@ -1833,75 +1118,6 @@ func TestCreateCRD(t *testing.T) {
 
 }
 
-func TestNetworkPolicyController_caculatePolicyNodeRules1(t *testing.T) {
-	type fields struct {
-		clietset              *versioned.Clientset
-		policyInfomer         cache.SharedIndexInformer
-		podInformer           cache.SharedIndexInformer
-		namespaceInformer     cache.SharedIndexInformer
-		endpointsliceInformer cache.SharedIndexInformer
-		clusterGroupInformer  cache.SharedIndexInformer
-		policyLister          v1alpha1.ClusterNetworkPolicyLister
-		podLister             listerv1.PodLister
-		namespaceLister       listerv1.NamespaceLister
-		serviceLister         listerv1.ServiceLister
-		endpointsliceLister   dislisterv1.EndpointSliceLister
-		clusterGroupLister    v1alpha1.ClusterWorkloadSetLister
-		ruleGroupLister       v1alpha1.NetworkPolicyRuleGroupLister
-		podSynced             cache.InformerSynced
-		namepaceSynced        cache.InformerSynced
-		clusterPolicySynced   cache.InformerSynced
-		clusterGroupSynced    cache.InformerSynced
-		ruleGroupSynced       cache.InformerSynced
-		queue                 workqueue.RateLimitingInterface
-	}
-	type args struct {
-		cnp *crdv1alpha1.ClusterNetworkPolicy
-	}
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    map[string]*crdv1alpha1.NetworkPolicyRuleGroup
-		wantErr bool
-	}{
-		// TODO: Add test cases.
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			npc := &NetworkPolicyController{
-				clietset:              tt.fields.clietset,
-				policyInfomer:         tt.fields.policyInfomer,
-				podInformer:           tt.fields.podInformer,
-				namespaceInformer:     tt.fields.namespaceInformer,
-				endpointsliceInformer: tt.fields.endpointsliceInformer,
-				clusterGroupInformer:  tt.fields.clusterGroupInformer,
-				policyLister:          tt.fields.policyLister,
-				podLister:             tt.fields.podLister,
-				namespaceLister:       tt.fields.namespaceLister,
-				serviceLister:         tt.fields.serviceLister,
-				endpointsliceLister:   tt.fields.endpointsliceLister,
-				clusterGroupLister:    tt.fields.clusterGroupLister,
-				ruleGroupLister:       tt.fields.ruleGroupLister,
-				podSynced:             tt.fields.podSynced,
-				namepaceSynced:        tt.fields.namepaceSynced,
-				clusterPolicySynced:   tt.fields.clusterPolicySynced,
-				clusterGroupSynced:    tt.fields.clusterGroupSynced,
-				ruleGroupSynced:       tt.fields.ruleGroupSynced,
-				queue:                 tt.fields.queue,
-			}
-			got, err := npc.caculatePolicyNodeRules(tt.args.cnp)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("NetworkPolicyController.caculatePolicyNodeRules1() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("NetworkPolicyController.caculatePolicyNodeRules1() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func Test_getServicePort(t *testing.T) {
 	type args struct {
 		pod         *corev1.Pod
@@ -2238,338 +1454,6 @@ func TestNetworkPolicyController_getRelatedServiceAddr(t *testing.T) {
 	}
 }
 
-func TestNetworkPolicyController_caculatePolicyAllNodeRules(t *testing.T) {
-	type fields struct {
-		clietset                   *versioned.Clientset
-		policyInfomer              cache.SharedIndexInformer
-		podInformer                cache.SharedIndexInformer
-		namespaceInformer          cache.SharedIndexInformer
-		endpointsliceInformer      cache.SharedIndexInformer
-		serviceInformer            cache.SharedIndexInformer
-		clusterGroupInformer       cache.SharedIndexInformer
-		policyLister               v1alpha1.ClusterNetworkPolicyLister
-		podLister                  listerv1.PodLister
-		namespaceLister            listerv1.NamespaceLister
-		serviceLister              listerv1.ServiceLister
-		endpointsliceLister        dislisterv1.EndpointSliceLister
-		endpointsliceListerv1beta1 dislisterv1beta1.EndpointSliceLister
-		clusterGroupLister         v1alpha1.ClusterWorkloadSetLister
-		ruleGroupLister            v1alpha1.NetworkPolicyRuleGroupLister
-		podSynced                  cache.InformerSynced
-		namepaceSynced             cache.InformerSynced
-		clusterPolicySynced        cache.InformerSynced
-		clusterGroupSynced         cache.InformerSynced
-		ruleGroupSynced            cache.InformerSynced
-		queue                      workqueue.RateLimitingInterface
-		pod2Policy                 map[string]string
-	}
-	type args struct {
-		cnp *crdv1alpha1.ClusterNetworkPolicy
-	}
-
-	client := fake.NewSimpleClientset()
-	factory := informers.NewSharedInformerFactory(client, time.Hour)
-
-	crdClient := crdfake.NewSimpleClientset()
-	crdFactory := externalversions.NewSharedInformerFactory(crdClient, time.Hour)
-
-	stopChan := make(chan struct{})
-	factory.Start(stopChan)
-	factory.WaitForCacheSync(stopChan)
-	crdFactory.Start(stopChan)
-	crdFactory.WaitForCacheSync(stopChan)
-
-	podStore := factory.Core().V1().Pods().Informer().GetIndexer()
-	namespaceStore := factory.Core().V1().Namespaces().Informer().GetIndexer()
-	clusterGroupStore := crdFactory.Microsegmentation().V1alpha1().ClusterWorkloadSets().Informer().GetIndexer()
-
-	pod1 := corev1.Pod{
-		ObjectMeta: v1.ObjectMeta{
-			Namespace: "default",
-			Name:      "test1",
-			Labels: map[string]string{
-				"app":  "http",
-				"user": "robbie",
-			},
-		},
-		Spec: corev1.PodSpec{
-			NodeName: "node1",
-		},
-		Status: corev1.PodStatus{
-			PodIP: "168.1.1.2",
-		},
-	}
-	pod2 := corev1.Pod{
-		ObjectMeta: v1.ObjectMeta{
-			Namespace: "ns2",
-			Name:      "test1",
-			Labels: map[string]string{
-				"app":  "http",
-				"user": "robbie",
-			},
-		},
-		Spec: corev1.PodSpec{
-			NodeName: "node2",
-		},
-		Status: corev1.PodStatus{
-			PodIP: "10.10.1.9",
-		},
-	}
-	pod3 := corev1.Pod{
-		ObjectMeta: v1.ObjectMeta{
-			Namespace: "ns1",
-			Name:      "mysql-1",
-			Labels: map[string]string{
-				"app":  "database",
-				"user": "robbie",
-			},
-		},
-		Spec: corev1.PodSpec{
-			NodeName: "node3",
-		},
-		Status: corev1.PodStatus{
-			PodIP: "10.11.1.9",
-		},
-	}
-
-	pod4 := corev1.Pod{
-		ObjectMeta: v1.ObjectMeta{
-			Namespace: "ns1",
-			Name:      "mysql-2",
-			Labels: map[string]string{
-				"app":  "redis",
-				"user": "robbie",
-			},
-		},
-		Spec: corev1.PodSpec{
-			NodeName: "node3",
-		},
-		Status: corev1.PodStatus{
-			PodIP: "189.11.1.9",
-		},
-	}
-	pod5 := corev1.Pod{
-		ObjectMeta: v1.ObjectMeta{
-			Namespace: "ns1",
-			Name:      "redis-1",
-			Labels: map[string]string{
-				"app":  "redis",
-				"user": "robbie",
-			},
-		},
-		Spec: corev1.PodSpec{
-			NodeName: "node5",
-		},
-		Status: corev1.PodStatus{
-			PodIP: "178.11.1.9",
-		},
-	}
-
-	pod21 := corev1.Pod{
-		ObjectMeta: v1.ObjectMeta{
-			Namespace: "ns1",
-			Name:      "test21",
-			Labels: map[string]string{
-				"app":  "test",
-				"user": "robbie",
-			},
-		},
-		Spec: corev1.PodSpec{
-			NodeName: "node2",
-		},
-		Status: corev1.PodStatus{
-			PodIP: "10.10.11.99",
-		},
-	}
-
-	namespace1 := corev1.Namespace{
-		ObjectMeta: v1.ObjectMeta{
-			Name: "ns1",
-			Labels: map[string]string{
-				"tier":    "backend",
-				"label-1": "value-1",
-			},
-		},
-	}
-	namespaceStore.Add(&namespace1)
-	podStore.Add(&pod1)
-	podStore.Add(&pod2)
-	podStore.Add(&pod3)
-	podStore.Add(&pod4)
-	podStore.Add(&pod5)
-	podStore.Add(&pod21)
-
-	clusterGroupStore.Add(&crdv1alpha1.ClusterWorkloadSet{
-		ObjectMeta: v1.ObjectMeta{
-			Name: "cluster-group-1",
-		},
-		Spec: crdv1alpha1.ClusterWorkloadSetSpec{
-			PodSelector: &v1.LabelSelector{
-				MatchLabels: map[string]string{"app": "http"},
-			},
-		},
-	})
-
-	clusterGroupStore.Add(&crdv1alpha1.ClusterWorkloadSet{
-		ObjectMeta: v1.ObjectMeta{
-			Name: "cluster-group-2",
-		},
-		Spec: crdv1alpha1.ClusterWorkloadSetSpec{
-			PodSelector: &v1.LabelSelector{
-				MatchLabels: map[string]string{"app": "redis"},
-			},
-		},
-	})
-	action := crdv1alpha1.RuleActionAllow
-
-	tests := []struct {
-		name    string
-		fields  fields
-		args    args
-		want    map[string]*crdv1alpha1.NetworkPolicyRuleGroup
-		wantErr bool
-	}{
-		{
-			name: "test-1",
-			fields: fields{
-				podLister:       factory.Core().V1().Pods().Lister(),
-				namespaceLister: factory.Core().V1().Namespaces().Lister(),
-			},
-			args: args{&crdv1alpha1.ClusterNetworkPolicy{
-				ObjectMeta: v1.ObjectMeta{
-					Name: "test-1",
-				},
-				Spec: crdv1alpha1.ClusterNetworkPolicySpec{
-					PodSelector: &v1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": "http",
-						},
-					},
-					Ingress: []crdv1alpha1.Rule{
-						{
-							Action: &action,
-							From: []crdv1alpha1.NetworkPolicyPeer{
-								{
-									NamespaceSelector: &v1.LabelSelector{
-										MatchLabels: map[string]string{
-											"tier": "backend",
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			}},
-		},
-		{
-			name: "test-egress",
-			fields: fields{
-				podInformer:       factory.Core().V1().Pods().Informer(),
-				namespaceInformer: factory.Core().V1().Namespaces().Informer(),
-				podLister:         factory.Core().V1().Pods().Lister(),
-				namespaceLister:   factory.Core().V1().Namespaces().Lister(),
-				serviceLister:     factory.Core().V1().Services().Lister(),
-			},
-			args: args{&crdv1alpha1.ClusterNetworkPolicy{
-				ObjectMeta: v1.ObjectMeta{
-					Name: "test-egress",
-				},
-				Spec: crdv1alpha1.ClusterNetworkPolicySpec{
-					PodSelector: &v1.LabelSelector{
-						MatchLabels: map[string]string{
-							"app": "http",
-						},
-					},
-					Egress: []crdv1alpha1.Rule{
-						{
-							Action: &action,
-							To: []crdv1alpha1.NetworkPolicyPeer{
-								{
-									NamespaceSelector: &v1.LabelSelector{
-										MatchLabels: map[string]string{
-											"tier": "backend",
-										},
-									},
-								},
-							},
-						},
-					},
-				},
-			}},
-			want: map[string]*crdv1alpha1.NetworkPolicyRuleGroup{
-				"node3": {
-					ObjectMeta: v1.ObjectMeta{
-						Name: "test-egress",
-					},
-					Spec: crdv1alpha1.NetworkPolicyRuleGroupSpec{
-						Policy:   "test-egress",
-						NodeName: "node3",
-						Rules: []crdv1alpha1.NodeRule{
-							{
-								Action:      "Allow",
-								FromAddress: []crdv1alpha1.Address{{IP: "10.10.1.9"}, {IP: "168.1.1.2"}},
-								ToAddresses: []crdv1alpha1.Address{{IP: "10.11.1.9"}, {IP: "189.11.1.9"}},
-							},
-						},
-					},
-				},
-				"node5": {
-					ObjectMeta: v1.ObjectMeta{
-						Name: "test-egress",
-					},
-					Spec: crdv1alpha1.NetworkPolicyRuleGroupSpec{
-						Policy:   "test-egress",
-						NodeName: "node5",
-						Rules: []crdv1alpha1.NodeRule{
-							{
-								Action:      "Allow",
-								FromAddress: []crdv1alpha1.Address{{IP: "10.10.1.9"}, {IP: "168.1.1.2"}},
-								ToAddresses: []crdv1alpha1.Address{{IP: "178.11.1.9"}},
-							},
-						},
-					},
-				},
-			},
-			wantErr: false,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			npc := &NetworkPolicyController{
-				clietset:              tt.fields.clietset,
-				policyInfomer:         tt.fields.policyInfomer,
-				podInformer:           tt.fields.podInformer,
-				namespaceInformer:     tt.fields.namespaceInformer,
-				endpointsliceInformer: tt.fields.endpointsliceInformer,
-				serviceInformer:       tt.fields.serviceInformer,
-				clusterGroupInformer:  tt.fields.clusterGroupInformer,
-				policyLister:          tt.fields.policyLister,
-				podLister:             tt.fields.podLister,
-				namespaceLister:       tt.fields.namespaceLister,
-				serviceLister:         tt.fields.serviceLister,
-				clusterGroupLister:    tt.fields.clusterGroupLister,
-				ruleGroupLister:       tt.fields.ruleGroupLister,
-				podSynced:             tt.fields.podSynced,
-				namepaceSynced:        tt.fields.namepaceSynced,
-				clusterPolicySynced:   tt.fields.clusterPolicySynced,
-				clusterGroupSynced:    tt.fields.clusterGroupSynced,
-				ruleGroupSynced:       tt.fields.ruleGroupSynced,
-				queue:                 tt.fields.queue,
-				pod2Policy:            tt.fields.pod2Policy,
-			}
-			got, err := npc.caculatePolicyRulesOnAllNodes(tt.args.cnp)
-			if (err != nil) != tt.wantErr {
-				t.Errorf("NetworkPolicyController.caculatePolicyAllNodeRules() error = %v, wantErr %v", err, tt.wantErr)
-				return
-			}
-			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("NetworkPolicyController.caculatePolicyAllNodeRules() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
 func TestDeepEqual(t *testing.T) {
 	rule1 := crdv1alpha1.NodeRule{
 		Priority: 1,
@@ -2748,7 +1632,12 @@ func Test_syncPolicyRules_AttemptsBothDeleteAndUpdateEvenWhenBothFail(t *testing
 type fakeOnConnectStream struct {
 	onConnect     func(string)
 	connectedKeys []string
-	pushed        []struct {
+
+	// mu guards pushed: markWarmAndSync now fans pushSnapshotToNode out
+	// across one goroutine per connected node, so this fake must be safe
+	// for concurrent PushRuleGroupSync calls.
+	mu     sync.Mutex
+	pushed []struct {
 		nodeKey string
 		req     *pb.NetworkPolicyRuleGroupSyncReq
 	}
@@ -2759,6 +1648,8 @@ func (f *fakeOnConnectStream) OnConnect(fn func(string)) { f.onConnect = fn }
 func (f *fakeOnConnectStream) ConnectedNodeKeys() []string { return f.connectedKeys }
 
 func (f *fakeOnConnectStream) PushRuleGroupSync(_ context.Context, nodeKey string, req *pb.NetworkPolicyRuleGroupSyncReq) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
 	f.pushed = append(f.pushed, struct {
 		nodeKey string
 		req     *pb.NetworkPolicyRuleGroupSyncReq
@@ -3128,8 +2019,6 @@ func Test_reconcileAllPolicies_SyncsEveryPolicy(t *testing.T) {
 
 	npc := &NetworkPolicyController{
 		policyLister:    crdFactory.Microsegmentation().V1alpha1().ClusterNetworkPolicies().Lister(),
-		ruleGroupMap:    make(map[string]sets.String),
-		firstSynced:     make(map[string]bool),
 		ruleGroupPusher: &grpcRuleGroupPusher{cache: cache, stream: stream},
 	}
 
@@ -3145,5 +2034,336 @@ func Test_reconcileAllPolicies_SyncsEveryPolicy(t *testing.T) {
 		if p.msgType != pb.MessageType_DELETE {
 			t.Errorf("msgType = %v, want DELETE", p.msgType)
 		}
+	}
+}
+
+func Test_reconcileAllPolicies_DoesNotBlockOnDisconnectedNodePushFailure(t *testing.T) {
+	crdClient := crdfake.NewSimpleClientset()
+	crdFactory := externalversions.NewSharedInformerFactory(crdClient, time.Hour)
+	policyStore := crdFactory.Microsegmentation().V1alpha1().ClusterNetworkPolicies().Informer().GetIndexer()
+
+	policyStore.Add(&crdv1alpha1.ClusterNetworkPolicy{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-a"},
+		Spec:       crdv1alpha1.ClusterNetworkPolicySpec{Enable: false},
+	})
+
+	cache := newPushedRuleGroupCache()
+	cache.Set(&crdv1alpha1.NetworkPolicyRuleGroup{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-a-node1", Labels: map[string]string{"kubernetes.io/networkpolicy-name": "policy-a"}},
+		Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{NodeName: "node1"},
+	})
+	// node1-daemon has no live connection right now (absent from
+	// `connected`), so its DELETE push failing must not block the warm
+	// transition for other, healthy daemons.
+	stream := &fakeRuleGroupStream{errForNode: map[string]error{"node1-daemon": errors.New("dial: connection refused")}}
+
+	npc := &NetworkPolicyController{
+		policyLister:    crdFactory.Microsegmentation().V1alpha1().ClusterNetworkPolicies().Lister(),
+		ruleGroupPusher: &grpcRuleGroupPusher{cache: cache, stream: stream},
+	}
+
+	if ok := npc.reconcileAllPolicies(); !ok {
+		t.Fatal("reconcileAllPolicies reported failure solely due to a disconnected node's push failure")
+	}
+	// The cache entry is deliberately kept (delivery unconfirmed) rather
+	// than deleted — that's correct, not a sign the reconcile is wrong.
+	if _, err := cache.Get("policy-a-node1"); err != nil {
+		t.Fatalf("cache entry should be kept after a failed delete: %v", err)
+	}
+}
+
+func Test_reconcileAllPolicies_BlocksOnGenuinePushFailureToConnectedNode(t *testing.T) {
+	crdClient := crdfake.NewSimpleClientset()
+	crdFactory := externalversions.NewSharedInformerFactory(crdClient, time.Hour)
+	policyStore := crdFactory.Microsegmentation().V1alpha1().ClusterNetworkPolicies().Informer().GetIndexer()
+
+	policyStore.Add(&crdv1alpha1.ClusterNetworkPolicy{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-a"},
+		Spec:       crdv1alpha1.ClusterNetworkPolicySpec{Enable: false},
+	})
+
+	cache := newPushedRuleGroupCache()
+	cache.Set(&crdv1alpha1.NetworkPolicyRuleGroup{
+		ObjectMeta: v1.ObjectMeta{Name: "policy-a-node1", Labels: map[string]string{"kubernetes.io/networkpolicy-name": "policy-a"}},
+		Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{NodeName: "node1"},
+	})
+	// node1-daemon IS connected, so its push failure is a genuine delivery
+	// problem, not a not-yet-connected one — this must still block warm.
+	stream := &fakeRuleGroupStream{
+		connected:  []string{"node1-daemon"},
+		errForNode: map[string]error{"node1-daemon": errors.New("stream send: broken pipe")},
+	}
+
+	npc := &NetworkPolicyController{
+		policyLister:    crdFactory.Microsegmentation().V1alpha1().ClusterNetworkPolicies().Lister(),
+		ruleGroupPusher: &grpcRuleGroupPusher{cache: cache, stream: stream},
+	}
+
+	if ok := npc.reconcileAllPolicies(); ok {
+		t.Fatal("reconcileAllPolicies reported success despite a genuine push failure to a connected node")
+	}
+}
+
+// newRuleGroupTestController builds a NetworkPolicyController wired to fake
+// pod/namespace/service/clusterGroup listers backed by real in-memory
+// informer indexers, for exercising generateRules directly — the only
+// rule-generation path syncPolicy actually calls.
+func newRuleGroupTestController(t *testing.T) (npc *NetworkPolicyController, podStore, clusterGroupStore cache.Indexer) {
+	t.Helper()
+	client := fake.NewSimpleClientset()
+	factory := informers.NewSharedInformerFactory(client, time.Hour)
+
+	crdClient := crdfake.NewSimpleClientset()
+	crdFactory := externalversions.NewSharedInformerFactory(crdClient, time.Hour)
+
+	stopChan := make(chan struct{})
+	factory.Start(stopChan)
+	factory.WaitForCacheSync(stopChan)
+	crdFactory.Start(stopChan)
+	crdFactory.WaitForCacheSync(stopChan)
+
+	npc = &NetworkPolicyController{
+		podLister:          factory.Core().V1().Pods().Lister(),
+		namespaceLister:    factory.Core().V1().Namespaces().Lister(),
+		serviceLister:      factory.Core().V1().Services().Lister(),
+		clusterGroupLister: crdFactory.Microsegmentation().V1alpha1().ClusterWorkloadSets().Lister(),
+	}
+	return npc,
+		factory.Core().V1().Pods().Informer().GetIndexer(),
+		crdFactory.Microsegmentation().V1alpha1().ClusterWorkloadSets().Informer().GetIndexer()
+}
+
+// TestGenerateRules_PartiallyEmptyPeerListDoesNotDropWholeRule is a
+// regression test for the emptyWorkload bug: a rule with multiple `From`
+// peers used to be discarded in its entirety — for every node, both
+// directions — if ANY single peer resolved to zero addresses (e.g. a
+// scaled-to-zero deployment), even though other peers in the same list
+// resolved to real, currently-running pods. It must produce rules for the
+// peers that do resolve.
+func TestGenerateRules_PartiallyEmptyPeerListDoesNotDropWholeRule(t *testing.T) {
+	npc, podStore, _ := newRuleGroupTestController(t)
+
+	webPod := &corev1.Pod{
+		ObjectMeta: v1.ObjectMeta{Namespace: "ns-1", Name: "web", Labels: map[string]string{"app": "web"}},
+		Spec:       corev1.PodSpec{NodeName: "node-web"},
+		Status:     corev1.PodStatus{PodIP: "10.0.0.1"},
+	}
+	dbPod := &corev1.Pod{
+		ObjectMeta: v1.ObjectMeta{Namespace: "ns-1", Name: "db", Labels: map[string]string{"app": "db"}},
+		Spec:       corev1.PodSpec{NodeName: "node-db"},
+		Status:     corev1.PodStatus{PodIP: "10.0.0.2"},
+	}
+	podStore.Add(webPod)
+	podStore.Add(dbPod)
+
+	action := crdv1alpha1.RuleActionAllow
+	policy := &crdv1alpha1.ClusterNetworkPolicy{
+		ObjectMeta: v1.ObjectMeta{Name: "web-to-db"},
+		Spec: crdv1alpha1.ClusterNetworkPolicySpec{
+			Priority: 100,
+			Rules: []crdv1alpha1.Rule{
+				{
+					Name:   "allow-web-db",
+					Enable: true,
+					Action: &action,
+					From: []crdv1alpha1.NetworkPolicyPeer{
+						// peerA currently matches nothing (e.g. scaled to
+						// zero): no PodSelector match, no IPBlock, no Group.
+						{PodSelector: &v1.LabelSelector{MatchLabels: map[string]string{"app": "gone"}}},
+						// peerB: real, currently-running pods.
+						{PodSelector: &v1.LabelSelector{MatchLabels: map[string]string{"app": "web"}}},
+					},
+					To: []crdv1alpha1.NetworkPolicyPeer{
+						{PodSelector: &v1.LabelSelector{MatchLabels: map[string]string{"app": "db"}}},
+					},
+				},
+			},
+		},
+	}
+
+	ruleGroups, err := npc.generateRules(policy)
+	if err != nil {
+		t.Fatalf("generateRules() error = %v", err)
+	}
+	if len(ruleGroups) != 2 {
+		t.Fatalf("generateRules() returned %d rule groups, want 2 (node-web, node-db); peerB->peerC traffic must not be dropped because unrelated peerA matched nothing: %+v", len(ruleGroups), ruleGroups)
+	}
+
+	webRG := ruleGroups["node-web"]
+	if webRG == nil || len(webRG.Spec.Rules) != 1 || webRG.Spec.Rules[0].Direction != "egress" {
+		t.Fatalf("node-web: expected one egress rule, got %+v", webRG)
+	}
+	if got := webRG.Spec.Rules[0].ToAddresses; len(got) != 1 || got[0].IP != "10.0.0.2" {
+		t.Errorf("node-web egress rule ToAddresses = %+v, want [10.0.0.2]", got)
+	}
+
+	dbRG := ruleGroups["node-db"]
+	if dbRG == nil || len(dbRG.Spec.Rules) != 1 || dbRG.Spec.Rules[0].Direction != "ingress" {
+		t.Fatalf("node-db: expected one ingress rule, got %+v", dbRG)
+	}
+	if got := dbRG.Spec.Rules[0].FromAddress; len(got) != 1 || got[0].IP != "10.0.0.1" {
+		t.Errorf("node-db ingress rule FromAddress = %+v, want [10.0.0.1]", got)
+	}
+}
+
+func TestGenerateRules_TwoNodeIngressAndEgress(t *testing.T) {
+	npc, podStore, _ := newRuleGroupTestController(t)
+
+	fromPod := &corev1.Pod{
+		ObjectMeta: v1.ObjectMeta{Namespace: "ns-1", Name: "client", Labels: map[string]string{"app": "client"}},
+		Spec:       corev1.PodSpec{NodeName: "node-a"},
+		Status:     corev1.PodStatus{PodIP: "10.0.1.1"},
+	}
+	toPod := &corev1.Pod{
+		ObjectMeta: v1.ObjectMeta{Namespace: "ns-1", Name: "server", Labels: map[string]string{"app": "server"}},
+		Spec:       corev1.PodSpec{NodeName: "node-b"},
+		Status:     corev1.PodStatus{PodIP: "10.0.2.1"},
+	}
+	podStore.Add(fromPod)
+	podStore.Add(toPod)
+
+	action := crdv1alpha1.RuleActionAllow
+	policy := &crdv1alpha1.ClusterNetworkPolicy{
+		ObjectMeta: v1.ObjectMeta{Name: "client-to-server"},
+		Spec: crdv1alpha1.ClusterNetworkPolicySpec{
+			Priority: 50,
+			Rules: []crdv1alpha1.Rule{
+				{
+					Name:   "allow-client-server",
+					Enable: true,
+					Action: &action,
+					From:   []crdv1alpha1.NetworkPolicyPeer{{PodSelector: &v1.LabelSelector{MatchLabels: map[string]string{"app": "client"}}}},
+					To:     []crdv1alpha1.NetworkPolicyPeer{{PodSelector: &v1.LabelSelector{MatchLabels: map[string]string{"app": "server"}}}},
+				},
+			},
+		},
+	}
+
+	ruleGroups, err := npc.generateRules(policy)
+	if err != nil {
+		t.Fatalf("generateRules() error = %v", err)
+	}
+	if len(ruleGroups) != 2 {
+		t.Fatalf("expected rule groups for both nodes, got %+v", ruleGroups)
+	}
+
+	nodeA := ruleGroups["node-a"]
+	if nodeA == nil || len(nodeA.Spec.Rules) != 1 || nodeA.Spec.Rules[0].Direction != "egress" {
+		t.Fatalf("node-a: expected one egress rule, got %+v", nodeA)
+	}
+	if got := nodeA.Spec.Rules[0].ToAddresses; len(got) != 1 || got[0].IP != "10.0.2.1" {
+		t.Errorf("node-a egress rule ToAddresses = %+v, want [10.0.2.1]", got)
+	}
+
+	nodeB := ruleGroups["node-b"]
+	if nodeB == nil || len(nodeB.Spec.Rules) != 1 || nodeB.Spec.Rules[0].Direction != "ingress" {
+		t.Fatalf("node-b: expected one ingress rule, got %+v", nodeB)
+	}
+	if got := nodeB.Spec.Rules[0].FromAddress; len(got) != 1 || got[0].IP != "10.0.1.1" {
+		t.Errorf("node-b ingress rule FromAddress = %+v, want [10.0.1.1]", got)
+	}
+}
+
+// TestGenerateRules_GroupPeerWithIPBlockOnly covers a peer that resolves
+// purely through a ClusterWorkloadSet's static IPBlock (no matching pods) —
+// exercising the hasToTarget guard that replaced the old whole-rule
+// emptyWorkload abort: a peer with no matching pods must still produce an
+// IPBlock-based rule rather than being treated as "nothing to enforce".
+func TestGenerateRules_GroupPeerWithIPBlockOnly(t *testing.T) {
+	npc, podStore, clusterGroupStore := newRuleGroupTestController(t)
+
+	srcPod := &corev1.Pod{
+		ObjectMeta: v1.ObjectMeta{Namespace: "ns-1", Name: "src", Labels: map[string]string{"app": "src"}},
+		Spec:       corev1.PodSpec{NodeName: "node-src"},
+		Status:     corev1.PodStatus{PodIP: "10.0.3.1"},
+	}
+	podStore.Add(srcPod)
+
+	clusterGroupStore.Add(&crdv1alpha1.ClusterWorkloadSet{
+		ObjectMeta: v1.ObjectMeta{Name: "external-cidr"},
+		Spec: crdv1alpha1.ClusterWorkloadSetSpec{
+			IPBlock: &crdv1alpha1.IPBlock{CIDR: "203.0.113.0/24"},
+		},
+	})
+
+	action := crdv1alpha1.RuleActionAllow
+	policy := &crdv1alpha1.ClusterNetworkPolicy{
+		ObjectMeta: v1.ObjectMeta{Name: "src-to-external"},
+		Spec: crdv1alpha1.ClusterNetworkPolicySpec{
+			Priority: 10,
+			Rules: []crdv1alpha1.Rule{
+				{
+					Name:   "allow-external",
+					Enable: true,
+					Action: &action,
+					From:   []crdv1alpha1.NetworkPolicyPeer{{PodSelector: &v1.LabelSelector{MatchLabels: map[string]string{"app": "src"}}}},
+					To:     []crdv1alpha1.NetworkPolicyPeer{{Group: "external-cidr"}},
+				},
+			},
+		},
+	}
+
+	ruleGroups, err := npc.generateRules(policy)
+	if err != nil {
+		t.Fatalf("generateRules() error = %v", err)
+	}
+	if len(ruleGroups) != 1 {
+		t.Fatalf("expected exactly one rule group (node-src), got %+v", ruleGroups)
+	}
+	rg := ruleGroups["node-src"]
+	if rg == nil || len(rg.Spec.Rules) != 1 {
+		t.Fatalf("node-src: expected one egress rule, got %+v", rg)
+	}
+	rule := rg.Spec.Rules[0]
+	if rule.Direction != "egress" {
+		t.Errorf("direction = %s, want egress", rule.Direction)
+	}
+	if len(rule.ToIPBlock) != 1 || rule.ToIPBlock[0].CIDR != "203.0.113.0/24" {
+		t.Errorf("ToIPBlock = %+v, want [203.0.113.0/24]", rule.ToIPBlock)
+	}
+	if len(rule.ToAddresses) != 0 {
+		t.Errorf("ToAddresses = %+v, want empty (group has no matching pods)", rule.ToAddresses)
+	}
+}
+
+func TestGenerateRules_DisabledRuleIsSkipped(t *testing.T) {
+	npc, podStore, _ := newRuleGroupTestController(t)
+
+	fromPod := &corev1.Pod{
+		ObjectMeta: v1.ObjectMeta{Namespace: "ns-1", Name: "client", Labels: map[string]string{"app": "client"}},
+		Spec:       corev1.PodSpec{NodeName: "node-a"},
+		Status:     corev1.PodStatus{PodIP: "10.0.1.1"},
+	}
+	toPod := &corev1.Pod{
+		ObjectMeta: v1.ObjectMeta{Namespace: "ns-1", Name: "server", Labels: map[string]string{"app": "server"}},
+		Spec:       corev1.PodSpec{NodeName: "node-b"},
+		Status:     corev1.PodStatus{PodIP: "10.0.2.1"},
+	}
+	podStore.Add(fromPod)
+	podStore.Add(toPod)
+
+	action := crdv1alpha1.RuleActionAllow
+	policy := &crdv1alpha1.ClusterNetworkPolicy{
+		ObjectMeta: v1.ObjectMeta{Name: "disabled-rule"},
+		Spec: crdv1alpha1.ClusterNetworkPolicySpec{
+			Priority: 1,
+			Rules: []crdv1alpha1.Rule{
+				{
+					Name:   "disabled",
+					Enable: false,
+					Action: &action,
+					From:   []crdv1alpha1.NetworkPolicyPeer{{PodSelector: &v1.LabelSelector{MatchLabels: map[string]string{"app": "client"}}}},
+					To:     []crdv1alpha1.NetworkPolicyPeer{{PodSelector: &v1.LabelSelector{MatchLabels: map[string]string{"app": "server"}}}},
+				},
+			},
+		},
+	}
+
+	ruleGroups, err := npc.generateRules(policy)
+	if err != nil {
+		t.Fatalf("generateRules() error = %v", err)
+	}
+	if len(ruleGroups) != 0 {
+		t.Errorf("expected no rule groups for a disabled rule, got %+v", ruleGroups)
 	}
 }

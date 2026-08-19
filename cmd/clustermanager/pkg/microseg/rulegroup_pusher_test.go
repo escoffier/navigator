@@ -18,11 +18,23 @@ type fakeRuleGroupStream struct {
 		req     *pb.NetworkPolicyRuleGroupReq
 	}
 	err error
+	// errForNode fails only pushes to the given nodeKey, leaving others to
+	// succeed — used to test that a per-node failure doesn't abort the rest
+	// of a batch (e.g. DeleteByPolicy).
+	errForNode map[string]error
+	// connected is returned by ConnectedNodeKeys; a nodeKey absent from it
+	// is treated as having no live connection, so a push failure to it gets
+	// classified as errNodeNotConnected by grpcRuleGroupPusher.wrapPushErr.
+	// Tests that don't care about that distinction can leave this nil.
+	connected []string
 }
 
 func (f *fakeRuleGroupStream) PushRuleGroup(_ context.Context, nodeKey string, msgType pb.MessageType, req *pb.NetworkPolicyRuleGroupReq) error {
 	if f.err != nil {
 		return f.err
+	}
+	if err, ok := f.errForNode[nodeKey]; ok {
+		return err
 	}
 	f.pushed = append(f.pushed, struct {
 		nodeKey string
@@ -31,6 +43,8 @@ func (f *fakeRuleGroupStream) PushRuleGroup(_ context.Context, nodeKey string, m
 	}{nodeKey, msgType, req})
 	return nil
 }
+
+func (f *fakeRuleGroupStream) ConnectedNodeKeys() []string { return f.connected }
 
 func Test_grpcRuleGroupPusher_Create(t *testing.T) {
 	cache := newPushedRuleGroupCache()
@@ -118,5 +132,43 @@ func Test_grpcRuleGroupPusher_DeleteByPolicy(t *testing.T) {
 	}
 	if all, _ := cache.List(nil); len(all) != 0 {
 		t.Fatalf("cache not empty after DeleteByPolicy: %+v", all)
+	}
+}
+
+func Test_grpcRuleGroupPusher_DeleteByPolicy_AttemptsAllGroupsEvenWhenOneFails(t *testing.T) {
+	cache := newPushedRuleGroupCache()
+	for _, node := range []string{"node1", "node2", "node3"} {
+		cache.Set(&crdv1alpha1.NetworkPolicyRuleGroup{
+			ObjectMeta: v1.ObjectMeta{Name: "policy-" + node, Labels: map[string]string{"kubernetes.io/networkpolicy-name": "policy"}},
+			Spec:       crdv1alpha1.NetworkPolicyRuleGroupSpec{NodeName: node},
+		})
+	}
+	stream := &fakeRuleGroupStream{errForNode: map[string]error{"node2-daemon": errors.New("push failed")}}
+	p := &grpcRuleGroupPusher{cache: cache, stream: stream}
+
+	err := p.DeleteByPolicy(context.Background(), "policy")
+	if err == nil {
+		t.Fatal("DeleteByPolicy: want error since node2's delete failed, got nil")
+	}
+
+	if len(stream.pushed) != 2 {
+		t.Fatalf("pushed %d messages, want 2 (node1 and node3 still attempted despite node2 failing)", len(stream.pushed))
+	}
+	pushedNodes := map[string]bool{}
+	for _, p := range stream.pushed {
+		pushedNodes[p.nodeKey] = true
+	}
+	if !pushedNodes["node1-daemon"] || !pushedNodes["node3-daemon"] {
+		t.Fatalf("pushed = %+v, want node1-daemon and node3-daemon both attempted", stream.pushed)
+	}
+
+	if _, err := cache.Get("policy-node1"); err == nil {
+		t.Fatal("cache still has policy-node1 after successful delete")
+	}
+	if _, err := cache.Get("policy-node3"); err == nil {
+		t.Fatal("cache still has policy-node3 after successful delete")
+	}
+	if _, err := cache.Get("policy-node2"); err != nil {
+		t.Fatalf("cache entry for failed node2 delete should be kept: %v", err)
 	}
 }
