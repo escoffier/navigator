@@ -194,9 +194,7 @@ message NetworkPolicyRuleGroupResp {
 
 ### Known limitations (surfaced across three rounds of final whole-branch review)
 
-Three gaps were found here, all architectural rather than implementation bugs — all three are now
-fixed. A fourth, narrower gap (error handling, not architectural) was found by the third review;
-it's tracked separately below.
+Four gaps have been found here — all four are now fixed.
 
 - **Non-durable pushed-state cache loses DELETEs across a clustermanager restart** (tracked as
   [#2](https://github.com/escoffier/navigator/issues/2), fixed). Today's CRD
@@ -236,11 +234,16 @@ it's tracked separately below.
   (`networkpolicy_controller.go`) all acquire across "read/mutate the cache for this node" plus
   "enqueue the corresponding push," so the two code paths can never interleave for the same node.
 - **Failed DELETE push leaves a stale cache entry that resurrects on daemon reconnect** (tracked
-  as [#5](https://github.com/escoffier/navigator/issues/5)). `grpcRuleGroupPusher.Delete`
+  as [#5](https://github.com/escoffier/navigator/issues/5), fixed). `grpcRuleGroupPusher.Delete`
   deliberately keeps the cache entry when the push itself fails (so a later attempt can retry), but
-  `syncPolicyRules`'s delete loop only logs that error — it never returns it, so the policy is
+  `syncPolicyRules`'s delete loop used to only log that error — never return it, so the policy was
   never requeued with backoff. The most likely failure is the target daemon being disconnected,
-  which is exactly the reconnect scenario issue #4 concerned — so a deleted rule group can still
+  which is exactly the reconnect scenario issue #4 concerned — so a deleted rule group could still
   resurrect on reconnect through this path, via swallowed error handling rather than a race. Self-
-  heals only via the 8-hour informer resync. Needs `syncPolicyRules` to aggregate and return delete
-  errors so `handleErr` requeues the policy.
+  healed only via the 8-hour informer resync. Fixed by having `syncPolicyRules` accumulate any
+  `Delete`/`Update` push failure (while still attempting every other rule group in the same call)
+  and return it, so `processNextItem`/`handleErr`'s existing requeue-with-backoff picks the policy
+  back up instead of the error being silently dropped after logging. This narrows rather than fully
+  eliminates the exposure window: `handleErr` gives up after `maxRetries` (15) exponential-backoff
+  attempts and forgets the key, so a daemon disconnected long enough to exhaust all of them still
+  relies on the 8-hour informer resync as the final backstop, same as before this fix.
